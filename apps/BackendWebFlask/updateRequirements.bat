@@ -1,5 +1,2 @@
-# Activate
-.\venv\Scripts\Activate.bat
-
-# Update
-pip freeze > requirements.txt
+:: Activate & Update
+.\.venv\Scripts\pip freeze > requirements.txt

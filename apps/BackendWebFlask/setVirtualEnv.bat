@@ -1,8 +1,5 @@
-# Create
-python -m venv .venv
+:: Create
+call python -m venv .venv
 
-# Activate
-.\venv\Scripts\Activate.bat
-
-# Install
-pip install -r requirements.txt
+:: Install
+.\.venv\Scripts\pip install -r requirements.txt
