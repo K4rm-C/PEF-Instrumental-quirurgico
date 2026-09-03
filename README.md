@@ -20,7 +20,7 @@ Equipo de apoyo
 | Integrante | Matrícula |
 | :--- | :--- |
 | Luis Carlos Rodriguez Medrano | 606869 |
-| Carlos Ignacio Huerta Carrizales | - |
+| Carlos Ignacio Huerta Carrizales | 600291 |
 | Juan Hermilo Reyes Pérez | - |
 
 **Asesor:** Dr. Raúl Morales Salcedo
