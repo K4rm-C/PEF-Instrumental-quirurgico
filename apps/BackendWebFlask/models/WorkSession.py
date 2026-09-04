@@ -10,8 +10,8 @@ class WorkSession(db.Model):
     
     # Atributos
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    started_at: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    ended_at: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    ended_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     status_id: Mapped[uuid.UUID]  = mapped_column(ForeignKey('cat_session_status.id'), nullable=False)
     user_id: Mapped[uuid.UUID]  = mapped_column(ForeignKey('user.id'), nullable=False)
     operation_id: Mapped[uuid.UUID]  = mapped_column(ForeignKey('operation.id'), nullable=False)
@@ -19,14 +19,14 @@ class WorkSession(db.Model):
     kit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('kit.id'), nullable=False)
     atypical_session: Mapped[bool] = mapped_column(Boolean, nullable=False)
     extended_retention: Mapped[bool] = mapped_column(Boolean, nullable=False)
-    retention_until: Mapped[TIMESTAMP] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    retention_until: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     
     # Relaciones
-    # WorkSession -> cat_session_status "status"
-    # WorkSession -> user  "user"
-    # WorkSession -> operation "operation"
-    # WorkSession -> station "station"
-    # WorkSession -> kit "kit"
-    # WorkSession <- count_event "audit"
-    # WorkSession <- discrepancy "conflicts"
-    # WorkSessionn <- expected_inventory "inventorySnapshot"
+    status: Mapped["CatSessionStatus"] = relationship("CatSessionStatus", back_populates="sessions") # WorkSession -> CatSessionStatus "status"
+    # WorkSession -> User  "user"
+    # WorkSession -> Operation "operation"
+    # WorkSession -> Station "station"
+    # WorkSession -> Kit "kit"
+    audit: Mapped[list["CountEvent"]] = relationship("CountEvent", back_populates="session") # WorkSession << CountEvent "audit"
+    conflicts: Mapped[list["Discrepancy"]] = relationship("Discrepancy", back_populates="session") # WorkSession << Discrepancy "conflicts"
+    # WorkSession << ExpectedInventory "inventorySnapshot"
