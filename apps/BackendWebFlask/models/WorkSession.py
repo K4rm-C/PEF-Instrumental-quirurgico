@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 class WorkSession(db.Model):
     __tablename__ = 'work_session'
     
-    # Atributos
+    # Attributes
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     started_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     ended_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
@@ -21,11 +21,11 @@ class WorkSession(db.Model):
     extended_retention: Mapped[bool] = mapped_column(Boolean, nullable=False)
     retention_until: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     
-    # Relaciones
+    # Relations
     status: Mapped["CatSessionStatus"] = relationship("CatSessionStatus", back_populates="sessions") # WorkSession -> CatSessionStatus "status"
     # WorkSession -> User  "user"
     # WorkSession -> Operation "operation"
-    # WorkSession -> Station "station"
+    station: Mapped["CaptureStation"] = relationship("CaptureStation", back_populates="sessions") # WorkSession -> CaptureStation "station"
     # WorkSession -> Kit "kit"
     audit: Mapped[list["CountEvent"]] = relationship("CountEvent", back_populates="session") # WorkSession << CountEvent "audit"
     conflicts: Mapped[list["Discrepancy"]] = relationship("Discrepancy", back_populates="session") # WorkSession << Discrepancy "conflicts"

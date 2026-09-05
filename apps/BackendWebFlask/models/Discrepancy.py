@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 class Discrepancy(db.Model):
     __tablename__ = 'discrepancy'
     
-    # Atributes
+    # Attributes
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     resolved: Mapped[bool] = mapped_column(Boolean,nullable=False)

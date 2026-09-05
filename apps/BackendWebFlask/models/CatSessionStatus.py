@@ -4,13 +4,13 @@ from sqlalchemy.orm import Mapped,mapped_column,relationship
 from sqlalchemy import ForeignKey, String
 import uuid
 
-class CatSessionStatus(db.Model): # Falta settear tamaño de strings
+class CatSessionStatus(db.Model): # Missing String size
     __tablename__ = 'cat_session_status'
     
-    # Atributos
+    # Attributes
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code: Mapped[str] = mapped_column(String(), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(), nullable=False)
     
-    # Relaciones
+    # Relations
     sessions: Mapped[list["WorkSessions"]] = relationship("WorkSessions", back_populates="status") # CatSessionStatus << WorkSessions 'sessions'
