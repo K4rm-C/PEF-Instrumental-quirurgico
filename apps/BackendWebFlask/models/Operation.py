@@ -25,5 +25,5 @@ class Operation(db.Model):
     # Operation -> Institution 'institution'
     # Operation << OperationPhysichian 'team'
     # Operation << InstrumentCycleEvent 'cycle'
-    # Operation << OperationPatient 'involves'
+    involves: Mapped[list["OperationPatient"]] = relationship("OperationPatient", back_populates="operation") # Operation << OperationPatient 'involves'
     # Operation << InstrumentResevation 'reserves'
