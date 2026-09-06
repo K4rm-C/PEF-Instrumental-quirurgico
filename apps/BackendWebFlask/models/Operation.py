@@ -24,6 +24,7 @@ class Operation(db.Model):
     location: Mapped["OperatingRoom"] = relationship("OperatingRoom", back_populates="operations") # Operation -> OperatingRoom 'location'
     # Operation -> Institution 'institution'
     # Operation << OperationPhysichian 'team'
-    # Operation << InstrumentCycleEvent 'cycle'
+    cycle: Mapped[list["InstrumentCycleEvent"]] = relationship("InstrumentCycleEvent", back_populates="operation") # Operation << InstrumentCycleEvent 'cycle'
     involves: Mapped[list["OperationPatient"]] = relationship("OperationPatient", back_populates="operation") # Operation << OperationPatient 'involves'
     # Operation << InstrumentResevation 'reserves'
+    sessions: Mapped[list["WorkSession"]] = relationship("WorkSession", back_populates="operation") # Operation << WorkSession 'sessions'

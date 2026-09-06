@@ -24,9 +24,10 @@ class WorkSession(db.Model):
     # Relations
     status: Mapped["CatSessionStatus"] = relationship("CatSessionStatus", back_populates="sessions") # WorkSession -> CatSessionStatus "status"
     # WorkSession -> User  "user"
-    # WorkSession -> Operation "operation"
+    operation: Mapped["Operation"] = relationship("Operation", back_populates="sessions") # WorkSession -> Operation "operation"
     station: Mapped["CaptureStation"] = relationship("CaptureStation", back_populates="sessions") # WorkSession -> CaptureStation "station"
     # WorkSession -> Kit "kit"
     audit: Mapped[list["CountEvent"]] = relationship("CountEvent", back_populates="session") # WorkSession << CountEvent "audit"
     conflicts: Mapped[list["Discrepancy"]] = relationship("Discrepancy", back_populates="session") # WorkSession << Discrepancy "conflicts"
     # WorkSession << ExpectedInventory "inventorySnapshot"
+    cycle: Mapped[list["InstrumentCycleEvents"]] = relationship("InstrumentCycleEvents", back_populates="session") # WorkSession << InstrumentCycleEvent 'cycle'
