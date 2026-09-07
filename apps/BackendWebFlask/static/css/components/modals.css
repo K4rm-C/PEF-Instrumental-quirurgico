@@ -1,0 +1,112 @@
+/*
+  Modal styling. Used by templates/components/modals/close_session.html and
+  supervisor_review_required.html (opened/closed by the generic static/js/modal.js).
+*/
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 20, 25, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    z-index: 100;
+}
+
+.modal-overlay[hidden] {
+    display: none;
+}
+
+.modal-dialog {
+    background-color: var(--color-surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: var(--space-6);
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.modal-dialog__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+}
+
+.modal-dialog__icon--warning {
+    background-color: var(--color-warning-surface);
+    color: var(--color-warning);
+}
+
+.modal-dialog__icon--success {
+    background-color: var(--color-success-surface);
+    color: var(--color-success);
+}
+
+.modal-dialog__icon .icon {
+    width: 22px;
+    height: 22px;
+}
+
+.modal-dialog__title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+}
+
+.modal-dialog__description {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.modal-dialog__info-box {
+    background-color: var(--color-surface-secondary);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    font-size: var(--font-size-sm);
+}
+
+.modal-dialog__info-highlight {
+    color: var(--color-danger);
+    font-weight: var(--font-weight-semibold);
+}
+
+.modal-dialog__info-separator {
+    color: var(--color-text-tertiary);
+    margin: 0 var(--space-2);
+}
+
+/* Row variant of .modal-dialog__info-box showing a user's avatar + name + role (IT
+   Administrator's Deactivate User modal). */
+.modal-dialog__info-box--user {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.modal-dialog__user-name {
+    display: block;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.modal-dialog__user-role {
+    display: block;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.modal-dialog__actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}

@@ -1,0 +1,242 @@
+.card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.card__title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+}
+
+.stat-card-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--space-4);
+}
+
+.stat-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.stat-card__label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.stat-card__value {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+}
+
+.stat-card--info {
+    border-color: var(--color-info);
+}
+
+.stat-card--info .stat-card__value {
+    color: var(--color-info);
+}
+
+.stat-card--danger {
+    border-color: var(--color-danger);
+}
+
+.stat-card--danger .stat-card__value {
+    color: var(--color-danger);
+}
+
+.stat-card--warning {
+    border-color: var(--color-warning);
+}
+
+.stat-card--warning .stat-card__value {
+    color: var(--color-warning);
+}
+
+.stat-card--success {
+    border-color: var(--color-success);
+}
+
+.stat-card--success .stat-card__value {
+    color: var(--color-success);
+}
+
+/* Optional third line under a stat card's value (e.g. "Expected Instruments" under a PRE/POST
+   Procedure Comparison figure). Plain stat cards built via the stat_card() macro don't use it. */
+.stat-card__description {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.stat-card-grid--three {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+/* Small uppercase note anchored to the right of a card header (e.g. "DIFFERENCE: -1" next to
+   a "PRE/POST Procedure Status" title). Pair with a .text-* color utility. */
+.card__header-note {
+    margin-left: auto;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.dashboard-panels {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: var(--space-4);
+}
+
+/* Helper subtitle shown directly under a .card__title (e.g. under "SECTION 1 - Session
+   Setup"): a short secondary line describing the section. */
+.card__subtitle {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+/* Wraps a .card__title + .card__subtitle pair with tighter spacing than the card's
+   default content gap, and a form grid below it. */
+.card__header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.form-grid--four {
+    grid-template-columns: repeat(4, 1fr);
+}
+
+/*
+  Report cards (Supervisor Reports): a .card with an icon + title + description header, a
+  divider, and a footer pairing a "last generated" note with Export / View Report actions.
+*/
+.report-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-4);
+}
+
+.report-card__header {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+}
+
+.report-card__icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background-color: var(--color-primary-surface);
+    color: var(--color-primary);
+}
+
+.report-card__title {
+    font-weight: var(--font-weight-semibold);
+}
+
+.report-card__description {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.report-card__divider {
+    border-top: 1px solid var(--color-border);
+}
+
+.report-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.report-card__meta {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.report-card__actions {
+    display: flex;
+    gap: var(--space-3);
+}
+
+/* Narrower card width for IT Administrator's single-column New/Edit forms (Instrument
+   Family, Instrument, Kit, User, Role, Capture Station, Institution Information), matching
+   the approved Figma references rather than stretching the form across the full content
+   width like the wide catalog/list table cards. */
+.card--form {
+    max-width: 760px;
+}
+
+/* Two-column stat card grid (IT Administrator Kit form's "Instrument Types" / "Total
+   Expected Instruments" summary tiles). */
+.stat-card-grid--two {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+/* Card header pairing a title with a right-aligned action button on the same row (IT
+   Administrator Configuration's "Institution Information" / "Capture Stations" cards). */
+.card__title-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+    .form-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .form-grid--four {
+        grid-template-columns: 1fr;
+    }
+
+    .report-card-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1024px) {
+    .stat-card-grid,
+    .stat-card-grid--three {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .dashboard-panels {
+        grid-template-columns: 1fr;
+    }
+
+    .form-grid--four {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}

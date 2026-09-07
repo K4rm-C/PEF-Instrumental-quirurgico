@@ -1,0 +1,86 @@
+{% import "components/macros.html" as macros %}
+{% set active_nav_item = active_nav_item|default('dashboard') %}
+
+{#
+    Integration point: nav_urls is an optional dict of {nav-key: url} used to resolve each
+    link's href. When it is not provided (production, until real Flask routes exist), every
+    link safely falls back to "#" via the |default('#') filter below — no behavior change.
+    The DEVELOPMENT-ONLY preview harness (devtools/frontend_preview.py) passes nav_urls
+    pointing at its own preview routes so the sidebar can be clicked through during review.
+    Recognized keys: dashboard, counting_sessions, new_session, session_history.
+    Intended production endpoints (documented in FRONTEND_INTEGRATION.md):
+    operator.dashboard, operator.counting_sessions, operator.new_session,
+    operator.session_history, operator.profile, auth.sign_out
+#}
+{% set nav_urls = nav_urls|default({}) %}
+
+<div class="sidebar__brand">
+    <p class="sidebar__brand-name">{{ _("Surgical Instrument") }}</p>
+    <p class="sidebar__brand-subtitle">{{ _("Traceability System") }}</p>
+</div>
+
+<nav class="sidebar__nav" aria-label="{{ _('Operator navigation') }}">
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Home") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'dashboard' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.dashboard|default('#') }}"
+                   {% if active_nav_item == 'dashboard' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_grid() }}
+                    <span>{{ _("Dashboard") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Operations") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'counting_sessions' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.counting_sessions|default('#') }}"
+                   {% if active_nav_item == 'counting_sessions' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_clipboard() }}
+                    <span>{{ _("Counting Sessions") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'new_session' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.new_session|default('#') }}"
+                   {% if active_nav_item == 'new_session' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_plus_circle() }}
+                    <span>{{ _("New Session") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'session_history' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.session_history|default('#') }}"
+                   {% if active_nav_item == 'session_history' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_history() }}
+                    <span>{{ _("Session History") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Account") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'profile' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.profile|default('#') }}"
+                   {% if active_nav_item == 'profile' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_user() }}
+                    <span>{{ _("My Profile") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link" href="{{ nav_urls.sign_out|default('#') }}">
+                    {{ macros.icon_sign_out() }}
+                    <span>{{ _("Sign Out") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+</nav>

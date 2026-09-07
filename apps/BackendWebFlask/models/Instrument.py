@@ -17,7 +17,7 @@ class Instrument(db.Model): # Missing String size
     active: Mapped[bool] = mapped_column(Boolean, nullable=False)
     
     # Relations
-    # Instrument -> InstrumentFamily 'family'
+    family: Mapped["InstrumentFamily"] = relationship("InstrumentFamily", back_populates="units") # Instrument -> InstrumentFamily 'family'
     cycle_status: Mapped["CatInstrumentCycleStatus"] = relationship("CatInstrumentCycleStatus", back_populates="instruments") # Instrument -> CatInstrumentCycleStatus 'cycle_status'
     # Instrument -> Institution 'institution'
     history: Mapped[list["InstrumentCycleEvent"]] = relationship("InstrumentCycleEvent", back_populates="instrument") # Instrument << InstrumentCycleEvent 'history'

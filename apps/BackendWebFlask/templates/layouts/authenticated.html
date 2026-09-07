@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block body_class %}app-page{% endblock %}
+
+{% block content %}
+<div class="app-shell">
+    <aside class="sidebar" aria-label="{{ _('Primary navigation') }}">
+        {% block sidebar %}{% endblock %}
+    </aside>
+    <div class="main-area">
+        <header class="top-header">
+            {# Breadcrumb content differs per page, so each page overrides this block directly;
+               the right-hand controls (notifications, language, theme, user menu) are the
+               same everywhere and live in partials/header.html. #}
+            <nav class="breadcrumb" aria-label="{{ _('Breadcrumb') }}">
+                {% block breadcrumb %}{% endblock %}
+            </nav>
+            {% include "partials/header.html" %}
+        </header>
+        <main class="page-content" id="main-content" tabindex="-1">
+            {% include "partials/flash_messages.html" %}
+            {% include "partials/feedback_banner.html" %}
+            {% block page_content %}{% endblock %}
+        </main>
+        {# Optional sticky action area (e.g. Cancel / Start Session). Empty by default, so
+           pages that don't override it (Sign In, Dashboard) render exactly as before. It sits
+           outside the scrollable .page-content, inside .main-area, so it never covers the
+           sidebar and never overlaps unscrolled content. #}
+        {% block page_action_bar %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

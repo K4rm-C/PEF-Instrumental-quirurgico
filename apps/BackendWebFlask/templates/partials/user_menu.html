@@ -1,0 +1,33 @@
+{% import "components/macros.html" as macros %}
+{% set current_user = current_user|default({
+    'name': _('Guest User'),
+    'role_label': _('Operator'),
+    'avatar_url': none
+}) %}
+{% set name_parts = current_user.name.split() %}
+{% set user_initials = (name_parts[0][0] ~ (name_parts[-1][0] if name_parts|length > 1 else '')) | upper %}
+
+{#
+    Integration point: current_user (name, role_label, avatar_url) must come from the
+    authenticated session once login exists; the values above are a placeholder fallback
+    only so this header is visually reviewable today.
+
+    Dropdown content for this menu (e.g. a profile/sign-out list) is not yet approved in
+    Figma, so only the visual affordance (avatar + name + role + chevron) is implemented.
+    The sidebar already exposes "My Profile" and "Sign Out" as placeholder links.
+#}
+<div class="user-menu">
+    {% if current_user.avatar_url %}
+        <img class="user-menu__avatar user-menu__avatar--photo" src="{{ current_user.avatar_url }}" alt="">
+    {% else %}
+        <span class="user-menu__avatar" aria-hidden="true">{{ user_initials }}</span>
+    {% endif %}
+    <span class="user-menu__identity">
+        <span class="user-menu__name">{{ current_user.name }}</span>
+        <span class="user-menu__role">{{ current_user.role_label }}</span>
+    </span>
+    <button type="button" class="icon-button user-menu__toggle" aria-haspopup="true" aria-expanded="false"
+            aria-label="{{ _('User menu') }}">
+        {{ macros.icon_chevron_down() }}
+    </button>
+</div>

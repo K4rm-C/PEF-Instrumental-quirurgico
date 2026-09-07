@@ -1,0 +1,90 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Configuration") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'configuration' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("System") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Configuration") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    institution and capture_stations below are placeholder values used only so this page is
+    visually reviewable before the backend supplies real data. Expected shapes are documented
+    in FRONTEND_INTEGRATION.md. Per section 29, this page keeps ONLY Institution Information
+    and Capture Stations — no General Settings, Session Timeout, AI/YOLO, GPU, database, or
+    cloud configuration sections exist anywhere in this interface.
+#}
+{% set institution = institution|default({
+    'name': 'Hospital Institution', 'code': 'HOSP-001', 'status_label': _('Active'), 'status_variant': 'success'
+}) %}
+{% set capture_stations = capture_stations|default([
+    {'code': 'CDE-01', 'name': 'Station CDE-01', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'},
+    {'code': 'CDE-02', 'name': 'Station CDE-02', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'},
+    {'code': 'CDE-03', 'name': 'Station CDE-03', 'status_label': _('Inactive'), 'status_variant': 'neutral', 'edit_url': '#'}
+]) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Configuration") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Manage operational system configuration required by the application.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    <div class="card__title-bar">
+        <h2 class="card__title">{{ _("Institution Information") }}</h2>
+        <a class="btn btn--secondary btn--small" href="{{ edit_institution_url|default('#') }}">{{ _("Edit") }}</a>
+    </div>
+    <div class="info-grid info-grid--three">
+        <div class="info-grid__item">{{ _("Institution Name") }}<br><strong>{{ institution.name }}</strong></div>
+        <div class="info-grid__item">{{ _("Institution Code") }}<br><strong>{{ institution.code }}</strong></div>
+        <div class="info-grid__item">{{ _("Status") }}<br>{{ macros.status_badge(institution.status_label, institution.status_variant) }}</div>
+    </div>
+</section>
+
+<section class="card">
+    <div class="card__title-bar">
+        <h2 class="card__title">{{ _("Capture Stations") }}</h2>
+        <a class="btn btn--primary btn--small" href="{{ new_capture_station_url|default('#') }}">
+            {{ macros.icon_plus() }}
+            <span>{{ _("New Capture Station") }}</span>
+        </a>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Station Code") }}</th>
+                    <th scope="col">{{ _("Station Name") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for station in capture_stations %}
+                <tr>
+                    <th scope="row">{{ station.code }}</th>
+                    <td>{{ station.name }}</td>
+                    <td>{{ macros.status_badge(station.status_label, station.status_variant) }}</td>
+                    <td class="data-table__action-column">
+                        <a class="btn btn--secondary btn--small" href="{{ station.edit_url }}">{{ _("Edit") }}</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

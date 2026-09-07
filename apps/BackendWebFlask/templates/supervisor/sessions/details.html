@@ -1,0 +1,254 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Session Details") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = active_nav_item|default('sessions') %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Monitoring") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Sessions") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ session.session_id }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    Everything below is placeholder data used only so this page is visually reviewable
+    before the backend supplies real data. This is a fully READ-ONLY view — no editing
+    controls anywhere. Expected shapes are documented in FRONTEND_INTEGRATION.md.
+
+    The Discrepancy Details section's exact Figma content is cropped out of the approved
+    reference (apps/BackendWebFlask/ui_reference/supervisor/supervisor-session-details.png
+    cuts off right at its heading) — its fields below were composed from the same discrepancy
+    concept already established by the Discrepancies table and Discrepancy Review screen
+    (instrument, expected/counted/difference, reason, reviewed by) rather than invented
+    freely. If a fuller reference becomes available, this section should be checked against
+    it.
+#}
+{% set session = session|default({
+    'session_id': 'WS-024', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
+    'patient_name': 'Carlos Mendez', 'physician_name': 'Dr. Sarah Chen',
+    'kit_name': 'General Surgery Kit', 'operator_name': 'Alex Morgan', 'capture_station_name': 'Station CDE-01',
+    'status_label': _('Active'), 'status_variant': 'info'
+}) %}
+{% set pre_post_status = pre_post_status|default({
+    'expected_count': 9, 'counted_count': 8, 'difference': -1, 'difference_variant': 'warning'
+}) %}
+{% set count_summary = count_summary|default([
+    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'counted_quantity': 4, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'counted_quantity': 1, 'difference': -1, 'status_label': _('Discrepancy'), 'status_variant': 'danger'},
+    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'counted_quantity': 1, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'}
+]) %}
+{% set correction_log = correction_log|default([
+    {'timestamp': '14:45', 'instrument_name': 'Kelly Clamp', 'previous_quantity': 3, 'corrected_quantity': 4, 'reason': _('Counting error')}
+]) %}
+{% set discrepancy_details = discrepancy_details|default({
+    'instrument_name': 'Mayo-Hegar Needle Holder',
+    'expected_quantity': 2, 'counted_quantity': 1, 'difference': -1,
+    'reason': _('Missing instrument'),
+    'status_label': _('Pending Review'), 'status_variant': 'pending',
+    'reviewed_by': _('Not yet reviewed')
+}) %}
+{% set activity_log = activity_log|default([
+    {'timestamp': '14:32', 'event_label': _('Session Started'), 'actor_name': 'Alex Morgan', 'details': _('Delivery Kit loaded')},
+    {'timestamp': '14:38', 'event_label': _('Count Recorded'), 'actor_name': 'Alex Morgan', 'details': _('Initial instrument count')},
+    {'timestamp': '14:42', 'event_label': _('Discrepancy Detected'), 'actor_name': 'Alex Morgan', 'details': _('Mayo-Hegar difference -1')}
+]) %}
+{% set back_to_sessions_url = back_to_sessions_url|default('#') %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Session Details") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Read-only session overview") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    <div class="session-summary__header">
+        <h2 class="session-summary__title">{{ _("Session") }} {{ session.session_id }}</h2>
+        {{ macros.status_badge(session.status_label, session.status_variant) }}
+    </div>
+    <div class="info-grid info-grid--three">
+        <div>
+            <p class="sub-panel__label">{{ _("Session ID") }}</p>
+            <p class="sub-panel__value">{{ session.session_id }}</p>
+        </div>
+        <div>
+            <p class="sub-panel__label">{{ _("Procedure") }}</p>
+            <p class="sub-panel__value">{{ session.procedure_name }} — {{ session.operating_room }}</p>
+        </div>
+        <div>
+            <p class="sub-panel__label">{{ _("Patient") }}</p>
+            <p class="sub-panel__value">{{ session.patient_name }}</p>
+        </div>
+        <div>
+            <p class="sub-panel__label">{{ _("Physician") }}</p>
+            <p class="sub-panel__value">{{ session.physician_name }}</p>
+        </div>
+        <div>
+            <p class="sub-panel__label">{{ _("Operating Room") }}</p>
+            <p class="sub-panel__value">{{ session.operating_room }}</p>
+        </div>
+        <div>
+            <p class="sub-panel__label">{{ _("Kit") }}</p>
+            <p class="sub-panel__value">{{ session.kit_name }}</p>
+        </div>
+        <div>
+            <p class="sub-panel__label">{{ _("Capture Station") }}</p>
+            <p class="sub-panel__value">{{ session.capture_station_name }}</p>
+        </div>
+        <div>
+            <p class="sub-panel__label">{{ _("Operator") }}</p>
+            <p class="sub-panel__value">{{ session.operator_name }}</p>
+        </div>
+        <div>
+            <p class="sub-panel__label">{{ _("Status") }}</p>
+            {{ macros.status_badge(session.status_label, session.status_variant) }}
+        </div>
+    </div>
+</section>
+
+<section class="card">
+    <div class="session-summary__header">
+        <h2 class="card__title">{{ _("PRE/POST Procedure Status") }}</h2>
+        <span class="card__header-note {{ 'text-danger' if pre_post_status.difference_variant == 'danger' else 'text-warning' }}">
+            {{ _("Difference") }}: {{ pre_post_status.difference }}
+        </span>
+    </div>
+    <div class="stat-card-grid stat-card-grid--three">
+        <div class="stat-card">
+            <p class="stat-card__label">{{ _("Pre-Procedure") }}</p>
+            <p class="stat-card__value">{{ pre_post_status.expected_count }}</p>
+            <p class="stat-card__description">{{ _("Expected Instruments") }}</p>
+        </div>
+        <div class="stat-card">
+            <p class="stat-card__label">{{ _("Post-Procedure") }}</p>
+            <p class="stat-card__value">{{ pre_post_status.counted_count }}</p>
+            <p class="stat-card__description">{{ _("Counted/Validated Instruments") }}</p>
+        </div>
+        <div class="stat-card stat-card--{{ pre_post_status.difference_variant }}">
+            <p class="stat-card__label">{{ _("Difference") }}</p>
+            <p class="stat-card__value">{{ pre_post_status.difference }}</p>
+            <p class="stat-card__description">{{ _("Discrepancy") }}</p>
+        </div>
+    </div>
+</section>
+
+<div class="form-grid">
+    <section class="card">
+        <h2 class="card__title">{{ _("Count Summary") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Instrument") }}</th>
+                        <th scope="col">{{ _("Expected") }}</th>
+                        <th scope="col">{{ _("Counted") }}</th>
+                        <th scope="col">{{ _("Diff") }}</th>
+                        <th scope="col">{{ _("Status") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in count_summary %}
+                    <tr>
+                        <th scope="row">{{ item.instrument_name }}</th>
+                        <td>{{ item.expected_quantity }}</td>
+                        <td>{{ item.counted_quantity }}</td>
+                        <td class="{{ 'text-danger' if item.difference != 0 else 'text-success' }}">{{ item.difference }}</td>
+                        <td class="{{ 'text-danger' if item.status_variant == 'danger' else 'text-success' }}">{{ item.status_label }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2 class="card__title">{{ _("Corrections Log") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Time") }}</th>
+                        <th scope="col">{{ _("Instrument") }}</th>
+                        <th scope="col">{{ _("Prev") }}</th>
+                        <th scope="col">{{ _("Corr") }}</th>
+                        <th scope="col">{{ _("Reason") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in correction_log %}
+                    <tr>
+                        <td>{{ entry.timestamp }}</td>
+                        <th scope="row">{{ entry.instrument_name }}</th>
+                        <td>{{ entry.previous_quantity }}</td>
+                        <td class="text-success">{{ entry.corrected_quantity }}</td>
+                        <td>{{ entry.reason }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+<div class="form-grid">
+    <section class="card">
+        <h2 class="card__title">{{ _("Discrepancy Details") }}</h2>
+        <div class="info-grid">
+            <p class="info-grid__item">{{ _("Instrument") }}: <strong>{{ discrepancy_details.instrument_name }}</strong></p>
+            <p class="info-grid__item">{{ _("Reason") }}: <strong>{{ discrepancy_details.reason }}</strong></p>
+            <p class="info-grid__item">{{ _("Expected") }}: <strong>{{ discrepancy_details.expected_quantity }}</strong></p>
+            <p class="info-grid__item">{{ _("Counted") }}: <strong>{{ discrepancy_details.counted_quantity }}</strong></p>
+            <p class="info-grid__item">{{ _("Difference") }}: <strong class="text-danger">{{ discrepancy_details.difference }}</strong></p>
+            <p class="info-grid__item">{{ _("Reviewed By") }}: <strong>{{ discrepancy_details.reviewed_by }}</strong></p>
+        </div>
+        <p>{{ macros.status_badge(discrepancy_details.status_label, discrepancy_details.status_variant) }}</p>
+    </section>
+
+    <section class="card">
+        <h2 class="card__title">{{ _("Session Activity") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Timestamp") }}</th>
+                        <th scope="col">{{ _("Event") }}</th>
+                        <th scope="col">{{ _("User") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in activity_log %}
+                    <tr>
+                        <td>{{ entry.timestamp }}</td>
+                        <td>
+                            <span class="data-table__primary">{{ entry.event_label }}</span>
+                            {% if entry.details %}<span class="data-table__secondary">{{ entry.details }}</span>{% endif %}
+                        </td>
+                        <td>{{ entry.actor_name }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block page_action_bar %}
+<div class="page-action-bar">
+    <a class="btn btn--secondary" href="{{ back_to_sessions_url }}">{{ _("Back to Sessions") }}</a>
+</div>
+{% endblock %}

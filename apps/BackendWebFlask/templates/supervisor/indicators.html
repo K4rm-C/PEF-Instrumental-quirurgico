@@ -1,0 +1,151 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Indicators") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'indicators' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Reports") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Indicators") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/dashboard.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    Everything below is a placeholder used only so this page is visually reviewable before
+    the backend supplies real data — all values are presentation-ready; no analytics are
+    computed in this template beyond the same presentational chart-fill percentage math
+    already used by operator/dashboard.html's "Sessions by Day" bar chart and the donut
+    chart's cumulative conic-gradient offsets (pure rendering, not business logic). Expected
+    shapes are documented in FRONTEND_INTEGRATION.md.
+#}
+{% set indicator_stats = indicator_stats|default({
+    'total_sessions': 156, 'closed_sessions': 142, 'sessions_with_discrepancies': 8, 'pending_reviews': 2
+}) %}
+{% set sessions_by_day = sessions_by_day|default([
+    {'label': _('Mon'), 'count': 8},
+    {'label': _('Tue'), 'count': 12},
+    {'label': _('Wed'), 'count': 10},
+    {'label': _('Thu'), 'count': 15},
+    {'label': _('Fri'), 'count': 11}
+]) %}
+{% set sessions_by_day_max = sessions_by_day|map(attribute='count')|max %}
+{% set discrepancies_by_reason = discrepancies_by_reason|default([
+    {'label': _('Missing instrument'), 'value': 4, 'variant': 'danger'},
+    {'label': _('Counting error'), 'value': 2, 'variant': 'warning'},
+    {'label': _('Instrument mismatch'), 'value': 1, 'variant': 'neutral'},
+    {'label': _('Other'), 'value': 1, 'variant': 'primary'}
+]) %}
+{% set discrepancies_by_reason_max = discrepancies_by_reason|map(attribute='value')|max %}
+{% set session_status_chart = session_status_chart|default({
+    'total_label': 156, 'segments': [
+        {'label': _('Closed'), 'percent': 91, 'variant': 'success'},
+        {'label': _('Active'), 'percent': 2, 'variant': 'info'},
+        {'label': _('With Discrepancies'), 'percent': 5, 'variant': 'danger'},
+        {'label': _('Pending Review'), 'percent': 2, 'variant': 'warning'}
+    ]
+}) %}
+{% set discrepancies_by_kit = discrepancies_by_kit|default([
+    {'label': _('Delivery Kit'), 'count': 4},
+    {'label': _('Suture Kit'), 'count': 2},
+    {'label': _('General Surgery Kit'), 'count': 2}
+]) %}
+{% set discrepancies_by_kit_max = discrepancies_by_kit|map(attribute='count')|max %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Indicators") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Monitor key instrument counting and discrepancy indicators.") }}</p>
+    </div>
+</div>
+
+<section class="stat-card-grid" aria-label="{{ _('Indicator totals') }}">
+    {{ macros.stat_card(_("Total Sessions"), indicator_stats.total_sessions, 'neutral') }}
+    {{ macros.stat_card(_("Closed Sessions"), indicator_stats.closed_sessions, 'success') }}
+    {{ macros.stat_card(_("Sessions With Discrepancies"), indicator_stats.sessions_with_discrepancies, 'danger') }}
+    {{ macros.stat_card(_("Pending Reviews"), indicator_stats.pending_reviews, 'warning') }}
+</section>
+
+<section class="dashboard-panels">
+    <div class="card">
+        <h2 class="card__title">{{ _("Sessions by Day") }}</h2>
+        <div class="bar-chart" role="img" aria-label="{{ _('Counting sessions per day this week') }}">
+            {% for day in sessions_by_day %}
+            <div class="bar-chart__column">
+                <div class="bar-chart__track">
+                    <div class="bar-chart__bar" style="--bar-chart-fill: {{ (day.count / sessions_by_day_max * 100)|round(0, 'floor')|int }}%"></div>
+                </div>
+                <span class="bar-chart__label">{{ day.label }} ({{ day.count }})</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card__title">{{ _("Discrepancies by Reason") }}</h2>
+        <ul class="status-progress-list">
+            {% for reason in discrepancies_by_reason %}
+            <li class="status-progress-item">
+                <div class="status-progress-item__header">
+                    <span>{{ reason.label }}</span>
+                    <span class="status-progress-item__value">{{ reason.value }}</span>
+                </div>
+                <div class="status-progress-item__track">
+                    <div class="status-progress-item__fill status-progress-item__fill--{{ reason.variant }}"
+                         style="--status-progress-fill: {{ (reason.value / discrepancies_by_reason_max * 100)|round(0, 'floor')|int }}%"></div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+
+<section class="dashboard-panels">
+    <div class="card">
+        <h2 class="card__title">{{ _("Session Status") }}</h2>
+        <div class="donut-chart-row">
+            {% set ns = namespace(acc=0) %}
+            <div class="donut-chart" style="background: conic-gradient({% for segment in session_status_chart.segments %}var(--color-{{ segment.variant }}) {{ ns.acc }}% {{ ns.acc + segment.percent }}%{% if not loop.last %}, {% endif %}{% set ns.acc = ns.acc + segment.percent %}{% endfor %});">
+                <div class="donut-chart__hole">
+                    <span class="donut-chart__value">{{ session_status_chart.total_label }}</span>
+                    <span class="donut-chart__label">{{ _("Sessions") }}</span>
+                </div>
+            </div>
+            <ul class="legend-list">
+                {% for segment in session_status_chart.segments %}
+                <li class="legend-item">
+                    <span class="legend-item__dot" style="background-color: var(--color-{{ segment.variant }});" aria-hidden="true"></span>
+                    <span>{{ segment.label }} ({{ segment.percent }}%)</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card__title">{{ _("Discrepancies by Kit") }}</h2>
+        <div class="bar-chart" role="img" aria-label="{{ _('Discrepancy count per kit') }}">
+            {% for kit in discrepancies_by_kit %}
+            <div class="bar-chart__column">
+                <div class="bar-chart__track">
+                    <div class="bar-chart__bar bar-chart__bar--danger" style="--bar-chart-fill: {{ (kit.count / discrepancies_by_kit_max * 100)|round(0, 'floor')|int }}%"></div>
+                </div>
+                <span class="bar-chart__label">{{ kit.label }} ({{ kit.count }})</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,16 @@
+{#
+    Integration point: Flask's flash() messaging (get_flashed_messages with_categories=true)
+    will populate this region once auth/session-driven endpoints exist. Category values are
+    expected to map to the alert variants in static/css/components/alerts.css
+    (success, warning, danger/error, info).
+#}
+{% set flashed_messages = get_flashed_messages(with_categories=true) if get_flashed_messages is defined else [] %}
+{% if flashed_messages %}
+<div class="flash-messages">
+    {% for category, message in flashed_messages %}
+    <div class="alert alert--{{ category|default('info') }}" role="status">
+        <span class="alert__message">{{ message }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
