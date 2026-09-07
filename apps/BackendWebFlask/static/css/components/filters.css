@@ -1,0 +1,26 @@
+/* Search + select filter bar shown above list/history tables (Counting Sessions, Session
+   History, and future list-style screens). Purely presentational; no client-side filtering
+   logic is attached. */
+
+.filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.filter-bar__search {
+    flex: 1 1 260px;
+    min-width: 200px;
+}
+
+.filter-bar__select {
+    flex: 0 1 180px;
+    min-width: 150px;
+}
+
+@media (max-width: 1024px) {
+    .filter-bar__search {
+        flex-basis: 100%;
+    }
+}

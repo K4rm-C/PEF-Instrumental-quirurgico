@@ -1,0 +1,64 @@
+.sign-in-card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+    padding: var(--space-6);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.sign-in-card__brand {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: var(--space-2);
+}
+
+.sign-in-card__brand-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    border: 1.5px solid var(--color-primary);
+    color: var(--color-primary);
+}
+
+.sign-in-card__brand-icon .icon {
+    width: 24px;
+    height: 24px;
+}
+
+.sign-in-card__title {
+    font-size: var(--font-size-lg);
+}
+
+.sign-in-card__subtitle {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.sign-in-card__intro {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.sign-in-card__section-title {
+    font-size: var(--font-size-md);
+}
+
+.sign-in-card__section-subtitle {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.sign-in-card__footnote {
+    text-align: center;
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-xs);
+}

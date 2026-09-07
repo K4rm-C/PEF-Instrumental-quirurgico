@@ -1,0 +1,204 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Count Validation") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Counting Session") }} {{ session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Count Validation") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    Everything below is placeholder data used only so this page is visually reviewable
+    before the backend supplies real data. `has_discrepancy` is the single switch that
+    drives both presentation states from ONE template, per the approved Figma references for
+    Count Validation (no discrepancy) and Count Validation with Discrepancy. Expected shapes
+    are documented in FRONTEND_INTEGRATION.md.
+#}
+{% set has_discrepancy = has_discrepancy|default(false) %}
+{% set session = session|default(
+    {
+        'session_id': 'WS-026', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+        'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+        'kit_name': 'Delivery Kit', 'operator_name': 'Alex Morgan',
+        'status_label': _('Active'), 'status_variant': 'info'
+    } if has_discrepancy else
+    {
+        'session_id': 'WS-024', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+        'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+        'kit_name': 'Delivery Kit', 'operator_name': 'Alex Morgan',
+        'status_label': _('Active'), 'status_variant': 'info'
+    }
+) %}
+{% set pre_post_comparison = pre_post_comparison|default(
+    {
+        'expected_total': 11, 'counted_total': 10, 'difference': -1,
+        'status_label': _('Instrument discrepancy requires review'), 'status_variant': 'warning'
+    } if has_discrepancy else
+    {
+        'expected_total': 11, 'counted_total': 11, 'difference': 0,
+        'status_label': _('All instruments accounted for'), 'status_variant': 'success'
+    }
+) %}
+{% set count_comparison = count_comparison|default(
+    [
+        {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'counted_quantity': 4, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+        {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+        {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'counted_quantity': 1, 'difference': -1, 'status_label': _('Discrepancy'), 'status_variant': 'danger'},
+        {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'counted_quantity': 1, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+        {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'}
+    ] if has_discrepancy else
+    [
+        {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'counted_quantity': 4, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+        {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+        {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+        {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'counted_quantity': 1, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+        {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'}
+    ]
+) %}
+{% set discrepancy_reasons = discrepancy_reasons|default([
+    {'value': 'missing_instrument', 'label': _('Missing instrument')},
+    {'value': 'counting_error', 'label': _('Counting error')},
+    {'value': 'instrument_mismatch', 'label': _('Instrument mismatch')},
+    {'value': 'other', 'label': _('Other')}
+]) %}
+{% set selected_discrepancy_reason = selected_discrepancy_reason|default('missing_instrument') %}
+{% set discrepancy_summary = discrepancy_summary|default({
+    'session_id': session.session_id,
+    'instrument_name': 'Mayo-Hegar Needle Holder',
+    'expected_quantity': 2,
+    'counted_quantity': 1
+}) %}
+{% set edit_count_url = edit_count_url|default('#') %}
+{% set save_review_url = save_review_url|default('#') %}
+{% set close_session_url = close_session_url|default('#') %}
+{% set submit_for_review_url = submit_for_review_url|default('#') %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Count Validation") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Review the final instrument count before completing the session.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    <div class="session-summary__header">
+        <h2 class="session-summary__title">{{ _("Counting Session") }} {{ session.session_id }}</h2>
+        {{ macros.status_badge(session.status_label, session.status_variant) }}
+    </div>
+    <div class="session-summary__meta">
+        <span><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span><strong>{{ _("Operator") }}:</strong> {{ session.operator_name }}</span>
+    </div>
+</section>
+
+<section class="card">
+    <div class="session-summary__header">
+        <h2 class="card__title">{{ _("PRE vs POST Comparison") }}</h2>
+        <span class="session-summary__header-status">{{ macros.status_badge(pre_post_comparison.status_label, pre_post_comparison.status_variant) }}</span>
+    </div>
+    <div class="comparison-row">
+        <div class="comparison-row__item">
+            <span class="comparison-row__label">{{ _("Pre-Procedure") }}</span>
+            <span class="comparison-row__value">{{ _("Expected Instruments") }}: {{ pre_post_comparison.expected_total }}</span>
+        </div>
+        <div class="comparison-row__item">
+            <span class="comparison-row__label">{{ _("Post-Procedure") }}</span>
+            <span class="comparison-row__value">{{ _("Counted Instruments") }}: {{ pre_post_comparison.counted_total }}</span>
+        </div>
+        <div class="comparison-row__item comparison-row__item--end">
+            <span class="comparison-row__label">{{ _("Difference") }}</span>
+            <span class="comparison-row__value {{ 'text-danger' if pre_post_comparison.difference != 0 else 'text-success' }}">{{ pre_post_comparison.difference }}</span>
+        </div>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Count Comparison") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Instrument") }}</th>
+                    <th scope="col">{{ _("Expected") }}</th>
+                    <th scope="col">{{ _("Counted") }}</th>
+                    <th scope="col">{{ _("Difference") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in count_comparison %}
+                <tr class="{{ 'data-table__row--highlight-danger' if item.status_variant == 'danger' else '' }}">
+                    <th scope="row">{{ item.instrument_name }}</th>
+                    <td>{{ item.expected_quantity }}</td>
+                    <td>{{ item.counted_quantity }}</td>
+                    <td class="{{ 'text-danger' if item.difference != 0 else 'text-success' }}">{{ item.difference }}</td>
+                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{% if has_discrepancy %}
+<section class="card">
+    <h2 class="card__title">{{ _("Discrepancy Review") }}</h2>
+    <div class="form-field">
+        <label class="form-field__label" for="discrepancy-reason-select">{{ _("Reason for Discrepancy") }}</label>
+        <div class="form-field__input-wrapper">
+            <select class="form-field__input form-field__select" id="discrepancy-reason-select" name="discrepancy_reason">
+                {% for reason in discrepancy_reasons %}
+                <option value="{{ reason.value }}" {% if reason.value == selected_discrepancy_reason %}selected{% endif %}>{{ reason.label }}</option>
+                {% endfor %}
+            </select>
+            <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+        </div>
+    </div>
+    <div class="form-field">
+        <label class="form-field__label" for="verification-notes">{{ _("Verification Notes") }}</label>
+        <textarea class="form-field__textarea" id="verification-notes" name="verification_notes"
+                  placeholder="{{ _('Add any additional notes about this discrepancy...') }}"></textarea>
+    </div>
+</section>
+{% endif %}
+
+{% include "components/modals/close_session.html" %}
+{% include "components/modals/supervisor_review_required.html" %}
+{% endblock %}
+
+{% block page_action_bar %}
+<div class="page-action-bar">
+    <a class="btn btn--secondary" href="{{ edit_count_url }}">{{ _("Edit Count") }}</a>
+    <div class="page-action-bar__group">
+        {% if has_discrepancy %}
+        <a class="btn btn--secondary" href="{{ save_review_url }}">{{ _("Save Review") }}</a>
+        <button type="button" class="btn btn--primary" data-modal-open="supervisor-review-required-modal">
+            {{ macros.icon_check_square() }}
+            <span>{{ _("Confirm Validation") }}</span>
+        </button>
+        {% else %}
+        <button type="button" class="btn btn--primary" data-modal-open="close-session-modal">
+            {{ macros.icon_check_square() }}
+            <span>{{ _("Confirm Validation") }}</span>
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

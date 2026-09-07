@@ -1,0 +1,143 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Reports") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'reports' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Reports") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Reports") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    reports below is a placeholder value used only so this page is visually reviewable
+    before the backend supplies real data. "View Report" / "Export" are presentation-only in
+    this iteration (section 33 of the implementation prompt) — no report detail pages or file
+    generation are implemented. Expected shapes are documented in FRONTEND_INTEGRATION.md.
+#}
+{% set reports = reports|default([
+    {
+        'icon': 'document', 'title': _('Session Summary'),
+        'description': _('Overview of completed, active, and cancelled counting sessions.'),
+        'last_generated_label': _('Last generated: 10 mins ago'),
+        'export_url': '#', 'view_report_url': '#'
+    },
+    {
+        'icon': 'alert_triangle', 'title': _('Discrepancy Summary'),
+        'description': _('Summary of unresolved and resolved discrepancies.'),
+        'last_generated_label': _('Last generated: 1 hour ago'),
+        'export_url': '#', 'view_report_url': '#'
+    },
+    {
+        'icon': 'clipboard', 'title': _('Kit Activity'),
+        'description': _('Review counting activity grouped by kit.'),
+        'last_generated_label': _('Last generated: 3 hours ago'),
+        'export_url': '#', 'view_report_url': '#'
+    },
+    {
+        'icon': 'user', 'title': _('Operator Activity'),
+        'description': _('Review counting activity and discrepancy patterns by operator.'),
+        'last_generated_label': _('Last generated: Yesterday'),
+        'export_url': '#', 'view_report_url': '#'
+    }
+]) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Reports") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Review operational summaries and historical counting information.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    {# Filters are presentation-only in this iteration: no client-side or server-side
+       filtering is wired up yet. #}
+    <form class="form-grid form-grid--four" action="#" method="get">
+        <div class="form-field">
+            <label class="form-field__label" for="reports-date-range">{{ _("Date Range") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="reports-date-range" name="date_range">
+                    <option value="last-30-days">{{ _("Last 30 Days") }}</option>
+                    <option value="last-7-days">{{ _("Last 7 Days") }}</option>
+                    <option value="today">{{ _("Today") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="reports-kit">{{ _("Kit") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="reports-kit" name="kit">
+                    <option value="">{{ _("All Kits") }}</option>
+                    <option value="delivery-kit">{{ _("Delivery Kit") }}</option>
+                    <option value="suture-kit">{{ _("Suture Kit") }}</option>
+                    <option value="general-surgery-kit">{{ _("General Surgery Kit") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="reports-operator">{{ _("Operator") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="reports-operator" name="operator">
+                    <option value="">{{ _("All Operators") }}</option>
+                    <option value="alex-morgan">{{ _("Alex Morgan") }}</option>
+                    <option value="emily-carter">{{ _("Emily Carter") }}</option>
+                    <option value="daniel-lee">{{ _("Daniel Lee") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="reports-session-status">{{ _("Session Status") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="reports-session-status" name="session_status">
+                    <option value="">{{ _("All Statuses") }}</option>
+                    <option value="active">{{ _("Active") }}</option>
+                    <option value="closed">{{ _("Closed") }}</option>
+                    <option value="with_discrepancies">{{ _("With Discrepancies") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+    </form>
+</section>
+
+<section class="report-card-grid">
+    {% for report in reports %}
+    <div class="card">
+        <div class="report-card__header">
+            <span class="report-card__icon" aria-hidden="true">
+                {% if report.icon == 'document' %}{{ macros.icon_document() }}
+                {% elif report.icon == 'alert_triangle' %}{{ macros.icon_alert_triangle() }}
+                {% elif report.icon == 'clipboard' %}{{ macros.icon_clipboard() }}
+                {% else %}{{ macros.icon_user() }}
+                {% endif %}
+            </span>
+            <div>
+                <p class="report-card__title">{{ report.title }}</p>
+                <p class="report-card__description">{{ report.description }}</p>
+            </div>
+        </div>
+        <div class="report-card__divider"></div>
+        <div class="report-card__footer">
+            <span class="report-card__meta">{{ report.last_generated_label }}</span>
+            <div class="report-card__actions">
+                <a class="btn btn--secondary" href="{{ report.export_url }}">{{ _("Export") }}</a>
+                <a class="btn btn--primary" href="{{ report.view_report_url }}">{{ _("View Report") }}</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</section>
+{% endblock %}

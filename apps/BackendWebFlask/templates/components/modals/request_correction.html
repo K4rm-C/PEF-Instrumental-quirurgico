@@ -1,0 +1,34 @@
+{% import "components/macros.html" as macros %}
+{#
+    Reusable "Request Operator Correction?" confirmation modal, opened from Supervisor
+    Discrepancy Review's "Request Correction" action. Opened/closed by the generic
+    static/js/modal.js via data-modal-open / data-modal-close — no dedicated JavaScript for
+    this modal.
+
+    Expected context: request_correction_url (string, defaults to "#"). The "Reason /
+    Instructions" textarea is presentation-only in this iteration (no name-bound persisted
+    value, nothing submitted with it) — same pattern as Count Validation's Verification
+    Notes field. Integration point: in production, "Request Correction" should persist the
+    Supervisor's note, set the session to Correction Required, and route it back to the
+    Operator — not implemented here.
+#}
+{% set request_correction_url = request_correction_url|default('#') %}
+<div class="modal-overlay" id="request-correction-modal" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true"
+         aria-labelledby="request-correction-modal-title" aria-describedby="request-correction-modal-description">
+        <span class="modal-dialog__icon modal-dialog__icon--warning" aria-hidden="true">{{ macros.icon_alert_triangle() }}</span>
+        <h2 class="modal-dialog__title" id="request-correction-modal-title">{{ _("Request Operator Correction?") }}</h2>
+        <p class="modal-dialog__description" id="request-correction-modal-description">
+            {{ _("This session will be returned to the Operator for additional review or correction before it can be completed.") }}
+        </p>
+        <div class="form-field">
+            <label class="form-field__label" for="request-correction-reason">{{ _("Reason / Instructions") }}</label>
+            <textarea class="form-field__textarea" id="request-correction-reason" name="correction_reason"
+                      placeholder="{{ _('Describe what the Operator must review or correct.') }}"></textarea>
+        </div>
+        <div class="modal-dialog__actions">
+            <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
+            <a class="btn btn--warning" href="{{ request_correction_url }}">{{ _("Request Correction") }}</a>
+        </div>
+    </div>
+</div>

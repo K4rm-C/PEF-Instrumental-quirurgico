@@ -1,0 +1,142 @@
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 10px var(--space-4);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+    min-height: 40px;
+}
+
+.btn .icon {
+    width: 1em;
+    height: 1em;
+}
+
+.btn--primary {
+    background-color: var(--color-primary);
+    color: var(--color-on-primary);
+}
+
+.btn--primary:hover {
+    background-color: var(--color-primary-hover);
+}
+
+.btn--secondary {
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    border-color: var(--color-border-strong);
+}
+
+.btn--secondary:hover {
+    background-color: var(--color-surface-secondary);
+}
+
+.btn--danger {
+    background-color: var(--color-surface);
+    color: var(--color-danger);
+    border-color: var(--color-danger);
+}
+
+.btn--danger:hover {
+    background-color: var(--color-danger-surface);
+}
+
+/* Filled destructive variant (IT Administrator's "Deactivate User" action and its
+   confirmation modal) — visually distinct from the outlined .btn--danger used elsewhere
+   (e.g. Operator's "Cancel Session"), matching the approved Figma's solid red button. */
+.btn--danger-solid {
+    background-color: var(--color-danger);
+    color: var(--color-on-danger);
+}
+
+.btn--danger-solid:hover {
+    opacity: 0.9;
+}
+
+/* Outlined emphasis variant for actionable secondary buttons (e.g. "Review" in Supervisor
+   monitoring tables), visually distinct from the neutral btn--secondary ("View Details"). */
+.btn--accent {
+    background-color: var(--color-surface);
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+
+.btn--accent:hover {
+    background-color: var(--color-primary-surface);
+}
+
+/* Filled warning variant (e.g. the Request Correction modal's primary action). */
+.btn--warning {
+    background-color: var(--color-warning);
+    color: var(--color-on-warning);
+}
+
+.btn--warning:hover {
+    opacity: 0.9;
+}
+
+.btn--block {
+    width: 100%;
+}
+
+.btn--small {
+    min-height: 32px;
+    padding: 6px var(--space-3);
+    font-size: var(--font-size-sm);
+}
+
+/* Borderless text action with a leading icon (IT Administrator Kit form's "+ Add Instrument
+   Type"). Not a .btn variant: no border/background, just a colored inline action. */
+.link-action {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--color-primary);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+}
+
+.link-action:hover {
+    color: var(--color-primary-hover);
+}
+
+/* Borderless destructive text action (IT Administrator Kit form's per-row "Remove"). */
+.link-danger {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--color-danger);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+}
+
+.link-danger:hover {
+    text-decoration: underline;
+}
+
+.icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+}
+
+.icon-button:hover {
+    background-color: var(--color-surface-secondary);
+    color: var(--color-text-primary);
+}

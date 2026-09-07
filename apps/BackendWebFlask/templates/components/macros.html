@@ -1,0 +1,265 @@
+{#
+    Reusable icon and UI macros shared across templates. Icons are hand-authored inline SVGs
+    (not an icon font or external library) so they inherit color via currentColor and stay
+    dependency-free. Import with: {% import "components/macros.html" as macros %}
+#}
+
+{% macro icon_grid() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="2.5" y="2.5" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.5"/>
+    <rect x="11.5" y="2.5" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.5"/>
+    <rect x="2.5" y="11.5" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.5"/>
+    <rect x="11.5" y="11.5" width="6" height="6" rx="1.2" stroke="currentColor" stroke-width="1.5"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_clipboard() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="4" y="3.5" width="12" height="14" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+    <rect x="7" y="2" width="6" height="3" rx="1" fill="currentColor"/>
+    <path d="M7 9.5H13M7 12.5H13M7 15.5H10.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_plus_circle() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="10" cy="10" r="7.25" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M10 7V13M7 10H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_history() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M3.5 10a6.5 6.5 0 1 0 1.9-4.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M3.5 4.5V8H7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M10 6.5V10l2.5 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_user() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="10" cy="6.75" r="3.25" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M3.75 16.5c.9-3.1 3.4-4.75 6.25-4.75s5.35 1.65 6.25 4.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_sign_out() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M8 3.5H5a1.5 1.5 0 0 0-1.5 1.5v10A1.5 1.5 0 0 0 5 16.5h3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M12.5 13.5L16.5 10L12.5 6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M16.5 10H8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_bell() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M5 8.5a5 5 0 0 1 10 0c0 3 1 4 1.5 4.5H3.5C4 12.5 5 11.5 5 8.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M8.25 16a1.75 1.75 0 0 0 3.5 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_chevron_down() %}
+<svg class="icon icon--chevron" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M5.5 8L10 12.5L14.5 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_sun() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="10" cy="10" r="3.25" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M10 2.75V4.5M10 15.5V17.25M17.25 10H15.5M4.5 10H2.75M15.03 4.97L13.8 6.2M6.2 13.8L4.97 15.03M15.03 15.03L13.8 13.8M6.2 6.2L4.97 4.97" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_moon() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M16.5 11.8A6.75 6.75 0 0 1 8.2 3.5a6.75 6.75 0 1 0 8.3 8.3Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_monitor() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="2.5" y="4" width="15" height="9.5" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M7 17H13M10 13.5V17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_mail() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="2.5" y="4.5" width="15" height="11" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M3.5 5.5L10 11L16.5 5.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_lock() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="4" y="9" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M6.5 9V6.5a3.5 3.5 0 0 1 7 0V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_scan_frame() %}
+<svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M4 9V6.5A2.5 2.5 0 0 1 6.5 4H9" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+    <path d="M15 4h2.5A2.5 2.5 0 0 1 20 6.5V9" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+    <path d="M20 15v2.5a2.5 2.5 0 0 1-2.5 2.5H15" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+    <path d="M9 20H6.5A2.5 2.5 0 0 1 4 17.5V15" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_plus() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M10 4.5V15.5M4.5 10H15.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_search() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="9" cy="9" r="5.5" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M17 17L13 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_check_circle() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="10" cy="10" r="7.25" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M6.75 10.25L8.75 12.25L13.25 7.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_alert_triangle() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M8.68 3.87c.57-1 2.07-1 2.64 0l6.36 11.02c.57 1-.14 2.24-1.32 2.24H3.64c-1.18 0-1.89-1.25-1.32-2.24L8.68 3.87Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M10 8V11.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="10" cy="14" r="0.9" fill="currentColor"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_check_square() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="3" y="3" width="14" height="14" rx="2.5" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M6.75 10.25L8.75 12.25L13.25 7.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_minus() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M4.5 10H15.5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_document() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M6 2.5H11.5L15 6V16A1.5 1.5 0 0 1 13.5 17.5H6A1.5 1.5 0 0 1 4.5 16V4A1.5 1.5 0 0 1 6 2.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M11.5 2.5V6H15" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M7 10.5H13M7 13.5H13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_chart_bar() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M3.5 16.5V3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M3.5 16.5H16.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <rect x="6" y="11" width="2.2" height="5.5" rx="0.6" fill="currentColor"/>
+    <rect x="9.9" y="7.5" width="2.2" height="9" rx="0.6" fill="currentColor"/>
+    <rect x="13.8" y="9.5" width="2.2" height="7" rx="0.6" fill="currentColor"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_shield_check() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M10 2.5L16 4.75V9.25C16 13 13.5 16 10 17.5C6.5 16 4 13 4 9.25V4.75L10 2.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M7.25 9.75L9.25 11.75L12.75 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_camera() %}
+<svg class="icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <rect x="3" y="7" width="18" height="13" rx="2" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M8 7L9.5 4.5H14.5L16 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="12" cy="13.5" r="3.5" stroke="currentColor" stroke-width="1.5"/>
+</svg>
+{% endmacro %}
+
+{#
+    IT Administrator sidebar icons (partials/sidebar_admin.html): Instrument Families,
+    Instruments, Kits, Users, Roles, Configuration. Same inline-SVG, currentColor, 20x20
+    viewBox style as every icon above. Dashboard reuses the existing icon_grid() (four-square
+    grid) per the implementation prompt's explicit instruction not to use a house icon.
+#}
+
+{% macro icon_layers() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M10 2.5L17 6.5L10 10.5L3 6.5L10 2.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M3 10.25L10 14.25L17 10.25" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M3 13.75L10 17.75L17 13.75" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_wrench() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M13.88 3.7a3.5 3.5 0 0 0-4.66 4.03L4 13v3h3l5.27-5.22a3.5 3.5 0 0 0 4.03-4.66l-2.4 2.4-1.9-1.9 2.38-2.42Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_box() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M10 2.5L17 6V14L10 17.5L3 14V6L10 2.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M3 6L10 9.5L17 6" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    <path d="M10 9.5V17.5" stroke="currentColor" stroke-width="1.5"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_users() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="7" cy="6.5" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M2.5 16c.65-2.6 2.55-4 4.5-4s3.85 1.4 4.5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M13 4.75c1.1.3 1.9 1.3 1.9 2.5 0 1.2-.8 2.2-1.9 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M13.5 12c1.7.4 3 1.7 3.5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_key() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="6.5" cy="13.5" r="3.25" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M8.75 11.25L15.5 4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M12.5 7.5L14.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M14.5 5.5L16.5 7.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_settings() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="10" cy="10" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M10 3.5V5.25M10 14.75V16.5M16.5 10H14.75M5.25 10H3.5M14.6 5.4L13.4 6.6M6.6 13.4L5.4 14.6M14.6 14.6L13.4 13.4M6.6 6.6L5.4 5.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{% macro status_badge(label, variant) %}
+<span class="status-badge status-badge--{{ variant }}">
+    <span class="status-badge__dot" aria-hidden="true"></span>
+    <span>{{ label }}</span>
+</span>
+{% endmacro %}
+
+{% macro stat_card(label, value, variant='neutral') %}
+<div class="stat-card stat-card--{{ variant }}">
+    <p class="stat-card__label">{{ label }}</p>
+    <p class="stat-card__value">{{ value }}</p>
+</div>
+{% endmacro %}
+
+{#
+    Two-line alert banner (icon + bold title + secondary description), used for the top-of-
+    page feedback banner (e.g. "Review submitted successfully.") and Active Counting
+    Session's Current Alerts box. variant is one of 'success', 'warning', 'danger', 'info'.
+#}
+{% macro alert_banner(variant, title, description='') %}
+<div class="alert alert--{{ variant }}" role="status">
+    {% if variant == 'success' %}{{ icon_check_circle() }}{% else %}{{ icon_alert_triangle() }}{% endif %}
+    <div class="alert__content">
+        <p class="alert__title">{{ title }}</p>
+        {% if description %}<p class="alert__description">{{ description }}</p>{% endif %}
+    </div>
+</div>
+{% endmacro %}

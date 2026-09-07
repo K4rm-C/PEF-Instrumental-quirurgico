@@ -1,0 +1,75 @@
+.table-wrapper {
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--font-size-base);
+}
+
+.data-table th,
+.data-table td {
+    text-align: left;
+    padding: var(--space-3);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.data-table thead th {
+    font-size: var(--font-size-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-semibold);
+    border-bottom: 1px solid var(--color-border-strong);
+}
+
+.data-table tbody th {
+    font-weight: var(--font-weight-semibold);
+}
+
+.data-table__action-column,
+.data-table__numeric-column {
+    text-align: right;
+}
+
+/* Two-line "Session / Procedure" style cell: bold identifier + secondary detail line. */
+.data-table__primary {
+    display: block;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.data-table__secondary {
+    display: block;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    margin-top: 2px;
+    white-space: normal;
+}
+
+/* Highlights a row that has a discrepancy (Active Counting Session, Count Validation). */
+.data-table__row--highlight-danger td,
+.data-table__row--highlight-danger th {
+    background-color: var(--color-danger-surface);
+}
+
+/* Truncates a long cell value with an ellipsis instead of wrapping/overflowing (IT
+   Administrator Roles' Description column, per the approved reference). */
+.data-table__cell--truncate {
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Small inline number input used inside a data table row (IT Administrator Kit form's Kit
+   Composition "Expected Quantity" column). */
+.data-table__input {
+    width: 100px;
+    padding: 6px var(--space-2);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+}

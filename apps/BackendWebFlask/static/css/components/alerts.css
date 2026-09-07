@@ -1,0 +1,60 @@
+/* Flash message banners. Category names are expected to match Flask's flash() categories. */
+
+.flash-messages {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.alert {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    border: 1px solid transparent;
+}
+
+/* Optional two-line content (icon + bold title + secondary description), used by
+   components/macros.html's alert_banner() macro. Plain single-line alerts (icon + a bare
+   .alert__message span) keep working unchanged. */
+.alert__content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.alert__title {
+    font-weight: var(--font-weight-semibold);
+}
+
+.alert__description {
+    font-weight: var(--font-weight-regular);
+}
+
+.alert--success {
+    background-color: var(--color-success-surface);
+    color: var(--color-success);
+    border-color: currentColor;
+}
+
+.alert--warning {
+    background-color: var(--color-warning-surface);
+    color: var(--color-warning);
+    border-color: currentColor;
+}
+
+.alert--danger,
+.alert--error {
+    background-color: var(--color-danger-surface);
+    color: var(--color-danger);
+    border-color: currentColor;
+}
+
+.alert--info {
+    background-color: var(--color-info-surface);
+    color: var(--color-info);
+    border-color: currentColor;
+}

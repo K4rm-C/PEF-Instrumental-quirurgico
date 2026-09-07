@@ -1,0 +1,34 @@
+{% import "components/macros.html" as macros %}
+{% set current_locale = current_locale|default('en') %}
+{% set language_options = [
+    {'code': 'en', 'label': _('English'), 'short_label': _('EN')},
+    {'code': 'es-MX', 'label': _('Español (México)'), 'short_label': _('ES')}
+] %}
+{% set current_language_option = (language_options|selectattr('code', 'equalto', current_locale)|first) or language_options[0] %}
+
+{#
+    Integration point: selecting a language here does not persist or change the rendered
+    locale yet. Once Flask-Babel is configured, wire each item's selection to whatever
+    mechanism sets the session/user locale (e.g. a POST to a language-switch route), and
+    render current_locale from that source instead of the 'en' default above.
+#}
+<div class="dropdown" data-dropdown>
+    <button type="button"
+            class="dropdown__trigger"
+            id="language-selector-trigger"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            data-dropdown-trigger>
+        <span>{{ current_language_option.short_label }}</span>
+        {{ macros.icon_chevron_down() }}
+    </button>
+    <ul class="dropdown__menu" role="listbox" aria-labelledby="language-selector-trigger" data-dropdown-menu hidden>
+        {% for option in language_options %}
+        <li role="option" aria-selected="{{ 'true' if option.code == current_locale else 'false' }}">
+            <button type="button" class="dropdown__item" data-language-code="{{ option.code }}">
+                {{ option.label }}
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+</div>

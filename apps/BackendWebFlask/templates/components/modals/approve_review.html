@@ -1,0 +1,26 @@
+{% import "components/macros.html" as macros %}
+{#
+    Reusable "Approve Discrepancy Review?" confirmation modal, opened from Supervisor
+    Discrepancy Review's "Approve Review" action. Opened/closed by the generic
+    static/js/modal.js via data-modal-open / data-modal-close — no dedicated JavaScript for
+    this modal, following the exact same pattern as components/modals/close_session.html.
+
+    Expected context: approve_review_url (string, defaults to "#"). Integration point: in
+    production, "Approve Review" should persist the Supervisor's decision, mark the
+    discrepancy Approved, and make the session eligible for closure — not implemented here.
+#}
+{% set approve_review_url = approve_review_url|default('#') %}
+<div class="modal-overlay" id="approve-review-modal" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true"
+         aria-labelledby="approve-review-modal-title" aria-describedby="approve-review-modal-description">
+        <span class="modal-dialog__icon modal-dialog__icon--success" aria-hidden="true">{{ macros.icon_check_circle() }}</span>
+        <h2 class="modal-dialog__title" id="approve-review-modal-title">{{ _("Approve Discrepancy Review?") }}</h2>
+        <p class="modal-dialog__description" id="approve-review-modal-description">
+            {{ _("This review confirms that the documented discrepancy has been evaluated and may proceed according to the approved workflow.") }}
+        </p>
+        <div class="modal-dialog__actions">
+            <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
+            <a class="btn btn--primary" href="{{ approve_review_url }}">{{ _("Approve Review") }}</a>
+        </div>
+    </div>
+</div>

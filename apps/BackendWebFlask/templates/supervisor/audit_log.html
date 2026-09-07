@@ -1,0 +1,138 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Audit Log") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'audit_log' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Traceability") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Audit Log") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    audit_log_entries below is a placeholder value used only so this page is visually
+    reviewable before the backend supplies real data. This is a strictly READ-ONLY view: no
+    Edit / Delete / Modify actions, and no Action column at all. Expected shapes are
+    documented in FRONTEND_INTEGRATION.md.
+#}
+{% set audit_log_entries = audit_log_entries|default([
+    {'timestamp': '15:20', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': _('Session Started'), 'event_variant': 'default', 'resource_id': 'WS-026', 'details': _('Delivery Kit loaded')},
+    {'timestamp': '15:34', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': _('Count Recorded'), 'event_variant': 'default', 'resource_id': 'WS-026', 'details': _('Initial instrument count')},
+    {'timestamp': '15:38', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': _('Discrepancy Detected'), 'event_variant': 'danger', 'resource_id': 'WS-026', 'details': _('Mayo-Hegar difference -1')},
+    {'timestamp': '15:42', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': _('Submitted for Review'), 'event_variant': 'default', 'resource_id': 'WS-026', 'details': _('Missing instrument')},
+    {'timestamp': '15:48', 'user_name': 'Sophia Turner', 'role_label': _('Supervisor'), 'event_label': _('Review Approved'), 'event_variant': 'success', 'resource_id': 'WS-026', 'details': _('Discrepancy reviewed')}
+]) %}
+{% set events_shown_count = events_shown_count|default(audit_log_entries|length) %}
+{% set events_total_count = events_total_count|default(342) %}
+{% set current_page = current_page|default(1) %}
+{% set total_pages = total_pages|default(69) %}
+{% set previous_url = previous_url|default('#') %}
+{% set next_url = next_url|default('#') %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Audit Log") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Review traceability events recorded by the system.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    {# Filters are presentation-only in this iteration: no client-side or server-side
+       filtering is wired up yet. #}
+    <form class="filter-bar" action="#" method="get" role="search">
+        <div class="filter-bar__search">
+            <label class="visually-hidden" for="audit-log-search">{{ _("Search Events") }}</label>
+            <div class="form-field__input-wrapper">
+                <span class="form-field__icon">{{ macros.icon_search() }}</span>
+                <input class="form-field__input" type="search" id="audit-log-search" name="search"
+                       placeholder="{{ _('Search events...') }}">
+            </div>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="audit-log-user">{{ _("User") }}</label>
+            <select class="form-field__input form-field__input--plain" id="audit-log-user" name="user">
+                <option value="">{{ _("All Users") }}</option>
+                <option value="alex-morgan">{{ _("Alex Morgan") }}</option>
+                <option value="sophia-turner">{{ _("Sophia Turner") }}</option>
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="audit-log-event-type">{{ _("Event Type") }}</label>
+            <select class="form-field__input form-field__input--plain" id="audit-log-event-type" name="event_type">
+                <option value="">{{ _("All Events") }}</option>
+                <option value="session_started">{{ _("Session Started") }}</option>
+                <option value="count_recorded">{{ _("Count Recorded") }}</option>
+                <option value="discrepancy_detected">{{ _("Discrepancy Detected") }}</option>
+                <option value="submitted_for_review">{{ _("Submitted for Review") }}</option>
+                <option value="review_approved">{{ _("Review Approved") }}</option>
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="audit-log-session">{{ _("Session") }}</label>
+            <select class="form-field__input form-field__input--plain" id="audit-log-session" name="session">
+                <option value="">{{ _("All Sessions") }}</option>
+                <option value="ws-026">{{ _("WS-026") }}</option>
+                <option value="ws-025">{{ _("WS-025") }}</option>
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="audit-log-date">{{ _("Date") }}</label>
+            <select class="form-field__input form-field__input--plain" id="audit-log-date" name="date">
+                <option value="today">{{ _("Today") }}</option>
+                <option value="last-7-days">{{ _("Last 7 Days") }}</option>
+                <option value="last-30-days">{{ _("Last 30 Days") }}</option>
+            </select>
+        </div>
+    </form>
+</section>
+
+<section class="card">
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Timestamp") }}</th>
+                    <th scope="col">{{ _("User") }}</th>
+                    <th scope="col">{{ _("Role") }}</th>
+                    <th scope="col">{{ _("Event") }}</th>
+                    <th scope="col">{{ _("Resource") }}</th>
+                    <th scope="col">{{ _("Details") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in audit_log_entries %}
+                <tr>
+                    <th scope="row">{{ entry.timestamp }}</th>
+                    <td>{{ entry.user_name }}</td>
+                    <td>{{ entry.role_label }}</td>
+                    <td class="{{ 'text-danger' if entry.event_variant == 'danger' else ('text-success' if entry.event_variant == 'success' else '') }}">
+                        {{ entry.event_label }}
+                    </td>
+                    <td class="text-primary">{{ entry.resource_id }}</td>
+                    <td>{{ entry.details }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="pagination" aria-label="{{ _('Pagination') }}">
+        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s events", shown=events_shown_count, total=events_total_count) }}</p>
+        <div class="pagination__controls">
+            <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
+            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
+            <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
+        </div>
+    </nav>
+</section>
+{% endblock %}

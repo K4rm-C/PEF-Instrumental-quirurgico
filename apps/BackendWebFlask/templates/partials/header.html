@@ -1,0 +1,18 @@
+{% import "components/macros.html" as macros %}
+
+{#
+    Right-hand cluster of the top header: notifications, language, theme, and user menu.
+    The surrounding <header> element and the breadcrumb live in layouts/authenticated.html
+    since the breadcrumb content differs per page.
+#}
+<div class="top-header__controls">
+    {# Integration point: notification content/count is not yet approved in Figma, so this
+       is a static visual affordance only and is intentionally not wired to a dropdown. #}
+    <button type="button" class="icon-button" aria-label="{{ _('Notifications') }}">
+        {{ macros.icon_bell() }}
+    </button>
+
+    {% include "partials/language_selector.html" %}
+    {% include "partials/theme_selector.html" %}
+    {% include "partials/user_menu.html" %}
+</div>

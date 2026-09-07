@@ -1,0 +1,122 @@
+{% import "components/macros.html" as macros %}
+{% set active_nav_item = active_nav_item|default('dashboard') %}
+
+{#
+    Integration point: nav_urls is an optional dict of {nav-key: url} used to resolve each
+    link's href, following the exact same pattern as partials/sidebar_operator.html and
+    partials/sidebar_supervisor.html. When not provided, every link safely falls back to "#"
+    via the |default('#') filter below.
+    Recognized keys: dashboard, instrument_families, instruments, kits, users, roles,
+    configuration, profile, sign_out.
+    Intended production endpoints (documented in FRONTEND_INTEGRATION.md):
+    admin.dashboard, admin.instrument_families, admin.instruments, admin.kits, admin.users,
+    admin.roles, admin.configuration, admin.profile, auth.sign_out
+#}
+{% set nav_urls = nav_urls|default({}) %}
+
+<div class="sidebar__brand">
+    <p class="sidebar__brand-name">{{ _("Surgical Instrument") }}</p>
+    <p class="sidebar__brand-subtitle">{{ _("Traceability System") }}</p>
+</div>
+
+<nav class="sidebar__nav" aria-label="{{ _('IT Administrator navigation') }}">
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Home") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'dashboard' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.dashboard|default('#') }}"
+                   {% if active_nav_item == 'dashboard' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_grid() }}
+                    <span>{{ _("Dashboard") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Catalogs") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'instrument_families' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.instrument_families|default('#') }}"
+                   {% if active_nav_item == 'instrument_families' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_layers() }}
+                    <span>{{ _("Instrument Families") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'instruments' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.instruments|default('#') }}"
+                   {% if active_nav_item == 'instruments' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_wrench() }}
+                    <span>{{ _("Instruments") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'kits' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.kits|default('#') }}"
+                   {% if active_nav_item == 'kits' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_box() }}
+                    <span>{{ _("Kits") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Administration") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'users' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.users|default('#') }}"
+                   {% if active_nav_item == 'users' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_users() }}
+                    <span>{{ _("Users") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'roles' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.roles|default('#') }}"
+                   {% if active_nav_item == 'roles' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_key() }}
+                    <span>{{ _("Roles") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("System") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'configuration' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.configuration|default('#') }}"
+                   {% if active_nav_item == 'configuration' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_settings() }}
+                    <span>{{ _("Configuration") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Account") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'profile' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.profile|default('#') }}"
+                   {% if active_nav_item == 'profile' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_user() }}
+                    <span>{{ _("My Profile") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link" href="{{ nav_urls.sign_out|default('#') }}">
+                    {{ macros.icon_sign_out() }}
+                    <span>{{ _("Sign Out") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+</nav>

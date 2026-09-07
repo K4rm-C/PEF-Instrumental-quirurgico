@@ -1,0 +1,137 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Instruments") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'instruments' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Catalogs") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Instruments") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    instruments and the pagination values below are placeholder values used only so this page
+    is visually reviewable before the backend supplies real data. Expected shapes are
+    documented in FRONTEND_INTEGRATION.md. Cycle Status (Available / In Use / Sterilization /
+    Unavailable) and Active Status (Active / Inactive) are kept as two separate fields/badges
+    per section 15 of the implementation prompt — they are never merged or visually confused.
+#}
+{% set instruments = instruments|default([
+    {'internal_code': 'INS-001', 'instrument_family_name': 'Kelly Clamp', 'cycle_status_label': _('Available'), 'cycle_status_variant': 'info', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': '#'},
+    {'internal_code': 'INS-002', 'instrument_family_name': 'Kelly Clamp', 'cycle_status_label': _('Sterilization'), 'cycle_status_variant': 'warning', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': '#'},
+    {'internal_code': 'INS-003', 'instrument_family_name': 'Foerster Sponge Forceps', 'cycle_status_label': _('Available'), 'cycle_status_variant': 'info', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': '#'},
+    {'internal_code': 'INS-004', 'instrument_family_name': 'Mayo-Hegar Needle Holder', 'cycle_status_label': _('Unavailable'), 'cycle_status_variant': 'danger', 'active_status_label': _('Inactive'), 'active_status_variant': 'neutral', 'edit_url': '#'}
+]) %}
+{% set instrument_families_filter = instrument_families_filter|default([
+    {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
+    {'value': 'foerster-sponge-forceps', 'label': _('Foerster Sponge Forceps')},
+    {'value': 'mayo-hegar-needle-holder', 'label': _('Mayo-Hegar Needle Holder')}
+]) %}
+{% set instruments_shown_count = instruments_shown_count|default(instruments|length) %}
+{% set instruments_total_count = instruments_total_count|default(96) %}
+{% set current_page = current_page|default(1) %}
+{% set total_pages = total_pages|default(24) %}
+{% set previous_url = previous_url|default('#') %}
+{% set next_url = next_url|default('#') %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Instruments") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Manage individual surgical instruments registered in the system.") }}</p>
+    </div>
+    <a class="btn btn--primary" href="{{ new_instrument_url|default('#') }}">
+        {{ macros.icon_plus() }}
+        <span>{{ _("New Instrument") }}</span>
+    </a>
+</div>
+
+<section class="card">
+    {# Filters are presentation-only in this iteration: no client-side or server-side
+       filtering is wired up yet. #}
+    <form class="filter-bar" action="#" method="get" role="search">
+        <div class="filter-bar__search">
+            <label class="visually-hidden" for="instruments-search">{{ _("Search Instruments") }}</label>
+            <div class="form-field__input-wrapper">
+                <span class="form-field__icon">{{ macros.icon_search() }}</span>
+                <input class="form-field__input" type="search" id="instruments-search" name="search"
+                       placeholder="{{ _('Search instruments...') }}">
+            </div>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="instruments-family">{{ _("Instrument Family") }}</label>
+            <select class="form-field__input form-field__input--plain" id="instruments-family" name="family">
+                <option value="">{{ _("Family: All") }}</option>
+                {% for family in instrument_families_filter %}
+                <option value="{{ family.value }}">{{ family.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="instruments-cycle">{{ _("Cycle Status") }}</label>
+            <select class="form-field__input form-field__input--plain" id="instruments-cycle" name="cycle_status">
+                <option value="">{{ _("Cycle: All") }}</option>
+                <option value="available">{{ _("Available") }}</option>
+                <option value="in_use">{{ _("In Use") }}</option>
+                <option value="sterilization">{{ _("Sterilization") }}</option>
+                <option value="unavailable">{{ _("Unavailable") }}</option>
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="instruments-status">{{ _("Active Status") }}</label>
+            <select class="form-field__input form-field__input--plain" id="instruments-status" name="status">
+                <option value="active" selected>{{ _("Status: Active") }}</option>
+                <option value="inactive">{{ _("Status: Inactive") }}</option>
+                <option value="">{{ _("Status: All") }}</option>
+            </select>
+        </div>
+    </form>
+</section>
+
+<section class="card">
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Internal Code") }}</th>
+                    <th scope="col">{{ _("Instrument Family") }}</th>
+                    <th scope="col">{{ _("Cycle Status") }}</th>
+                    <th scope="col">{{ _("Active Status") }}</th>
+                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for instrument in instruments %}
+                <tr>
+                    <th scope="row">{{ instrument.internal_code }}</th>
+                    <td>{{ instrument.instrument_family_name }}</td>
+                    <td>{{ macros.status_badge(instrument.cycle_status_label, instrument.cycle_status_variant) }}</td>
+                    <td>{{ macros.status_badge(instrument.active_status_label, instrument.active_status_variant) }}</td>
+                    <td class="data-table__action-column">
+                        <a class="btn btn--secondary btn--small" href="{{ instrument.edit_url }}">{{ _("Edit") }}</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="pagination" aria-label="{{ _('Pagination') }}">
+        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s instruments", shown=instruments_shown_count, total=instruments_total_count) }}</p>
+        <div class="pagination__controls">
+            <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
+            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
+            <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
+        </div>
+    </nav>
+</section>
+{% endblock %}
