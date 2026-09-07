@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 
 class HumanCorrection(db.Model):
-    __tablename__ = 'HumanCorrection'
+    __tablename__ = 'human_correction'
     
     # Attributes
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True,  default=uuid.uuid4)

@@ -12,4 +12,6 @@ class Physician(db.Model):
     active: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=True)
     institution_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('institution.id'), nullable=False)
     institution: Mapped["Institution"] = relationship("Institution", back_populates="physician")
+    
     physicians_specialties: Mapped[list["PhysicianSpecialty"]] = relationship("PhysicianSpecialty", back_populates="physician", cascade="all, delete-orphan")
+    operation_physicians: Mapped[list["OperationPhysician"]] = relationship("OperationPhysician", back_populates="physician")

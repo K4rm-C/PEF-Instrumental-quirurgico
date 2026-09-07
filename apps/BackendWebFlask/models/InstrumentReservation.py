@@ -19,7 +19,7 @@ class InstrumentReservation(db.Model):
 
     # FKs
     operation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('operation.id'), nullable=False)
-    instrument_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('instruments.id'), nullable=False)
+    instrument_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('instrument.id'), nullable=False)
 
     # Relations
     operation: Mapped["Operation"] = relationship("Operation", back_populates="instrument_reservations")

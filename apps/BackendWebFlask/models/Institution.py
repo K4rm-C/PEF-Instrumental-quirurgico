@@ -15,3 +15,10 @@ class Institution(db.Model):
     parent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('institution.id'), nullable=True) 
     parent: Mapped["Institution"] = relationship("Institution", remote_side=[id], back_populates="children")
     children: Mapped[list["Institution"]] = relationship("Institution", back_populates="parent")
+
+    instruments: Mapped[list["Instrument"]] = relationship("Instrument", back_populates="institution")
+    kits: Mapped[list["Kit"]] = relationship("Kit", back_populates="institution")
+    physician: Mapped[list["Physician"]] = relationship("Physician", back_populates="institution")
+    roles: Mapped[list["Role"]] = relationship("Role", back_populates="institution")
+    integration_clients: Mapped[list["IntegrationClient"]] = relationship("IntegrationClient", back_populates="institution")
+    access_audits: Mapped[list["AccessAudit"]] = relationship("AccessAudit", back_populates="institution")

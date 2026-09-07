@@ -16,3 +16,5 @@ class CatProcedureType(db.Model): # Missing String size
     # Relations
     operations: Mapped[list["Operation"]] = relationship("Operation", back_populates="procedure_type") # CatProcedureType << Operation 'operations'
     instrument_usage: Mapped[list["InstrumentUsage"]] = relationship("InstrumentUsage", back_populates="procedure_type") # CatProcedureType << InstrumentUsage 'instrument_usage'
+    procedure_kits: Mapped[list["ProcedureKit"]] = relationship("ProcedureKit", back_populates="procedure_type")
+    procedure_phases: Mapped[list["ProcedurePhase"]] = relationship("ProcedurePhase", back_populates="procedure_type")

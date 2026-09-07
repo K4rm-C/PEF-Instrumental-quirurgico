@@ -18,4 +18,4 @@ class InstrumentFamily(db.Model):
     category_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('cat_instrument_category.id'), nullable=False)
     category: Mapped["CatInstrumentCategory"] = relationship("CatInstrumentCategory", back_populates="families")
     kit_items: Mapped[list["KitItem"]] = relationship("KitItem", back_populates="family")
-    
+    model_classes: Mapped[list["ModelClass"]] = relationship("ModelClass", back_populates="family")

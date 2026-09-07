@@ -15,3 +15,6 @@ class Kit(db.Model):
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=datetime.now(timezone.utc))
 
     institution: Mapped["Institution"] = relationship("Institution", back_populates="kits")
+    sessions: Mapped[list["WorkSession"]] = relationship("WorkSession", back_populates="kit")
+    items: Mapped[list["KitItem"]] = relationship("KitItem", back_populates="kit")
+    procedure_kits: Mapped[list["ProcedureKit"]] = relationship("ProcedureKit", back_populates="kit")

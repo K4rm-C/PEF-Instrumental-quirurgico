@@ -1,16 +1,17 @@
 from extensions import db
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, JSONB
 from sqlalchemy.orm import Mapped,mapped_column,relationship
-from sqlalchemy import ForeignKey, String
+from sqlalchemy import ForeignKey, String, Text, Boolean
 import uuid
+from datetime import datetime, timezone
 
-class CatSessionStatus(db.Model): # Missing String size
-    __tablename__ = 'cat_session_status'
+class CatEventType(db.Model): # Missing String size
+    __tablename__ = 'cat_event_type'
     
-    # Attributes
+    # Atributes
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     code: Mapped[str] = mapped_column(String(), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(), nullable=False)
     
     # Relations
-    sessions: Mapped[list["WorkSession"]] = relationship("WorkSession", back_populates="status") # CatSessionStatus << WorkSessions 'sessions'
+    events: Mapped[list["CountEvent"]] = relationship("CountEvent", back_populates="event_type")

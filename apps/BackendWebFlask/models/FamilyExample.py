@@ -16,6 +16,6 @@ class FamilyExample(db.Model):
     sort_order: Mapped[int] = mapped_column(SMALLINT, nullable=False)
     
     # Relations
-    family: Mapped["InstrumentFamily"] = relationship("InstrumentFamily", back_populates="examples") # FamilyExample -> InstrumentFamily 'family'
-    media_asset: Mapped["MediaAsset"] = relationship("MediaAsset", back_populates='image') # FamilyExample -> MediaAsset 'media_asset'
+    family: Mapped["InstrumentFamily"] = relationship("InstrumentFamily") # FamilyExample -> InstrumentFamily 'family'
+    media_asset: Mapped["MediaAsset"] = relationship("MediaAsset") # FamilyExample -> MediaAsset 'media_asset'
     # FamilyExample << ExpectedInventory 'expected'

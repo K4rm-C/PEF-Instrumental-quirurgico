@@ -16,5 +16,5 @@ class ExpectedInventory(db.Model):
     session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('work_session.id'), nullable=False)
 
     # Relations
-    family: Mapped["InstrumentFamily"] = relationship("InstrumentFamily", back_populates="expected_inventories")
+    family: Mapped["InstrumentFamily"] = relationship("InstrumentFamily")
     session: Mapped["WorkSession"] = relationship("WorkSession", back_populates="expected_inventory")

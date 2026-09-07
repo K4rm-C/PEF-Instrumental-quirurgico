@@ -1,7 +1,7 @@
 from extensions import db
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.orm import Mapped,mapped_column,relationship
-from sqlalchemy import ForeignKey, String, Text, Boolean
+from sqlalchemy import ForeignKey, String, Text, Boolean, SMALLINT
 import uuid
 from datetime import datetime, timezone
 
@@ -13,9 +13,12 @@ class Discrepancy(db.Model):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     resolved: Mapped[bool] = mapped_column(Boolean,nullable=False)
     resolved_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
-    reason_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('cat_discrepancy_reason.id'), nullable=False)
-    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('work_session.id'), nullable=True)
-    origin_event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('count_event.id'), nullable=False)
+    reason_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('cat_discrepancy_reason.id'), nullable=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('work_session.id'), nullable=False)
+    origin_event_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('count_event.id'), nullable=True)
+    expected_quantity: Mapped[int] = mapped_column(SMALLINT, nullable=False)
+    detected_quantity: Mapped[int] = mapped_column(SMALLINT, nullable=False) 
+    family_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('instrument_family.id'), nullable=False)
     
     # Relaciones
     reason: Mapped["CatDiscrepancyReason"] = relationship("CatDiscrepancyReason", back_populates="discrepancies") # Discrepancy -> CatDiscrepancyReason 'Reason'

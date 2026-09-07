@@ -20,3 +20,4 @@ class Patient(db.Model): # Missing String size
     gender: Mapped["CatGender"] = relationship("CatGender", back_populates="patients") # Patient -> CatGender 'gender'
     # Patient -> Institution 'institution'
     participates: Mapped[list["OperationPatient"]] = relationship("OperationPatient", back_populates="patient") # Patient << OperationPatiient 'participates'
+    privacy_requests: Mapped[list["PrivacyRequest"]] = relationship("PrivacyRequest", back_populates="subject_patient")
