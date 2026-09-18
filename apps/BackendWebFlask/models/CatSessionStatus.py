@@ -1,0 +1,16 @@
+from extensions import db
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped,mapped_column,relationship
+from sqlalchemy import ForeignKey, String
+import uuid
+
+class CatSessionStatus(db.Model): # Missing String size
+    __tablename__ = 'cat_session_status'
+    
+    # Attributes
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    code: Mapped[str] = mapped_column(String(), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(), nullable=False)
+    
+    # Relations
+    sessions: Mapped[list["WorkSession"]] = relationship("WorkSession", back_populates="status") # CatSessionStatus << WorkSessions 'sessions'

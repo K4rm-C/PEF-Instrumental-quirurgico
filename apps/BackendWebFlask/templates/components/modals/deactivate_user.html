@@ -1,0 +1,43 @@
+{% import "components/macros.html" as macros %}
+{#
+    Reusable "Deactivate User?" modal, opened from Edit User's "Deactivate User" action.
+    Opened/closed by the generic static/js/modal.js via data-modal-open / data-modal-close —
+    no dedicated JavaScript for this modal. Uses destructive styling (btn--danger) but is
+    explicitly NOT a delete action: the message reflects that the user loses access while
+    inactive but historical records remain, per the deactivation principle used throughout
+    the Administrator interfaces (section 34 of the implementation prompt).
+
+    Expected context: target_user (dict with `name`, `role_label`, `avatar_url` — same shape
+    as current_user) and deactivate_user_url (string, defaults to "#"). Integration point: in
+    production, "Deactivate User" should set the user's status to Inactive and revoke session
+    access while preserving every historical record tied to that user — not implemented here.
+#}
+{% set target_user = target_user|default({'name': _('this user'), 'role_label': '', 'avatar_url': none}) %}
+{% set deactivate_user_url = deactivate_user_url|default('#') %}
+{% set target_user_name_parts = target_user.name.split() %}
+{% set target_user_initials = (target_user_name_parts[0][0] ~ (target_user_name_parts[-1][0] if target_user_name_parts|length > 1 else '')) | upper %}
+<div class="modal-overlay" id="deactivate-user-modal" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true"
+         aria-labelledby="deactivate-user-modal-title" aria-describedby="deactivate-user-modal-description">
+        <span class="modal-dialog__icon modal-dialog__icon--warning" aria-hidden="true">{{ macros.icon_alert_triangle() }}</span>
+        <h2 class="modal-dialog__title" id="deactivate-user-modal-title">{{ _("Deactivate User?") }}</h2>
+        <p class="modal-dialog__description" id="deactivate-user-modal-description">
+            {{ _("This user will no longer be able to access the system while inactive. You can reactivate this user at any time from the Users management screen.") }}
+        </p>
+        <div class="modal-dialog__info-box modal-dialog__info-box--user">
+            {% if target_user.avatar_url %}
+                <img class="user-menu__avatar user-menu__avatar--photo" src="{{ target_user.avatar_url }}" alt="">
+            {% else %}
+                <span class="user-menu__avatar" aria-hidden="true">{{ target_user_initials }}</span>
+            {% endif %}
+            <span>
+                <span class="modal-dialog__user-name">{{ target_user.name }}</span>
+                <span class="modal-dialog__user-role">{{ target_user.role_label }}</span>
+            </span>
+        </div>
+        <div class="modal-dialog__actions">
+            <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
+            <a class="btn btn--danger-solid" href="{{ deactivate_user_url }}">{{ _("Deactivate User") }}</a>
+        </div>
+    </div>
+</div>

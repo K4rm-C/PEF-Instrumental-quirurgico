@@ -1,0 +1,157 @@
+/* Shared My Profile page for Operator, Supervisor, and IT Administrator. */
+
+.profile-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.profile-summary__avatar {
+    width: 72px;
+    height: 72px;
+    flex: 0 0 72px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background-color: var(--color-primary-surface);
+    color: var(--color-primary);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-semibold);
+}
+
+.profile-summary__avatar--photo {
+    object-fit: cover;
+}
+
+.profile-summary__identity {
+    min-width: 0;
+}
+
+.profile-summary__name {
+    font-size: var(--font-size-lg);
+}
+
+.profile-summary__role,
+.profile-summary__email {
+    margin-top: var(--space-1);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.profile-summary__status {
+    margin-left: auto;
+    align-self: flex-start;
+}
+
+.profile-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+    gap: var(--space-5);
+    align-items: start;
+}
+
+.profile-details,
+.profile-preferences {
+    margin: 0;
+}
+
+.profile-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 var(--space-6);
+}
+
+.profile-details__item {
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.profile-details__item:nth-last-child(-n + 2) {
+    border-bottom: 0;
+}
+
+.profile-details dt,
+.profile-preferences dt {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.profile-details dd,
+.profile-preferences dd {
+    margin: var(--space-1) 0 0;
+}
+
+.profile-details dd {
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-semibold);
+    overflow-wrap: anywhere;
+}
+
+.profile-preferences__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.profile-preferences__item:last-child {
+    border-bottom: 0;
+}
+
+.profile-preferences dd {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-xs);
+}
+
+.profile-preferences__value {
+    flex-shrink: 0;
+    padding: 6px var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-secondary);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+}
+
+.profile-preferences__hint {
+    margin-top: var(--space-4);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+@media (max-width: 1024px) {
+    .profile-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .profile-summary {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .profile-summary__status {
+        width: 100%;
+        margin-left: 88px;
+    }
+
+    .profile-details {
+        grid-template-columns: 1fr;
+    }
+
+    .profile-details__item:nth-last-child(-n + 2) {
+        border-bottom: 1px solid var(--color-border);
+    }
+
+    .profile-details__item:last-child {
+        border-bottom: 0;
+    }
+}

@@ -1,0 +1,175 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Closed Session Details") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'session_history' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Session History") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Closed Session Details") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    Everything below is placeholder data used only so this page is visually reviewable
+    before the backend supplies real data. This is a READ-ONLY view — no increment/decrement
+    controls and no Edit Count action. Expected shapes are documented in
+    FRONTEND_INTEGRATION.md.
+#}
+{% set session = session|default({
+    'session_id': 'WS-024',
+    'procedure_name': 'Hernia Repair',
+    'operating_room': 'OR-2',
+    'patient_name': 'Carlos Rivera',
+    'physician_name': 'Dr. Sarah Chen',
+    'kit_name': 'General Surgery Kit',
+    'operator_name': 'Alex Morgan',
+    'capture_station_name': 'Station CDE-02',
+    'started_at': '2024-01-15 08:30',
+    'closed_at': '2024-01-15 10:15',
+    'status_label': _('Closed'),
+    'status_variant': 'success'
+}) %}
+{% set pre_procedure_status = pre_procedure_status|default({
+    'expected_count': 11, 'status_label': _('Complete'), 'status_variant': 'success'
+}) %}
+{% set post_procedure_status = post_procedure_status|default({
+    'validated_count': 11, 'status_label': _('Complete'), 'status_variant': 'success'
+}) %}
+{% set closure_summary = closure_summary|default({
+    'variant': 'success', 'message': _('All Instruments Accounted For')
+}) %}
+{% set validated_count = validated_count|default([
+    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'counted_quantity': 4, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'counted_quantity': 1, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+    {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'}
+]) %}
+{% set activity_log = activity_log|default([
+    {'timestamp': '08:30', 'event_label': _('Session Started'), 'actor_name': 'Alex Morgan', 'details': _('General Surgery Kit loaded')},
+    {'timestamp': '08:36', 'event_label': _('Count Recorded'), 'actor_name': 'Alex Morgan', 'details': _('Initial count submitted')},
+    {'timestamp': '10:10', 'event_label': _('Count Validated'), 'actor_name': 'Alex Morgan', 'details': _('All instruments accounted for')},
+    {'timestamp': '10:15', 'event_label': _('Session Closed'), 'actor_name': 'Alex Morgan', 'details': _('Session finalized')}
+]) %}
+{% set back_to_sessions_url = back_to_sessions_url|default('#') %}
+{% set export_summary_url = export_summary_url|default('#') %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Closed Session Details") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Final traceability record for the completed session.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    <div class="session-summary__header">
+        <h2 class="card__title">{{ _("Session Information") }}</h2>
+        <span class="session-summary__header-status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+    <div class="info-grid">
+        <p class="info-grid__item">{{ _("Session ID") }}: <strong>{{ session.session_id }}</strong></p>
+        <p class="info-grid__item">{{ _("Procedure / Operation") }}: <strong>{{ session.procedure_name }} - {{ session.operating_room }}</strong></p>
+        <p class="info-grid__item">{{ _("Patient") }}: <strong>{{ session.patient_name }}</strong></p>
+        <p class="info-grid__item">{{ _("Physician / Surgeon") }}: <strong>{{ session.physician_name }}</strong></p>
+        <p class="info-grid__item">{{ _("Operating Room") }}: <strong>{{ session.operating_room }}</strong></p>
+        <p class="info-grid__item">{{ _("Kit") }}: <strong>{{ session.kit_name }}</strong></p>
+        <p class="info-grid__item">{{ _("Operator") }}: <strong>{{ session.operator_name }}</strong></p>
+        <p class="info-grid__item">{{ _("Capture Station") }}: <strong>{{ session.capture_station_name }}</strong></p>
+        <p class="info-grid__item">{{ _("Started") }}: <strong>{{ session.started_at }}</strong></p>
+        <p class="info-grid__item">{{ _("Closed") }}: <strong>{{ session.closed_at }}</strong></p>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Pre/Post Procedure Status") }}</h2>
+    <div class="form-grid">
+        <div class="sub-panel">
+            <span class="sub-panel__label">{{ _("Pre-Procedure Status") }}</span>
+            <span class="sub-panel__value">{{ _("Expected Instruments") }}: {{ pre_procedure_status.expected_count }}</span>
+            {{ macros.status_badge(pre_procedure_status.status_label, pre_procedure_status.status_variant) }}
+        </div>
+        <div class="sub-panel">
+            <span class="sub-panel__label">{{ _("Post-Procedure Status") }}</span>
+            <span class="sub-panel__value">{{ _("Validated Instruments") }}: {{ post_procedure_status.validated_count }}</span>
+            {{ macros.status_badge(post_procedure_status.status_label, post_procedure_status.status_variant) }}
+        </div>
+    </div>
+</section>
+
+{{ macros.alert_banner(closure_summary.variant, closure_summary.message) }}
+
+<section class="card">
+    <h2 class="card__title">{{ _("Validated Count") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Instrument") }}</th>
+                    <th scope="col">{{ _("Expected") }}</th>
+                    <th scope="col">{{ _("Counted") }}</th>
+                    <th scope="col">{{ _("Difference") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in validated_count %}
+                <tr>
+                    <th scope="row">{{ item.instrument_name }}</th>
+                    <td>{{ item.expected_quantity }}</td>
+                    <td>{{ item.counted_quantity }}</td>
+                    <td class="{{ 'text-danger' if item.difference != 0 else 'text-success' }}">{{ item.difference }}</td>
+                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Session Activity Log") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Timestamp") }}</th>
+                    <th scope="col">{{ _("Event") }}</th>
+                    <th scope="col">{{ _("User") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in activity_log %}
+                <tr>
+                    <td>{{ entry.timestamp }}</td>
+                    <td>
+                        <span class="data-table__primary">{{ entry.event_label }}</span>
+                        {% if entry.details %}<span class="data-table__secondary">{{ entry.details }}</span>{% endif %}
+                    </td>
+                    <td>{{ entry.actor_name }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
+
+{% block page_action_bar %}
+<div class="page-action-bar">
+    <a class="btn btn--secondary" href="{{ back_to_sessions_url }}">{{ _("Back to Sessions") }}</a>
+    {# Integration point: Export Summary does not generate a real file in this iteration. #}
+    <a class="btn btn--secondary" href="{{ export_summary_url }}">{{ _("Export Summary") }}</a>
+</div>
+{% endblock %}

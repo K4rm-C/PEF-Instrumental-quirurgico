@@ -1,0 +1,169 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Discrepancy Review") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'discrepancies' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Monitoring") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Discrepancies") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ session.session_id }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    Everything below is placeholder data used only so this page is visually reviewable
+    before the backend supplies real data. This is ONE standalone review screen (not driven
+    by a discrepancy/no-discrepancy switch like Operator's Count Validation, since a
+    Supervisor only ever reviews sessions that already have a discrepancy). Expected shapes
+    are documented in FRONTEND_INTEGRATION.md.
+
+    Supervisor count rule: Expected / Counted / Difference are read-only everywhere on this
+    page — no increment/decrement controls and no Edit Count action are rendered.
+#}
+{% set session = session|default({
+    'session_id': 'WS-026', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+    'kit_name': 'Delivery Kit', 'operator_name': 'Alex Morgan', 'capture_station_name': 'Station CDE-01',
+    'submitted_at': '15:42', 'status_label': _('Pending Review'), 'status_variant': 'pending'
+}) %}
+{% set pre_post_comparison = pre_post_comparison|default({
+    'expected_total': 11, 'counted_total': 10, 'difference': -1,
+    'status_label': _('Instrument discrepancy requires Supervisor review'), 'status_variant': 'warning'
+}) %}
+{% set count_comparison = count_comparison|default([
+    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'counted_quantity': 4, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'counted_quantity': 1, 'difference': -1, 'status_label': _('Discrepancy'), 'status_variant': 'danger'},
+    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'counted_quantity': 1, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
+    {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'}
+]) %}
+{% set operator_submission = operator_submission|default({
+    'reason': _('Missing instrument'),
+    'verification_notes': _('Searched the tray and back table; Mayo-Hegar Needle Holder could not be located before the incision count was finalized.')
+}) %}
+{% set approve_review_url = approve_review_url|default('#') %}
+{% set request_correction_url = request_correction_url|default('#') %}
+
+<section class="card">
+    <div class="session-summary__header">
+        <h2 class="card__title">{{ _("Session Information") }}</h2>
+        <span class="session-summary__header-status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+    <div class="info-grid info-grid--three">
+        <p class="info-grid__item">{{ _("Session") }}: <strong>{{ session.session_id }}</strong></p>
+        <p class="info-grid__item">{{ _("Operating Room") }}: <strong>{{ session.operating_room }}</strong></p>
+        <p class="info-grid__item">{{ _("Submitted") }}: <strong>{{ session.submitted_at }}</strong></p>
+        <p class="info-grid__item">{{ _("Procedure") }}: <strong>{{ session.procedure_name }} - {{ session.operating_room }}</strong></p>
+        <p class="info-grid__item">{{ _("Kit") }}: <strong>{{ session.kit_name }}</strong></p>
+        <p class="info-grid__item">{{ _("Status") }}: <strong>{{ session.status_label }}</strong></p>
+        <p class="info-grid__item">{{ _("Patient") }}: <strong>{{ session.patient_name }}</strong></p>
+        <p class="info-grid__item">{{ _("Operator") }}: <strong>{{ session.operator_name }}</strong></p>
+        <p class="info-grid__item">{{ _("Physician") }}: <strong>{{ session.physician_name }}</strong></p>
+        <p class="info-grid__item">{{ _("Capture Station") }}: <strong>{{ session.capture_station_name }}</strong></p>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("PRE/POST Procedure Comparison") }}</h2>
+    <div class="stat-card-grid stat-card-grid--three">
+        <div class="stat-card">
+            <p class="stat-card__label">{{ _("Pre-Procedure") }}</p>
+            <p class="stat-card__value">{{ pre_post_comparison.expected_total }}</p>
+            <p class="stat-card__description">{{ _("Expected Instruments") }}</p>
+        </div>
+        <div class="stat-card">
+            <p class="stat-card__label">{{ _("Post-Procedure") }}</p>
+            <p class="stat-card__value">{{ pre_post_comparison.counted_total }}</p>
+            <p class="stat-card__description">{{ _("Counted Instruments") }}</p>
+        </div>
+        <div class="stat-card {{ 'stat-card--danger' if pre_post_comparison.difference != 0 else 'stat-card--success' }}">
+            <p class="stat-card__label">{{ _("Difference") }}</p>
+            <p class="stat-card__value">{{ pre_post_comparison.difference }}</p>
+            <p class="stat-card__description">{{ _("Discrepancy") if pre_post_comparison.difference != 0 else _("Accounted For") }}</p>
+        </div>
+    </div>
+    <div class="alert alert--{{ pre_post_comparison.status_variant }}" role="status">
+        {% if pre_post_comparison.status_variant == 'success' %}{{ macros.icon_check_circle() }}{% else %}{{ macros.icon_alert_triangle() }}{% endif %}
+        <span class="alert__message">{{ pre_post_comparison.status_label }}</span>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Count Comparison") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Instrument") }}</th>
+                    <th scope="col">{{ _("Expected") }}</th>
+                    <th scope="col">{{ _("Counted") }}</th>
+                    <th scope="col">{{ _("Difference") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in count_comparison %}
+                <tr class="{{ 'data-table__row--highlight-danger' if item.status_variant == 'danger' else '' }}">
+                    <th scope="row">{{ item.instrument_name }}</th>
+                    <td>{{ item.expected_quantity }}</td>
+                    <td>{{ item.counted_quantity }}</td>
+                    <td class="{{ 'text-danger' if item.difference != 0 else 'text-success' }}">{{ item.difference }}</td>
+                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Operator Submission") }}</h2>
+    <div class="form-grid">
+        <div class="sub-panel">
+            <span class="sub-panel__label">{{ _("Reason") }}</span>
+            <span class="sub-panel__value">{{ operator_submission.reason }}</span>
+        </div>
+        <div class="sub-panel">
+            <span class="sub-panel__label">{{ _("Verification Notes") }}</span>
+            <span class="sub-panel__value">{{ operator_submission.verification_notes }}</span>
+        </div>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Supervisor Review") }}</h2>
+    <div class="form-field">
+        <label class="form-field__label" for="supervisor-notes">{{ _("Supervisor Notes") }}</label>
+        <textarea class="form-field__textarea" id="supervisor-notes" name="supervisor_notes"
+                  placeholder="{{ _('Add review comments about this discrepancy...') }}"></textarea>
+    </div>
+</section>
+
+{% include "components/modals/approve_review.html" %}
+{% include "components/modals/request_correction.html" %}
+{% endblock %}
+
+{% block page_action_bar %}
+<div class="page-action-bar">
+    <button type="button" class="btn btn--danger" data-modal-open="request-correction-modal">
+        {{ _("Request Correction") }}
+    </button>
+    <button type="button" class="btn btn--primary" data-modal-open="approve-review-modal">
+        {{ macros.icon_check_square() }}
+        <span>{{ _("Approve Review") }}</span>
+    </button>
+</div>
+{% endblock %}

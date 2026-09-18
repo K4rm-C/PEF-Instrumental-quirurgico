@@ -1,0 +1,161 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Shared My Profile view used by Operator CDE, Supervisor CDE / Quality, and
+    IT Administrator. The page is intentionally read-only: account creation, role changes,
+    activation/deactivation, and administrator-driven password changes remain in the
+    Administrator Users workflow.
+
+    Expected context:
+      profile_role       "operator" | "supervisor" | "admin"
+      current_user       dict/object with the normal header fields plus, when available:
+                         email, institution, profile_role_label, status_label,
+                         status_variant, avatar_url
+      nav_urls           role-appropriate sidebar URLs (same shape already used by each role)
+      current_locale     current rendered locale, defaults to "en"
+#}
+{% set profile_role = profile_role|default('operator') %}
+{% set profile_user = current_user|default({
+    'name': _('Guest User'),
+    'role_label': _('User'),
+    'email': '',
+    'institution': '',
+    'status_label': _('Active'),
+    'status_variant': 'success',
+    'avatar_url': none
+}) %}
+{% set name_parts = profile_user.name.split() %}
+{% set profile_initials = (name_parts[0][0] ~ (name_parts[-1][0] if name_parts|length > 1 else '')) | upper %}
+{% set profile_role_label = profile_user.profile_role_label|default(profile_user.role_label) %}
+{% set locale_labels = {'en': _('English'), 'es-MX': _('Español (México)')} %}
+{% set current_language_label = locale_labels.get(current_locale|default('en'), _('English')) %}
+
+{% block title %}{{ _("My Profile") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'profile' %}
+{% if profile_role == 'supervisor' %}
+    {% include "partials/sidebar_supervisor.html" %}
+{% elif profile_role == 'admin' %}
+    {% include "partials/sidebar_admin.html" %}
+{% else %}
+    {% include "partials/sidebar_operator.html" %}
+{% endif %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Account") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("My Profile") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/profile.css') }}">
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("My Profile") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Review your account information and interface preferences") }}</p>
+    </div>
+</div>
+
+<section class="card profile-summary" aria-labelledby="profile-summary-title">
+    {% if profile_user.avatar_url %}
+        <img class="profile-summary__avatar profile-summary__avatar--photo"
+             src="{{ profile_user.avatar_url }}"
+             alt="{{ _('%(name)s profile photo', name=profile_user.name) }}">
+    {% else %}
+        <span class="profile-summary__avatar" aria-hidden="true">{{ profile_initials }}</span>
+    {% endif %}
+    <div class="profile-summary__identity">
+        <h2 class="profile-summary__name" id="profile-summary-title">{{ profile_user.name }}</h2>
+        <p class="profile-summary__role">{{ profile_role_label }}</p>
+        {% if profile_user.email %}
+        <p class="profile-summary__email">{{ profile_user.email }}</p>
+        {% endif %}
+    </div>
+    <div class="profile-summary__status">
+        {{ macros.status_badge(
+            profile_user.status_label|default(_("Active")),
+            profile_user.status_variant|default('success')
+        ) }}
+    </div>
+</section>
+
+<div class="profile-layout">
+    <section class="card" aria-labelledby="account-information-title">
+        <div class="card__header">
+            <div>
+                <h2 class="card__title" id="account-information-title">{{ _("Account Information") }}</h2>
+                <p class="card__subtitle">{{ _("Information associated with your authenticated account") }}</p>
+            </div>
+        </div>
+
+        <dl class="profile-details">
+            <div class="profile-details__item">
+                <dt>{{ _("Full Name") }}</dt>
+                <dd>{{ profile_user.name }}</dd>
+            </div>
+            <div class="profile-details__item">
+                <dt>{{ _("Institutional Email") }}</dt>
+                <dd>{{ profile_user.email|default(_('Not available'), true) }}</dd>
+            </div>
+            <div class="profile-details__item">
+                <dt>{{ _("Institution") }}</dt>
+                <dd>{{ profile_user.institution|default(_('Not available'), true) }}</dd>
+            </div>
+            <div class="profile-details__item">
+                <dt>{{ _("Role") }}</dt>
+                <dd>{{ profile_role_label }}</dd>
+            </div>
+            <div class="profile-details__item">
+                <dt>{{ _("Account Status") }}</dt>
+                <dd>{{ profile_user.status_label|default(_("Active")) }}</dd>
+            </div>
+        </dl>
+    </section>
+
+    <section class="card" aria-labelledby="preferences-title">
+        <div class="card__header">
+            <div>
+                <h2 class="card__title" id="preferences-title">{{ _("Interface Preferences") }}</h2>
+                <p class="card__subtitle">{{ _("Preferences available from the application header") }}</p>
+            </div>
+        </div>
+
+        <dl class="profile-preferences">
+            <div class="profile-preferences__item">
+                <div>
+                    <dt>{{ _("Language") }}</dt>
+                    <dd>{{ _("Interface language") }}</dd>
+                </div>
+                <span class="profile-preferences__value">{{ current_language_label }}</span>
+            </div>
+            <div class="profile-preferences__item">
+                <div>
+                    <dt>{{ _("Appearance") }}</dt>
+                    <dd>{{ _("Light, Dark, or System theme") }}</dd>
+                </div>
+                <span class="profile-preferences__value"
+                      data-profile-theme-value
+                      data-theme-light-label="{{ _('Light') }}"
+                      data-theme-dark-label="{{ _('Dark') }}"
+                      data-theme-system-label="{{ _('System') }}">{{ _("System") }}</span>
+            </div>
+        </dl>
+
+        <p class="profile-preferences__hint">
+            {{ _("Use the language and theme controls in the top-right header to change these preferences.") }}
+        </p>
+    </section>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/profile.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% import "components/macros.html" as macros %}
+{% set theme_options = [
+    {'value': 'light', 'label': _('Light'), 'icon': macros.icon_sun()},
+    {'value': 'dark', 'label': _('Dark'), 'icon': macros.icon_moon()},
+    {'value': 'system', 'label': _('System'), 'icon': macros.icon_monitor()}
+] %}
+
+{# Fully client-side: static/js/theme.js reads/writes localStorage and needs no backend support.
+   The visible label below is a light/dark server-rendered guess; theme.js corrects it on
+   DOMContentLoaded to match the visitor's actual stored preference. #}
+<div class="dropdown" data-dropdown>
+    <button type="button"
+            class="dropdown__trigger"
+            id="theme-selector-trigger"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            data-dropdown-trigger>
+        <span data-theme-selector-current-label>{{ _("Light") }}</span>
+        {{ macros.icon_chevron_down() }}
+    </button>
+    <ul class="dropdown__menu" role="listbox" aria-labelledby="theme-selector-trigger" data-dropdown-menu hidden>
+        {% for option in theme_options %}
+        <li role="option">
+            <button type="button" class="dropdown__item" data-theme-choice="{{ option.value }}" data-theme-label="{{ option.label }}">
+                {{ option.icon }}
+                <span>{{ option.label }}</span>
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+</div>

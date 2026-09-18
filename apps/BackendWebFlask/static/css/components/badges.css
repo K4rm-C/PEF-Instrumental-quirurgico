@@ -1,0 +1,64 @@
+/* Status must never rely on color alone: every badge pairs a dot + text label. */
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 4px var(--space-3);
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+}
+
+.status-badge__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: currentColor;
+    flex-shrink: 0;
+}
+
+.status-badge--info {
+    background-color: var(--color-info-surface);
+    color: var(--color-info);
+}
+
+.status-badge--success {
+    background-color: var(--color-success-surface);
+    color: var(--color-success);
+}
+
+.status-badge--warning,
+.status-badge--pending {
+    background-color: var(--color-warning-surface);
+    color: var(--color-warning);
+}
+
+.status-badge--danger {
+    background-color: var(--color-danger-surface);
+    color: var(--color-danger);
+}
+
+.status-badge--neutral {
+    background-color: var(--color-neutral-surface);
+    color: var(--color-neutral);
+}
+
+/* Semantic text-color utilities for values that convey match/discrepancy status without a
+   full badge (e.g. the Difference column in a count comparison table). */
+.text-success {
+    color: var(--color-success);
+}
+
+.text-danger {
+    color: var(--color-danger);
+}
+
+.text-primary {
+    color: var(--color-primary);
+}
+
+.text-warning {
+    color: var(--color-warning);
+}

@@ -1,0 +1,11 @@
+{% import "components/macros.html" as macros %}
+{#
+    Optional top-of-page success/status banner (e.g. "Review submitted successfully."),
+    distinct from Flask's flash() messages in partials/flash_messages.html. This is driven
+    by a plain `feedback_banner` context dict — {variant, title, description} — set by the
+    view for a single page render (for example, after a preview-only redirect), rather than
+    persisted across requests the way flash() is. Renders nothing when not provided.
+#}
+{% if feedback_banner %}
+{{ macros.alert_banner(feedback_banner.variant|default('success'), feedback_banner.title, feedback_banner.description|default('')) }}
+{% endif %}

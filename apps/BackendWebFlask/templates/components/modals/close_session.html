@@ -1,0 +1,26 @@
+{% import "components/macros.html" as macros %}
+{#
+    Reusable "Close Counting Session?" confirmation modal, opened from Count Validation's
+    "Confirm Validation" action when there is no unresolved discrepancy (has_discrepancy is
+    false). Opened/closed by the generic static/js/modal.js via data-modal-open /
+    data-modal-close — no dedicated JavaScript for this modal.
+
+    Expected context: close_session_url (string, defaults to "#"). Integration point: in
+    production, "Close Session" should finalize the validated count and close the
+    WorkSession — not implemented here.
+#}
+{% set close_session_url = close_session_url|default('#') %}
+<div class="modal-overlay" id="close-session-modal" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true"
+         aria-labelledby="close-session-modal-title" aria-describedby="close-session-modal-description">
+        <span class="modal-dialog__icon modal-dialog__icon--warning" aria-hidden="true">{{ macros.icon_alert_triangle() }}</span>
+        <h2 class="modal-dialog__title" id="close-session-modal-title">{{ _("Close Counting Session?") }}</h2>
+        <p class="modal-dialog__description" id="close-session-modal-description">
+            {{ _("The final instrument count has been validated. Closing the session will finalize the validated count and record the session completion.") }}
+        </p>
+        <div class="modal-dialog__actions">
+            <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Keep Session Open") }}</button>
+            <a class="btn btn--primary" href="{{ close_session_url }}">{{ _("Close Session") }}</a>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,156 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Single reusable template for both New User and Edit User (implementation prompt sections
+    21/23), distinguished purely by form_mode ("create" | "edit"). New User additionally
+    collects Password + Confirm Password (never shown/exposed again once saved); Edit User
+    instead exposes the Change Password / Deactivate User actions and their modals. No
+    Forgot Password / Password Recovery / Temporary Password Email / Security Questions
+    exist anywhere in this flow, per section 21.
+
+    Expected context:
+      form_mode                          "create" | "edit", defaults to "create"
+      user                                dict: name, email, institution, role, status
+      institutions, roles                 lists of {value, label} for their selects
+      save_url, cancel_url                URL strings, default "#"
+      change_password_url, deactivate_user_url   URL strings, default "#" (edit mode only;
+                                           feed components/modals/change_password.html and
+                                           deactivate_user.html)
+    Integration point: Save submits to save_url — not implemented here. Password fields are
+    never pre-filled and never round-tripped back from the server; see FRONTEND_INTEGRATION.md
+    for the frontend/backend password responsibility split.
+#}
+{% set form_mode = form_mode|default('create') %}
+{% set user = user|default({'name': '', 'email': '', 'institution': 'hospital-institution', 'role': 'operator', 'status': 'active'}) %}
+{% set institutions = institutions|default([
+    {'value': 'hospital-institution', 'label': _('Hospital Institution')}
+]) %}
+{% set roles = roles|default([
+    {'value': 'operator', 'label': _('Operator CDE')},
+    {'value': 'supervisor', 'label': _('Supervisor CDE / Quality')},
+    {'value': 'admin', 'label': _('IT Administrator')}
+]) %}
+{% set is_edit = form_mode == 'edit' %}
+{% set page_title = _("Edit User") if is_edit else _("New User") %}
+{% set page_subtitle = _("Update user information and assigned role.") if is_edit else _("Create an authorized system user and assign a role.") %}
+
+{% block title %}{{ page_title }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'users' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Administration") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item"><a href="{{ cancel_url|default('#') }}">{{ _("Users") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Edit") if is_edit else _("New") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ page_title }}</h1>
+        <p class="page-heading__subtitle">{{ page_subtitle }}</p>
+    </div>
+</div>
+
+<section class="card card--form">
+    <form class="form" id="user-form" action="{{ save_url|default('#') }}" method="post"
+          data-password-mismatch-message="{{ _('Passwords do not match.') }}">
+        <div class="form-field">
+            <label class="form-field__label" for="user-name">{{ _("Name") }}</label>
+            <input class="form-field__input form-field__input--plain" type="text" id="user-name" name="name"
+                   value="{{ user.name }}" placeholder="{{ _('Enter full name') }}">
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="user-email">{{ _("Institutional Email") }}</label>
+            <input class="form-field__input form-field__input--plain" type="email" id="user-email" name="email"
+                   value="{{ user.email }}" placeholder="{{ _('Enter institutional email address') }}">
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="user-institution">{{ _("Institution") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="user-institution" name="institution">
+                    {% for institution in institutions %}
+                    <option value="{{ institution.value }}" {% if institution.value == user.institution %}selected{% endif %}>{{ institution.label }}</option>
+                    {% endfor %}
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="user-role">{{ _("Role") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="user-role" name="role">
+                    {% for role in roles %}
+                    <option value="{{ role.value }}" {% if role.value == user.role %}selected{% endif %}>{{ role.label }}</option>
+                    {% endfor %}
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+
+        {% if not is_edit %}
+        <div class="form-field">
+            <label class="form-field__label" for="user-password">{{ _("Password") }}</label>
+            <input class="form-field__input form-field__input--plain" type="password" id="user-password" name="password" autocomplete="new-password">
+            <p class="form-field__helper">{{ _("Set the initial password for this user.") }}</p>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="user-confirm-password">{{ _("Confirm Password") }}</label>
+            <input class="form-field__input form-field__input--plain" type="password" id="user-confirm-password" name="confirm_password" autocomplete="new-password">
+            <p class="form-field__helper form-field__helper--error" id="user-password-mismatch" hidden></p>
+        </div>
+        {% endif %}
+
+        <div class="form-field">
+            <label class="form-field__label" for="user-status">{{ _("Status") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="user-status" name="status">
+                    <option value="active" {% if user.status == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
+                    <option value="inactive" {% if user.status == 'inactive' %}selected{% endif %}>{{ _("Inactive") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+
+        {% if is_edit %}
+        <div>
+            <button type="button" class="link-action" data-modal-open="change-password-modal">{{ _("Change Password") }}</button>
+        </div>
+
+        <div class="form-field form-section-divider">
+            <h2 class="card__title">{{ _("Account Status") }}</h2>
+            <p class="form-field__helper">{{ _("Deactivate this user to prevent system access while preserving historical records.") }}</p>
+            <div>
+                <button type="button" class="btn btn--danger-solid" data-modal-open="deactivate-user-modal">{{ _("Deactivate User") }}</button>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <a class="btn btn--secondary" href="{{ cancel_url|default('#') }}">{{ _("Cancel") }}</a>
+            <button type="submit" class="btn btn--primary">{{ _("Save Changes") if is_edit else _("Save User") }}</button>
+        </div>
+    </form>
+</section>
+
+{% if is_edit %}
+{% with target_user={'name': user.name, 'role_label': user.role_label|default(''), 'avatar_url': none}, change_password_url=change_password_url|default('#'), deactivate_user_url=deactivate_user_url|default('#') %}
+{% include "components/modals/change_password.html" %}
+{% include "components/modals/deactivate_user.html" %}
+{% endwith %}
+{% endif %}
+{% endblock %}
+
+{% if not is_edit %}
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/user-form.js') }}" defer></script>
+{% endblock %}
+{% endif %}

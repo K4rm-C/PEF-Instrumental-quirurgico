@@ -1,0 +1,155 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Counting Sessions") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Counting Sessions") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    sessions, sessions_shown_count, sessions_total_count, current_page, total_pages,
+    previous_url, and next_url below are placeholder values used only so this page is
+    visually reviewable before the backend supplies real data. Expected shapes are
+    documented in FRONTEND_INTEGRATION.md. This page shows the Operator's operational
+    queue (Active / Pending Validation / With Discrepancies) — closed sessions belong in
+    Session History instead.
+#}
+{% set sessions = sessions|default([
+    {
+        'session_id': 'WS-024', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+        'kit_name': 'Delivery Kit', 'operator_name': 'Alex Morgan', 'capture_station_name': 'Station CDE-01',
+        'started_at': '14:32', 'status_label': _('Active'), 'status_variant': 'info',
+        'action_label': _('Continue'), 'action_url': '#'
+    },
+    {
+        'session_id': 'WS-022', 'procedure_name': 'Cholecystectomy', 'operating_room': 'OR-1',
+        'kit_name': 'Delivery Kit', 'operator_name': 'Daniel Lee', 'capture_station_name': 'Station CDE-01',
+        'started_at': '12:44', 'status_label': _('With Discrepancies'), 'status_variant': 'danger',
+        'action_label': _('View Details'), 'action_url': '#'
+    },
+    {
+        'session_id': 'WS-025', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
+        'kit_name': 'Suture Kit', 'operator_name': 'Alex Morgan', 'capture_station_name': 'Station CDE-02',
+        'started_at': '15:05', 'status_label': _('Pending Validation'), 'status_variant': 'pending',
+        'action_label': _('Review'), 'action_url': '#'
+    }
+]) %}
+{% set sessions_shown_count = sessions_shown_count|default(sessions|length) %}
+{% set sessions_total_count = sessions_total_count|default(8) %}
+{% set current_page = current_page|default(1) %}
+{% set total_pages = total_pages|default(3) %}
+{% set previous_url = previous_url|default('#') %}
+{% set next_url = next_url|default('#') %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Counting Sessions") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Manage and review current and recent instrument counting sessions.") }}</p>
+    </div>
+    {# Integration point: target route for starting a new counting session (New Session in the sidebar). #}
+    <a class="btn btn--primary" href="#">
+        {{ macros.icon_plus() }}
+        <span>{{ _("New Counting Session") }}</span>
+    </a>
+</div>
+
+<section class="card">
+    {# Filters are presentation-only in this iteration: no client-side or server-side
+       filtering is wired up yet. #}
+    <form class="filter-bar" action="#" method="get" role="search">
+        <div class="filter-bar__search">
+            <label class="visually-hidden" for="counting-sessions-search">{{ _("Search Sessions") }}</label>
+            <div class="form-field__input-wrapper">
+                <span class="form-field__icon">{{ macros.icon_search() }}</span>
+                <input class="form-field__input" type="search" id="counting-sessions-search" name="search"
+                       placeholder="{{ _('Search sessions...') }}">
+            </div>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="counting-sessions-status">{{ _("Status") }}</label>
+            <select class="form-field__input form-field__input--plain" id="counting-sessions-status" name="status">
+                <option value="">{{ _("All Statuses") }}</option>
+                <option value="active">{{ _("Active") }}</option>
+                <option value="pending_validation">{{ _("Pending Validation") }}</option>
+                <option value="with_discrepancies">{{ _("With Discrepancies") }}</option>
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="counting-sessions-kit">{{ _("Kit") }}</label>
+            <select class="form-field__input form-field__input--plain" id="counting-sessions-kit" name="kit">
+                <option value="">{{ _("All Kits") }}</option>
+                <option value="delivery-kit">{{ _("Delivery Kit") }}</option>
+                <option value="suture-kit">{{ _("Suture Kit") }}</option>
+                <option value="general-surgery-kit">{{ _("General Surgery Kit") }}</option>
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="counting-sessions-date">{{ _("Date") }}</label>
+            <select class="form-field__input form-field__input--plain" id="counting-sessions-date" name="date">
+                <option value="">{{ _("All Dates") }}</option>
+                <option value="today">{{ _("Today") }}</option>
+                <option value="last-7-days">{{ _("Last 7 Days") }}</option>
+                <option value="last-30-days">{{ _("Last 30 Days") }}</option>
+            </select>
+        </div>
+    </form>
+</section>
+
+<section class="card">
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Session / Procedure") }}</th>
+                    <th scope="col">{{ _("Kit") }}</th>
+                    <th scope="col">{{ _("Operator") }}</th>
+                    <th scope="col">{{ _("Capture Station") }}</th>
+                    <th scope="col">{{ _("Started") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in sessions %}
+                <tr>
+                    <th scope="row">
+                        <span class="data-table__primary">{{ session.session_id }}</span>
+                        <span class="data-table__secondary">{{ session.procedure_name }} - {{ session.operating_room }}</span>
+                    </th>
+                    <td>{{ session.kit_name }}</td>
+                    <td>{{ session.operator_name }}</td>
+                    <td>{{ session.capture_station_name }}</td>
+                    <td>{{ session.started_at }}</td>
+                    <td>{{ macros.status_badge(session.status_label, session.status_variant) }}</td>
+                    <td class="data-table__action-column">
+                        <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ session.action_label }}</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="pagination" aria-label="{{ _('Pagination') }}">
+        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s sessions", shown=sessions_shown_count, total=sessions_total_count) }}</p>
+        <div class="pagination__controls">
+            <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
+            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
+            <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
+        </div>
+    </nav>
+</section>
+{% endblock %}

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="{{ current_locale|default('en') }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ _("Surgical Instrument Traceability System") }}{% endblock %}</title>
+
+    {# Applied before any stylesheet renders so the correct theme paints on the first frame
+       (avoids a flash of the wrong theme). See static/js/theme.js for the persisted logic. #}
+    <script>
+        (function () {
+            try {
+                var storedPreference = localStorage.getItem("themePreference");
+                var preference = (storedPreference === "light" || storedPreference === "dark") ? storedPreference : "system";
+                var appliedTheme = preference;
+                if (preference === "system") {
+                    appliedTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+                }
+                document.documentElement.setAttribute("data-theme", appliedTheme);
+                document.documentElement.setAttribute("data-theme-preference", preference);
+            } catch (error) {
+                document.documentElement.setAttribute("data-theme", "light");
+            }
+        })();
+    </script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/buttons.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/forms.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/cards.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/badges.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/tables.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/dropdowns.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/alerts.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/charts.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/modals.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/filters.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/pagination.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/counter.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/session-details.css') }}">
+    {% block page_styles %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+
+    <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/dropdown.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>
+    {% block page_scripts %}{% endblock %}
+</body>
+</html>

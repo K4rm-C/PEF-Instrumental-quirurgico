@@ -1,0 +1,159 @@
+/*
+  Layout helpers shared by Active Counting Session, Count Validation, and Closed Session
+  Details: a one-line session context bar, a title+meta session summary header, a two-column
+  label/value info grid, a three-column comparison row, a two-column workspace grid, and a
+  bordered sub-panel used for compact status boxes.
+*/
+
+.session-context-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    row-gap: var(--space-2);
+    column-gap: var(--space-5);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.session-context-bar__item strong {
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.session-context-bar__status {
+    margin-left: auto;
+}
+
+.session-summary__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.session-summary__title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+}
+
+.session-summary__header-status {
+    margin-left: auto;
+}
+
+.session-summary__meta {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+    column-gap: var(--space-5);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.session-summary__meta strong {
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3) var(--space-6);
+}
+
+/* Three-column variant (Supervisor Discrepancy Review's Session Information, Supervisor
+   Session Details' summary grid) — items still fill in row-major order. */
+.info-grid--three {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.info-grid__item {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.info-grid__item strong {
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.comparison-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    gap: var(--space-4);
+    align-items: end;
+}
+
+.comparison-row__item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.comparison-row__item--end {
+    text-align: right;
+    align-items: flex-end;
+}
+
+.comparison-row__label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.comparison-row__value {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.session-workspace-grid {
+    display: grid;
+    grid-template-columns: 2fr 3fr;
+    gap: var(--space-4);
+    align-items: start;
+}
+
+.sub-panel {
+    background-color: var(--color-surface-secondary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+}
+
+.sub-panel__label {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.sub-panel__value {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+@media (max-width: 1024px) {
+    .session-workspace-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .comparison-row {
+        grid-template-columns: 1fr;
+    }
+
+    .comparison-row__item--end {
+        text-align: left;
+        align-items: flex-start;
+    }
+
+    .info-grid--three {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .info-grid--three {
+        grid-template-columns: 1fr;
+    }
+}

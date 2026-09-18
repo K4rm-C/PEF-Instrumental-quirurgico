@@ -1,0 +1,51 @@
+{% extends "layouts/guest.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Sign In") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/sign-in.css') }}">
+{% endblock %}
+
+{% block guest_content %}
+<div class="sign-in-card">
+    <div class="sign-in-card__brand">
+        <span class="sign-in-card__brand-icon" aria-hidden="true">{{ macros.icon_scan_frame() }}</span>
+        <h1 class="sign-in-card__title">{{ _("Surgical Instrument Traceability System") }}</h1>
+        <p class="sign-in-card__subtitle">{{ _("Traceability System") }}</p>
+    </div>
+
+    <hr>
+
+    <div class="sign-in-card__intro">
+        <h2 class="sign-in-card__section-title">{{ _("Authorized Staff Access") }}</h2>
+        <p class="sign-in-card__section-subtitle">{{ _("Access for authorized hospital personnel") }}</p>
+    </div>
+
+    {# Integration point: form action, method, and CSRF token depend on the backend
+       authentication implementation. This placeholder does not submit anywhere yet. #}
+    <form class="form" id="sign-in-form" action="#" method="post" novalidate>
+        <div class="form-field">
+            <label class="form-field__label" for="institutional-email">{{ _("Institutional Email") }}</label>
+            <div class="form-field__input-wrapper">
+                <span class="form-field__icon">{{ macros.icon_mail() }}</span>
+                <input class="form-field__input" type="email" id="institutional-email" name="institutional_email"
+                       placeholder="{{ _('name@institution.edu') }}" autocomplete="username" required>
+            </div>
+        </div>
+
+        <div class="form-field">
+            <label class="form-field__label" for="password">{{ _("Password") }}</label>
+            <div class="form-field__input-wrapper">
+                <span class="form-field__icon">{{ macros.icon_lock() }}</span>
+                <input class="form-field__input" type="password" id="password" name="password"
+                       placeholder="{{ _('Enter your password') }}" autocomplete="current-password" required>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn--primary btn--block">{{ _("Sign In") }}</button>
+    </form>
+
+    <p class="sign-in-card__footnote">{{ _("Access is restricted to authorized personnel.") }}</p>
+</div>
+{% endblock %}

@@ -1,0 +1,128 @@
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.form-field__label {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.form-field__input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.form-field__icon {
+    position: absolute;
+    left: var(--space-3);
+    display: inline-flex;
+    color: var(--color-text-tertiary);
+    pointer-events: none;
+}
+
+.form-field__input {
+    width: 100%;
+    padding: 9px var(--space-3) 9px calc(var(--space-3) * 2 + 1.1em);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    min-height: 40px;
+}
+
+.form-field__input::placeholder {
+    color: var(--color-text-tertiary);
+}
+
+.form-field__input:focus-visible {
+    border-color: var(--color-primary);
+}
+
+/* Plain input/select with no leading icon (e.g. session setup fields, filter selects). */
+.form-field__input--plain {
+    padding-left: var(--space-3);
+}
+
+/* Read-only display fields (e.g. Operator, Patient, Physician, Operating Room once an
+   Operation is selected): still legible, but visually distinct from editable inputs. */
+.form-field__input[readonly] {
+    background-color: var(--color-surface-secondary);
+    color: var(--color-text-secondary);
+    cursor: default;
+}
+
+/* Select with a trailing chevron instead of the native browser arrow. */
+.form-field__select {
+    appearance: none;
+    padding-right: calc(var(--space-3) * 2 + 1.1em);
+}
+
+.form-field__select-icon {
+    position: absolute;
+    right: var(--space-3);
+    display: inline-flex;
+    color: var(--color-text-tertiary);
+    pointer-events: none;
+}
+
+.form-field__helper {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+/* Inline validation message variant (IT Administrator New User's "Passwords do not match."). */
+.form-field__helper--error {
+    color: var(--color-danger);
+}
+
+.form-field__textarea {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    min-height: 88px;
+    resize: vertical;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.form-field__textarea::placeholder {
+    color: var(--color-text-tertiary);
+}
+
+.form-field__textarea:focus-visible {
+    border-color: var(--color-primary);
+}
+
+/* In-card form actions row (IT Administrator's New/Edit forms): a divider line followed by
+   right-aligned Cancel / Save buttons, sitting inside the same card as the fields above it —
+   distinct from the full-width sticky .page-action-bar used by Operator's multi-section
+   pages (e.g. New Counting Session). */
+/* Separates a trailing sub-section from the fields above it inside the same form (IT
+   Administrator Edit User's "Account Status" / Deactivate User block). */
+.form-section-divider {
+    border-top: 1px solid var(--color-border);
+    padding-top: var(--space-4);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    margin-top: var(--space-1);
+    border-top: 1px solid var(--color-border);
+}

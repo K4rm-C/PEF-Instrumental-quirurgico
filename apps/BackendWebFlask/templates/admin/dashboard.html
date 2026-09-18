@@ -1,0 +1,96 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Dashboard") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'dashboard' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Home") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Dashboard") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    dashboard_stats, catalog_overview, and system_overview below are placeholder values used
+    only so this page is visually reviewable before the backend supplies real data. Once a
+    view passes these variables in, the defaults are simply ignored. Expected shapes are
+    documented in FRONTEND_INTEGRATION.md. Per the implementation prompt (section 9), this
+    dashboard intentionally does not show Operator/Supervisor operational or discrepancy
+    metrics, nor any infrastructure/YOLO monitoring metrics.
+#}
+{% set dashboard_stats = dashboard_stats|default({
+    'active_users': 18,
+    'instrument_families': 11,
+    'registered_instruments': 96,
+    'active_kits': 8
+}) %}
+{% set catalog_overview = catalog_overview|default([
+    {'label': _('Instrument Families'), 'value': _('11 Active')},
+    {'label': _('Instruments'), 'value': _('96 Registered')},
+    {'label': _('Kits'), 'value': _('8 Active')},
+    {'label': _('Capture Stations'), 'value': _('3 Configured')}
+]) %}
+{% set system_overview = system_overview|default([
+    {'label': _('Inactive Users'), 'value': 0},
+    {'label': _('Configured Roles'), 'value': 3},
+    {'label': _('Capture Stations'), 'value': 3},
+    {'label': _('Active Institution'), 'value': 1}
+]) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Dashboard") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Overview of system catalogs, users, and configuration.") }}</p>
+    </div>
+</div>
+
+<section class="stat-card-grid" aria-label="{{ _('Key system metrics') }}">
+    {{ macros.stat_card(_("Active Users"), dashboard_stats.active_users, 'info') }}
+    {{ macros.stat_card(_("Instrument Families"), dashboard_stats.instrument_families, 'neutral') }}
+    {{ macros.stat_card(_("Registered Instruments"), dashboard_stats.registered_instruments, 'neutral') }}
+    {{ macros.stat_card(_("Active Kits"), dashboard_stats.active_kits, 'neutral') }}
+</section>
+
+<section class="dashboard-panels">
+    <div class="card">
+        <h2 class="card__title">{{ _("Catalog Overview") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <tbody>
+                    {% for item in catalog_overview %}
+                    <tr>
+                        <th scope="row">{{ item.label }}</th>
+                        <td class="data-table__numeric-column">{{ item.value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card__title">{{ _("System Overview") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <tbody>
+                    {% for item in system_overview %}
+                    <tr>
+                        <th scope="row">{{ item.label }}</th>
+                        <td class="data-table__numeric-column">{{ item.value }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+{% endblock %}
