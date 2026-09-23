@@ -60,10 +60,16 @@
     gap: var(--space-3) var(--space-6);
 }
 
-/* Three-column variant (Supervisor Discrepancy Review's Session Information, Supervisor
-   Session Details' summary grid) — items still fill in row-major order. */
+/* Three-column variant (Supervisor Session Details' summary grid) — items still fill in
+   row-major order. */
 .info-grid--three {
     grid-template-columns: repeat(3, 1fr);
+}
+
+/* Four-column variant (Supervisor Discrepancy Review's Session Summary: two rows of four
+   fields each, matching the approved V2 reference). */
+.info-grid--four {
+    grid-template-columns: repeat(4, 1fr);
 }
 
 .info-grid__item {
@@ -133,6 +139,26 @@
     color: var(--color-text-primary);
 }
 
+/* Tinted variants (Discrepancy Escalation's "Supervisor Review" evidence panel, Correction
+   Requested's quoted Supervisor instructions) — same .sub-panel shape, colored surface. */
+.sub-panel--warning {
+    background-color: var(--color-warning-surface);
+    border-color: var(--color-warning);
+}
+
+.sub-panel--warning .sub-panel__label {
+    color: var(--color-warning);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    font-size: var(--font-size-xs);
+    letter-spacing: 0.04em;
+}
+
+.sub-panel--danger {
+    background-color: var(--color-danger-surface);
+    border-color: var(--color-danger);
+}
+
 @media (max-width: 1024px) {
     .session-workspace-grid {
         grid-template-columns: 1fr;
@@ -147,13 +173,15 @@
         align-items: flex-start;
     }
 
-    .info-grid--three {
+    .info-grid--three,
+    .info-grid--four {
         grid-template-columns: 1fr 1fr;
     }
 }
 
 @media (max-width: 768px) {
-    .info-grid--three {
+    .info-grid--three,
+    .info-grid--four {
         grid-template-columns: 1fr;
     }
 }

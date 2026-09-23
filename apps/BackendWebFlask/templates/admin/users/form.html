@@ -11,8 +11,11 @@
 
     Expected context:
       form_mode                          "create" | "edit", defaults to "create"
-      user                                dict: name, email, institution, role, status
-      institutions, roles                 lists of {value, label} for their selects
+      user                                dict: name, email, institution, assigned_role_codes,
+                                           status — a user may hold more than one role, so
+                                           Assigned Roles renders as a checkbox group, never a
+                                           single-select
+      institutions, roles                 lists of {value, label} for their selects/checkboxes
       save_url, cancel_url                URL strings, default "#"
       change_password_url, deactivate_user_url   URL strings, default "#" (edit mode only;
                                            feed components/modals/change_password.html and
@@ -22,16 +25,16 @@
     for the frontend/backend password responsibility split.
 #}
 {% set form_mode = form_mode|default('create') %}
-{% set user = user|default({'name': '', 'email': '', 'institution': 'hospital-institution', 'role': 'operator', 'status': 'active'}) %}
+{% set is_edit = form_mode == 'edit' %}
+{% set user = user|default({'name': 'Alex Morgan', 'email': 'alex.morgan@institution.edu', 'institution': 'hospital-institution', 'assigned_role_codes': ['operator'], 'status': 'active'} if is_edit else {'name': '', 'email': '', 'institution': 'hospital-institution', 'assigned_role_codes': ['operator'], 'status': 'active'}, true) %}
 {% set institutions = institutions|default([
     {'value': 'hospital-institution', 'label': _('Hospital Institution')}
-]) %}
+], true) %}
 {% set roles = roles|default([
     {'value': 'operator', 'label': _('Operator CDE')},
     {'value': 'supervisor', 'label': _('Supervisor CDE / Quality')},
     {'value': 'admin', 'label': _('IT Administrator')}
-]) %}
-{% set is_edit = form_mode == 'edit' %}
+], true) %}
 {% set page_title = _("Edit User") if is_edit else _("New User") %}
 {% set page_subtitle = _("Update user information and assigned role.") if is_edit else _("Create an authorized system user and assign a role.") %}
 
@@ -85,14 +88,15 @@
             </div>
         </div>
         <div class="form-field">
-            <label class="form-field__label" for="user-role">{{ _("Role") }}</label>
-            <div class="form-field__input-wrapper">
-                <select class="form-field__input form-field__select" id="user-role" name="role">
-                    {% for role in roles %}
-                    <option value="{{ role.value }}" {% if role.value == user.role %}selected{% endif %}>{{ role.label }}</option>
-                    {% endfor %}
-                </select>
-                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            <span class="form-field__label">{{ _("Assigned Roles") }}</span>
+            <div class="checkbox-group">
+                {% for role in roles %}
+                <div class="form-checkbox">
+                    <input type="checkbox" id="user-role-{{ role.value }}" name="roles[]" value="{{ role.value }}"
+                           {% if role.value in user.assigned_role_codes %}checked{% endif %}>
+                    <label for="user-role-{{ role.value }}">{{ role.label }}</label>
+                </div>
+                {% endfor %}
             </div>
         </div>
 

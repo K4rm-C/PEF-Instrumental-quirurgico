@@ -34,7 +34,7 @@
     'active_sessions': 3,
     'closed_sessions': 9,
     'open_discrepancies': 2
-}) %}
+}, true) %}
 {% set sessions_by_day = sessions_by_day|default([
     {'label': _('Mon'), 'count': 8},
     {'label': _('Tue'), 'count': 12},
@@ -43,37 +43,41 @@
     {'label': _('Fri'), 'count': 11}
 ]) %}
 {% set sessions_by_day_max = sessions_by_day|map(attribute='count')|max %}
+{#
+    Session status terminology is fixed per prompts/09_Operator_V2.md: In Progress /
+    Awaiting Review / Correction Required / Ready to Close / Closed. Do not introduce
+    additional status names.
+#}
 {% set session_status_breakdown = session_status_breakdown|default([
-    {'label': _('Active Sessions'), 'value': 3, 'variant': 'info'},
-    {'label': _('Closed (Verified)'), 'value': 9, 'variant': 'success'},
-    {'label': _('With Discrepancies'), 'value': 2, 'variant': 'danger'}
+    {'label': _('In Progress'), 'value': 3, 'variant': 'info'},
+    {'label': _('Closed'), 'value': 9, 'variant': 'success'},
+    {'label': _('Correction Required'), 'value': 2, 'variant': 'danger'}
 ]) %}
 {% set session_status_max = session_status_breakdown|map(attribute='value')|max %}
 {% set recent_sessions = recent_sessions|default([
     {
         'session_id': 'WS-026', 'procedure_label': 'Appendectomy - OR-3', 'kit_name': 'Delivery Kit',
-        'operator_name': 'Alex Morgan', 'status_label': _('Active'), 'status_variant': 'info',
-        'action_label': _('Continue'), 'action_url': '#'
+        'operator_name': 'Alex Morgan', 'status_label': _('In Progress'), 'status_variant': 'info',
+        'action_label': _('Continue'), 'action_url': url_for('web.operator_session_capture', session_id='WS-026')
     },
     {
         'session_id': 'WS-025', 'procedure_label': 'Cholecystectomy - OR-1', 'kit_name': 'Suture Kit',
-        'operator_name': 'Alex Morgan', 'status_label': _('Pending Validation'), 'status_variant': 'pending',
-        'action_label': _('View Details'), 'action_url': '#'
+        'operator_name': 'Alex Morgan', 'status_label': _('Awaiting Review'), 'status_variant': 'warning',
+        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_awaiting_review', session_id='WS-025')
     },
     {
         'session_id': 'WS-024', 'procedure_label': 'Hernia Repair - OR-2', 'kit_name': 'General Surgery Kit',
         'operator_name': 'Alex Morgan', 'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': '#'
+        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-024')
     }
-]) %}
+], true) %}
 
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ _("Dashboard") }}</h1>
         <p class="page-heading__subtitle">{{ _("Overview of instrument counting operations") }}</p>
     </div>
-    {# Integration point: target route for starting a new counting session (operator.new_session). #}
-    <a class="btn btn--primary" href="#">
+    <a class="btn btn--primary" href="{{ url_for('web.operator_session_new') }}">
         {{ macros.icon_plus() }}
         <span>{{ _("New Counting Session") }}</span>
     </a>

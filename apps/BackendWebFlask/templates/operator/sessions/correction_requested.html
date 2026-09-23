@@ -1,0 +1,120 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    session must be set here, outside every block: block breadcrumb renders before
+    page_content in layouts/authenticated.html, and a variable set inside one block is not
+    visible from another. Preserves the approved WS-026 reference case
+    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
+#}
+{% set session_id = session_id|default('WS-026') %}
+{% set session = session|default({
+    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
+    'status_label': _('Correction Required'), 'status_variant': 'danger'
+}, true) %}
+
+{% block title %}{{ _("Correction Requested") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Counting Session") }} {{ session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Human Validation") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/active-counting-session.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA (remaining, page_content-only)
+    --------------------
+    Reached when a Supervisor rejects a discrepancy resolution and asks the Operator to
+    recount; "Review Count" returns to Human Validation so the affected instrument can be
+    revalidated.
+#}
+{% set supervisor_request = supervisor_request|default({
+    'supervisor_name': 'Sophia Turner', 'requested_at': '2024-01-15 10:05:30',
+    'message': _('"Please review the Mayo-Hegar Needle Holder count. The captured image shows a possible second instrument partially visible under the drape. Confirm the final count."')
+}) %}
+{% set affected_discrepancy = affected_discrepancy|default({
+    'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2,
+    'ai_detected_quantity': 1, 'final_quantity': 1, 'final_difference': -1
+}) %}
+{% set captured_evidence = captured_evidence|default({'capture_id': 'CAP-98012', 'timestamp': '2024-01-15 09:42:15'}) %}
+{% set review_count_url = review_count_url|default(url_for('web.operator_session_validation', session_id=session.session_id)) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Correction Requested") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Review the Supervisor request and revalidate the affected instrument count.") }}</p>
+    </div>
+</div>
+
+<div class="alert alert--danger" role="status">
+    {{ macros.icon_alert_triangle() }}
+    <span class="alert__message">{{ _("Supervisor %(name)s requested a review. Review the discrepancy and confirm the final count below.", name=supervisor_request.supervisor_name) }}</span>
+</div>
+
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+</section>
+
+<section class="session-workspace-grid">
+    <div class="card">
+        <h2 class="card__title">{{ _("Supervisor Review Request") }}</h2>
+        <p class="card__subtitle">
+            {{ _("Supervisor:") }} <strong>{{ supervisor_request.supervisor_name }}</strong>
+            &nbsp;&nbsp;{{ _("Requested:") }} <strong>{{ supervisor_request.requested_at }}</strong>
+        </p>
+        <div class="sub-panel sub-panel--warning">
+            <span class="sub-panel__value">{{ supervisor_request.message }}</span>
+        </div>
+
+        <h3 class="card__title">{{ _("Affected Discrepancy (%(name)s)", name=affected_discrepancy.instrument_name) }}</h3>
+        <dl class="detail-list">
+            <div class="detail-list__row"><dt>{{ _("Expected Count") }}</dt><dd>{{ affected_discrepancy.expected_quantity }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("AI Detected Count") }}</dt><dd>{{ affected_discrepancy.ai_detected_quantity }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Final Count") }}</dt><dd>{{ affected_discrepancy.final_quantity }} ({{ _("Difference") }} {{ affected_discrepancy.final_difference }})</dd></div>
+        </dl>
+    </div>
+
+    <div class="card">
+        <h2 class="card__title">{{ _("Captured Image Evidence") }}</h2>
+        <div class="evidence-image" aria-hidden="true">{{ macros.icon_camera() }}</div>
+        <div class="evidence-image__meta">
+            <span>{{ _("Capture-ID:") }} {{ captured_evidence.capture_id }}</span>
+            <span>{{ _("Timestamp:") }} {{ captured_evidence.timestamp }}</span>
+        </div>
+    </div>
+</section>
+
+{# .page-content is a flex column with the default stretch cross-axis alignment, so a lone
+   .btn placed directly inside it would stretch full-width; a plain wrapping div keeps the
+   button at its natural content width, matching every approved reference. #}
+<div>
+    <a class="btn btn--primary" href="{{ review_count_url }}">
+        {{ macros.icon_check_square() }}
+        <span>{{ _("Review Count") }}</span>
+    </a>
+</div>
+{% endblock %}

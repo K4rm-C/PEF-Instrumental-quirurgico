@@ -1,0 +1,144 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    session must be set here, outside every block: block breadcrumb renders before
+    page_content in layouts/authenticated.html, and a variable set inside one block is not
+    visible from another. Preserves the approved WS-026 reference case
+    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
+#}
+{% set session_id = session_id|default('WS-026') %}
+{% set session = session|default({
+    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+    'kit_name': 'Delivery Kit', 'status_label': _('Awaiting Review'), 'status_variant': 'warning'
+}, true) %}
+
+{% block title %}{{ _("Discrepancy Escalation") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Counting Session") }} {{ session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Discrepancy Escalation") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA (remaining, page_content-only)
+    --------------------
+    This is the evidence/audit detail reached right after the discrepancy has been escalated
+    (status is already 'Awaiting Review') — the operator cannot close the session from here
+    or anywhere else while a discrepancy remains unresolved.
+#}
+{% set discrepancy_details = discrepancy_details|default({
+    'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'ai_detected': 1,
+    'validated_quantity': 1, 'difference': -1, 'severity_label': _('Critical'),
+    'discrepancy_type': _('Missing Instrument')
+}) %}
+{% set ai_detection_evidence = ai_detection_evidence|default({
+    'detected_count': 1, 'confidence': 87, 'timestamp': '09:42:15'
+}) %}
+{% set operator_validation_evidence = operator_validation_evidence|default({
+    'validated_count': 1, 'operator_name': 'Alex Morgan',
+    'reason': _('instrument not detected by camera'), 'timestamp': '09:45:22'
+}) %}
+{% set supervisor_review_evidence = supervisor_review_evidence|default({
+    'status_label': _('Awaiting Review'), 'assigned_supervisor': 'Sophia Turner', 'escalated_at': '09:46:01'
+}) %}
+{% set back_to_session_url = back_to_session_url|default(url_for('web.operator_sessions')) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Discrepancy Escalation") }}</h1>
+        <p class="page-heading__subtitle">{{ _("This counting session cannot be closed while unresolved discrepancies exist.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Discrepancy Details") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Instrument") }}</th>
+                    <th scope="col">{{ _("Expected") }}</th>
+                    <th scope="col">{{ _("AI Detected") }}</th>
+                    <th scope="col">{{ _("Validated") }}</th>
+                    <th scope="col">{{ _("Difference") }}</th>
+                    <th scope="col">{{ _("Severity") }}</th>
+                    <th scope="col">{{ _("Discrepancy Type") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="data-table__row--highlight-danger">
+                    <th scope="row">{{ discrepancy_details.instrument_name }}</th>
+                    <td>{{ discrepancy_details.expected_quantity }}</td>
+                    <td>{{ discrepancy_details.ai_detected }}</td>
+                    <td>{{ discrepancy_details.validated_quantity }}</td>
+                    <td class="text-danger">{{ discrepancy_details.difference }}</td>
+                    <td>{{ macros.status_badge(discrepancy_details.severity_label, 'danger') }}</td>
+                    <td class="text-danger">{{ discrepancy_details.discrepancy_type }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Evidence & Audit Trail") }}</h2>
+    <div class="panel-grid--three">
+        <div class="sub-panel">
+            <span class="sub-panel__label">{{ _("AI Detection") }}</span>
+            <span class="sub-panel__value">{{ _("Detected Count:") }} {{ ai_detection_evidence.detected_count }}</span>
+            <span class="sub-panel__value">{{ _("Confidence Level:") }} <span class="text-warning">{{ ai_detection_evidence.confidence }}%</span></span>
+            <span class="form-field__helper">{{ _("Timestamp:") }} {{ ai_detection_evidence.timestamp }}</span>
+        </div>
+        <div class="sub-panel">
+            <span class="sub-panel__label">{{ _("Operator Validation") }}</span>
+            <span class="sub-panel__value">{{ _("Validated Count:") }} {{ operator_validation_evidence.validated_count }}</span>
+            <span class="sub-panel__value">{{ _("Operator:") }} <strong>{{ operator_validation_evidence.operator_name }}</strong></span>
+            <span class="sub-panel__value">{{ _("Reason:") }} {{ operator_validation_evidence.reason }}</span>
+            <span class="form-field__helper">{{ _("Timestamp:") }} {{ operator_validation_evidence.timestamp }}</span>
+        </div>
+        <div class="sub-panel sub-panel--warning">
+            <span class="sub-panel__label">{{ _("Supervisor Review") }}</span>
+            <span class="sub-panel__value">{{ macros.status_badge(supervisor_review_evidence.status_label, 'warning') }}</span>
+            <span class="sub-panel__value">{{ _("Assigned:") }} <strong>{{ supervisor_review_evidence.assigned_supervisor }}</strong></span>
+            <span class="form-field__helper">{{ _("Escalated:") }} {{ supervisor_review_evidence.escalated_at }}</span>
+        </div>
+    </div>
+</section>
+
+<div class="alert alert--warning" role="status">
+    {{ macros.icon_alert_triangle() }}
+    <span class="alert__message">{{ _("This counting session cannot be closed while unresolved discrepancies exist.") }}</span>
+</div>
+
+{# .page-content is a flex column with the default stretch cross-axis alignment, so a lone
+   .btn placed directly inside it would stretch full-width; a plain wrapping div keeps the
+   button at its natural content width, matching every approved reference. #}
+<div>
+    <a class="btn btn--secondary" href="{{ back_to_session_url }}">{{ _("Back to Session") }}</a>
+</div>
+{% endblock %}

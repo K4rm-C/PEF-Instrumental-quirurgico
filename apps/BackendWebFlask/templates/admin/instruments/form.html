@@ -15,15 +15,17 @@
     only).
 #}
 {% set form_mode = form_mode|default('create') %}
+{% set is_edit = form_mode == 'edit' %}
 {% set instrument = instrument|default({
+    'internal_code': 'INS-001', 'instrument_family': 'kelly-clamp', 'cycle_status': 'available', 'active_status': 'active'
+} if is_edit else {
     'internal_code': '', 'instrument_family': '', 'cycle_status': 'available', 'active_status': 'active'
-}) %}
+}, true) %}
 {% set instrument_families = instrument_families|default([
     {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
     {'value': 'foerster-sponge-forceps', 'label': _('Foerster Sponge Forceps')},
     {'value': 'mayo-hegar-needle-holder', 'label': _('Mayo-Hegar Needle Holder')}
-]) %}
-{% set is_edit = form_mode == 'edit' %}
+], true) %}
 {% set page_title = _("Edit Instrument") if is_edit else _("New Instrument") %}
 {% set page_subtitle = _("Update this instrument's family, cycle status, and active status.") if is_edit else _("Register a new individual surgical instrument in the system.") %}
 

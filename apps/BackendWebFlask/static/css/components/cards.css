@@ -104,6 +104,56 @@
     gap: var(--space-4);
 }
 
+/* Even two-panel grid (Validation Summary's Correction Audit Trail / Discrepancy Summary,
+   Awaiting Supervisor Review's Discrepancy Details / Operator Validation Record) — distinct
+   from .dashboard-panels' 2fr/1fr split, which favors a wider primary panel. */
+.panel-grid--two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+/* Three-panel variant (Discrepancy Escalation's Evidence & Audit Trail: AI Detection /
+   Operator Validation / Supervisor Review sub-panels). */
+.panel-grid--three {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+}
+
+/* Label/value definition row used inside a plain .card for a compact detail list (Session
+   Summary Metrics, Discrepancy Details, Review Status, etc.) — same visual language as
+   .modal-dialog__info-row but for full-width card content instead of a modal. */
+.detail-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.detail-list__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    padding: var(--space-1) 0;
+}
+
+.detail-list__row:not(:last-child) {
+    border-bottom: 1px solid var(--color-border);
+}
+
+.detail-list__row dt {
+    color: var(--color-text-secondary);
+}
+
+.detail-list__row dd {
+    margin: 0;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    text-align: right;
+}
+
 /* Helper subtitle shown directly under a .card__title (e.g. under "SECTION 1 - Session
    Setup"): a short secondary line describing the section. */
 .card__subtitle {
@@ -232,7 +282,12 @@
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .dashboard-panels {
+    .dashboard-panels,
+    .panel-grid--two {
+        grid-template-columns: 1fr;
+    }
+
+    .panel-grid--three {
         grid-template-columns: 1fr;
     }
 

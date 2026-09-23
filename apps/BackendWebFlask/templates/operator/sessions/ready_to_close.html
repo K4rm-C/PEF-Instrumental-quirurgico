@@ -1,0 +1,126 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    session must be set here, outside every block: block breadcrumb renders before
+    page_content in layouts/authenticated.html, and a variable set inside one block is not
+    visible from another. Preserves the approved WS-026 reference case
+    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
+#}
+{% set session_id = session_id|default('WS-026') %}
+{% set session = session|default({
+    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
+    'status_label': _('Ready to Close'), 'status_variant': 'success'
+}, true) %}
+{#
+    Also top-level (not inside page_content) for the same reason: block page_action_bar
+    renders as a sibling of block page_content in layouts/authenticated.html, not nested
+    inside it, so it cannot see variables set inside page_content either.
+#}
+{% set back_to_sessions_url = back_to_sessions_url|default(url_for('web.operator_sessions')) %}
+
+{% block title %}{{ _("Ready to Close") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Counting Session") }} {{ session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Ready to Close") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA (remaining, page_content-only)
+    --------------------
+    Per prompts/09_Operator_V2.md, this page only renders once discrepancies have been
+    resolved/approved by a Supervisor — it is never reachable directly from Validation
+    Summary when has_discrepancy is true.
+#}
+{% set resolution_summary = resolution_summary|default({
+    'variant': 'success',
+    'message': _('The missing Mayo-Hegar Needle Holder was reviewed and approved. This session is ready to close.')
+}) %}
+{% set session_summary_metrics = session_summary_metrics|default({
+    'expected_count': 11, 'validated_count': 10, 'human_corrections': 1, 'resolved_discrepancies': 1
+}) %}
+{% set resolution = resolution|default({
+    'instrument_name': 'Mayo-Hegar Needle Holder', 'original_ai_count': 1, 'final_validated_count': 1,
+    'status_label': _('Missing instrument reviewed and approved'),
+    'resolved_by': 'Sophia Turner', 'timestamp': '2024-01-15 10:02:45'
+}) %}
+{% set close_session_url = close_session_url|default(url_for('web.operator_session_closed', session_id=session.session_id)) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Ready to Close") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Discrepancies resolved. Securely seal and close this operational session.") }}</p>
+    </div>
+</div>
+
+{{ macros.alert_banner(resolution_summary.variant, resolution_summary.message) }}
+
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+</section>
+
+<section class="panel-grid--two">
+    <div class="card">
+        <h2 class="card__title">{{ _("Session Summary Metrics") }}</h2>
+        <dl class="detail-list">
+            <div class="detail-list__row"><dt>{{ _("Session ID") }}</dt><dd>{{ session.session_id }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Expected Count") }}</dt><dd>{{ _("%(count)s Instruments", count=session_summary_metrics.expected_count) }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Final Validated Count") }}</dt><dd>{{ _("%(count)s Instruments", count=session_summary_metrics.validated_count) }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Human Corrections Logged") }}</dt><dd>{{ session_summary_metrics.human_corrections }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Resolved Discrepancies") }}</dt><dd class="text-success">{{ session_summary_metrics.resolved_discrepancies }}</dd></div>
+        </dl>
+    </div>
+    <div class="card">
+        <h2 class="card__title">{{ _("%(name)s Resolution", name=resolution.instrument_name) }}</h2>
+        <p>
+            {{ _("Original AI Count:") }} <strong>{{ resolution.original_ai_count }}</strong>
+            &nbsp;|&nbsp;{{ _("Final Validated Count:") }} <strong>{{ resolution.final_validated_count }}</strong>
+        </p>
+        <p>{{ _("Status:") }} <strong class="text-success">{{ resolution.status_label }}</strong></p>
+        <div class="sub-panel">
+            <span class="sub-panel__label">{{ _("Resolved by:") }} <strong>{{ resolution.resolved_by }}</strong></span>
+            <span class="sub-panel__label">{{ _("Time:") }} {{ resolution.timestamp }}</span>
+        </div>
+    </div>
+</section>
+
+{% set close_session_audit_review = close_session_audit_review|default({
+    'session_id': session.session_id, 'procedure_label': session.procedure_name ~ ' - ' ~ session.operating_room,
+    'expected_count': session_summary_metrics.expected_count, 'validated_count': session_summary_metrics.validated_count,
+    'human_corrections': session_summary_metrics.human_corrections, 'resolved_discrepancies': session_summary_metrics.resolved_discrepancies,
+    'operator_name': 'Alex Morgan', 'timestamp': '2024-01-15 10:15'
+}) %}
+{% include "components/modals/close_session.html" %}
+{% endblock %}
+
+{% block page_action_bar %}
+<div class="page-action-bar">
+    <a class="btn btn--secondary" href="{{ back_to_sessions_url }}">{{ _("Back to Sessions") }}</a>
+    <button type="button" class="btn btn--primary" data-modal-open="close-session-modal">
+        {{ macros.icon_check_square() }}
+        <span>{{ _("Close Counting Session") }}</span>
+    </button>
+</div>
+{% endblock %}

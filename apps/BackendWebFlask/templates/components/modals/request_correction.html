@@ -1,31 +1,54 @@
 {% import "components/macros.html" as macros %}
 {#
-    Reusable "Request Operator Correction?" confirmation modal, opened from Supervisor
+    Reusable "Request Operator Correction" confirmation modal, opened from Supervisor
     Discrepancy Review's "Request Correction" action. Opened/closed by the generic
     static/js/modal.js via data-modal-open / data-modal-close — no dedicated JavaScript for
     this modal.
 
-    Expected context: request_correction_url (string, defaults to "#"). The "Reason /
-    Instructions" textarea is presentation-only in this iteration (no name-bound persisted
-    value, nothing submitted with it) — same pattern as Count Validation's Verification
-    Notes field. Integration point: in production, "Request Correction" should persist the
-    Supervisor's note, set the session to Correction Required, and route it back to the
-    Operator — not implemented here.
+    Expected context:
+    - request_correction_url (string, defaults to "#")
+    - request_correction_discrepancy (optional dict): instrument_name, expected_quantity,
+      ai_detected_quantity, operator_validated_quantity, difference
+    The "Supervisor Notes / Instructions" textarea is presentation-only in this iteration (no
+    name-bound persisted value, nothing submitted with it) — same pattern as Count
+    Validation's Verification Notes field. Integration point: in production, "Request
+    Correction" should persist the Supervisor's note, set the session to Correction
+    Required, and route it back to the Operator — not implemented here (no POST route
+    exists yet).
 #}
 {% set request_correction_url = request_correction_url|default('#') %}
+{% set request_correction_discrepancy = request_correction_discrepancy|default({
+    'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2,
+    'ai_detected_quantity': 1, 'operator_validated_quantity': 1, 'difference': -1
+}) %}
 <div class="modal-overlay" id="request-correction-modal" hidden>
-    <div class="modal-dialog" role="dialog" aria-modal="true"
+    <div class="modal-dialog modal-dialog--wide" role="dialog" aria-modal="true"
          aria-labelledby="request-correction-modal-title" aria-describedby="request-correction-modal-description">
         <span class="modal-dialog__icon modal-dialog__icon--warning" aria-hidden="true">{{ macros.icon_alert_triangle() }}</span>
-        <h2 class="modal-dialog__title" id="request-correction-modal-title">{{ _("Request Operator Correction?") }}</h2>
+        <h2 class="modal-dialog__title" id="request-correction-modal-title">{{ _("Request Operator Correction") }}</h2>
         <p class="modal-dialog__description" id="request-correction-modal-description">
-            {{ _("This session will be returned to the Operator for additional review or correction before it can be completed.") }}
+            {{ _("This action returns the session to the Operator for additional review or correction.") }}
         </p>
-        <div class="form-field">
-            <label class="form-field__label" for="request-correction-reason">{{ _("Reason / Instructions") }}</label>
-            <textarea class="form-field__textarea" id="request-correction-reason" name="correction_reason"
-                      placeholder="{{ _('Describe what the Operator must review or correct.') }}"></textarea>
+
+        <div class="modal-dialog__info-box">
+            <p class="modal-dialog__info-title">{{ _("Discrepancy Details") }}</p>
+            <p class="sub-panel__value">
+                {{ _("Instrument:") }} <strong>{{ request_correction_discrepancy.instrument_name }}</strong>
+            </p>
+            <p class="sub-panel__value">
+                {{ _("Expected:") }} {{ request_correction_discrepancy.expected_quantity }}
+                &nbsp;&nbsp;{{ _("AI Detected:") }} {{ request_correction_discrepancy.ai_detected_quantity }}
+                &nbsp;&nbsp;{{ _("Operator Validated:") }} {{ request_correction_discrepancy.operator_validated_quantity }}
+                &nbsp;&nbsp;<span class="text-danger">{{ _("Difference:") }} {{ request_correction_discrepancy.difference }}</span>
+            </p>
         </div>
+
+        <div class="form-field">
+            <label class="form-field__label" for="request-correction-reason">{{ _("Supervisor Notes / Instructions") }} *</label>
+            <textarea class="form-field__textarea" id="request-correction-reason" name="correction_reason" required
+                      placeholder="{{ _('Describe what the Operator must review or correct.') }}">{{ _('Please re-verify the Mayo-Hegar Needle Holder count using the captured evidence and a physical recount. Update the validated quantity only if the physical recount differs.') }}</textarea>
+        </div>
+
         <div class="modal-dialog__actions">
             <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
             <a class="btn btn--warning" href="{{ request_correction_url }}">{{ _("Request Correction") }}</a>

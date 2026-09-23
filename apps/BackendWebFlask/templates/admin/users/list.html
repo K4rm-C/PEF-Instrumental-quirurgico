@@ -26,16 +26,16 @@
     same demo identities already used across the Operator and Supervisor previews.
 #}
 {% set users = users|default([
-    {'name': 'Alex Morgan', 'email': 'alex.morgan@institution.edu', 'institution': 'Hospital Institution', 'role_label': _('Operator CDE'), 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'},
-    {'name': 'Sophia Turner', 'email': 'sophia.turner@institution.edu', 'institution': 'Hospital Institution', 'role_label': _('Supervisor CDE / Quality'), 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'},
-    {'name': 'Daniel Brooks', 'email': 'daniel.brooks@institution.edu', 'institution': 'Hospital Institution', 'role_label': _('IT Administrator'), 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'}
-]) %}
-{% set users_shown_count = users_shown_count|default(users|length) %}
-{% set users_total_count = users_total_count|default(3) %}
-{% set current_page = current_page|default(1) %}
-{% set total_pages = total_pages|default(1) %}
-{% set previous_url = previous_url|default('#') %}
-{% set next_url = next_url|default('#') %}
+    {'name': 'Alex Morgan', 'email': 'alex.morgan@institution.edu', 'institution': 'Hospital Institution', 'roles': [{'label': _('Operator CDE')}], 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_user_edit', user_id='alex-morgan')},
+    {'name': 'Sophia Turner', 'email': 'sophia.turner@institution.edu', 'institution': 'Hospital Institution', 'roles': [{'label': _('Supervisor CDE / Quality')}], 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_user_edit', user_id='sophia-turner')},
+    {'name': 'Daniel Brooks', 'email': 'daniel.brooks@institution.edu', 'institution': 'Hospital Institution', 'roles': [{'label': _('IT Administrator')}], 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_user_edit', user_id='daniel-brooks')}
+], true) %}
+{% set users_shown_count = users_shown_count|default(users|length, true) %}
+{% set users_total_count = users_total_count|default(3, true) %}
+{% set current_page = current_page|default(1, true) %}
+{% set total_pages = total_pages|default(1, true) %}
+{% set previous_url = previous_url|default('#', true) %}
+{% set next_url = next_url|default('#', true) %}
 
 <div class="page-heading">
     <div>
@@ -95,7 +95,7 @@
                     <th scope="col">{{ _("Name") }}</th>
                     <th scope="col">{{ _("Email") }}</th>
                     <th scope="col">{{ _("Institution") }}</th>
-                    <th scope="col">{{ _("Role") }}</th>
+                    <th scope="col">{{ _("Assigned Roles") }}</th>
                     <th scope="col">{{ _("Status") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
@@ -106,7 +106,13 @@
                     <th scope="row">{{ user.name }}</th>
                     <td>{{ user.email }}</td>
                     <td>{{ user.institution }}</td>
-                    <td>{{ user.role_label }}</td>
+                    <td>
+                        <div class="badge-row">
+                            {% for role in user.roles %}
+                            {{ macros.status_badge(role.label, 'info') }}
+                            {% endfor %}
+                        </div>
+                    </td>
                     <td>{{ macros.status_badge(user.status_label, user.status_variant) }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--secondary btn--small" href="{{ user.edit_url }}">{{ _("Edit") }}</a>

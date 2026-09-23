@@ -23,44 +23,61 @@
     sessions, sessions_shown_count, sessions_total_count, current_page, total_pages,
     previous_url, and next_url below are placeholder values used only so this page is
     visually reviewable before the backend supplies real data. Expected shapes are
-    documented in FRONTEND_INTEGRATION.md. This page shows the Operator's operational
-    queue (Active / Pending Validation / With Discrepancies) — closed sessions belong in
-    Session History instead.
+    documented in FRONTEND_INTEGRATION.md. Session status terminology is fixed per
+    prompts/09_Operator_V2.md: In Progress / Awaiting Review / Correction Required /
+    Ready to Close / Closed.
 #}
 {% set sessions = sessions|default([
     {
-        'session_id': 'WS-024', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-        'kit_name': 'Delivery Kit', 'operator_name': 'Alex Morgan', 'capture_station_name': 'Station CDE-01',
-        'started_at': '14:32', 'status_label': _('Active'), 'status_variant': 'info',
-        'action_label': _('Continue'), 'action_url': '#'
+        'session_id': 'WS-026', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+        'kit_name': 'Delivery Kit', 'created_at': '2024-01-15 08:30', 'discrepancy_count': 0,
+        'status_label': _('In Progress'), 'status_variant': 'info',
+        'action_label': _('Continue'), 'action_url': url_for('web.operator_session_capture', session_id='WS-026')
     },
     {
-        'session_id': 'WS-022', 'procedure_name': 'Cholecystectomy', 'operating_room': 'OR-1',
-        'kit_name': 'Delivery Kit', 'operator_name': 'Daniel Lee', 'capture_station_name': 'Station CDE-01',
-        'started_at': '12:44', 'status_label': _('With Discrepancies'), 'status_variant': 'danger',
-        'action_label': _('View Details'), 'action_url': '#'
+        'session_id': 'WS-025', 'procedure_name': 'Cholecystectomy', 'operating_room': 'OR-1',
+        'kit_name': 'Suture Kit', 'created_at': '2024-01-15 07:45', 'discrepancy_count': 1,
+        'status_label': _('Awaiting Review'), 'status_variant': 'warning',
+        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_awaiting_review', session_id='WS-025')
     },
     {
-        'session_id': 'WS-025', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
-        'kit_name': 'Suture Kit', 'operator_name': 'Alex Morgan', 'capture_station_name': 'Station CDE-02',
-        'started_at': '15:05', 'status_label': _('Pending Validation'), 'status_variant': 'pending',
-        'action_label': _('Review'), 'action_url': '#'
+        'session_id': 'WS-024', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
+        'kit_name': 'General Surgery Kit', 'created_at': '2024-01-14 14:20', 'discrepancy_count': 0,
+        'status_label': _('Closed'), 'status_variant': 'success',
+        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-024')
+    },
+    {
+        'session_id': 'WS-023', 'procedure_name': 'Laparoscopic Cholecystectomy', 'operating_room': 'OR-4',
+        'kit_name': 'Laparoscopic Kit', 'created_at': '2024-01-14 11:00', 'discrepancy_count': 1,
+        'status_label': _('Correction Required'), 'status_variant': 'danger',
+        'action_label': _('Review Count'), 'action_url': url_for('web.operator_session_correction', session_id='WS-023')
+    },
+    {
+        'session_id': 'WS-022', 'procedure_name': 'Thyroidectomy', 'operating_room': 'OR-2',
+        'kit_name': 'General Surgery Kit', 'created_at': '2024-01-14 09:15', 'discrepancy_count': 0,
+        'status_label': _('Ready to Close'), 'status_variant': 'success',
+        'action_label': _('Close Session'), 'action_url': url_for('web.operator_session_ready_to_close', session_id='WS-022')
+    },
+    {
+        'session_id': 'WS-021', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-1',
+        'kit_name': 'Delivery Kit', 'created_at': '2024-01-13 16:30', 'discrepancy_count': 0,
+        'status_label': _('Closed'), 'status_variant': 'success',
+        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-021')
     }
-]) %}
-{% set sessions_shown_count = sessions_shown_count|default(sessions|length) %}
-{% set sessions_total_count = sessions_total_count|default(8) %}
-{% set current_page = current_page|default(1) %}
-{% set total_pages = total_pages|default(3) %}
-{% set previous_url = previous_url|default('#') %}
-{% set next_url = next_url|default('#') %}
+], true) %}
+{% set sessions_shown_count = sessions_shown_count|default(sessions|length, true) %}
+{% set sessions_total_count = sessions_total_count|default(12, true) %}
+{% set current_page = current_page|default(1, true) %}
+{% set total_pages = total_pages|default(2, true) %}
+{% set previous_url = previous_url|default('#', true) %}
+{% set next_url = next_url|default('#', true) %}
 
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ _("Counting Sessions") }}</h1>
-        <p class="page-heading__subtitle">{{ _("Manage and review current and recent instrument counting sessions.") }}</p>
+        <p class="page-heading__subtitle">{{ _("View and manage all counting sessions.") }}</p>
     </div>
-    {# Integration point: target route for starting a new counting session (New Session in the sidebar). #}
-    <a class="btn btn--primary" href="#">
+    <a class="btn btn--primary" href="{{ url_for('web.operator_session_new') }}">
         {{ macros.icon_plus() }}
         <span>{{ _("New Counting Session") }}</span>
     </a>
@@ -79,27 +96,30 @@
             </div>
         </div>
         <div class="filter-bar__select">
+            <label class="visually-hidden" for="counting-sessions-procedure">{{ _("Procedure") }}</label>
+            <select class="form-field__input form-field__input--plain" id="counting-sessions-procedure" name="procedure">
+                <option value="">{{ _("All Procedures") }}</option>
+                <option value="appendectomy">{{ _("Appendectomy") }}</option>
+                <option value="cholecystectomy">{{ _("Cholecystectomy") }}</option>
+                <option value="hernia-repair">{{ _("Hernia Repair") }}</option>
+                <option value="thyroidectomy">{{ _("Thyroidectomy") }}</option>
+            </select>
+        </div>
+        <div class="filter-bar__select">
             <label class="visually-hidden" for="counting-sessions-status">{{ _("Status") }}</label>
             <select class="form-field__input form-field__input--plain" id="counting-sessions-status" name="status">
                 <option value="">{{ _("All Statuses") }}</option>
-                <option value="active">{{ _("Active") }}</option>
-                <option value="pending_validation">{{ _("Pending Validation") }}</option>
-                <option value="with_discrepancies">{{ _("With Discrepancies") }}</option>
+                <option value="in_progress">{{ _("In Progress") }}</option>
+                <option value="awaiting_review">{{ _("Awaiting Review") }}</option>
+                <option value="correction_required">{{ _("Correction Required") }}</option>
+                <option value="ready_to_close">{{ _("Ready to Close") }}</option>
+                <option value="closed">{{ _("Closed") }}</option>
             </select>
         </div>
         <div class="filter-bar__select">
-            <label class="visually-hidden" for="counting-sessions-kit">{{ _("Kit") }}</label>
-            <select class="form-field__input form-field__input--plain" id="counting-sessions-kit" name="kit">
-                <option value="">{{ _("All Kits") }}</option>
-                <option value="delivery-kit">{{ _("Delivery Kit") }}</option>
-                <option value="suture-kit">{{ _("Suture Kit") }}</option>
-                <option value="general-surgery-kit">{{ _("General Surgery Kit") }}</option>
-            </select>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="counting-sessions-date">{{ _("Date") }}</label>
+            <label class="visually-hidden" for="counting-sessions-date">{{ _("Date Range") }}</label>
             <select class="form-field__input form-field__input--plain" id="counting-sessions-date" name="date">
-                <option value="">{{ _("All Dates") }}</option>
+                <option value="">{{ _("Date Range") }}</option>
                 <option value="today">{{ _("Today") }}</option>
                 <option value="last-7-days">{{ _("Last 7 Days") }}</option>
                 <option value="last-30-days">{{ _("Last 30 Days") }}</option>
@@ -113,27 +133,26 @@
         <table class="data-table">
             <thead>
                 <tr>
-                    <th scope="col">{{ _("Session / Procedure") }}</th>
-                    <th scope="col">{{ _("Kit") }}</th>
-                    <th scope="col">{{ _("Operator") }}</th>
-                    <th scope="col">{{ _("Capture Station") }}</th>
-                    <th scope="col">{{ _("Started") }}</th>
+                    <th scope="col">{{ _("Session ID") }}</th>
+                    <th scope="col">{{ _("Procedure") }}</th>
+                    <th scope="col">{{ _("Kit Type") }}</th>
+                    <th scope="col">{{ _("OR") }}</th>
+                    <th scope="col">{{ _("Created At") }}</th>
                     <th scope="col">{{ _("Status") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Discrepancies") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
             </thead>
             <tbody>
                 {% for session in sessions %}
                 <tr>
-                    <th scope="row">
-                        <span class="data-table__primary">{{ session.session_id }}</span>
-                        <span class="data-table__secondary">{{ session.procedure_name }} - {{ session.operating_room }}</span>
-                    </th>
+                    <th scope="row">{{ session.session_id }}</th>
+                    <td>{{ session.procedure_name }}-{{ session.operating_room }}</td>
                     <td>{{ session.kit_name }}</td>
-                    <td>{{ session.operator_name }}</td>
-                    <td>{{ session.capture_station_name }}</td>
-                    <td>{{ session.started_at }}</td>
+                    <td>{{ session.operating_room }}</td>
+                    <td>{{ session.created_at }}</td>
                     <td>{{ macros.status_badge(session.status_label, session.status_variant) }}</td>
+                    <td class="data-table__numeric-column {{ 'text-danger' if session.discrepancy_count else '' }}">{{ session.discrepancy_count }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ session.action_label }}</a>
                     </td>

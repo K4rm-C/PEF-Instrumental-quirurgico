@@ -1,0 +1,169 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    session must be set here, outside every block: block breadcrumb renders before
+    page_content in layouts/authenticated.html, and a variable set inside one block is not
+    visible from another. Preserves the approved WS-026 reference case
+    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
+#}
+{% set session_id = session_id|default('WS-026') %}
+{% set session = session|default({
+    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
+    'status_label': _('In Progress'), 'status_variant': 'info'
+}, true) %}
+
+{% block title %}{{ _("AI Suggested Count") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Counting Session") }} {{ session.session_id }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/active-counting-session.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA (remaining, page_content-only)
+    --------------------
+    AI results are suggestions only: this page never lets the operator edit a count directly,
+    only proceed to Human Validation.
+#}
+{% set captured_at = captured_at|default('09:42:15') %}
+{% set ai_detections = ai_detections|default([
+    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'ai_detected': 4, 'confidence': 98, 'result_label': _('Match'), 'result_variant': 'success', 'needs_attention': false},
+    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'ai_detected': 2, 'confidence': 95, 'result_label': _('Match'), 'result_variant': 'success', 'needs_attention': false},
+    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'ai_detected': 1, 'confidence': 87, 'result_label': _('Missing'), 'result_variant': 'warning', 'needs_attention': true},
+    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'ai_detected': 1, 'confidence': 96, 'result_label': _('Match'), 'result_variant': 'success', 'needs_attention': false},
+    {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'ai_detected': 1, 'confidence': 94, 'result_label': _('Possible Miss'), 'result_variant': 'warning', 'needs_attention': true}
+]) %}
+{% set ai_expected_total = ai_expected_total|default(ai_detections|sum(attribute='expected_quantity')) %}
+{% set ai_detected_total = ai_detected_total|default(ai_detections|sum(attribute='ai_detected')) %}
+{% set ai_analysis_details = ai_analysis_details|default({
+    'vision_model': 'Instrument YOLO', 'model_version': 'v0.4.2',
+    'confidence_threshold': '0.70', 'analysis_timestamp': '2024-01-15 09:42:15'
+}) %}
+{% set proceed_to_validation_url = proceed_to_validation_url|default(url_for('web.operator_session_validation', session_id=session.session_id)) %}
+
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Station") }}:</strong> {{ session.capture_station_name }}</span>
+        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+</section>
+
+<section class="session-workspace-grid">
+    <div class="card">
+        <div class="card__title-bar">
+            <h2 class="card__title">{{ _("Overhead Capture") }}</h2>
+            {{ macros.status_badge(_("AI Detection Complete"), 'success') }}
+        </div>
+        <div class="evidence-image" aria-hidden="true">{{ macros.icon_camera() }}</div>
+        <div class="evidence-image__meta">
+            <span>{{ _("Captured at") }} {{ captured_at }}</span>
+            <span>{{ _("Capture Station") }}: {{ session.capture_station_name }}</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card__title">{{ _("AI Suggested Count") }}</h2>
+        <p class="card__subtitle">{{ _("AI detection results - these are suggestions only and require human validation.") }}</p>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Instrument") }}</th>
+                        <th scope="col">{{ _("Expected") }}</th>
+                        <th scope="col">{{ _("AI Detected") }}</th>
+                        <th scope="col">{{ _("Difference") }}</th>
+                        <th scope="col">{{ _("Confidence") }}</th>
+                        <th scope="col">{{ _("Result") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in ai_detections %}
+                    <tr class="{{ 'data-table__row--highlight-warning' if item.needs_attention else '' }}">
+                        <th scope="row">{{ item.instrument_name }}</th>
+                        <td>{{ item.expected_quantity }}</td>
+                        <td>{{ item.ai_detected }}</td>
+                        <td class="{{ 'text-danger' if item.ai_detected != item.expected_quantity else 'text-success' }}">{{ item.ai_detected - item.expected_quantity }}</td>
+                        <td class="{{ 'text-warning' if item.needs_attention else 'text-success' }}">
+                            {{ item.confidence }}%{% if item.needs_attention %} {{ macros.icon_alert_triangle() }}{% endif %}
+                        </td>
+                        <td>{{ macros.status_badge(item.result_label, item.result_variant) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="comparison-row">
+            <div class="comparison-row__item">
+                <span class="comparison-row__label">{{ _("Total Expected") }}</span>
+                <span class="comparison-row__value">{{ ai_expected_total }}</span>
+            </div>
+            <div class="comparison-row__item comparison-row__item--end">
+                <span class="comparison-row__label">{{ _("Total AI Detected") }}</span>
+                <span class="comparison-row__value text-danger">{{ ai_detected_total }}</span>
+            </div>
+        </div>
+
+        <div class="alert alert--warning" role="status">
+            {{ macros.icon_alert_triangle() }}
+            <span class="alert__message">{{ _("AI results are suggestions only. Proceed to human validation to confirm or correct counts.") }}</span>
+        </div>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("AI Analysis Details") }}</h2>
+    <table class="data-table">
+        <tbody>
+            <tr>
+                <th scope="row">{{ _("Vision Model") }}</th>
+                <td class="data-table__numeric-column">{{ ai_analysis_details.vision_model }}</td>
+            </tr>
+            <tr>
+                <th scope="row">{{ _("Model Version") }}</th>
+                <td class="data-table__numeric-column">{{ ai_analysis_details.model_version }}</td>
+            </tr>
+            <tr>
+                <th scope="row">{{ _("Confidence Threshold") }}</th>
+                <td class="data-table__numeric-column">{{ ai_analysis_details.confidence_threshold }}</td>
+            </tr>
+            <tr>
+                <th scope="row">{{ _("Analysis Timestamp") }}</th>
+                <td class="data-table__numeric-column">{{ ai_analysis_details.analysis_timestamp }}</td>
+            </tr>
+        </tbody>
+    </table>
+</section>
+
+{# .page-content is a flex column with the default stretch cross-axis alignment, so a lone
+   .btn placed directly inside it would stretch full-width; a plain wrapping div keeps the
+   button at its natural content width, matching every approved reference. #}
+<div>
+    <a class="btn btn--primary" href="{{ proceed_to_validation_url }}">
+        <span>{{ _("Proceed to Validation") }}</span>
+        {{ macros.icon_arrow_right() }}
+    </a>
+</div>
+{% endblock %}

@@ -1,0 +1,112 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Vision Models") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'vision_models' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("System") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Vision Models") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    vision_models below is a placeholder value used only so this page is visually reviewable
+    before the backend supplies real data. Backed by the real YoloModel / ModelClass
+    relationships (see view_data.vision_models_data()) — no Model Name, Confidence Threshold,
+    or Description field exists on YoloModel, so none of them are shown here.
+#}
+{% set vision_models = vision_models|default([
+    {'version_tag': 'v0.4.2', 'classes_label': _('11 Classes'), 'status_label': _('Active Model'), 'status_variant': 'info', 'published_at': '2026-09-10', 'checksum_short': 'a8f2...91c', 'checksum': 'a8f2c4e1a9b2d3c4e5f6a7b8c9d0e1f2a3b4c5d6e7f91c', 'edit_url': url_for('web.admin_vision_model_edit', model_id='v0.4.2'), 'active': true},
+    {'version_tag': 'v0.4.1', 'classes_label': _('10 Classes'), 'status_label': _('Inactive'), 'status_variant': 'danger', 'published_at': '2026-08-20', 'checksum_short': '7c13...0db', 'checksum': '7c134e1a9b2d3c4e5f6a7b8c9d0e1f2a3b4c5d6e0db', 'edit_url': url_for('web.admin_vision_model_edit', model_id='v0.4.1'), 'active': false}
+], true) %}
+{% set vision_models_shown_count = vision_models_shown_count|default(vision_models|length, true) %}
+{% set vision_models_total_count = vision_models_total_count|default(vision_models|length, true) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Vision Models") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Manage computer vision model versions used for AI-assisted instrument counting.") }}</p>
+    </div>
+    <a class="btn btn--primary" href="{{ new_vision_model_url|default('#') }}">
+        {{ macros.icon_plus() }}
+        <span>{{ _("New Vision Model") }}</span>
+    </a>
+</div>
+
+<section class="card">
+    {# Filters are presentation-only in this iteration: no client-side or server-side
+       filtering is wired up yet. #}
+    <form class="filter-bar" action="#" method="get" role="search">
+        <div class="filter-bar__search">
+            <label class="visually-hidden" for="vision-models-search">{{ _("Search Models") }}</label>
+            <div class="form-field__input-wrapper">
+                <span class="form-field__icon">{{ macros.icon_search() }}</span>
+                <input class="form-field__input" type="search" id="vision-models-search" name="search"
+                       placeholder="{{ _('Search models...') }}">
+            </div>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="vision-models-status">{{ _("Status") }}</label>
+            <select class="form-field__input form-field__input--plain" id="vision-models-status" name="status">
+                <option value="">{{ _("Status: All") }}</option>
+                <option value="active">{{ _("Active Model") }}</option>
+                <option value="inactive">{{ _("Inactive") }}</option>
+            </select>
+        </div>
+    </form>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Vision Models") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Version") }}</th>
+                    <th scope="col">{{ _("Classes") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                    <th scope="col">{{ _("Published At") }}</th>
+                    <th scope="col">{{ _("Checksum") }}</th>
+                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for model in vision_models %}
+                <tr>
+                    <th scope="row">{{ model.version_tag }}</th>
+                    <td>{{ model.classes_label }}</td>
+                    <td>{{ macros.status_badge(model.status_label, model.status_variant) }}</td>
+                    <td>{{ model.published_at }}</td>
+                    <td>{{ model.checksum_short }}</td>
+                    <td class="data-table__action-column">
+                        {% if not model.active %}
+                        <button type="button" class="btn btn--secondary btn--small" data-modal-open="activate-vision-model-modal-{{ loop.index }}">{{ _("Activate") }}</button>
+                        {% endif %}
+                        <a class="btn btn--secondary btn--small" href="{{ model.edit_url }}">{{ _("Edit") }}</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s models", shown=vision_models_shown_count, total=vision_models_total_count) }}</p>
+</section>
+
+{% for model in vision_models %}
+{% if not model.active %}
+{% with activate_modal_id='activate-vision-model-modal-' ~ loop.index, activate_vision_model=model %}
+{% include "components/modals/activate_vision_model.html" %}
+{% endwith %}
+{% endif %}
+{% endfor %}
+{% endblock %}

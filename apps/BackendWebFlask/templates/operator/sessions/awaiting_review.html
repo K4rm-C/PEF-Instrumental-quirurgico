@@ -1,0 +1,130 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    session must be set here, outside every block: block breadcrumb renders before
+    page_content in layouts/authenticated.html, and a variable set inside one block is not
+    visible from another. Preserves the approved WS-026 reference case
+    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
+#}
+{% set session_id = session_id|default('WS-026') %}
+{% set session = session|default({
+    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
+    'status_label': _('Awaiting Review'), 'status_variant': 'warning'
+}, true) %}
+
+{% block title %}{{ _("Awaiting Supervisor Review") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Counting Session") }} {{ session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Awaiting Supervisor Review") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA (remaining, page_content-only)
+    --------------------
+    Read-only waiting state. No action here can resolve or close the session — that is a
+    Supervisor-only decision, out of scope for this Operator-only iteration.
+#}
+{% set session_summary = session_summary|default({'expected_count': 11, 'validated_count': 10, 'discrepancy_count': 1}) %}
+{% set review_status = review_status|default({
+    'assigned_supervisor': 'Sophia Turner', 'escalated_time': '2024-01-15 09:46:01',
+    'current_status_label': _('Awaiting Review')
+}) %}
+{% set discrepancy_details = discrepancy_details|default({
+    'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_count': 2,
+    'ai_detected': 1, 'operator_validated': 1, 'final_difference': -1
+}) %}
+{% set operator_validation_record = operator_validation_record|default({
+    'ai_detected': 1, 'operator_validated': 1, 'result_label': _('AI result confirmed'),
+    'notes': _('"Physical recount confirmed only one Mayo-Hegar Needle Holder present."'),
+    'operator_name': 'Alex Morgan', 'timestamp': '2024-01-15 09:45:22'
+}) %}
+{% set back_to_sessions_url = back_to_sessions_url|default(url_for('web.operator_sessions')) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Awaiting Supervisor Review") }}</h1>
+        <p class="page-heading__subtitle">{{ _("This session is pending supervisor review.") }}</p>
+    </div>
+</div>
+
+<div class="alert alert--warning" role="status">
+    {{ macros.icon_alert_triangle() }}
+    <span class="alert__message">{{ _("Supervisor review pending. Session closure is not available until all discrepancies are resolved.") }}</span>
+</div>
+
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+</section>
+
+<section class="panel-grid--two">
+    <div class="card">
+        <h2 class="card__title">{{ _("Session Summary") }}</h2>
+        <div class="stat-card-grid stat-card-grid--three">
+            {{ macros.stat_card(_("Expected"), _("%(count)s Instruments", count=session_summary.expected_count), 'neutral') }}
+            {{ macros.stat_card(_("Validated"), _("%(count)s Instruments", count=session_summary.validated_count), 'neutral') }}
+            {{ macros.stat_card(_("Discrepancies"), _("%(count)s Instrument", count=session_summary.discrepancy_count), 'danger') }}
+        </div>
+    </div>
+    <div class="card">
+        <h2 class="card__title">{{ _("Review Status") }}</h2>
+        <dl class="detail-list">
+            <div class="detail-list__row"><dt>{{ _("Assigned Supervisor") }}</dt><dd>{{ review_status.assigned_supervisor }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Escalated Time") }}</dt><dd>{{ review_status.escalated_time }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Current Status") }}</dt><dd>{{ macros.status_badge(review_status.current_status_label, 'warning') }}</dd></div>
+        </dl>
+    </div>
+</section>
+
+<section class="panel-grid--two">
+    <div class="card">
+        <h2 class="card__title">{{ _("Discrepancy Details") }}</h2>
+        <dl class="detail-list">
+            <div class="detail-list__row"><dt>{{ _("Instrument Type") }}</dt><dd>{{ discrepancy_details.instrument_name }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Expected Count") }}</dt><dd>{{ discrepancy_details.expected_count }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("AI Detected") }}</dt><dd>{{ discrepancy_details.ai_detected }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Operator Validated") }}</dt><dd>{{ discrepancy_details.operator_validated }}</dd></div>
+        </dl>
+        <p class="form-field__helper text-danger"><strong>{{ _("Final Difference") }}</strong>: {{ discrepancy_details.final_difference }} {{ _("Instrument") }}</p>
+    </div>
+    <div class="card">
+        <h2 class="card__title">{{ _("Operator Validation Record") }}</h2>
+        <p>{{ _("AI Detected:") }} <strong>{{ operator_validation_record.ai_detected }}</strong> | {{ _("Operator Validated:") }} <strong>{{ operator_validation_record.operator_validated }}</strong></p>
+        <p>{{ _("Result:") }} <strong>{{ operator_validation_record.result_label }}</strong></p>
+        <p class="card__subtitle">{{ _("Notes:") }} {{ operator_validation_record.notes }}</p>
+        <p class="form-field__helper">
+            {{ _("Operator:") }} <strong>{{ operator_validation_record.operator_name }}</strong>
+            &nbsp;&nbsp;{{ _("Time:") }} <strong>{{ operator_validation_record.timestamp }}</strong>
+        </p>
+    </div>
+</section>
+
+{# .page-content is a flex column with the default stretch cross-axis alignment, so a lone
+   .btn placed directly inside it would stretch full-width; a plain wrapping div keeps the
+   button at its natural content width, matching every approved reference. #}
+<div>
+    <a class="btn btn--secondary" href="{{ back_to_sessions_url }}">{{ _("Back to Sessions") }}</a>
+</div>
+{% endblock %}

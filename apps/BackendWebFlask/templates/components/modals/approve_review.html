@@ -5,22 +5,88 @@
     static/js/modal.js via data-modal-open / data-modal-close — no dedicated JavaScript for
     this modal, following the exact same pattern as components/modals/close_session.html.
 
-    Expected context: approve_review_url (string, defaults to "#"). Integration point: in
-    production, "Approve Review" should persist the Supervisor's decision, mark the
-    discrepancy Approved, and make the session eligible for closure — not implemented here.
+    Expected context:
+    - approve_review_url (string, defaults to "#")
+    - approve_review_discrepancy (optional dict): instrument_name, expected_quantity,
+      ai_detected_quantity, operator_validated_quantity, difference
+    - approve_review_decision (optional dict): decided_by, timestamp, resolution_type,
+      supervisor_notes
+    Integration point: in production, "Confirm Approval" should persist the Supervisor's
+    decision, mark the discrepancy Approved, and make the session eligible for closure — not
+    implemented here (no POST route exists yet).
 #}
 {% set approve_review_url = approve_review_url|default('#') %}
+{% set approve_review_discrepancy = approve_review_discrepancy|default({
+    'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2,
+    'ai_detected_quantity': 1, 'operator_validated_quantity': 1, 'difference': -1
+}) %}
+{% set approve_review_decision = approve_review_decision|default({
+    'decided_by': current_user.name if current_user else 'Sophia Turner',
+    'timestamp': '2024-01-15 10:02:45',
+    'resolution_type': _('Confirmed Missing Instrument'),
+    'supervisor_notes': _('Physical recount confirmed one missing Mayo-Hegar Needle Holder. Review completed using captured evidence and Operator validation.')
+}) %}
 <div class="modal-overlay" id="approve-review-modal" hidden>
-    <div class="modal-dialog" role="dialog" aria-modal="true"
+    <div class="modal-dialog modal-dialog--wide" role="dialog" aria-modal="true"
          aria-labelledby="approve-review-modal-title" aria-describedby="approve-review-modal-description">
-        <span class="modal-dialog__icon modal-dialog__icon--success" aria-hidden="true">{{ macros.icon_check_circle() }}</span>
-        <h2 class="modal-dialog__title" id="approve-review-modal-title">{{ _("Approve Discrepancy Review?") }}</h2>
+        <span class="modal-dialog__icon modal-dialog__icon--warning" aria-hidden="true">{{ macros.icon_alert_triangle() }}</span>
+        <h2 class="modal-dialog__title" id="approve-review-modal-title">{{ _("Approve Discrepancy?") }}</h2>
         <p class="modal-dialog__description" id="approve-review-modal-description">
-            {{ _("This review confirms that the documented discrepancy has been evaluated and may proceed according to the approved workflow.") }}
+            {{ _("You are approving this discrepancy resolution for session %(session_id)s.", session_id=session.session_id) }}
         </p>
+
+        <div class="modal-dialog__info-box">
+            <p class="modal-dialog__info-title">{{ _("Discrepancy Details") }}</p>
+            <p class="sub-panel__value">
+                {{ _("Instrument:") }} <strong>{{ approve_review_discrepancy.instrument_name }}</strong>
+            </p>
+            <p class="sub-panel__value">
+                {{ _("Expected:") }} {{ approve_review_discrepancy.expected_quantity }}
+                &nbsp;&nbsp;{{ _("AI Detected:") }} {{ approve_review_discrepancy.ai_detected_quantity }}
+                &nbsp;&nbsp;{{ _("Operator Validated:") }} {{ approve_review_discrepancy.operator_validated_quantity }}
+                &nbsp;&nbsp;<span class="text-danger">{{ _("Difference:") }} {{ approve_review_discrepancy.difference }}</span>
+            </p>
+        </div>
+
+        <div class="form-field">
+            <label class="form-field__label" for="approve-resolution-type">{{ _("Resolution Type") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="approve-resolution-type" name="resolution_type">
+                    <option selected>{{ approve_review_decision.resolution_type }}</option>
+                    <option>{{ _("Confirmed Extra Instrument") }}</option>
+                    <option>{{ _("Counting Error Corrected") }}</option>
+                    <option>{{ _("Other") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+
+        <div class="form-field">
+            <label class="form-field__label" for="approve-supervisor-notes">{{ _("Supervisor Notes") }}</label>
+            <textarea class="form-field__textarea" id="approve-supervisor-notes" name="supervisor_notes">{{ approve_review_decision.supervisor_notes }}</textarea>
+        </div>
+
+        <div class="modal-dialog__info-box">
+            <div class="modal-dialog__info-row"><dt>{{ _("Decision By") }}</dt><dd>{{ approve_review_decision.decided_by }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Timestamp") }}</dt><dd>{{ approve_review_decision.timestamp }}</dd></div>
+        </div>
+
+        <div class="form-checkbox">
+            <input type="checkbox" id="approve-ack-evidence" checked>
+            <label for="approve-ack-evidence">{{ _("I reviewed the captured evidence.") }}</label>
+        </div>
+        <div class="form-checkbox">
+            <input type="checkbox" id="approve-ack-validation" checked>
+            <label for="approve-ack-validation">{{ _("I reviewed the AI result and Operator validation.") }}</label>
+        </div>
+        <div class="form-checkbox">
+            <input type="checkbox" id="approve-ack-audit" checked>
+            <label for="approve-ack-audit">{{ _("I acknowledge this decision will be recorded in the audit trail.") }}</label>
+        </div>
+
         <div class="modal-dialog__actions">
             <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
-            <a class="btn btn--primary" href="{{ approve_review_url }}">{{ _("Approve Review") }}</a>
+            <a class="btn btn--primary" href="{{ approve_review_url }}">{{ _("Confirm Approval") }}</a>
         </div>
     </div>
 </div>

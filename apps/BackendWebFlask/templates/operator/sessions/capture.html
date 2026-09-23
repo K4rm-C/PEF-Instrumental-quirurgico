@@ -1,0 +1,138 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    session must be set here, outside every block, not inside page_content: block title and
+    block breadcrumb both render before page_content in layouts/authenticated.html, and a
+    variable set inside one block is not visible from another. Preserves the approved WS-026
+    reference case (prompts/09_Operator_V2.md) regardless of the session_id in the URL, since
+    no capture pipeline exists to source this per-session yet.
+#}
+{% set session_id = session_id|default('WS-026') %}
+{% set session = session|default({
+    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
+    'phase_label': _('Pre-Procedure'), 'status_label': _('In Progress'), 'status_variant': 'info'
+}, true) %}
+
+{% block title %}{{ _("Counting Session") }} {{ session.session_id }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Counting Session:") }} {{ session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Phase:") }} {{ session.phase_label }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/active-counting-session.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA (remaining, page_content-only)
+    --------------------
+    capture_image is intentionally NOT a real photograph — no camera/upload pipeline or
+    photography assets exist in this repository (see V2_IMPLEMENTATION_NOTES.md);
+    .evidence-image renders a token-driven placeholder instead of an <img>.
+#}
+{% set expected_inventory = expected_inventory|default([
+    {'instrument_family_name': 'Kelly Clamp', 'expected_quantity': 4},
+    {'instrument_family_name': 'Foerster Sponge Forceps', 'expected_quantity': 2},
+    {'instrument_family_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2},
+    {'instrument_family_name': 'Mayo Scissors', 'expected_quantity': 1},
+    {'instrument_family_name': 'Allis Tissue Forceps', 'expected_quantity': 2}
+]) %}
+{% set expected_inventory_total = expected_inventory_total|default(expected_inventory|sum(attribute='expected_quantity')) %}
+{% set captured_at = captured_at|default('2024-01-15 09:42:15') %}
+{% set run_ai_analysis_url = run_ai_analysis_url|default(url_for('web.operator_session_ai_detection', session_id=session.session_id)) %}
+
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Station") }}:</strong> {{ session.capture_station_name }}</span>
+        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+</section>
+
+<section class="session-workspace-grid">
+    <div class="card">
+        <div class="card__title-bar">
+            <h2 class="card__title">{{ _("Capture Image") }}</h2>
+            {{ macros.status_badge(_("AI Counting Ready"), 'success') }}
+        </div>
+        <div class="evidence-image" aria-hidden="true">{{ macros.icon_camera() }}</div>
+        <div class="evidence-image__meta">
+            <span>{{ _("Captured at") }}: {{ captured_at }}</span>
+            <span>{{ _("Capture Station") }}: {{ session.capture_station_name }}</span>
+        </div>
+        {# Integration point: no camera/upload pipeline exists yet — these are presentational
+           actions only, not wired to a real capture or file-upload flow. #}
+        <div class="evidence-image__actions">
+            <button type="button" class="btn btn--secondary btn--small" disabled>
+                {{ macros.icon_camera() }}
+                <span>{{ _("Capture Image") }}</span>
+            </button>
+            <button type="button" class="btn btn--secondary btn--small" disabled>
+                {{ macros.icon_history() }}
+                <span>{{ _("Upload Image") }}</span>
+            </button>
+            <button type="button" class="btn btn--secondary btn--small" disabled>
+                {{ macros.icon_history() }}
+                <span>{{ _("Retake Photograph") }}</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card__title">{{ _("Expected Inventory") }}</h2>
+        <p class="card__subtitle">{{ _("The baseline inventory registered for this operation kit.") }}</p>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Instrument Name") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Expected Quantity") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in expected_inventory %}
+                    <tr>
+                        <td>{{ item.instrument_family_name }}</td>
+                        <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="sub-panel">
+            <span class="sub-panel__value">{{ _("Total Expected") }}: {{ expected_inventory_total }} {{ _("Items") }}</span>
+        </div>
+        <p class="form-field__helper">{{ macros.icon_lock() }} {{ _("Expected inventory was frozen when the session started.") }}</p>
+    </div>
+</section>
+
+{# .page-content is a flex column with the default stretch cross-axis alignment, so a lone
+   .btn placed directly inside it would stretch full-width; a plain wrapping div keeps the
+   button at its natural content width, matching every approved reference. #}
+<div>
+    <a class="btn btn--primary" href="{{ run_ai_analysis_url }}">
+        <span>{{ _("Run AI Analysis") }}</span>
+        {{ macros.icon_arrow_right() }}
+    </a>
+</div>
+{% endblock %}

@@ -1,6 +1,9 @@
 /*
-  Page-specific styling for Active Counting Session: the camera-assisted capture area
-  placeholder. This is a visual placeholder only — no camera/video/YOLO integration.
+  Page-specific styling shared by the Operator V2 counting-session stages (Capture, AI
+  Suggested Count, Correction Requested): the camera-assisted capture area placeholder and
+  the rectangular "evidence image" placeholder used wherever a reference shows a captured
+  photograph. Both are visual placeholders only — no camera/video/YOLO integration and no
+  real photography assets exist in this repository (see V2_IMPLEMENTATION_NOTES.md).
 */
 
 .capture-area {
@@ -39,4 +42,67 @@
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
     max-width: 260px;
+}
+
+/* Rectangular captured/overhead-image placeholder (Capture, AI Suggested Count, Correction
+   Requested's "Captured Image Evidence"). Same gradient-plus-watermark-icon treatment as the
+   Public Landing Page's .landing-media, sized for a photo frame instead of a hero panel. */
+.evidence-image {
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--color-border);
+    background: linear-gradient(135deg, var(--color-primary-surface), var(--color-surface-secondary));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.evidence-image .icon {
+    width: 25%;
+    height: 25%;
+    color: var(--color-primary);
+    opacity: 0.35;
+}
+
+.evidence-image__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    margin-top: var(--space-3);
+}
+
+.evidence-image__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+/* Compact square thumbnail variant (Supervisor Discrepancy Review's "Captured Evidence" row)
+   — same gradient-plus-icon placeholder as .evidence-image, sized for an inline row instead
+   of a full card-width photo frame. */
+.evidence-image--small {
+    aspect-ratio: 1 / 1;
+    width: 64px;
+    flex-shrink: 0;
+}
+
+.evidence-image--small .icon {
+    width: 40%;
+    height: 40%;
+}
+
+.evidence-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.evidence-row__meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
 }

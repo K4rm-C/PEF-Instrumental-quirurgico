@@ -1,13 +1,18 @@
 {% import "components/macros.html" as macros %}
 {#
-    Reusable "Close Counting Session?" confirmation modal, opened from Count Validation's
-    "Confirm Validation" action when there is no unresolved discrepancy (has_discrepancy is
-    false). Opened/closed by the generic static/js/modal.js via data-modal-open /
-    data-modal-close — no dedicated JavaScript for this modal.
+    Reusable "Close Counting Session?" confirmation modal, opened from Count Validation /
+    Ready to Close's "Confirm Validation" / "Close Counting Session" action when there is no
+    unresolved discrepancy. Opened/closed by the generic static/js/modal.js via
+    data-modal-open / data-modal-close — no dedicated JavaScript for this modal.
 
-    Expected context: close_session_url (string, defaults to "#"). Integration point: in
-    production, "Close Session" should finalize the validated count and close the
-    WorkSession — not implemented here.
+    Expected context:
+    - close_session_url (string, defaults to "#")
+    - close_session_audit_review (optional dict): session_id, procedure_label,
+      expected_count, validated_count, human_corrections, resolved_discrepancies,
+      operator_name, timestamp — backs the optional "Session Audit Review" box (Operator V2's
+      Ready to Close flow). Omitted entirely by callers that don't have this detail yet.
+    Integration point: in production, "Close Session" should finalize the validated count and
+    close the WorkSession — not implemented here.
 #}
 {% set close_session_url = close_session_url|default('#') %}
 <div class="modal-overlay" id="close-session-modal" hidden>
@@ -18,6 +23,19 @@
         <p class="modal-dialog__description" id="close-session-modal-description">
             {{ _("The final instrument count has been validated. Closing the session will finalize the validated count and record the session completion.") }}
         </p>
+        {% if close_session_audit_review %}
+        <div class="modal-dialog__info-box">
+            <p class="modal-dialog__info-title">{{ _("Session Audit Review") }}</p>
+            <div class="modal-dialog__info-row"><dt>{{ _("Session ID") }}</dt><dd>{{ close_session_audit_review.session_id }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Procedure") }}</dt><dd>{{ close_session_audit_review.procedure_label }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Expected Instruments") }}</dt><dd>{{ close_session_audit_review.expected_count }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Final Validated Instruments") }}</dt><dd>{{ close_session_audit_review.validated_count }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Human Corrections") }}</dt><dd>{{ close_session_audit_review.human_corrections }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Resolved Discrepancies") }}</dt><dd>{{ close_session_audit_review.resolved_discrepancies }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Operator") }}</dt><dd>{{ close_session_audit_review.operator_name }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Date & Time") }}</dt><dd>{{ close_session_audit_review.timestamp }}</dd></div>
+        </div>
+        {% endif %}
         <div class="modal-dialog__actions">
             <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Keep Session Open") }}</button>
             <a class="btn btn--primary" href="{{ close_session_url }}">{{ _("Close Session") }}</a>

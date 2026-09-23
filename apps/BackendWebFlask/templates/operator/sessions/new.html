@@ -53,6 +53,12 @@
     {'station_id': 'cde-02', 'station_name': 'Station CDE-02'}
 ]) %}
 {% set selected_capture_station = selected_capture_station|default(available_capture_stations[0]) %}
+{% set counting_phases = counting_phases|default([
+    {'value': 'pre_procedure', 'label': _('Pre-Procedure')},
+    {'value': 'post_procedure', 'label': _('Post-Procedure')}
+]) %}
+{% set selected_counting_phase = selected_counting_phase|default('pre_procedure') %}
+{% set session_datetime = session_datetime|default('2024-01-15 08:30:00') %}
 {% set expected_inventory = expected_inventory|default([
     {'instrument_family_name': 'Kelly Clamp', 'expected_quantity': 4},
     {'instrument_family_name': 'Foerster Sponge Forceps', 'expected_quantity': 2},
@@ -60,15 +66,7 @@
     {'instrument_family_name': 'Mayo Scissors', 'expected_quantity': 1},
     {'instrument_family_name': 'Allis Tissue Forceps', 'expected_quantity': 2}
 ]) %}
-{% set instrument_readiness = instrument_readiness|default({
-    'expected_count': 11,
-    'available_count': 11,
-    'missing_count': 0,
-    'missing_variant': 'neutral',
-    'readiness_variant': 'success',
-    'ready': true,
-    'status_label': _('Instrument Set Ready')
-}) %}
+{% set expected_inventory_total = expected_inventory_total|default(expected_inventory|sum(attribute='expected_quantity')) %}
 
 <div class="page-heading">
     <div>
@@ -118,11 +116,13 @@
                 <label class="form-field__label" for="session-setup-patient">{{ _("Patient") }}</label>
                 <input class="form-field__input form-field__input--plain" type="text" id="session-setup-patient"
                        value="{{ selected_operation.patient_name }}" readonly aria-readonly="true">
+                <p class="form-field__helper">{{ _("From selected operation") }}</p>
             </div>
             <div class="form-field">
                 <label class="form-field__label" for="session-setup-physician">{{ _("Physician / Surgeon") }}</label>
                 <input class="form-field__input form-field__input--plain" type="text" id="session-setup-physician"
                        value="{{ selected_operation.physician_name }}" readonly aria-readonly="true">
+                <p class="form-field__helper">{{ _("From selected operation") }}</p>
             </div>
         </div>
 
@@ -132,9 +132,6 @@
                 <input class="form-field__input form-field__input--plain" type="text" id="session-setup-operating-room"
                        value="{{ selected_operation.operating_room_name }}" readonly aria-readonly="true">
             </div>
-        </div>
-
-        <div class="form-grid">
             <div class="form-field">
                 <label class="form-field__label" for="kit-select">{{ _("Kit") }}</label>
                 <div class="form-field__input-wrapper">
@@ -145,6 +142,25 @@
                     </select>
                     <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
                 </div>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="counting-phase-select">{{ _("Counting Phase") }}</label>
+                <div class="form-field__input-wrapper">
+                    <select class="form-field__input form-field__select" id="counting-phase-select" name="counting_phase">
+                        {% for phase in counting_phases %}
+                        <option value="{{ phase.value }}" {% if phase.value == selected_counting_phase %}selected{% endif %}>{{ phase.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-grid">
+            <div class="form-field">
+                <label class="form-field__label" for="session-setup-datetime">{{ _("Date & Time") }}</label>
+                <input class="form-field__input form-field__input--plain" type="text" id="session-setup-datetime"
+                       value="{{ session_datetime }}" readonly aria-readonly="true">
             </div>
             <div class="form-field">
                 <label class="form-field__label" for="capture-station-select">{{ _("Capture Station") }}</label>
@@ -181,8 +197,16 @@
                     <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
                 </tr>
                 {% endfor %}
+                <tr>
+                    <th scope="row">{{ _("Total Expected") }}</th>
+                    <td class="data-table__numeric-column">{{ expected_inventory_total }}</td>
+                </tr>
             </tbody>
         </table>
+    </div>
+    <div class="alert alert--info" role="status">
+        {{ macros.icon_info() }}
+        <span class="alert__message">{{ _("Expected inventory will be frozen when the session starts.") }}</span>
     </div>
 </section>
 
@@ -191,23 +215,18 @@
         <h2 class="card__title">{{ _("SECTION 3 - Instrument Readiness") }}</h2>
         <p class="card__subtitle">{{ _("Confirm the instrument set is complete before starting the session.") }}</p>
     </div>
-    <div class="stat-card-grid stat-card-grid--three">
-        {{ macros.stat_card(_("Expected"), instrument_readiness.expected_count, 'neutral') }}
-        {{ macros.stat_card(_("Available"), instrument_readiness.available_count, 'neutral') }}
-        {{ macros.stat_card(_("Missing"), instrument_readiness.missing_count, instrument_readiness.missing_variant) }}
-    </div>
-    <div class="alert alert--{{ instrument_readiness.readiness_variant }}" role="status">
-        {% if instrument_readiness.ready %}{{ macros.icon_check_circle() }}{% else %}{{ macros.icon_alert_triangle() }}{% endif %}
-        <span class="alert__message">{{ instrument_readiness.status_label }}</span>
-    </div>
+    <label class="form-checkbox">
+        <input type="checkbox" name="instrument_readiness_confirmed" form="new-counting-session-form" required>
+        <span>{{ _("I confirm the instrument set is physically present and matches the expected inventory.") }}</span>
+    </label>
 </section>
 {% endblock %}
 
 {% block page_action_bar %}
 <div class="page-action-bar">
-    <a class="btn btn--secondary" href="#">{{ _("Cancel") }}</a>
+    <a class="btn btn--secondary" href="{{ url_for('web.operator_sessions') }}">{{ _("Cancel") }}</a>
     <button type="submit" form="new-counting-session-form" class="btn btn--primary">
-        {{ macros.icon_check_square() }}
+        {{ macros.icon_play() }}
         <span>{{ _("Start Session") }}</span>
     </button>
 </div>

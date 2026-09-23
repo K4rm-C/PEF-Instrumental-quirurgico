@@ -1,0 +1,246 @@
+/*
+  Public Landing Page (templates/shared/landing.html). Page-specific marketing layout built
+  entirely from design tokens and the same visual language as the rest of the app (cards,
+  buttons, badges) — no new color system, just larger-scale typography/spacing suited to a
+  full-width unauthenticated page.
+*/
+
+.landing-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 var(--space-6);
+}
+
+.landing-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-primary);
+}
+
+.landing-eyebrow::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+}
+
+.landing-eyebrow--pill {
+    background-color: var(--color-primary-surface);
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-pill);
+}
+
+/* Hero */
+
+.landing-hero {
+    padding: var(--space-8) var(--space-6);
+}
+
+.landing-hero__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: var(--space-8);
+}
+
+.landing-hero__title {
+    font-size: 2.5rem;
+    line-height: 1.15;
+    margin: var(--space-4) 0 var(--space-4);
+}
+
+.landing-hero__lede {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-md);
+    max-width: 46ch;
+}
+
+.landing-hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+}
+
+/* Media placeholder (no photography assets are available; a token-driven gradient panel
+   with a large watermark icon stands in for each reference image without misrepresenting
+   it as a real photo). */
+
+.landing-media {
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--color-border);
+    background: linear-gradient(135deg, var(--color-primary-surface), var(--color-surface-secondary));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+.landing-media--wide {
+    aspect-ratio: 16 / 9;
+}
+
+.landing-media .icon {
+    width: 30%;
+    height: 30%;
+    color: var(--color-primary);
+    opacity: 0.35;
+}
+
+/* Section rhythm */
+
+.landing-section {
+    padding: var(--space-8) 0;
+}
+
+.landing-section--alt {
+    background-color: var(--color-surface-secondary);
+}
+
+.landing-section__row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: var(--space-8);
+}
+
+.landing-section__row--reverse .landing-media {
+    order: -1;
+}
+
+.landing-section__title {
+    font-size: 1.75rem;
+    margin: var(--space-3) 0 var(--space-4);
+}
+
+.landing-section__body {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    color: var(--color-text-secondary);
+}
+
+.landing-section__heading {
+    text-align: center;
+    max-width: 640px;
+    margin: 0 auto var(--space-6);
+}
+
+.landing-section__heading .landing-section__title {
+    margin-bottom: 0;
+}
+
+/* Workflow steps */
+
+.landing-step-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+}
+
+.landing-step-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+}
+
+.landing-step-card__number {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-primary);
+}
+
+.landing-step-card__icon {
+    color: var(--color-text-tertiary);
+}
+
+.landing-step-card__title {
+    font-size: var(--font-size-md);
+}
+
+.landing-step-card__description {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+/* Benefit cards */
+
+.landing-benefit-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+}
+
+.landing-benefit-card__icon {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background-color: var(--color-primary-surface);
+    color: var(--color-primary);
+}
+
+.landing-benefit-card__title {
+    font-size: var(--font-size-md);
+}
+
+.landing-benefit-card__description {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+/* Access controls callout */
+
+.landing-access__bullet {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-primary);
+}
+
+.landing-access__bullet::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+}
+
+@media (max-width: 900px) {
+    .landing-hero__row,
+    .landing-section__row {
+        grid-template-columns: 1fr;
+    }
+
+    .landing-section__row--reverse .landing-media {
+        order: 0;
+    }
+
+    .landing-step-grid,
+    .landing-benefit-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .landing-hero__title {
+        font-size: 1.75rem;
+    }
+
+    .landing-step-grid,
+    .landing-benefit-grid {
+        grid-template-columns: 1fr;
+    }
+}

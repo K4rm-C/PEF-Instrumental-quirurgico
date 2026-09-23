@@ -44,6 +44,12 @@
     --color-sidebar-brand: #35d0bb;
     --color-sidebar-border: rgba(255, 255, 255, 0.08);
 
+    /* Public Landing Page footer stays dark navy in both themes, matching the approved
+       Figma footer (a distinct dark surface from the teal sidebar). */
+    --color-footer-background: #0b1526;
+    --color-footer-text: #b7c0cc;
+    --color-footer-text-muted: #7c8899;
+
     --font-family-base: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --font-size-xs: 0.75rem;
     --font-size-sm: 0.8125rem;

@@ -31,36 +31,36 @@
         'kit_name': 'Suture Kit', 'operator_name': 'Emily Carter',
         'started_at': '13:18', 'closed_at': '13:42',
         'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': '#'
+        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-023')
     },
     {
         'session_id': 'WS-021', 'procedure_name': 'Cholecystectomy', 'operating_room': 'OR-3',
         'kit_name': 'General Surgery Kit', 'operator_name': 'Sophia Turner',
         'started_at': '11:57', 'closed_at': '12:30',
         'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': '#'
+        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-021')
     },
     {
         'session_id': 'WS-019', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
         'kit_name': 'Delivery Kit', 'operator_name': 'Daniel Lee',
         'started_at': '09:15', 'closed_at': '09:48',
         'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': '#'
+        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-019')
     },
     {
         'session_id': 'WS-018', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-1',
         'kit_name': 'Suture Kit', 'operator_name': 'Alex Morgan',
         'started_at': '08:30', 'closed_at': None,
         'status_label': _('Cancelled'), 'status_variant': 'neutral',
-        'action_label': _('View Details'), 'action_url': '#'
+        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-018')
     }
-]) %}
-{% set sessions_shown_count = sessions_shown_count|default(session_history|length) %}
-{% set sessions_total_count = sessions_total_count|default(124) %}
-{% set current_page = current_page|default(1) %}
-{% set total_pages = total_pages|default(31) %}
-{% set previous_url = previous_url|default('#') %}
-{% set next_url = next_url|default('#') %}
+], true) %}
+{% set sessions_shown_count = sessions_shown_count|default(session_history|length, true) %}
+{% set sessions_total_count = sessions_total_count|default(124, true) %}
+{% set current_page = current_page|default(1, true) %}
+{% set total_pages = total_pages|default(31, true) %}
+{% set previous_url = previous_url|default('#', true) %}
+{% set next_url = next_url|default('#', true) %}
 
 <div class="page-heading">
     <div>

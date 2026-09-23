@@ -26,3 +26,7 @@ class Config:
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
     }
+    # Development-only: when true, view-data helpers skip PostgreSQL entirely and return
+    # their fallback values so the V2 templates render with their approved demo content
+    # (see controllers/view_data.py). Authentication still uses DEMO_USERS either way.
+    FRONTEND_DEMO_MODE = os.getenv('FRONTEND_DEMO_MODE', 'false').strip().lower() == 'true'

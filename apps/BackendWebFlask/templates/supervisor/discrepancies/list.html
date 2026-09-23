@@ -29,30 +29,33 @@
 #}
 {% set discrepancies_summary = discrepancies_summary|default({
     'pending_reviews': 2, 'open_discrepancies': 3, 'reviewed_today': 5
-}) %}
+}, true) %}
 {% set discrepancies = discrepancies|default([
     {
         'session_id': 'WS-026', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
         'kit_name': 'Delivery Kit', 'operator_name': 'Alex Morgan', 'instrument_name': 'Mayo-Hegar Needle Holder',
-        'expected_quantity': 2, 'counted_quantity': 1, 'difference': -1, 'reason': _('Missing instrument'),
-        'status_label': _('Pending Review'), 'status_variant': 'pending',
-        'action_label': _('Review'), 'action_url': '#'
+        'expected_quantity': 2, 'ai_detected_quantity': 1, 'operator_validated_quantity': 1, 'difference': -1,
+        'type_label': _('Missing'),
+        'status_label': _('Under Review'), 'status_variant': 'pending',
+        'action_label': _('Review'), 'action_url': url_for('web.supervisor_discrepancy_review', session_id='WS-026')
     },
     {
         'session_id': 'WS-025', 'procedure_name': 'Cholecystectomy', 'operating_room': 'OR-1',
         'kit_name': 'Suture Kit', 'operator_name': 'Emily Carter', 'instrument_name': 'Suture Needle Set',
-        'expected_quantity': 6, 'counted_quantity': 5, 'difference': -1, 'reason': _('Counting error'),
-        'status_label': _('Pending Review'), 'status_variant': 'pending',
-        'action_label': _('Review'), 'action_url': '#'
+        'expected_quantity': 6, 'ai_detected_quantity': 5, 'operator_validated_quantity': 5, 'difference': -1,
+        'type_label': _('Missing'),
+        'status_label': _('Under Review'), 'status_variant': 'pending',
+        'action_label': _('Review'), 'action_url': url_for('web.supervisor_discrepancy_review', session_id='WS-025')
     },
     {
         'session_id': 'WS-019', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
         'kit_name': 'General Surgery Kit', 'operator_name': 'Daniel Lee', 'instrument_name': 'Retractor Blade',
-        'expected_quantity': 3, 'counted_quantity': 2, 'difference': -1, 'reason': _('Instrument mismatch'),
-        'status_label': _('Reviewed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': '#'
+        'expected_quantity': 3, 'ai_detected_quantity': 2, 'operator_validated_quantity': 2, 'difference': -1,
+        'type_label': _('Missing'),
+        'status_label': _('Approved'), 'status_variant': 'success',
+        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_discrepancy_review', session_id='WS-019')
     }
-]) %}
+], true) %}
 
 {% if feedback_banner %}
 {# Rendered by layouts/authenticated.html already; nothing extra needed here — this comment
@@ -90,19 +93,19 @@
             <label class="visually-hidden" for="discrepancies-status">{{ _("Status") }}</label>
             <select class="form-field__input form-field__input--plain" id="discrepancies-status" name="status">
                 <option value="">{{ _("All Statuses") }}</option>
-                <option value="pending_review">{{ _("Pending Review") }}</option>
-                <option value="reviewed">{{ _("Reviewed") }}</option>
+                <option value="under_review">{{ _("Under Review") }}</option>
                 <option value="approved">{{ _("Approved") }}</option>
                 <option value="correction_required">{{ _("Correction Required") }}</option>
             </select>
         </div>
         <div class="filter-bar__select">
-            <label class="visually-hidden" for="discrepancies-reason">{{ _("Reason") }}</label>
-            <select class="form-field__input form-field__input--plain" id="discrepancies-reason" name="reason">
-                <option value="">{{ _("All Reasons") }}</option>
-                <option value="missing_instrument">{{ _("Missing instrument") }}</option>
-                <option value="counting_error">{{ _("Counting error") }}</option>
-                <option value="instrument_mismatch">{{ _("Instrument mismatch") }}</option>
+            <label class="visually-hidden" for="discrepancies-type">{{ _("Type") }}</label>
+            <select class="form-field__input form-field__input--plain" id="discrepancies-type" name="type">
+                <option value="">{{ _("All Types") }}</option>
+                <option value="missing">{{ _("Missing") }}</option>
+                <option value="extra">{{ _("Extra") }}</option>
+                <option value="low_confidence">{{ _("Low Confidence") }}</option>
+                <option value="unrecognized">{{ _("Unrecognized") }}</option>
             </select>
         </div>
         <div class="filter-bar__select">
@@ -136,9 +139,10 @@
                     <th scope="col">{{ _("Operator") }}</th>
                     <th scope="col">{{ _("Instrument") }}</th>
                     <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Counted") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("AI Detected") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Operator Validated") }}</th>
                     <th scope="col" class="data-table__numeric-column">{{ _("Difference") }}</th>
-                    <th scope="col">{{ _("Reason") }}</th>
+                    <th scope="col">{{ _("Type") }}</th>
                     <th scope="col">{{ _("Status") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
@@ -154,12 +158,13 @@
                     <td>{{ item.operator_name }}</td>
                     <td>{{ item.instrument_name }}</td>
                     <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
-                    <td class="data-table__numeric-column">{{ item.counted_quantity }}</td>
+                    <td class="data-table__numeric-column">{{ item.ai_detected_quantity }}</td>
+                    <td class="data-table__numeric-column">{{ item.operator_validated_quantity }}</td>
                     <td class="data-table__numeric-column {{ 'text-danger' if item.difference != 0 else 'text-success' }}">
                         {% if item.difference != 0 %}{{ macros.icon_alert_triangle() }}{% endif %}
                         {{ item.difference }}
                     </td>
-                    <td>{{ item.reason }}</td>
+                    <td>{{ item.type_label }}</td>
                     <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--small {{ 'btn--accent' if item.action_label == _('Review') else 'btn--secondary' }}"

@@ -28,6 +28,15 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    max-height: calc(100vh - var(--space-8));
+    overflow-y: auto;
+}
+
+/* Wider variant for content-dense decision modals (Supervisor's Approve / Request
+   Correction / Reject Discrepancy Review) that combine a discrepancy details box, form
+   fields, and (for Approve) acknowledgement checkboxes. */
+.modal-dialog--wide {
+    max-width: 600px;
 }
 
 .modal-dialog__icon {
@@ -47,6 +56,11 @@
 .modal-dialog__icon--success {
     background-color: var(--color-success-surface);
     color: var(--color-success);
+}
+
+.modal-dialog__icon--danger {
+    background-color: var(--color-danger-surface);
+    color: var(--color-danger);
 }
 
 .modal-dialog__icon .icon {
@@ -102,6 +116,35 @@
     display: block;
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
+}
+
+/* Titled variant of .modal-dialog__info-box holding label/value rows (Close Counting
+   Session's "Session Audit Review" — Session ID, Procedure, counts, Operator, Date & Time). */
+.modal-dialog__info-title {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-secondary);
+    margin-bottom: var(--space-1);
+}
+
+.modal-dialog__info-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.modal-dialog__info-row dt {
+    color: var(--color-text-secondary);
+}
+
+.modal-dialog__info-row dd {
+    margin: 0;
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+    text-align: right;
 }
 
 .modal-dialog__actions {
