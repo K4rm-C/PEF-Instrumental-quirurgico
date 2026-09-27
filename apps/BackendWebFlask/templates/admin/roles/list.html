@@ -22,28 +22,33 @@
     --------------------
     roles below is a placeholder value used only so this page is visually reviewable before
     the backend supplies real data. Expected shape is documented in FRONTEND_INTEGRATION.md.
-    Per section 27, Description and Assigned Users are always kept as separate columns, never
-    concatenated. No "New Role" action exists here since no approved Figma screen for it was
-    provided (section 28).
+    Description and Assigned Users are always kept as separate columns, never concatenated.
+    The Role model has no separate "name" field and no active/status field, so this list never
+    shows a Role Name column or a Status column/filter — only Code, Description, Institution,
+    and Assigned Users.
 #}
 {% set roles = roles|default([
-    {'code': 'OPERATOR', 'name': _('Operator CDE'), 'description': _('Performs instrument counting and validation activities.'), 'assigned_users': 10, 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'},
-    {'code': 'SUPERVISOR', 'name': _('Supervisor CDE / Quality'), 'description': _('Reviews sessions, discrepancies, and authorizes closure.'), 'assigned_users': 5, 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'},
-    {'code': 'ADMIN', 'name': _('IT Administrator'), 'description': _('Manages users, roles, catalogs, and system configuration.'), 'assigned_users': 3, 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'}
-]) %}
-{% set roles_shown_count = roles_shown_count|default(roles|length) %}
-{% set roles_total_count = roles_total_count|default(roles|length) %}
+    {'code': 'OPERATOR', 'description': _('Performs instrument counting and validation activities.'), 'institution': _('Hospital Institution'), 'assigned_users': 10, 'edit_url': url_for('web.admin_role_edit', role_id='OPERATOR')},
+    {'code': 'SUPERVISOR', 'description': _('Reviews sessions, discrepancies, and authorizes closure.'), 'institution': _('Hospital Institution'), 'assigned_users': 5, 'edit_url': url_for('web.admin_role_edit', role_id='SUPERVISOR')},
+    {'code': 'ADMIN', 'description': _('Manages users, roles, catalogs, and system configuration.'), 'institution': _('Hospital Institution'), 'assigned_users': 3, 'edit_url': url_for('web.admin_role_edit', role_id='ADMIN')}
+], true) %}
+{% set roles_shown_count = roles_shown_count|default(roles|length, true) %}
+{% set roles_total_count = roles_total_count|default(roles|length, true) %}
 
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ _("Roles") }}</h1>
         <p class="page-heading__subtitle">{{ _("Manage the roles available in the system.") }}</p>
     </div>
+    <a class="btn btn--primary" href="{{ new_role_url|default('#') }}">
+        {{ macros.icon_plus() }}
+        <span>{{ _("New Role") }}</span>
+    </a>
 </div>
 
 <section class="card">
-    {# Filters are presentation-only in this iteration: no client-side or server-side
-       filtering is wired up yet. #}
+    {# Search is presentation-only in this iteration: no client-side or server-side filtering
+       is wired up yet. #}
     <form class="filter-bar" action="#" method="get" role="search">
         <div class="filter-bar__search">
             <label class="visually-hidden" for="roles-search">{{ _("Search Roles") }}</label>
@@ -52,14 +57,6 @@
                 <input class="form-field__input" type="search" id="roles-search" name="search"
                        placeholder="{{ _('Search roles...') }}">
             </div>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="roles-status">{{ _("Status") }}</label>
-            <select class="form-field__input form-field__input--plain" id="roles-status" name="status">
-                <option value="">{{ _("Status: All") }}</option>
-                <option value="active">{{ _("Status: Active") }}</option>
-                <option value="inactive">{{ _("Status: Inactive") }}</option>
-            </select>
         </div>
     </form>
 </section>
@@ -70,10 +67,9 @@
             <thead>
                 <tr>
                     <th scope="col">{{ _("Code") }}</th>
-                    <th scope="col">{{ _("Role") }}</th>
                     <th scope="col">{{ _("Description") }}</th>
+                    <th scope="col">{{ _("Institution") }}</th>
                     <th scope="col">{{ _("Assigned Users") }}</th>
-                    <th scope="col">{{ _("Status") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
             </thead>
@@ -81,10 +77,9 @@
                 {% for role in roles %}
                 <tr>
                     <th scope="row">{{ role.code }}</th>
-                    <td>{{ role.name }}</td>
                     <td class="data-table__cell--truncate">{{ role.description }}</td>
+                    <td>{{ role.institution }}</td>
                     <td>{{ role.assigned_users }}</td>
-                    <td>{{ macros.status_badge(role.status_label, role.status_variant) }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--secondary btn--small" href="{{ role.edit_url }}">{{ _("View / Edit") }}</a>
                     </td>

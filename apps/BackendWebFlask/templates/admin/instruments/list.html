@@ -27,22 +27,22 @@
     per section 15 of the implementation prompt — they are never merged or visually confused.
 #}
 {% set instruments = instruments|default([
-    {'internal_code': 'INS-001', 'instrument_family_name': 'Kelly Clamp', 'cycle_status_label': _('Available'), 'cycle_status_variant': 'info', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': '#'},
-    {'internal_code': 'INS-002', 'instrument_family_name': 'Kelly Clamp', 'cycle_status_label': _('Sterilization'), 'cycle_status_variant': 'warning', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': '#'},
-    {'internal_code': 'INS-003', 'instrument_family_name': 'Foerster Sponge Forceps', 'cycle_status_label': _('Available'), 'cycle_status_variant': 'info', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': '#'},
-    {'internal_code': 'INS-004', 'instrument_family_name': 'Mayo-Hegar Needle Holder', 'cycle_status_label': _('Unavailable'), 'cycle_status_variant': 'danger', 'active_status_label': _('Inactive'), 'active_status_variant': 'neutral', 'edit_url': '#'}
-]) %}
+    {'internal_code': 'INS-001', 'instrument_family_name': 'Kelly Clamp', 'cycle_status_label': _('Available'), 'cycle_status_variant': 'info', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': url_for('web.admin_instrument_edit', instrument_id='INS-001')},
+    {'internal_code': 'INS-002', 'instrument_family_name': 'Kelly Clamp', 'cycle_status_label': _('Sterilization'), 'cycle_status_variant': 'warning', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': url_for('web.admin_instrument_edit', instrument_id='INS-002')},
+    {'internal_code': 'INS-003', 'instrument_family_name': 'Foerster Sponge Forceps', 'cycle_status_label': _('Available'), 'cycle_status_variant': 'info', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': url_for('web.admin_instrument_edit', instrument_id='INS-003')},
+    {'internal_code': 'INS-004', 'instrument_family_name': 'Mayo-Hegar Needle Holder', 'cycle_status_label': _('Unavailable'), 'cycle_status_variant': 'danger', 'active_status_label': _('Inactive'), 'active_status_variant': 'neutral', 'edit_url': url_for('web.admin_instrument_edit', instrument_id='INS-004')}
+], true) %}
 {% set instrument_families_filter = instrument_families_filter|default([
     {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
     {'value': 'foerster-sponge-forceps', 'label': _('Foerster Sponge Forceps')},
     {'value': 'mayo-hegar-needle-holder', 'label': _('Mayo-Hegar Needle Holder')}
-]) %}
-{% set instruments_shown_count = instruments_shown_count|default(instruments|length) %}
-{% set instruments_total_count = instruments_total_count|default(96) %}
-{% set current_page = current_page|default(1) %}
-{% set total_pages = total_pages|default(24) %}
-{% set previous_url = previous_url|default('#') %}
-{% set next_url = next_url|default('#') %}
+], true) %}
+{% set instruments_shown_count = instruments_shown_count|default(instruments|length, true) %}
+{% set instruments_total_count = instruments_total_count|default(96, true) %}
+{% set current_page = current_page|default(1, true) %}
+{% set total_pages = total_pages|default(24, true) %}
+{% set previous_url = previous_url|default('#', true) %}
+{% set next_url = next_url|default('#', true) %}
 
 <div class="page-heading">
     <div>

@@ -6,11 +6,12 @@
     link's href, following the exact same pattern as partials/sidebar_operator.html and
     partials/sidebar_supervisor.html. When not provided, every link safely falls back to "#"
     via the |default('#') filter below.
-    Recognized keys: dashboard, instrument_families, instruments, kits, users, roles,
-    configuration, profile, sign_out.
+    Recognized keys: dashboard, instrument_families, instruments, kits, procedures, users,
+    roles, vision_models, audit_log, configuration, profile, sign_out.
     Intended production endpoints (documented in FRONTEND_INTEGRATION.md):
-    admin.dashboard, admin.instrument_families, admin.instruments, admin.kits, admin.users,
-    admin.roles, admin.configuration, admin.profile, auth.sign_out
+    admin.dashboard, admin.instrument_families, admin.instruments, admin.kits,
+    admin.procedures, admin.users, admin.roles, admin.vision_models, admin.audit_log,
+    admin.configuration, admin.profile, auth.sign_out
 #}
 {% set nav_urls = nav_urls|default({}) %}
 
@@ -61,6 +62,14 @@
                     <span>{{ _("Kits") }}</span>
                 </a>
             </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'procedures' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.procedures|default('#') }}"
+                   {% if active_nav_item == 'procedures' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_document() }}
+                    <span>{{ _("Procedures") }}</span>
+                </a>
+            </li>
         </ul>
     </div>
 
@@ -89,6 +98,22 @@
     <div class="sidebar__section">
         <p class="sidebar__section-label">{{ _("System") }}</p>
         <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'vision_models' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.vision_models|default('#') }}"
+                   {% if active_nav_item == 'vision_models' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_scan_frame() }}
+                    <span>{{ _("Vision Models") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'audit_log' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.audit_log|default('#') }}"
+                   {% if active_nav_item == 'audit_log' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_shield_check() }}
+                    <span>{{ _("Audit Log") }}</span>
+                </a>
+            </li>
             <li>
                 <a class="sidebar__nav-link{% if active_nav_item == 'configuration' %} sidebar__nav-link--active{% endif %}"
                    href="{{ nav_urls.configuration|default('#') }}"

@@ -117,6 +117,33 @@
     padding-top: var(--space-4);
 }
 
+/* Labeled checkbox row (New Counting Session's instrument-readiness confirmation). */
+.form-checkbox {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    font-size: var(--font-size-base);
+    color: var(--color-text-primary);
+}
+
+.form-checkbox input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--color-primary);
+    flex-shrink: 0;
+}
+
+/* Bordered box grouping several .form-checkbox rows (New/Edit User's "Assigned Roles" —
+   a user may have more than one role, per implementation prompt section 21). */
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+}
+
 .form-actions {
     display: flex;
     justify-content: flex-end;

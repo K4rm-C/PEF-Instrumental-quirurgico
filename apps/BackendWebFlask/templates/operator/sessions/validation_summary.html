@@ -1,0 +1,168 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    session and has_discrepancy must be set here, outside every block: block breadcrumb and
+    block page_action_bar both render outside block page_content in
+    layouts/authenticated.html, and a variable set inside one block is not visible from
+    another. has_discrepancy is the single switch deciding whether this page routes onward to
+    Discrepancy Escalation or to Ready to Close, mirroring the has_discrepancy pattern
+    already used elsewhere in this app. Preserves the approved WS-026 reference case
+    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
+#}
+{% set session_id = session_id|default('WS-026') %}
+{% set session = session|default({
+    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
+    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
+    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
+    'status_label': _('In Progress'), 'status_variant': 'info'
+}, true) %}
+{% set has_discrepancy = has_discrepancy|default(true) %}
+{% set edit_count_url = edit_count_url|default(url_for('web.operator_session_validation', session_id=session.session_id)) %}
+{% set primary_action_url = primary_action_url|default(
+    url_for('web.operator_session_discrepancy', session_id=session.session_id) if has_discrepancy
+    else url_for('web.operator_session_ready_to_close', session_id=session.session_id)
+) %}
+
+{% block title %}{{ _("Validation Summary") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Counting Session") }} {{ session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Validation Summary") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{% set count_comparison = count_comparison|default([
+    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'ai_detected': 4, 'validated_quantity': 4, 'status_label': _('Match'), 'status_variant': 'success', 'unresolved': false},
+    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'ai_detected': 2, 'validated_quantity': 2, 'status_label': _('Match'), 'status_variant': 'success', 'unresolved': false},
+    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'ai_detected': 1, 'validated_quantity': 1, 'status_label': _('Discrepancy'), 'status_variant': 'danger', 'unresolved': true},
+    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'ai_detected': 1, 'validated_quantity': 1, 'status_label': _('Match'), 'status_variant': 'success', 'unresolved': false},
+    {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'ai_detected': 1, 'validated_quantity': 2, 'status_label': _('Corrected'), 'status_variant': 'success', 'unresolved': false}
+]) %}
+{% set expected_total = expected_total|default(count_comparison|sum(attribute='expected_quantity')) %}
+{% set validated_total = validated_total|default(count_comparison|sum(attribute='validated_quantity')) %}
+{% set correction_audit = correction_audit|default({
+    'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'ai_detected': 1, 'validated_quantity': 2,
+    'reason_label': _('Second instrument partially occluded'),
+    'notes': _('"Second Allis Tissue Forceps was partially occluded. Physically verified count is 2."'),
+    'corrected_by': 'Alex Morgan', 'timestamp': '2024-01-15 09:45:22'
+}) %}
+{% set discrepancy_summary = discrepancy_summary|default({
+    'severity_label': _('Critical'), 'title': _('Missing instrument detected'),
+    'description': _('One Mayo-Hegar Needle Holder was missing post-procedure. Final validated count of 1 does not match expected 2.'),
+    'notice': _('Supervisor review and sign-off required before closing session.')
+}) %}
+
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Station") }}:</strong> {{ session.capture_station_name }}</span>
+        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("PRE vs POST Comparison") }}</h2>
+    <div class="stat-card-grid stat-card-grid--three">
+        {{ macros.stat_card(_("Pre-Procedure Expected"), _("Expected %(count)s", count=expected_total), 'neutral') }}
+        {{ macros.stat_card(_("Post-Procedure Validated"), _("Validated %(count)s", count=validated_total), 'neutral') }}
+        {{ macros.stat_card(_("Difference"), _("Difference %(diff)s Instrument", diff=(validated_total - expected_total)), 'danger' if validated_total != expected_total else 'success') }}
+    </div>
+    {% if has_discrepancy %}
+    <div class="alert alert--warning" role="status">
+        {{ macros.icon_alert_triangle() }}
+        <span class="alert__message">{{ _("Instrument discrepancy detected — Supervisor review will be required before completing validation.") }}</span>
+    </div>
+    {% else %}
+    <div class="alert alert--success" role="status">
+        {{ macros.icon_check_circle() }}
+        <span class="alert__message">{{ _("All instruments accounted for. This session is ready to close.") }}</span>
+    </div>
+    {% endif %}
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Count Comparison") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Instrument") }}</th>
+                    <th scope="col">{{ _("Expected") }}</th>
+                    <th scope="col">{{ _("AI Detected") }}</th>
+                    <th scope="col">{{ _("Validated") }}</th>
+                    <th scope="col">{{ _("Difference") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in count_comparison %}
+                <tr class="{{ 'data-table__row--highlight-danger' if item.unresolved else '' }}">
+                    <th scope="row">{{ item.instrument_name }}</th>
+                    <td>{{ item.expected_quantity }}</td>
+                    <td>{{ item.ai_detected }}</td>
+                    <td>{{ item.validated_quantity }}</td>
+                    <td class="{{ 'text-danger' if item.validated_quantity != item.expected_quantity else 'text-success' }}">{{ item.validated_quantity - item.expected_quantity }}</td>
+                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="panel-grid--two">
+    <div class="card">
+        <h2 class="card__title">{{ _("Correction Audit Trail") }}</h2>
+        <dl class="detail-list">
+            <div class="detail-list__row"><dt>{{ _("Instrument") }}</dt><dd>{{ correction_audit.instrument_name }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Expected") }}</dt><dd>{{ correction_audit.expected_quantity }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("AI Detected") }}</dt><dd>{{ correction_audit.ai_detected }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Validated") }}</dt><dd>{{ correction_audit.validated_quantity }}</dd></div>
+            <div class="detail-list__row"><dt>{{ _("Reason") }}</dt><dd>{{ correction_audit.reason_label }}</dd></div>
+        </dl>
+        <p class="form-field__helper">{{ _("Notes:") }} {{ correction_audit.notes }}</p>
+        <p class="form-field__helper">
+            {{ _("Corrected by:") }} <strong>{{ correction_audit.corrected_by }}</strong>
+            &nbsp;&nbsp;{{ _("Timestamp:") }} <strong>{{ correction_audit.timestamp }}</strong>
+        </p>
+    </div>
+
+    {% if has_discrepancy %}
+    <div class="card">
+        <h2 class="card__title">{{ _("Discrepancy Summary") }}</h2>
+        <p>{{ macros.status_badge(discrepancy_summary.severity_label, 'danger') }} <strong>{{ discrepancy_summary.title }}</strong></p>
+        <p class="card__subtitle">{{ discrepancy_summary.description }}</p>
+        <div class="alert alert--warning" role="status">
+            {{ macros.icon_alert_triangle() }}
+            <span class="alert__message">{{ discrepancy_summary.notice }}</span>
+        </div>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}
+
+{% block page_action_bar %}
+<div class="page-action-bar">
+    <a class="btn btn--secondary" href="{{ edit_count_url }}">{{ _("Edit Count") }}</a>
+    <a class="btn btn--primary" href="{{ primary_action_url }}">
+        {{ macros.icon_check_square() }}
+        <span>{{ _("Submit for Supervisor Review") if has_discrepancy else _("Proceed to Close") }}</span>
+    </a>
+</div>
+{% endblock %}

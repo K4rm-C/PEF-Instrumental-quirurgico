@@ -42,3 +42,8 @@
     font-weight: var(--font-weight-semibold);
     color: var(--color-text-primary);
 }
+
+/* Flags a counter whose row still needs attention (Human Validation's AI-mismatched rows). */
+.counter-control--danger {
+    border-color: var(--color-danger);
+}

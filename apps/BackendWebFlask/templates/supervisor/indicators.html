@@ -27,42 +27,45 @@
     Everything below is a placeholder used only so this page is visually reviewable before
     the backend supplies real data — all values are presentation-ready; no analytics are
     computed in this template beyond the same presentational chart-fill percentage math
-    already used by operator/dashboard.html's "Sessions by Day" bar chart and the donut
-    chart's cumulative conic-gradient offsets (pure rendering, not business logic). Expected
-    shapes are documented in FRONTEND_INTEGRATION.md.
+    already used by operator/dashboard.html's "Sessions by Day" bar chart (pure rendering,
+    not business logic). Values match the approved V2 reference
+    (ui_reference_v2/supervisor/supervisor-indicators.png) and the WS-026 reference case's
+    discrepancy breakdown documented in prompts/10_supervisor_v2.md. Expected shapes are
+    documented in FRONTEND_INTEGRATION.md.
 #}
 {% set indicator_stats = indicator_stats|default({
-    'total_sessions': 156, 'closed_sessions': 142, 'sessions_with_discrepancies': 8, 'pending_reviews': 2
-}) %}
+    'total_sessions': 156, 'total_discrepancies': 8, 'ai_human_agreement': '94.2%',
+    'human_corrections': 12, 'average_resolution_time': _('18 min')
+}, true) %}
 {% set sessions_by_day = sessions_by_day|default([
     {'label': _('Mon'), 'count': 8},
     {'label': _('Tue'), 'count': 12},
     {'label': _('Wed'), 'count': 10},
     {'label': _('Thu'), 'count': 15},
     {'label': _('Fri'), 'count': 11}
-]) %}
+], true) %}
 {% set sessions_by_day_max = sessions_by_day|map(attribute='count')|max %}
-{% set discrepancies_by_reason = discrepancies_by_reason|default([
-    {'label': _('Missing instrument'), 'value': 4, 'variant': 'danger'},
-    {'label': _('Counting error'), 'value': 2, 'variant': 'warning'},
-    {'label': _('Instrument mismatch'), 'value': 1, 'variant': 'neutral'},
-    {'label': _('Other'), 'value': 1, 'variant': 'primary'}
-]) %}
-{% set discrepancies_by_reason_max = discrepancies_by_reason|map(attribute='value')|max %}
-{% set session_status_chart = session_status_chart|default({
-    'total_label': 156, 'segments': [
-        {'label': _('Closed'), 'percent': 91, 'variant': 'success'},
-        {'label': _('Active'), 'percent': 2, 'variant': 'info'},
-        {'label': _('With Discrepancies'), 'percent': 5, 'variant': 'danger'},
-        {'label': _('Pending Review'), 'percent': 2, 'variant': 'warning'}
-    ]
-}) %}
-{% set discrepancies_by_kit = discrepancies_by_kit|default([
-    {'label': _('Delivery Kit'), 'count': 4},
-    {'label': _('Suture Kit'), 'count': 2},
-    {'label': _('General Surgery Kit'), 'count': 2}
-]) %}
-{% set discrepancies_by_kit_max = discrepancies_by_kit|map(attribute='count')|max %}
+{% set discrepancies_by_instrument = discrepancies_by_instrument|default([
+    {'label': _('Mayo-Hegar Needle Holder'), 'value': 3, 'variant': 'danger'},
+    {'label': _('Allis Tissue Forceps'), 'value': 2, 'variant': 'warning'},
+    {'label': _('Foerster Sponge Forceps'), 'value': 1, 'variant': 'neutral'},
+    {'label': _('Other'), 'value': 2, 'variant': 'success'}
+], true) %}
+{% set discrepancies_by_instrument_max = discrepancies_by_instrument|map(attribute='value')|max %}
+{% set discrepancies_by_family = discrepancies_by_family|default([
+    {'label': _('Needle Holders'), 'value': 4, 'variant': 'danger'},
+    {'label': _('Forceps'), 'value': 3, 'variant': 'warning'},
+    {'label': _('Scissors'), 'value': 1, 'variant': 'neutral'}
+], true) %}
+{% set discrepancies_by_family_max = discrepancies_by_family|map(attribute='value')|max %}
+{% set discrepancies_by_type = discrepancies_by_type|default([
+    {'label': _('Missing'), 'value': 3, 'variant': 'danger'},
+    {'label': _('Extra'), 'value': 2, 'variant': 'warning'},
+    {'label': _('Low Confidence'), 'value': 1, 'variant': 'neutral'},
+    {'label': _('Unrecognized'), 'value': 1, 'variant': 'success'},
+    {'label': _('Uncertain Classification'), 'value': 1, 'variant': 'info'}
+], true) %}
+{% set discrepancies_by_type_max = discrepancies_by_type|map(attribute='value')|max %}
 
 <div class="page-heading">
     <div>
@@ -73,9 +76,10 @@
 
 <section class="stat-card-grid" aria-label="{{ _('Indicator totals') }}">
     {{ macros.stat_card(_("Total Sessions"), indicator_stats.total_sessions, 'neutral') }}
-    {{ macros.stat_card(_("Closed Sessions"), indicator_stats.closed_sessions, 'success') }}
-    {{ macros.stat_card(_("Sessions With Discrepancies"), indicator_stats.sessions_with_discrepancies, 'danger') }}
-    {{ macros.stat_card(_("Pending Reviews"), indicator_stats.pending_reviews, 'warning') }}
+    {{ macros.stat_card(_("Total Discrepancies"), indicator_stats.total_discrepancies, 'success') }}
+    {{ macros.stat_card(_("AI-Human Agreement"), indicator_stats.ai_human_agreement, 'danger') }}
+    {{ macros.stat_card(_("Human Corrections"), indicator_stats.human_corrections, 'warning') }}
+    {{ macros.stat_card(_("Average Resolution Time"), indicator_stats.average_resolution_time, 'success') }}
 </section>
 
 <section class="dashboard-panels">
@@ -94,17 +98,17 @@
     </div>
 
     <div class="card">
-        <h2 class="card__title">{{ _("Discrepancies by Reason") }}</h2>
+        <h2 class="card__title">{{ _("Discrepancies by Instrument") }}</h2>
         <ul class="status-progress-list">
-            {% for reason in discrepancies_by_reason %}
+            {% for item in discrepancies_by_instrument %}
             <li class="status-progress-item">
                 <div class="status-progress-item__header">
-                    <span>{{ reason.label }}</span>
-                    <span class="status-progress-item__value">{{ reason.value }}</span>
+                    <span>{{ item.label }}</span>
+                    <span class="status-progress-item__value">{{ item.value }}</span>
                 </div>
                 <div class="status-progress-item__track">
-                    <div class="status-progress-item__fill status-progress-item__fill--{{ reason.variant }}"
-                         style="--status-progress-fill: {{ (reason.value / discrepancies_by_reason_max * 100)|round(0, 'floor')|int }}%"></div>
+                    <div class="status-progress-item__fill status-progress-item__fill--{{ item.variant }}"
+                         style="--status-progress-fill: {{ (item.value / discrepancies_by_instrument_max * 100)|round(0, 'floor')|int }}%"></div>
                 </div>
             </li>
             {% endfor %}
@@ -114,38 +118,39 @@
 
 <section class="dashboard-panels">
     <div class="card">
-        <h2 class="card__title">{{ _("Session Status") }}</h2>
-        <div class="donut-chart-row">
-            {% set ns = namespace(acc=0) %}
-            <div class="donut-chart" style="background: conic-gradient({% for segment in session_status_chart.segments %}var(--color-{{ segment.variant }}) {{ ns.acc }}% {{ ns.acc + segment.percent }}%{% if not loop.last %}, {% endif %}{% set ns.acc = ns.acc + segment.percent %}{% endfor %});">
-                <div class="donut-chart__hole">
-                    <span class="donut-chart__value">{{ session_status_chart.total_label }}</span>
-                    <span class="donut-chart__label">{{ _("Sessions") }}</span>
+        <h2 class="card__title">{{ _("Discrepancies by Instrument Family") }}</h2>
+        <ul class="status-progress-list">
+            {% for item in discrepancies_by_family %}
+            <li class="status-progress-item">
+                <div class="status-progress-item__header">
+                    <span>{{ item.label }}</span>
+                    <span class="status-progress-item__value">{{ item.value }}</span>
                 </div>
-            </div>
-            <ul class="legend-list">
-                {% for segment in session_status_chart.segments %}
-                <li class="legend-item">
-                    <span class="legend-item__dot" style="background-color: var(--color-{{ segment.variant }});" aria-hidden="true"></span>
-                    <span>{{ segment.label }} ({{ segment.percent }}%)</span>
-                </li>
-                {% endfor %}
-            </ul>
-        </div>
+                <div class="status-progress-item__track">
+                    <div class="status-progress-item__fill status-progress-item__fill--{{ item.variant }}"
+                         style="--status-progress-fill: {{ (item.value / discrepancies_by_family_max * 100)|round(0, 'floor')|int }}%"></div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
     </div>
 
     <div class="card">
-        <h2 class="card__title">{{ _("Discrepancies by Kit") }}</h2>
-        <div class="bar-chart" role="img" aria-label="{{ _('Discrepancy count per kit') }}">
-            {% for kit in discrepancies_by_kit %}
-            <div class="bar-chart__column">
-                <div class="bar-chart__track">
-                    <div class="bar-chart__bar bar-chart__bar--danger" style="--bar-chart-fill: {{ (kit.count / discrepancies_by_kit_max * 100)|round(0, 'floor')|int }}%"></div>
+        <h2 class="card__title">{{ _("Discrepancies by Type") }}</h2>
+        <ul class="status-progress-list">
+            {% for item in discrepancies_by_type %}
+            <li class="status-progress-item">
+                <div class="status-progress-item__header">
+                    <span>{{ item.label }}</span>
+                    <span class="status-progress-item__value">{{ item.value }}</span>
                 </div>
-                <span class="bar-chart__label">{{ kit.label }} ({{ kit.count }})</span>
-            </div>
+                <div class="status-progress-item__track">
+                    <div class="status-progress-item__fill status-progress-item__fill--{{ item.variant }}"
+                         style="--status-progress-fill: {{ (item.value / discrepancies_by_type_max * 100)|round(0, 'floor')|int }}%"></div>
+                </div>
+            </li>
             {% endfor %}
-        </div>
+        </ul>
     </div>
 </section>
 {% endblock %}

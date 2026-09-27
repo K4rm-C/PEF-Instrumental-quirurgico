@@ -182,6 +182,48 @@
 {% endmacro %}
 
 {#
+    Public Landing Page icons (templates/shared/landing.html): icon_database backs the
+    "Historical Records" benefit card. Same inline-SVG, currentColor, 20x20 viewBox style as
+    every existing icon macro above.
+#}
+
+{% macro icon_database() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <ellipse cx="10" cy="5" rx="6.25" ry="2.5" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M3.75 5V15C3.75 16.38 6.55 17.5 10 17.5C13.45 17.5 16.25 16.38 16.25 15V5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M16.25 10C16.25 11.38 13.45 12.5 10 12.5C6.55 12.5 3.75 11.38 3.75 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
+{% endmacro %}
+
+{#
+    Operator V2 icons (templates/operator/sessions/*.html): icon_info backs informational
+    (non-warning) banners such as New Counting Session's "frozen inventory" notice.
+    icon_arrow_right backs forward-progress actions between counting-session stages (Run AI
+    Analysis, Proceed to Validation). Same inline-SVG, currentColor, 20x20 viewBox style as
+    every existing icon macro.
+#}
+
+{% macro icon_info() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <circle cx="10" cy="10" r="7.25" stroke="currentColor" stroke-width="1.5"/>
+    <path d="M10 9V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <circle cx="10" cy="6.25" r="0.9" fill="currentColor"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_play() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M6.25 4.75V15.25L15.25 10L6.25 4.75Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{% macro icon_arrow_right() %}
+<svg class="icon" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M4.5 10H15.5M15.5 10L11 5.5M15.5 10L11 14.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{% endmacro %}
+
+{#
     IT Administrator sidebar icons (partials/sidebar_admin.html): Instrument Families,
     Instruments, Kits, Users, Roles, Configuration. Same inline-SVG, currentColor, 20x20
     viewBox style as every icon above. Dashboard reuses the existing icon_grid() (four-square

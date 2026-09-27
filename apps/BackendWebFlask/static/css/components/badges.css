@@ -19,6 +19,14 @@
     flex-shrink: 0;
 }
 
+/* Wraps multiple badges together (IT Administrator Users' Assigned Roles column, New Role's
+   Current Role Codes reference list) — each badge stays a single, unsplit pill. */
+.badge-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
 .status-badge--info {
     background-color: var(--color-info-surface);
     color: var(--color-info);

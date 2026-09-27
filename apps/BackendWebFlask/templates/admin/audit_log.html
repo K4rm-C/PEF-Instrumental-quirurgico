@@ -1,0 +1,130 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Audit Log") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'audit_log' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("System") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Audit Log") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{#
+    TEMPORARY DEMO DATA
+    --------------------
+    audit_log_entries below is a placeholder value used only so this page is visually
+    reviewable before the backend supplies real data. AccessAudit has no code/entity/
+    record/result shape matching the approved V2 reference wired up yet (same integration
+    gap already documented for Supervisor's Audit Log) — this is a strictly READ-ONLY view:
+    no Edit / Delete / Modify actions, and no Action column at all.
+#}
+{% set audit_log_entries = audit_log_entries|default([
+    {'timestamp': '15:20', 'user_name': 'Daniel Brooks', 'role_label': _('IT Administrator'), 'event_label': 'CREATE_INSTRUMENT', 'event_variant': 'success', 'entity_label': 'Instrument', 'record_id': 'INS-097', 'result_label': 'SUCCESS', 'details': _('New instrument registered')},
+    {'timestamp': '15:28', 'user_name': 'Daniel Brooks', 'role_label': _('IT Administrator'), 'event_label': 'UPDATE_KIT', 'event_variant': 'default', 'entity_label': 'Kit', 'record_id': 'KIT-001', 'result_label': 'SUCCESS', 'details': _('Delivery Kit composition updated')},
+    {'timestamp': '15:41', 'user_name': 'Daniel Brooks', 'role_label': _('IT Administrator'), 'event_label': 'ACTIVATE_VISION_MODEL', 'event_variant': 'default', 'entity_label': 'YoloModel', 'record_id': 'v0.4.2', 'result_label': 'SUCCESS', 'details': _('Instrument YOLO v0.4.2 activated')}
+], true) %}
+{% set events_shown_count = events_shown_count|default(audit_log_entries|length, true) %}
+{% set events_total_count = events_total_count|default(audit_log_entries|length, true) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Audit Log") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Review administrative and system traceability events.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    {# Filters are presentation-only in this iteration: no client-side or server-side
+       filtering is wired up yet. #}
+    <form class="form-grid" action="#" method="get" role="search">
+        <div class="form-field">
+            <label class="form-field__label" for="audit-log-search">{{ _("Search Events") }}</label>
+            <div class="form-field__input-wrapper">
+                <span class="form-field__icon">{{ macros.icon_search() }}</span>
+                <input class="form-field__input" type="search" id="audit-log-search" name="search"
+                       placeholder="{{ _('Search events...') }}">
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="audit-log-user">{{ _("User") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="audit-log-user" name="user">
+                    <option value="">{{ _("All Users") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="audit-log-event-type">{{ _("Event Type") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="audit-log-event-type" name="event_type">
+                    <option value="">{{ _("All Event Types") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="audit-log-entity">{{ _("Entity") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="audit-log-entity" name="entity">
+                    <option value="">{{ _("All Entities") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="audit-log-date">{{ _("Date") }}</label>
+            <input class="form-field__input form-field__input--plain" type="date" id="audit-log-date" name="date" value="{{ today|default('') }}">
+        </div>
+    </form>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Administrative Events") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Timestamp") }}</th>
+                    <th scope="col">{{ _("User") }}</th>
+                    <th scope="col">{{ _("Role") }}</th>
+                    <th scope="col">{{ _("Event") }}</th>
+                    <th scope="col">{{ _("Entity") }}</th>
+                    <th scope="col">{{ _("Record") }}</th>
+                    <th scope="col">{{ _("Result") }}</th>
+                    <th scope="col">{{ _("Details") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in audit_log_entries %}
+                <tr>
+                    <th scope="row">{{ entry.timestamp }}</th>
+                    <td>{{ entry.user_name }}</td>
+                    <td>{{ entry.role_label }}</td>
+                    <td><strong>{{ entry.event_label }}</strong></td>
+                    <td class="text-primary">{{ entry.entity_label }}</td>
+                    <td>{{ entry.record_id }}</td>
+                    <td>{{ macros.status_badge(entry.result_label, 'success') }}</td>
+                    <td>{{ entry.details }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s events", shown=events_shown_count, total=events_total_count) }}</p>
+    <p class="form-field__helper">
+        {{ _("Event types:") }}
+        UPDATE_INSTRUMENT &middot; CREATE_KIT &middot; CREATE_USER &middot; UPDATE_USER &middot; DEACTIVATE_USER &middot;
+        CREATE_ROLE &middot; UPDATE_ROLE &middot; CREATE_PROCEDURE &middot; UPDATE_PROCEDURE &middot;
+        CREATE_CAPTURE_STATION &middot; UPDATE_CAPTURE_STATION
+    </p>
+</section>
+{% endblock %}

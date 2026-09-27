@@ -33,7 +33,7 @@
     'active_sessions': 3,
     'pending_reviews': 2,
     'open_discrepancies': 3
-}) %}
+}, true) %}
 {% set sessions_by_day = sessions_by_day|default([
     {'label': _('Mon'), 'count': 8},
     {'label': _('Tue'), 'count': 12},
@@ -43,31 +43,31 @@
 ]) %}
 {% set sessions_by_day_max = sessions_by_day|map(attribute='count')|max %}
 {% set review_status = review_status|default([
-    {'label': _('Pending Review'), 'value': 2, 'variant': 'warning'},
-    {'label': _('With Discrepancies'), 'value': 3, 'variant': 'danger'},
-    {'label': _('Closed Today'), 'value': 9, 'variant': 'success'}
+    {'label': _('Pending Reviews'), 'value': 2, 'variant': 'warning'},
+    {'label': _('Human Corrections'), 'value': 1, 'variant': 'success'},
+    {'label': _('Open Discrepancies'), 'value': 3, 'variant': 'danger'}
 ]) %}
 {% set review_status_max = review_status|map(attribute='value')|max %}
 {% set sessions_requiring_attention = sessions_requiring_attention|default([
     {
         'session_id': 'WS-026', 'procedure_label': 'Appendectomy - OR-3', 'kit_name': 'Delivery Kit',
-        'operator_name': 'Alex Morgan', 'issue_label': _('Missing instrument'), 'submitted_at': '15:42',
-        'status_label': _('Pending Review'), 'status_variant': 'pending',
+        'operator_name': 'Alex Morgan', 'issue_label': _('Missing Instrument'), 'submitted_at': '15:42',
+        'status_label': _('Awaiting Review'), 'status_variant': 'pending',
         'action_label': _('Review'), 'action_url': '#'
     },
     {
         'session_id': 'WS-025', 'procedure_label': 'Cholecystectomy - OR-1', 'kit_name': 'Suture Kit',
         'operator_name': 'Emily Carter', 'issue_label': _('Counting error'), 'submitted_at': '14:20',
-        'status_label': _('Pending Review'), 'status_variant': 'pending',
+        'status_label': _('Awaiting Review'), 'status_variant': 'pending',
         'action_label': _('Review'), 'action_url': '#'
     },
     {
         'session_id': 'WS-024', 'procedure_label': 'Hernia Repair - OR-2', 'kit_name': 'General Surgery Kit',
         'operator_name': 'Daniel Lee', 'issue_label': _('Instrument mismatch'), 'submitted_at': '11:15',
-        'status_label': _('Under Review'), 'status_variant': 'info',
+        'status_label': _('Awaiting Review'), 'status_variant': 'pending',
         'action_label': _('View Details'), 'action_url': '#'
     }
-]) %}
+], true) %}
 
 <div class="page-heading">
     <div>
@@ -78,7 +78,7 @@
 
 <section class="stat-card-grid" aria-label="{{ _('Key supervision metrics') }}">
     {{ macros.stat_card(_("Sessions Today"), dashboard_stats.sessions_today, 'neutral') }}
-    {{ macros.stat_card(_("Active Sessions"), dashboard_stats.active_sessions, 'info') }}
+    {{ macros.stat_card(_("In Progress Sessions"), dashboard_stats.active_sessions, 'info') }}
     {{ macros.stat_card(_("Pending Reviews"), dashboard_stats.pending_reviews, 'warning') }}
     {{ macros.stat_card(_("Open Discrepancies"), dashboard_stats.open_discrepancies, 'danger') }}
 </section>

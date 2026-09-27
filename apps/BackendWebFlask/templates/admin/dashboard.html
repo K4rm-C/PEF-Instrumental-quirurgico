@@ -20,31 +20,48 @@
 {#
     TEMPORARY DEMO DATA
     --------------------
-    dashboard_stats, catalog_overview, and system_overview below are placeholder values used
-    only so this page is visually reviewable before the backend supplies real data. Once a
-    view passes these variables in, the defaults are simply ignored. Expected shapes are
-    documented in FRONTEND_INTEGRATION.md. Per the implementation prompt (section 9), this
-    dashboard intentionally does not show Operator/Supervisor operational or discrepancy
-    metrics, nor any infrastructure/YOLO monitoring metrics.
+    Every variable below falls back to the approved presentation values only when the real
+    view doesn't supply it (boolean-mode default(), consistent with every other V2 page).
+    dashboard_stats and secondary_stats are backed by real counts (admin_dashboard_overview()
+    in view_data.py) whenever the database is reachable. AI-Human Agreement and Average
+    Resolution Time have no backing analytics query on any existing model, so they always use
+    the approved fallback values documented in V2_IMPLEMENTATION_NOTES.md.
 #}
 {% set dashboard_stats = dashboard_stats|default({
     'active_users': 18,
     'instrument_families': 11,
     'registered_instruments': 96,
     'active_kits': 8
-}) %}
+}, true) %}
+{% set secondary_stats = secondary_stats|default({
+    'procedures': 5,
+    'capture_stations': 3,
+    'vision_models': 2,
+    'active_vision_model': 1
+}, true) %}
 {% set catalog_overview = catalog_overview|default([
     {'label': _('Instrument Families'), 'value': _('11 Active')},
     {'label': _('Instruments'), 'value': _('96 Registered')},
     {'label': _('Kits'), 'value': _('8 Active')},
+    {'label': _('Procedures'), 'value': _('5 Active')},
     {'label': _('Capture Stations'), 'value': _('3 Configured')}
-]) %}
+], true) %}
 {% set system_overview = system_overview|default([
     {'label': _('Inactive Users'), 'value': 0},
     {'label': _('Configured Roles'), 'value': 3},
+    {'label': _('Operating Rooms'), 'value': 4},
     {'label': _('Capture Stations'), 'value': 3},
-    {'label': _('Active Institution'), 'value': 1}
-]) %}
+    {'label': _('Active Institution'), 'value': 1},
+    {'label': _('Active Vision Model Version'), 'value': 'v0.4.2'},
+    {'label': _('Model Classes'), 'value': 11}
+], true) %}
+{% set operational_metrics = operational_metrics|default([
+    {'label': _('Total Sessions'), 'value': 156},
+    {'label': _('Total Discrepancies'), 'value': 8},
+    {'label': _('AI-Human Agreement'), 'value': '94.2%'},
+    {'label': _('Human Corrections'), 'value': 12},
+    {'label': _('Average Resolution Time'), 'value': _('18 min')}
+], true) %}
 
 <div class="page-heading">
     <div>
@@ -58,6 +75,13 @@
     {{ macros.stat_card(_("Instrument Families"), dashboard_stats.instrument_families, 'neutral') }}
     {{ macros.stat_card(_("Registered Instruments"), dashboard_stats.registered_instruments, 'neutral') }}
     {{ macros.stat_card(_("Active Kits"), dashboard_stats.active_kits, 'neutral') }}
+</section>
+
+<section class="stat-card-grid" aria-label="{{ _('Secondary system metrics') }}">
+    {{ macros.stat_card(_("Procedures"), secondary_stats.procedures, 'neutral') }}
+    {{ macros.stat_card(_("Capture Stations"), secondary_stats.capture_stations, 'neutral') }}
+    {{ macros.stat_card(_("Vision Models"), secondary_stats.vision_models, 'neutral') }}
+    {{ macros.stat_card(_("Active Vision Model"), secondary_stats.active_vision_model, 'neutral') }}
 </section>
 
 <section class="dashboard-panels">
@@ -91,6 +115,22 @@
                 </tbody>
             </table>
         </div>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Operational Metrics") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <tbody>
+                {% for item in operational_metrics %}
+                <tr>
+                    <th scope="row">{{ item.label }}</th>
+                    <td class="data-table__numeric-column">{{ item.value }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </section>
 {% endblock %}

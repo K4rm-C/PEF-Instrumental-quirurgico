@@ -26,14 +26,15 @@
     documented in FRONTEND_INTEGRATION.md.
 #}
 {% set audit_log_entries = audit_log_entries|default([
-    {'timestamp': '15:20', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': _('Session Started'), 'event_variant': 'default', 'resource_id': 'WS-026', 'details': _('Delivery Kit loaded')},
-    {'timestamp': '15:34', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': _('Count Recorded'), 'event_variant': 'default', 'resource_id': 'WS-026', 'details': _('Initial instrument count')},
-    {'timestamp': '15:38', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': _('Discrepancy Detected'), 'event_variant': 'danger', 'resource_id': 'WS-026', 'details': _('Mayo-Hegar difference -1')},
-    {'timestamp': '15:42', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': _('Submitted for Review'), 'event_variant': 'default', 'resource_id': 'WS-026', 'details': _('Missing instrument')},
-    {'timestamp': '15:48', 'user_name': 'Sophia Turner', 'role_label': _('Supervisor'), 'event_label': _('Review Approved'), 'event_variant': 'success', 'resource_id': 'WS-026', 'details': _('Discrepancy reviewed')}
-]) %}
-{% set events_shown_count = events_shown_count|default(audit_log_entries|length) %}
-{% set events_total_count = events_total_count|default(342) %}
+    {'timestamp': '09:42', 'user_name': 'System', 'role_label': _('System'), 'event_label': 'VISION_RESULT', 'event_variant': 'default', 'entity_label': 'CountEvent', 'record_id': 'WS-026', 'result_label': 'SUCCESS', 'details': _('AI suggested count generated using Instrument YOLO v0.4.2')},
+    {'timestamp': '09:45', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': 'HUMAN_CORRECTION', 'event_variant': 'default', 'entity_label': 'CountEvent', 'record_id': 'WS-026', 'result_label': 'SUCCESS', 'details': _('Allis Tissue Forceps corrected from 1 to 2')},
+    {'timestamp': '09:46', 'user_name': 'System', 'role_label': _('System'), 'event_label': 'CREATE_DISCREPANCY', 'event_variant': 'danger', 'entity_label': 'Discrepancy', 'record_id': 'WS-026', 'result_label': 'SUCCESS', 'details': _('Mayo-Hegar Needle Holder difference -1')},
+    {'timestamp': '09:47', 'user_name': 'Alex Morgan', 'role_label': _('Operator'), 'event_label': 'SUBMIT_FOR_REVIEW', 'event_variant': 'default', 'entity_label': 'WorkSession', 'record_id': 'WS-026', 'result_label': 'SUCCESS', 'details': _('Session submitted for Supervisor review')},
+    {'timestamp': '10:01', 'user_name': 'Sophia Turner', 'role_label': _('Supervisor'), 'event_label': 'SUPERVISOR_REVIEW', 'event_variant': 'default', 'entity_label': 'Discrepancy', 'record_id': 'WS-026', 'result_label': 'SUCCESS', 'details': _('Captured evidence and Operator validation reviewed')},
+    {'timestamp': '10:02', 'user_name': 'Sophia Turner', 'role_label': _('Supervisor'), 'event_label': 'APPROVE_DISCREPANCY', 'event_variant': 'success', 'entity_label': 'Discrepancy', 'record_id': 'WS-026', 'result_label': 'SUCCESS', 'details': _('Mayo-Hegar discrepancy approved')}
+], true) %}
+{% set events_shown_count = events_shown_count|default(audit_log_entries|length, true) %}
+{% set events_total_count = events_total_count|default(342, true) %}
 {% set current_page = current_page|default(1) %}
 {% set total_pages = total_pages|default(69) %}
 {% set previous_url = previous_url|default('#') %}
@@ -70,11 +71,12 @@
             <label class="visually-hidden" for="audit-log-event-type">{{ _("Event Type") }}</label>
             <select class="form-field__input form-field__input--plain" id="audit-log-event-type" name="event_type">
                 <option value="">{{ _("All Events") }}</option>
-                <option value="session_started">{{ _("Session Started") }}</option>
-                <option value="count_recorded">{{ _("Count Recorded") }}</option>
-                <option value="discrepancy_detected">{{ _("Discrepancy Detected") }}</option>
-                <option value="submitted_for_review">{{ _("Submitted for Review") }}</option>
-                <option value="review_approved">{{ _("Review Approved") }}</option>
+                <option value="vision_result">VISION_RESULT</option>
+                <option value="human_correction">HUMAN_CORRECTION</option>
+                <option value="create_discrepancy">CREATE_DISCREPANCY</option>
+                <option value="submit_for_review">SUBMIT_FOR_REVIEW</option>
+                <option value="supervisor_review">SUPERVISOR_REVIEW</option>
+                <option value="approve_discrepancy">APPROVE_DISCREPANCY</option>
             </select>
         </div>
         <div class="filter-bar__select">
@@ -105,7 +107,9 @@
                     <th scope="col">{{ _("User") }}</th>
                     <th scope="col">{{ _("Role") }}</th>
                     <th scope="col">{{ _("Event") }}</th>
-                    <th scope="col">{{ _("Resource") }}</th>
+                    <th scope="col">{{ _("Entity") }}</th>
+                    <th scope="col">{{ _("Record") }}</th>
+                    <th scope="col">{{ _("Result") }}</th>
                     <th scope="col">{{ _("Details") }}</th>
                 </tr>
             </thead>
@@ -116,9 +120,11 @@
                     <td>{{ entry.user_name }}</td>
                     <td>{{ entry.role_label }}</td>
                     <td class="{{ 'text-danger' if entry.event_variant == 'danger' else ('text-success' if entry.event_variant == 'success' else '') }}">
-                        {{ entry.event_label }}
+                        <strong>{{ entry.event_label }}</strong>
                     </td>
-                    <td class="text-primary">{{ entry.resource_id }}</td>
+                    <td class="text-primary">{{ entry.entity_label }}</td>
+                    <td>{{ entry.record_id }}</td>
+                    <td class="text-success">{{ entry.result_label }}</td>
                     <td>{{ entry.details }}</td>
                 </tr>
                 {% endfor %}

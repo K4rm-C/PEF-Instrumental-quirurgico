@@ -21,36 +21,38 @@
     TEMPORARY DEMO DATA
     --------------------
     reports below is a placeholder value used only so this page is visually reviewable
-    before the backend supplies real data. "View Report" / "Export" are presentation-only in
-    this iteration (section 33 of the implementation prompt) — no report detail pages or file
-    generation are implemented. Expected shapes are documented in FRONTEND_INTEGRATION.md.
+    before the backend supplies real data. "View Report" is presentation-only in this
+    iteration (no report detail pages are implemented). No "Export" action is rendered: the
+    approved V2 reference (ui_reference_v2/supervisor/supervisor-reports.png) shows only
+    "View Report" per card, and the current backend implements no file-generation/export
+    capability to back one. Expected shapes are documented in FRONTEND_INTEGRATION.md.
 #}
 {% set reports = reports|default([
     {
         'icon': 'document', 'title': _('Session Summary'),
-        'description': _('Overview of completed, active, and cancelled counting sessions.'),
+        'description': _('Overview of completed counting sessions.'),
         'last_generated_label': _('Last generated: 10 mins ago'),
-        'export_url': '#', 'view_report_url': '#'
+        'view_report_url': '#'
     },
     {
         'icon': 'alert_triangle', 'title': _('Discrepancy Summary'),
         'description': _('Summary of unresolved and resolved discrepancies.'),
         'last_generated_label': _('Last generated: 1 hour ago'),
-        'export_url': '#', 'view_report_url': '#'
+        'view_report_url': '#'
     },
     {
         'icon': 'clipboard', 'title': _('Kit Activity'),
         'description': _('Review counting activity grouped by kit.'),
         'last_generated_label': _('Last generated: 3 hours ago'),
-        'export_url': '#', 'view_report_url': '#'
+        'view_report_url': '#'
     },
     {
         'icon': 'user', 'title': _('Operator Activity'),
         'description': _('Review counting activity and discrepancy patterns by operator.'),
         'last_generated_label': _('Last generated: Yesterday'),
-        'export_url': '#', 'view_report_url': '#'
+        'view_report_url': '#'
     }
-]) %}
+], true) %}
 
 <div class="page-heading">
     <div>
@@ -133,7 +135,6 @@
         <div class="report-card__footer">
             <span class="report-card__meta">{{ report.last_generated_label }}</span>
             <div class="report-card__actions">
-                <a class="btn btn--secondary" href="{{ report.export_url }}">{{ _("Export") }}</a>
                 <a class="btn btn--primary" href="{{ report.view_report_url }}">{{ _("View Report") }}</a>
             </div>
         </div>

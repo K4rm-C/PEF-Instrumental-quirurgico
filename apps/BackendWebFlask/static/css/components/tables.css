@@ -55,6 +55,13 @@
     background-color: var(--color-danger-surface);
 }
 
+/* Highlights a row that needs attention but isn't yet a confirmed discrepancy (AI Suggested
+   Count's "Missing" / "Possible Miss" rows, before human validation). */
+.data-table__row--highlight-warning td,
+.data-table__row--highlight-warning th {
+    background-color: var(--color-warning-surface);
+}
+
 /* Truncates a long cell value with an ellipsis instead of wrapping/overflowing (IT
    Administrator Roles' Description column, per the approved reference). */
 .data-table__cell--truncate {

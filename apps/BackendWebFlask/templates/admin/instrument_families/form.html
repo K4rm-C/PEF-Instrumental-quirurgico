@@ -19,18 +19,23 @@
     never persist data).
 #}
 {% set form_mode = form_mode|default('create') %}
+{% set is_edit = form_mode == 'edit' %}
 {% set instrument_family = instrument_family|default({
+    'code': 'FAM-001', 'name': 'Kelly Clamp', 'category': 'hemostasis',
+    'how_to_identify': _('Look for serrated blades, straight or curved, with a locking ratchet mechanism near the finger rings. Kelly clamps have serrations on only the distal half of the jaws.'),
+    'classification_characteristics': _('Surgical grade stainless steel, serrated jaws, finger-ring handles with locking ratchet.'),
+    'function': _('Clamping blood vessels'), 'status': 'active'
+} if is_edit else {
     'code': '', 'name': '', 'category': '', 'how_to_identify': '',
     'classification_characteristics': '', 'function': '', 'status': 'active'
-}) %}
+}, true) %}
 {% set categories = categories|default([
     {'value': 'hemostasis', 'label': _('Hemostasis')},
     {'value': 'grasping', 'label': _('Grasping')},
     {'value': 'suturing', 'label': _('Suturing')},
     {'value': 'cutting', 'label': _('Cutting')},
     {'value': 'retracting', 'label': _('Retracting')}
-]) %}
-{% set is_edit = form_mode == 'edit' %}
+], true) %}
 {% set page_title = _("Edit Instrument Family") if is_edit else _("New Instrument Family") %}
 {% set page_subtitle = _("Update this instrument type's classification information.") if is_edit else _("Register a new surgical instrument type and its classification information.") %}
 {% set submit_label = _("Save Instrument Family") %}

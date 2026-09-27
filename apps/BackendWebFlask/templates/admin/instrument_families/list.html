@@ -25,16 +25,16 @@
     are documented in FRONTEND_INTEGRATION.md.
 #}
 {% set instrument_families = instrument_families|default([
-    {'code': 'FAM-001', 'name': 'Kelly Clamp', 'category': 'Hemostasis', 'function': 'Clamping blood vessels', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'},
-    {'code': 'FAM-002', 'name': 'Foerster Sponge Forceps', 'category': 'Grasping', 'function': 'Holding sponges and materials', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'},
-    {'code': 'FAM-003', 'name': 'Mayo-Hegar Needle Holder', 'category': 'Suturing', 'function': 'Holding surgical needles', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': '#'}
-]) %}
-{% set families_shown_count = families_shown_count|default(instrument_families|length) %}
-{% set families_total_count = families_total_count|default(11) %}
-{% set current_page = current_page|default(1) %}
-{% set total_pages = total_pages|default(4) %}
-{% set previous_url = previous_url|default('#') %}
-{% set next_url = next_url|default('#') %}
+    {'code': 'FAM-001', 'name': 'Kelly Clamp', 'category': 'Hemostasis', 'function': 'Clamping blood vessels', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_instrument_family_edit', family_id='FAM-001')},
+    {'code': 'FAM-002', 'name': 'Foerster Sponge Forceps', 'category': 'Grasping', 'function': 'Holding sponges and materials', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_instrument_family_edit', family_id='FAM-002')},
+    {'code': 'FAM-003', 'name': 'Mayo-Hegar Needle Holder', 'category': 'Suturing', 'function': 'Holding surgical needles', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_instrument_family_edit', family_id='FAM-003')}
+], true) %}
+{% set families_shown_count = families_shown_count|default(instrument_families|length, true) %}
+{% set families_total_count = families_total_count|default(11, true) %}
+{% set current_page = current_page|default(1, true) %}
+{% set total_pages = total_pages|default(4, true) %}
+{% set previous_url = previous_url|default('#', true) %}
+{% set next_url = next_url|default('#', true) %}
 
 <div class="page-heading">
     <div>

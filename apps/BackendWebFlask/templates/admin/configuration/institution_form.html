@@ -11,7 +11,7 @@
       institution           dict: name, code, status
       save_url, cancel_url  URL strings, default "#"
 #}
-{% set institution = institution|default({'name': '', 'code': '', 'status': 'active'}) %}
+{% set institution = institution|default({'name': '', 'code': '', 'status': 'active'}, true) %}
 
 {% block title %}{{ _("Edit Institution Information") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 

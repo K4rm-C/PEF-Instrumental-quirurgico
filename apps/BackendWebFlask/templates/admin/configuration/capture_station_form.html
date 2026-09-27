@@ -2,21 +2,28 @@
 {% import "components/macros.html" as macros %}
 
 {#
-    Single reusable template for both New Capture Station and Edit Capture Station
-    (implementation prompt section 33), distinguished purely by form_mode ("create" | "edit").
-    Station Code is read-only in Edit mode only — in New mode it is a pre-suggested but
-    editable value, following the same pattern already used by New Instrument's Internal
-    Code (section 16) rather than the read-only styling shown for it elsewhere in the Figma
-    file (see FRONTEND_INTEGRATION.md's uncertainties section).
+    Single reusable template for both New Capture Station and Edit Capture Station,
+    distinguished purely by form_mode ("create" | "edit"). The CaptureStation model has no
+    "code" field (only id, name, roi, active, room_id), so no Station Code field exists here
+    — only Station Name, the required Operating Room relationship, Status, and a read-only
+    ROI Configuration indicator (Configured / Not Configured) rather than exposing the raw
+    ROI JSON.
 
     Expected context:
-      form_mode              "create" | "edit", defaults to "create"
-      capture_station         dict: code, name, status
-      save_url, cancel_url    URL strings, default "#"
+      form_mode               "create" | "edit", defaults to "create"
+      capture_station          dict: name, operating_room, status, roi_configured
+      operating_rooms          list of {value, label} for the Operating Room select
+      save_url, cancel_url     URL strings, default "#"
 #}
 {% set form_mode = form_mode|default('create') %}
-{% set capture_station = capture_station|default({'code': '', 'name': '', 'status': 'active'}) %}
 {% set is_edit = form_mode == 'edit' %}
+{% set capture_station = capture_station|default({'name': 'Station CDE-01', 'operating_room': 'or-3', 'status': 'active', 'roi_configured': true} if is_edit else {'name': '', 'operating_room': '', 'status': 'active', 'roi_configured': false}, true) %}
+{% set operating_rooms = operating_rooms|default([
+    {'value': 'or-1', 'label': _('OR-1')},
+    {'value': 'or-2', 'label': _('OR-2')},
+    {'value': 'or-3', 'label': _('OR-3')},
+    {'value': 'or-4', 'label': _('OR-4')}
+], true) %}
 {% set page_title = _("Edit Capture Station") if is_edit else _("New Capture Station") %}
 {% set page_subtitle = _("Update capture station information and status.") if is_edit else _("Register a capture station available for counting sessions.") %}
 
@@ -50,16 +57,20 @@
 <section class="card card--form">
     <form class="form" action="{{ save_url|default('#') }}" method="post">
         <div class="form-field">
-            <label class="form-field__label" for="capture-station-code">{{ _("Station Code") }}</label>
-            {% if is_edit %}
-            <input class="form-field__input form-field__input--plain" type="text" id="capture-station-code" value="{{ capture_station.code }}" readonly aria-readonly="true">
-            {% else %}
-            <input class="form-field__input form-field__input--plain" type="text" id="capture-station-code" name="code" value="{{ capture_station.code }}">
-            {% endif %}
+            <label class="form-field__label" for="capture-station-name">{{ _("Station Name") }} *</label>
+            <input class="form-field__input form-field__input--plain" type="text" id="capture-station-name" name="name" value="{{ capture_station.name }}" required>
         </div>
         <div class="form-field">
-            <label class="form-field__label" for="capture-station-name">{{ _("Station Name") }}</label>
-            <input class="form-field__input form-field__input--plain" type="text" id="capture-station-name" name="name" value="{{ capture_station.name }}">
+            <label class="form-field__label" for="capture-station-room">{{ _("Operating Room") }} *</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="capture-station-room" name="operating_room" required>
+                    <option value="">{{ _("Select an operating room") }}</option>
+                    {% for room in operating_rooms %}
+                    <option value="{{ room.value }}" {% if room.value == capture_station.operating_room %}selected{% endif %}>{{ room.label }}</option>
+                    {% endfor %}
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
         </div>
         <div class="form-field">
             <label class="form-field__label" for="capture-station-status">{{ _("Status") }}</label>
@@ -70,6 +81,12 @@
                 </select>
                 <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
             </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="capture-station-roi">{{ _("ROI Configuration") }}</label>
+            <input class="form-field__input form-field__input--plain" type="text"
+                   id="capture-station-roi" value="{{ _('Configured') if capture_station.roi_configured else _('Not Configured') }}"
+                   readonly aria-readonly="true">
         </div>
 
         <div class="form-actions">

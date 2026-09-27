@@ -1,0 +1,60 @@
+{% import "components/macros.html" as macros %}
+{#
+    Reusable "Reject Discrepancy Review?" confirmation modal, opened from Supervisor
+    Discrepancy Review's "Reject" action (prompts/10_supervisor_v2.md — new modal, no prior
+    V1/V2 equivalent existed). Opened/closed by the generic static/js/modal.js via
+    data-modal-open / data-modal-close — no dedicated JavaScript for this modal.
+
+    Reject is a Supervisor ACTION, not a persistent discrepancy/session status: the current
+    backend (models.Discrepancy) only exposes a boolean `resolved` flag, with no "rejected"
+    state to persist against. This modal is wired up visually and via the same '#' placeholder
+    convention already used by Approve / Request Correction; persisting a rejection decision
+    (and whatever DB support it needs) is documented as pending in V2_IMPLEMENTATION_NOTES.md
+    rather than invented here.
+
+    Expected context:
+    - reject_review_url (string, defaults to "#")
+    - reject_review_discrepancy (optional dict): instrument_name, expected_quantity,
+      ai_detected_quantity, operator_validated_quantity, difference
+#}
+{% set reject_review_url = reject_review_url|default('#') %}
+{% set reject_review_discrepancy = reject_review_discrepancy|default({
+    'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2,
+    'ai_detected_quantity': 1, 'operator_validated_quantity': 1, 'difference': -1
+}) %}
+<div class="modal-overlay" id="reject-review-modal" hidden>
+    <div class="modal-dialog modal-dialog--wide" role="dialog" aria-modal="true"
+         aria-labelledby="reject-review-modal-title" aria-describedby="reject-review-modal-description">
+        <h2 class="modal-dialog__title" id="reject-review-modal-title">{{ _("Reject Discrepancy Review?") }}</h2>
+        <p class="modal-dialog__description" id="reject-review-modal-description">
+            {{ _("Record why the current discrepancy resolution cannot be approved.") }}
+        </p>
+
+        <div class="modal-dialog__info-box">
+            <div class="modal-dialog__info-row"><dt>{{ _("Instrument") }}</dt><dd>{{ reject_review_discrepancy.instrument_name }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Expected") }}</dt><dd>{{ reject_review_discrepancy.expected_quantity }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("AI") }}</dt><dd>{{ reject_review_discrepancy.ai_detected_quantity }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Operator Validated") }}</dt><dd>{{ reject_review_discrepancy.operator_validated_quantity }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Difference") }}</dt><dd class="modal-dialog__info-highlight">{{ reject_review_discrepancy.difference }}</dd></div>
+        </div>
+
+        <div class="form-field">
+            <label class="form-field__label" for="reject-reason">{{ _("Reason for Rejection") }} *</label>
+            <textarea class="form-field__textarea" id="reject-reason" name="rejection_reason" required
+                      placeholder="{{ _('Explain why this resolution cannot be approved.') }}">{{ _('Available evidence is insufficient to approve the current resolution.') }}</textarea>
+        </div>
+
+        <div class="form-field">
+            <label class="form-field__label" for="reject-supervisor-notes">{{ _("Supervisor Notes") }} *</label>
+            <textarea class="form-field__textarea" id="reject-supervisor-notes" name="supervisor_notes" required
+                      placeholder="{{ _('Provide additional context for the rejection decision.') }}"></textarea>
+        </div>
+
+        <p class="form-field__helper">{{ _("This decision will be recorded in the audit trail.") }}</p>
+
+        <div class="modal-dialog__actions">
+            <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
+            <a class="btn btn--danger-solid" href="{{ reject_review_url }}">{{ _("Confirm Rejection") }}</a>
+        </div>
+    </div>
+</div>

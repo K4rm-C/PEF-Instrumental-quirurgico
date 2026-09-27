@@ -1,0 +1,45 @@
+{% import "components/macros.html" as macros %}
+{#
+    Reusable "Activate Vision Model?" confirmation modal, opened from the Vision Models list's
+    per-row "Activate" action (for any model that isn't already the active one). Opened/closed
+    by the generic static/js/modal.js via data-modal-open / data-modal-close, following the
+    exact same pattern as components/modals/close_session.html.
+
+    Preserves the historical-traceability rule from the implementation prompt: activating a
+    different model version must never rewrite which model version a historical counting
+    session was originally run with.
+
+    Expected context:
+    - activate_modal_id (string): the id this modal renders under, so more than one can exist
+      on the same list page (one per inactive row)
+    - activate_vision_model (dict): version_tag, classes_label, checksum
+    - activate_vision_model_url (optional string, defaults to "#")
+    Integration point: no POST route/service exists yet to actually flip YoloModel.active —
+    documented as pending in V2_IMPLEMENTATION_NOTES.md rather than invented here.
+#}
+{% set activate_vision_model = activate_vision_model|default({'version_tag': 'v0.4.2', 'classes_label': _('11 Classes'), 'checksum': ''}) %}
+{% set activate_vision_model_url = activate_vision_model_url|default('#') %}
+<div class="modal-overlay" id="{{ activate_modal_id }}" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true"
+         aria-labelledby="{{ activate_modal_id }}-title" aria-describedby="{{ activate_modal_id }}-description">
+        <span class="modal-dialog__icon modal-dialog__icon--success" aria-hidden="true">{{ macros.icon_check_circle() }}</span>
+        <h2 class="modal-dialog__title" id="{{ activate_modal_id }}-title">{{ _("Activate Vision Model?") }}</h2>
+        <p class="modal-dialog__description" id="{{ activate_modal_id }}-description">
+            {{ _("This version will become the active model used for new AI-assisted counting sessions.") }}
+        </p>
+
+        <div class="modal-dialog__info-box">
+            <div class="modal-dialog__info-row"><dt>{{ _("Version") }}</dt><dd>{{ activate_vision_model.version_tag }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Classes") }}</dt><dd>{{ activate_vision_model.classes_label }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Model Asset") }}</dt><dd>{{ _("Configured") }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Checksum") }}</dt><dd>{{ activate_vision_model.checksum_short|default(activate_vision_model.checksum) }}</dd></div>
+        </div>
+
+        <p class="form-field__helper">{{ _("Historical counting sessions will retain the model version originally used.") }}</p>
+
+        <div class="modal-dialog__actions">
+            <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
+            <a class="btn btn--primary" href="{{ activate_vision_model_url }}">{{ _("Activate Model") }}</a>
+        </div>
+    </div>
+</div>
