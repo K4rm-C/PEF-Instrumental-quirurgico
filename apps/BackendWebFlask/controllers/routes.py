@@ -1,7 +1,9 @@
 from datetime import date
 from functools import wraps
 
-from flask import Blueprint, abort, redirect, render_template, request, session, url_for
+import requests
+from flask import Blueprint, abort, current_app, g, redirect, render_template, request, session, url_for
+from werkzeug.urls import urlsplit
 
 from controllers.view_data import (
     admin_dashboard_overview,
@@ -34,23 +36,10 @@ from controllers.view_data import (
 
 web_bp = Blueprint('web', __name__)
 
-
-DEMO_USERS = {
-    'ana.perez@demo.local': {
-        'name': 'Ana Perez',
-        'role_code': 'operator_cde',
-        'role_label': 'Operator',
-    },
-    'luis.ramirez@demo.local': {
-        'name': 'Luis Ramirez',
-        'role_code': 'supervisor_quality',
-        'role_label': 'Supervisor',
-    },
-    'sofia.duarte@demo.local': {
-        'name': 'Sofia Duarte',
-        'role_code': 'it_admin',
-        'role_label': 'Administrator',
-    },
+ROLE_LABELS = {
+    'operator_cde': 'Operator',
+    'supervisor_quality': 'Supervisor',
+    'it_admin': 'Administrator',
 }
 
 EMPTY_STATS = {
@@ -113,15 +102,84 @@ def _page(template, **values):
 
 
 def _current_user():
-    email = session.get('signed_user_email')
-    user = DEMO_USERS.get(email)
-    if user is None:
+    if hasattr(g, 'verified_user'):
+        return g.verified_user
+
+    access_token = request.cookies.get('access_token')
+    if not access_token:
+        g.verified_user = None
         return None
-    return {**user, 'email': email}
+
+    response = _auth_request('get', '/verify', token=access_token)
+    if response is not None and response.status_code == 401:
+        refresh_token = request.cookies.get('refresh_token')
+        if refresh_token:
+            refreshed = _auth_request('post', '/refresh', token=refresh_token)
+            if refreshed is not None and refreshed.ok:
+                g.auth_set_cookies = _upstream_set_cookies(refreshed)
+                access_token = refreshed.cookies.get('access_token')
+                if access_token:
+                    response = _auth_request('get', '/verify', token=access_token)
+
+    if response is None or not response.ok:
+        session.clear()
+        g.verified_user = None
+        return None
+
+    payload = response.json()
+    user_data = payload.get('user', {})
+    roles = user_data.get('roles', [])
+    role = next((item for item in roles if item.get('code') in ROLE_LABELS), None)
+    if role is None:
+        g.verified_user = None
+        return None
+
+    g.verified_user = {
+        'id': user_data.get('id'),
+        'name': user_data.get('name', ''),
+        'email': user_data.get('email', ''),
+        'institution_id': user_data.get('institution_id'),
+        'roles': roles,
+        'role_code': role['code'],
+        'role_label': ROLE_LABELS[role['code']],
+        'profile_role_label': role.get('description') or ROLE_LABELS[role['code']],
+        'avatar_url': None,
+    }
+    return g.verified_user
+
+
+def _auth_request(method, path, token=None, **kwargs):
+    headers = kwargs.pop('headers', {})
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    try:
+        return requests.request(
+            method,
+            f"{current_app.config['AUTH_SERVICE_URL']}{path}",
+            headers=headers,
+            timeout=current_app.config['AUTH_SERVICE_TIMEOUT'],
+            **kwargs,
+        )
+    except requests.RequestException:
+        return None
+
+
+def _upstream_set_cookies(upstream_response):
+    headers = getattr(getattr(upstream_response, 'raw', None), 'headers', None)
+    if headers is None:
+        return []
+    return headers.getlist('Set-Cookie')
+
+
+def _forward_set_cookies(response, upstream_response):
+    if upstream_response is not None:
+        for set_cookie in _upstream_set_cookies(upstream_response):
+            response.headers.add('Set-Cookie', set_cookie)
+    return response
 
 
 def require_role(*role_codes):
-    """MVP authorization based on the seeded demo email-to-role mapping."""
+    """Authorize using the role returned by the auth service token verification."""
     def decorator(view):
         @wraps(view)
         def wrapped(*args, **kwargs):
@@ -143,6 +201,22 @@ def _role_home(role_code):
         'supervisor_quality': 'web.supervisor_dashboard',
         'it_admin': 'web.admin_dashboard',
     }[role_code]
+
+
+def _safe_next_url(value, user):
+    if not value:
+        return url_for(_role_home(user['role_code']))
+    parsed = urlsplit(value)
+    if parsed.scheme or parsed.netloc or not parsed.path.startswith('/'):
+        return url_for(_role_home(user['role_code']))
+    allowed_prefixes = {
+        'operator_cde': '/operator/',
+        'supervisor_quality': '/supervisor/',
+        'it_admin': '/admin/',
+    }
+    if parsed.path.startswith(allowed_prefixes[user['role_code']]):
+        return value
+    return url_for(_role_home(user['role_code']))
 
 
 def _nav_urls(user):
@@ -207,22 +281,44 @@ def index():
 
 @web_bp.route('/sign-in', methods=['GET', 'POST'])
 def sign_in():
+    redirect_target = request.form.get('next') or request.args.get('next')
     if request.method == 'POST':
         email = request.form.get('institutional_email', '').strip().lower()
-        user = DEMO_USERS.get(email)
-        if user is None:
-            return _page('auth/sign_in.html', sign_in_error='Unknown development user.')
-        session.clear()
-        session['signed_user_email'] = email
-        session['signed_role_code'] = user['role_code']
-        return redirect(url_for(_role_home(user['role_code'])))
-    return _page('auth/sign_in.html', sign_in_error=None)
+        password = request.form.get('password', '')
+        auth_response = _auth_request(
+            'post',
+            '/login',
+            json={'email': email, 'password': password},
+        )
+        if auth_response is None:
+            return _page('auth/sign_in.html', sign_in_error='Authentication service unavailable.'), 503
+        if not auth_response.ok:
+            return _page('auth/sign_in.html', sign_in_error='Invalid email or password.'), 401
+
+        user_data = auth_response.json().get('user', {})
+        roles = user_data.get('roles', [])
+        role = next((item for item in roles if item.get('code') in ROLE_LABELS), None)
+        if role is None:
+            return _page('auth/sign_in.html', sign_in_error='Your account has no application role.'), 403
+
+        response = redirect(_safe_next_url(redirect_target, {'role_code': role['code']}), code=303)
+        return _forward_set_cookies(response, auth_response)
+    return _page(
+        'auth/sign_in.html',
+        sign_in_error=None,
+        redirect_target=redirect_target,
+    )
 
 
 @web_bp.route('/sign-out', methods=['POST', 'GET'])
 def sign_out():
+    access_token = request.cookies.get('access_token')
+    auth_response = None
+    if access_token:
+        auth_response = _auth_request('post', '/logout', token=access_token)
     session.clear()
-    return redirect(url_for('web.sign_in'))
+    response = redirect(url_for('web.sign_in'))
+    return _forward_set_cookies(response, auth_response)
 
 
 @web_bp.route('/operator/profile')
