@@ -1,5 +1,9 @@
 import os
-from urllib.parse import quote_plus
+from urllib.parse import parse_qsl, quote_plus, urlencode, urlsplit, urlunsplit
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 
 def database_url():
@@ -13,7 +17,15 @@ def database_url():
     host = os.getenv('DB_HOST', 'localhost')
     port = os.getenv('DB_PORT', '5432')
     name = os.getenv('DB_NAME', 'pecausas')
-    return f'postgresql+psycopg://{user}:{password}@{host}:{port}/{name}'
+    configured_url = f'postgresql+psycopg://{user}:{password}@{host}:{port}/{name}'
+    return _with_connection_timeout(configured_url)
+
+
+def _with_connection_timeout(url):
+    parsed = urlsplit(url)
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.setdefault('connect_timeout', os.getenv('DB_CONNECT_TIMEOUT', '5'))
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
 class Config:
@@ -21,12 +33,17 @@ class Config:
         'SESSION_SECRET_KEY',
         'development-only-session-key-change-me',
     )
-    SQLALCHEMY_DATABASE_URI = database_url()
+    SQLALCHEMY_DATABASE_URI = _with_connection_timeout(database_url())
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_pre_ping': True,
+        'pool_timeout': int(os.getenv('DB_POOL_TIMEOUT', '5')),
+        'connect_args': {
+            'connect_timeout': int(os.getenv('DB_CONNECT_TIMEOUT', '5')),
+            'options': f"-c statement_timeout={int(os.getenv('DB_STATEMENT_TIMEOUT', '5000'))}",
+        },
     }
-    # Development-only: when true, view-data helpers skip PostgreSQL entirely and return
-    # their fallback values so the V2 templates render with their approved demo content
-    # (see controllers/view_data.py). Authentication still uses DEMO_USERS either way.
+    # Development-only view-data fallback. Authentication always uses the auth service.
     FRONTEND_DEMO_MODE = os.getenv('FRONTEND_DEMO_MODE', 'false').strip().lower() == 'true'
+    AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', os.getenv('AUTH_URL', 'http://127.0.0.1:5001')).strip().rstrip('/')
+    AUTH_SERVICE_TIMEOUT = float(os.getenv('AUTH_SERVICE_TIMEOUT', '5'))
