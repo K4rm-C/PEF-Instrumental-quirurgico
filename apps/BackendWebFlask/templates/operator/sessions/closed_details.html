@@ -1,11 +1,6 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    Set here, outside every block: block page_action_bar renders as a sibling of block
-    page_content in layouts/authenticated.html, not nested inside it, so it cannot see
-    variables set inside page_content.
-#}
 {% set back_to_sessions_url = back_to_sessions_url|default(url_for('web.operator_sessions')) %}
 {% set export_summary_url = export_summary_url|default('#') %}
 
@@ -27,60 +22,37 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    Preserves the approved WS-026 reference case (prompts/09_Operator_V2.md) regardless of
-    the session_id in the URL — see capture.html for why. This is a READ-ONLY view — no
-    increment/decrement controls and no Edit Count action. The traceability chain (Expected →
-    AI → Human → Supervisor → Final Validated) preserves the original AI result, the human
-    correction, and the supervisor resolution as separate historical facts, never overwriting
-    one with another.
-#}
-{% set session_id = session_id|default('WS-026') %}
+{% set session_id = session_id|default('') %}
 {% set session = session|default({
     'session_id': session_id,
-    'procedure_name': 'Appendectomy',
-    'operating_room': 'OR-3',
-    'patient_name': 'Maria García',
-    'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit',
-    'operator_name': 'Alex Morgan',
-    'capture_station_name': 'CDE-01',
-    'started_at': '2024-01-15 08:30',
-    'closed_at': '2024-01-15 10:15',
-    'status_label': _('Closed'),
-    'status_variant': 'success'
+    'procedure_name': '',
+    'operating_room': '',
+    'patient_name': '',
+    'physician_name': '',
+    'kit_name': '',
+    'operator_name': '',
+    'capture_station_name': '',
+    'started_at': '',
+    'closed_at': '',
+    'status_label': '',
+    'status_variant': 'neutral'
 }, true) %}
 {% set pre_procedure_status = pre_procedure_status|default({
-    'expected_count': 11, 'status_label': _('Complete'), 'status_variant': 'success'
+    'expected_count': 0, 'status_label': '', 'status_variant': 'neutral'
 }) %}
 {% set post_procedure_status = post_procedure_status|default({
-    'validated_count': 10, 'status_label': _('Complete'), 'status_variant': 'success'
+    'validated_count': 0, 'status_label': '', 'status_variant': 'neutral'
 }) %}
 {% set closure_summary = closure_summary|default({
-    'variant': 'success', 'message': _('1 discrepancy resolved by supervisor approval - Session Closed')
+    'variant': 'neutral', 'message': ''
 }) %}
-{% set validated_count = validated_count|default([
-    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'ai_detected': 4, 'counted_quantity': 4, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success', 'unresolved': false},
-    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'ai_detected': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success', 'unresolved': false},
-    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'ai_detected': 1, 'counted_quantity': 1, 'difference': -1, 'status_label': _('Resolved'), 'status_variant': 'info', 'unresolved': false},
-    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'ai_detected': 1, 'counted_quantity': 1, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success', 'unresolved': false},
-    {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'ai_detected': 1, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Corrected'), 'status_variant': 'success', 'unresolved': false}
-]) %}
+{% set validated_count = validated_count|default([]) %}
 {% set discrepancy_resolution = discrepancy_resolution|default({
-    'instrument_name': 'Mayo-Hegar Needle Holder', 'resolution_label': _('Confirmed Missing Instrument'),
-    'decision_label': _('Approved by Supervisor'), 'resolved_by': 'Sophia Turner',
-    'notes': _('"Physical recount confirmed one missing Mayo-Hegar Needle Holder. Discrepancy reviewed and approved."')
+    'instrument_name': '', 'resolution_label': '',
+    'decision_label': '', 'resolved_by': '',
+    'notes': ''
 }) %}
-{% set activity_log = activity_log|default([
-    {'timestamp': '08:30', 'event_label': _('Session Started'), 'actor_name': 'Alex Morgan', 'details': _('Delivery Kit loaded')},
-    {'timestamp': '09:42', 'event_label': _('AI Detection Complete'), 'actor_name': 'Instrument YOLO', 'details': _('9 of 11 instruments detected')},
-    {'timestamp': '09:45', 'event_label': _('Human Validation Submitted'), 'actor_name': 'Alex Morgan', 'details': _('1 correction, 1 unresolved discrepancy')},
-    {'timestamp': '09:46', 'event_label': _('Escalated to Supervisor'), 'actor_name': 'Alex Morgan', 'details': _('Mayo-Hegar Needle Holder discrepancy')},
-    {'timestamp': '10:02', 'event_label': _('Discrepancy Approved'), 'actor_name': 'Sophia Turner', 'details': _('Missing instrument confirmed and approved')},
-    {'timestamp': '10:15', 'event_label': _('Session Closed'), 'actor_name': 'Alex Morgan', 'details': _('Session finalized')}
-]) %}
+{% set activity_log = activity_log|default([]) %}
 
 <div class="page-heading">
     <div>
@@ -197,7 +169,6 @@
 {% block page_action_bar %}
 <div class="page-action-bar">
     <a class="btn btn--secondary" href="{{ back_to_sessions_url }}">{{ _("Back to Sessions") }}</a>
-    {# Integration point: Export Summary does not generate a real file in this iteration. #}
     <a class="btn btn--primary" href="{{ export_summary_url }}">{{ _("Export Summary") }}</a>
 </div>
 {% endblock %}

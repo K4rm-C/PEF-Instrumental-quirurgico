@@ -21,56 +21,20 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    dashboard_stats, sessions_by_day, session_status_breakdown, and recent_sessions below are
-    placeholder values used only so this page is visually reviewable before the backend
-    supplies real data. Once a view passes these variables in, the defaults are simply
-    ignored. Expected shapes are documented in FRONTEND_INTEGRATION.md.
-#}
+{# Session status terminology is fixed per prompts/09_Operator_V2.md: In Progress /
+   Awaiting Review / Correction Required / Ready to Close / Closed. #}
+
 {% set dashboard_stats = dashboard_stats|default({
-    'sessions_today': 12,
-    'active_sessions': 3,
-    'closed_sessions': 9,
-    'open_discrepancies': 2
+    'sessions_today': 0,
+    'active_sessions': 0,
+    'closed_sessions': 0,
+    'open_discrepancies': 0
 }, true) %}
-{% set sessions_by_day = sessions_by_day|default([
-    {'label': _('Mon'), 'count': 8},
-    {'label': _('Tue'), 'count': 12},
-    {'label': _('Wed'), 'count': 10},
-    {'label': _('Thu'), 'count': 15},
-    {'label': _('Fri'), 'count': 11}
-]) %}
-{% set sessions_by_day_max = sessions_by_day|map(attribute='count')|max %}
-{#
-    Session status terminology is fixed per prompts/09_Operator_V2.md: In Progress /
-    Awaiting Review / Correction Required / Ready to Close / Closed. Do not introduce
-    additional status names.
-#}
-{% set session_status_breakdown = session_status_breakdown|default([
-    {'label': _('In Progress'), 'value': 3, 'variant': 'info'},
-    {'label': _('Closed'), 'value': 9, 'variant': 'success'},
-    {'label': _('Correction Required'), 'value': 2, 'variant': 'danger'}
-]) %}
-{% set session_status_max = session_status_breakdown|map(attribute='value')|max %}
-{% set recent_sessions = recent_sessions|default([
-    {
-        'session_id': 'WS-026', 'procedure_label': 'Appendectomy - OR-3', 'kit_name': 'Delivery Kit',
-        'operator_name': 'Alex Morgan', 'status_label': _('In Progress'), 'status_variant': 'info',
-        'action_label': _('Continue'), 'action_url': url_for('web.operator_session_capture', session_id='WS-026')
-    },
-    {
-        'session_id': 'WS-025', 'procedure_label': 'Cholecystectomy - OR-1', 'kit_name': 'Suture Kit',
-        'operator_name': 'Alex Morgan', 'status_label': _('Awaiting Review'), 'status_variant': 'warning',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_awaiting_review', session_id='WS-025')
-    },
-    {
-        'session_id': 'WS-024', 'procedure_label': 'Hernia Repair - OR-2', 'kit_name': 'General Surgery Kit',
-        'operator_name': 'Alex Morgan', 'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-024')
-    }
-], true) %}
+{% set sessions_by_day = sessions_by_day|default([]) %}
+{% set sessions_by_day_max = sessions_by_day|map(attribute='count')|max if sessions_by_day else 1 %}
+{% set session_status_breakdown = session_status_breakdown|default([]) %}
+{% set session_status_max = session_status_breakdown|map(attribute='value')|max if session_status_breakdown else 1 %}
+{% set recent_sessions = recent_sessions|default([]) %}
 
 <div class="page-heading">
     <div>

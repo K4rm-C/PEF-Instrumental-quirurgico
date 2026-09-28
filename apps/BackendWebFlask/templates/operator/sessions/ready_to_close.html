@@ -1,24 +1,13 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    session must be set here, outside every block: block breadcrumb renders before
-    page_content in layouts/authenticated.html, and a variable set inside one block is not
-    visible from another. Preserves the approved WS-026 reference case
-    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
-#}
-{% set session_id = session_id|default('WS-026') %}
+{% set session_id = session_id|default('') %}
 {% set session = session|default({
-    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
-    'status_label': _('Ready to Close'), 'status_variant': 'success'
+    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
+    'patient_name': '', 'physician_name': '',
+    'kit_name': '', 'capture_station_name': '',
+    'status_label': '', 'status_variant': 'neutral'
 }, true) %}
-{#
-    Also top-level (not inside page_content) for the same reason: block page_action_bar
-    renders as a sibling of block page_content in layouts/authenticated.html, not nested
-    inside it, so it cannot see variables set inside page_content either.
-#}
 {% set back_to_sessions_url = back_to_sessions_url|default(url_for('web.operator_sessions')) %}
 
 {% block title %}{{ _("Ready to Close") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
@@ -39,24 +28,17 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA (remaining, page_content-only)
-    --------------------
-    Per prompts/09_Operator_V2.md, this page only renders once discrepancies have been
-    resolved/approved by a Supervisor — it is never reachable directly from Validation
-    Summary when has_discrepancy is true.
-#}
 {% set resolution_summary = resolution_summary|default({
-    'variant': 'success',
-    'message': _('The missing Mayo-Hegar Needle Holder was reviewed and approved. This session is ready to close.')
+    'variant': 'neutral',
+    'message': ''
 }) %}
 {% set session_summary_metrics = session_summary_metrics|default({
-    'expected_count': 11, 'validated_count': 10, 'human_corrections': 1, 'resolved_discrepancies': 1
+    'expected_count': 0, 'validated_count': 0, 'human_corrections': 0, 'resolved_discrepancies': 0
 }) %}
 {% set resolution = resolution|default({
-    'instrument_name': 'Mayo-Hegar Needle Holder', 'original_ai_count': 1, 'final_validated_count': 1,
-    'status_label': _('Missing instrument reviewed and approved'),
-    'resolved_by': 'Sophia Turner', 'timestamp': '2024-01-15 10:02:45'
+    'instrument_name': '', 'original_ai_count': 0, 'final_validated_count': 0,
+    'status_label': '',
+    'resolved_by': '', 'timestamp': ''
 }) %}
 {% set close_session_url = close_session_url|default(url_for('web.operator_session_closed', session_id=session.session_id)) %}
 
@@ -110,7 +92,7 @@
     'session_id': session.session_id, 'procedure_label': session.procedure_name ~ ' - ' ~ session.operating_room,
     'expected_count': session_summary_metrics.expected_count, 'validated_count': session_summary_metrics.validated_count,
     'human_corrections': session_summary_metrics.human_corrections, 'resolved_discrepancies': session_summary_metrics.resolved_discrepancies,
-    'operator_name': 'Alex Morgan', 'timestamp': '2024-01-15 10:15'
+    'operator_name': '', 'timestamp': ''
 }) %}
 {% include "components/modals/close_session.html" %}
 {% endblock %}

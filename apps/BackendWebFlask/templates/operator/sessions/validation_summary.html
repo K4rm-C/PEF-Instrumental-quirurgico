@@ -1,23 +1,14 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    session and has_discrepancy must be set here, outside every block: block breadcrumb and
-    block page_action_bar both render outside block page_content in
-    layouts/authenticated.html, and a variable set inside one block is not visible from
-    another. has_discrepancy is the single switch deciding whether this page routes onward to
-    Discrepancy Escalation or to Ready to Close, mirroring the has_discrepancy pattern
-    already used elsewhere in this app. Preserves the approved WS-026 reference case
-    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
-#}
-{% set session_id = session_id|default('WS-026') %}
+{% set session_id = session_id|default('') %}
 {% set session = session|default({
-    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
-    'status_label': _('In Progress'), 'status_variant': 'info'
+    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
+    'patient_name': '', 'physician_name': '',
+    'kit_name': '', 'capture_station_name': '',
+    'status_label': '', 'status_variant': 'neutral'
 }, true) %}
-{% set has_discrepancy = has_discrepancy|default(true) %}
+{% set has_discrepancy = has_discrepancy|default(false) %}
 {% set edit_count_url = edit_count_url|default(url_for('web.operator_session_validation', session_id=session.session_id)) %}
 {% set primary_action_url = primary_action_url|default(
     url_for('web.operator_session_discrepancy', session_id=session.session_id) if has_discrepancy
@@ -42,25 +33,19 @@
 {% endblock %}
 
 {% block page_content %}
-{% set count_comparison = count_comparison|default([
-    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'ai_detected': 4, 'validated_quantity': 4, 'status_label': _('Match'), 'status_variant': 'success', 'unresolved': false},
-    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'ai_detected': 2, 'validated_quantity': 2, 'status_label': _('Match'), 'status_variant': 'success', 'unresolved': false},
-    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'ai_detected': 1, 'validated_quantity': 1, 'status_label': _('Discrepancy'), 'status_variant': 'danger', 'unresolved': true},
-    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'ai_detected': 1, 'validated_quantity': 1, 'status_label': _('Match'), 'status_variant': 'success', 'unresolved': false},
-    {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'ai_detected': 1, 'validated_quantity': 2, 'status_label': _('Corrected'), 'status_variant': 'success', 'unresolved': false}
-]) %}
-{% set expected_total = expected_total|default(count_comparison|sum(attribute='expected_quantity')) %}
-{% set validated_total = validated_total|default(count_comparison|sum(attribute='validated_quantity')) %}
+{% set count_comparison = count_comparison|default([]) %}
+{% set expected_total = expected_total|default(count_comparison|sum(attribute='expected_quantity') if count_comparison else 0) %}
+{% set validated_total = validated_total|default(count_comparison|sum(attribute='validated_quantity') if count_comparison else 0) %}
 {% set correction_audit = correction_audit|default({
-    'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'ai_detected': 1, 'validated_quantity': 2,
-    'reason_label': _('Second instrument partially occluded'),
-    'notes': _('"Second Allis Tissue Forceps was partially occluded. Physically verified count is 2."'),
-    'corrected_by': 'Alex Morgan', 'timestamp': '2024-01-15 09:45:22'
+    'instrument_name': '', 'expected_quantity': 0, 'ai_detected': 0, 'validated_quantity': 0,
+    'reason_label': '',
+    'notes': '',
+    'corrected_by': '', 'timestamp': ''
 }) %}
 {% set discrepancy_summary = discrepancy_summary|default({
-    'severity_label': _('Critical'), 'title': _('Missing instrument detected'),
-    'description': _('One Mayo-Hegar Needle Holder was missing post-procedure. Final validated count of 1 does not match expected 2.'),
-    'notice': _('Supervisor review and sign-off required before closing session.')
+    'severity_label': '', 'title': '',
+    'description': '',
+    'notice': ''
 }) %}
 
 <section class="card">

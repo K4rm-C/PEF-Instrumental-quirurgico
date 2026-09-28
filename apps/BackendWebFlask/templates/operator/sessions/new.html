@@ -17,56 +17,18 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    current_user, operations, selected_operation, available_kits, selected_kit,
-    available_capture_stations, selected_capture_station, expected_inventory, and
-    instrument_readiness below are placeholder values used only so this page is visually
-    reviewable before the backend supplies real data. Expected shapes are documented in
-    FRONTEND_INTEGRATION.md.
-#}
-{% set current_user = current_user|default({
-    'name': 'Alex Morgan',
-    'role_label': _('Operator'),
-    'avatar_url': none
-}) %}
-{% set operations = operations|default([
-    {
-        'operation_id': 'op-1', 'procedure_name': 'Appendectomy', 'operating_room_name': 'OR-3',
-        'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson'
-    },
-    {
-        'operation_id': 'op-2', 'procedure_name': 'Cholecystectomy', 'operating_room_name': 'OR-1',
-        'patient_name': 'Carlos Rivera', 'physician_name': 'Dr. Sarah Chen'
-    }
-]) %}
-{% set selected_operation = selected_operation|default(operations[0]) %}
-{% set available_kits = available_kits|default([
-    {'kit_id': 'delivery-kit', 'kit_name': 'Delivery Kit'},
-    {'kit_id': 'suture-kit', 'kit_name': 'Suture Kit'},
-    {'kit_id': 'general-surgery-kit', 'kit_name': 'General Surgery Kit'}
-]) %}
-{% set selected_kit = selected_kit|default(available_kits[0]) %}
-{% set available_capture_stations = available_capture_stations|default([
-    {'station_id': 'cde-01', 'station_name': 'Station CDE-01'},
-    {'station_id': 'cde-02', 'station_name': 'Station CDE-02'}
-]) %}
-{% set selected_capture_station = selected_capture_station|default(available_capture_stations[0]) %}
-{% set counting_phases = counting_phases|default([
-    {'value': 'pre_procedure', 'label': _('Pre-Procedure')},
-    {'value': 'post_procedure', 'label': _('Post-Procedure')}
-]) %}
-{% set selected_counting_phase = selected_counting_phase|default('pre_procedure') %}
-{% set session_datetime = session_datetime|default('2024-01-15 08:30:00') %}
-{% set expected_inventory = expected_inventory|default([
-    {'instrument_family_name': 'Kelly Clamp', 'expected_quantity': 4},
-    {'instrument_family_name': 'Foerster Sponge Forceps', 'expected_quantity': 2},
-    {'instrument_family_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2},
-    {'instrument_family_name': 'Mayo Scissors', 'expected_quantity': 1},
-    {'instrument_family_name': 'Allis Tissue Forceps', 'expected_quantity': 2}
-]) %}
-{% set expected_inventory_total = expected_inventory_total|default(expected_inventory|sum(attribute='expected_quantity')) %}
+{% set current_user = current_user|default({'name': '', 'role_label': '', 'avatar_url': none}) %}
+{% set operations = operations|default([]) %}
+{% set selected_operation = selected_operation|default(operations[0] if operations else none) %}
+{% set available_kits = available_kits|default([]) %}
+{% set selected_kit = selected_kit|default(available_kits[0] if available_kits else none) %}
+{% set available_capture_stations = available_capture_stations|default([]) %}
+{% set selected_capture_station = selected_capture_station|default(available_capture_stations[0] if available_capture_stations else none) %}
+{% set counting_phases = counting_phases|default([]) %}
+{% set selected_counting_phase = selected_counting_phase|default(none) %}
+{% set session_datetime = session_datetime|default('') %}
+{% set expected_inventory = expected_inventory|default([]) %}
+{% set expected_inventory_total = expected_inventory_total|default(expected_inventory|sum(attribute='expected_quantity') if expected_inventory else 0) %}
 
 <div class="page-heading">
     <div>
@@ -81,10 +43,6 @@
         <p class="card__subtitle">{{ _("Configure the session details and select the kit and capture station.") }}</p>
     </div>
 
-    {# Integration point: Start Session (in the sticky action bar below) submits this form to
-       start_session_url (defaults to "#"). It should create a WorkSession / session state on
-       the backend and then navigate to Active Counting Session — neither is implemented
-       here; this is a safe, context-provided placeholder. #}
     <form id="new-counting-session-form" action="{{ start_session_url|default('#') }}" method="post">
         <div class="form-grid">
             <div class="form-field">
@@ -101,7 +59,7 @@
                                 data-patient-name="{{ operation.patient_name }}"
                                 data-physician-name="{{ operation.physician_name }}"
                                 data-operating-room-name="{{ operation.operating_room_name }}"
-                                {% if operation.operation_id == selected_operation.operation_id %}selected{% endif %}>
+                                {% if selected_operation and operation.operation_id == selected_operation.operation_id %}selected{% endif %}>
                             {{ operation.procedure_name }} - {{ operation.operating_room_name }}
                         </option>
                         {% endfor %}
@@ -115,13 +73,13 @@
             <div class="form-field">
                 <label class="form-field__label" for="session-setup-patient">{{ _("Patient") }}</label>
                 <input class="form-field__input form-field__input--plain" type="text" id="session-setup-patient"
-                       value="{{ selected_operation.patient_name }}" readonly aria-readonly="true">
+                       value="{{ selected_operation.patient_name if selected_operation else '' }}" readonly aria-readonly="true">
                 <p class="form-field__helper">{{ _("From selected operation") }}</p>
             </div>
             <div class="form-field">
                 <label class="form-field__label" for="session-setup-physician">{{ _("Physician / Surgeon") }}</label>
                 <input class="form-field__input form-field__input--plain" type="text" id="session-setup-physician"
-                       value="{{ selected_operation.physician_name }}" readonly aria-readonly="true">
+                       value="{{ selected_operation.physician_name if selected_operation else '' }}" readonly aria-readonly="true">
                 <p class="form-field__helper">{{ _("From selected operation") }}</p>
             </div>
         </div>
@@ -130,14 +88,14 @@
             <div class="form-field">
                 <label class="form-field__label" for="session-setup-operating-room">{{ _("Operating Room") }}</label>
                 <input class="form-field__input form-field__input--plain" type="text" id="session-setup-operating-room"
-                       value="{{ selected_operation.operating_room_name }}" readonly aria-readonly="true">
+                       value="{{ selected_operation.operating_room_name if selected_operation else '' }}" readonly aria-readonly="true">
             </div>
             <div class="form-field">
                 <label class="form-field__label" for="kit-select">{{ _("Kit") }}</label>
                 <div class="form-field__input-wrapper">
                     <select class="form-field__input form-field__select" id="kit-select" name="kit_id">
                         {% for kit in available_kits %}
-                        <option value="{{ kit.kit_id }}" {% if kit.kit_id == selected_kit.kit_id %}selected{% endif %}>{{ kit.kit_name }}</option>
+                        <option value="{{ kit.kit_id }}" {% if selected_kit and kit.kit_id == selected_kit.kit_id %}selected{% endif %}>{{ kit.kit_name }}</option>
                         {% endfor %}
                     </select>
                     <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
@@ -167,7 +125,7 @@
                 <div class="form-field__input-wrapper">
                     <select class="form-field__input form-field__select" id="capture-station-select" name="capture_station_id">
                         {% for station in available_capture_stations %}
-                        <option value="{{ station.station_id }}" {% if station.station_id == selected_capture_station.station_id %}selected{% endif %}>{{ station.station_name }}</option>
+                        <option value="{{ station.station_id }}" {% if selected_capture_station and station.station_id == selected_capture_station.station_id %}selected{% endif %}>{{ station.station_name }}</option>
                         {% endfor %}
                     </select>
                     <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>

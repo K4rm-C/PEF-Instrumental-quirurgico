@@ -17,51 +17,13 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    session_history, sessions_shown_count, sessions_total_count, current_page, total_pages,
-    previous_url, and next_url below are placeholder values used only so this page is
-    visually reviewable before the backend supplies real data. Expected shapes are
-    documented in FRONTEND_INTEGRATION.md. final_count is a "validated/expected" string
-    (e.g. "11/11") matching the approved V2 Session History reference.
-#}
-{% set session_history = session_history|default([
-    {
-        'session_id': 'WS-024', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
-        'kit_name': 'General Surgery Kit', 'final_count': '11/11', 'corrections': 0,
-        'resolved_discrepancies': 0, 'closed_at': '2024-01-14 16:45',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-024')
-    },
-    {
-        'session_id': 'WS-021', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-1',
-        'kit_name': 'Delivery Kit', 'final_count': '11/11', 'corrections': 1,
-        'resolved_discrepancies': 1, 'closed_at': '2024-01-13 18:20',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-021')
-    },
-    {
-        'session_id': 'WS-019', 'procedure_name': 'Cholecystectomy', 'operating_room': 'OR-3',
-        'kit_name': 'Suture Kit', 'final_count': '8/8', 'corrections': 0,
-        'resolved_discrepancies': 0, 'closed_at': '2024-01-13 12:10',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-019')
-    },
-    {
-        'session_id': 'WS-017', 'procedure_name': 'Thyroidectomy', 'operating_room': 'OR-2',
-        'kit_name': 'General Surgery Kit', 'final_count': '11/11', 'corrections': 2,
-        'resolved_discrepancies': 1, 'closed_at': '2024-01-12 15:30',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-017')
-    },
-    {
-        'session_id': 'WS-015', 'procedure_name': 'Laparoscopic Cholecystectomy', 'operating_room': 'OR-4',
-        'kit_name': 'Laparoscopic Kit', 'final_count': '14/14', 'corrections': 0,
-        'resolved_discrepancies': 0, 'closed_at': '2024-01-12 11:00',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-015')
-    }
-], true) %}
+{# final_count is a "validated/expected" string (e.g. "11/11"). #}
+
+{% set session_history = session_history|default([]) %}
 {% set sessions_shown_count = sessions_shown_count|default(session_history|length, true) %}
-{% set sessions_total_count = sessions_total_count|default(84, true) %}
+{% set sessions_total_count = sessions_total_count|default(session_history|length, true) %}
 {% set current_page = current_page|default(1, true) %}
-{% set total_pages = total_pages|default(17, true) %}
+{% set total_pages = total_pages|default(1, true) %}
 {% set previous_url = previous_url|default('#', true) %}
 {% set next_url = next_url|default('#', true) %}
 
@@ -73,8 +35,7 @@
 </div>
 
 <section class="card">
-    {# Filters are presentation-only in this iteration: no client-side or server-side
-       filtering is wired up yet. #}
+    {# Filters are wired to the backend via GET params (search, status, date). #}
     <form class="filter-bar" action="#" method="get" role="search">
         <div class="filter-bar__search">
             <label class="visually-hidden" for="session-history-search">{{ _("Search Sessions") }}</label>
@@ -85,23 +46,15 @@
             </div>
         </div>
         <div class="filter-bar__select">
-            <label class="visually-hidden" for="session-history-procedure">{{ _("Procedure") }}</label>
-            <select class="form-field__input form-field__input--plain" id="session-history-procedure" name="procedure">
-                <option value="">{{ _("All Procedures") }}</option>
-                <option value="appendectomy">{{ _("Appendectomy") }}</option>
-                <option value="cholecystectomy">{{ _("Cholecystectomy") }}</option>
-                <option value="hernia-repair">{{ _("Hernia Repair") }}</option>
-                <option value="thyroidectomy">{{ _("Thyroidectomy") }}</option>
+            <label class="visually-hidden" for="session-history-status">{{ _("Status") }}</label>
+            <select class="form-field__input form-field__input--plain" id="session-history-status" name="status">
+                <option value="">{{ _("All Statuses") }}</option>
+                <option value="closed">{{ _("Closed") }}</option>
             </select>
         </div>
         <div class="filter-bar__select">
-            <label class="visually-hidden" for="session-history-date">{{ _("Date Range") }}</label>
-            <select class="form-field__input form-field__input--plain" id="session-history-date" name="date">
-                <option value="">{{ _("Date Range") }}</option>
-                <option value="today">{{ _("Today") }}</option>
-                <option value="last-7-days">{{ _("Last 7 Days") }}</option>
-                <option value="last-30-days">{{ _("Last 30 Days") }}</option>
-            </select>
+            <label class="visually-hidden" for="session-history-date">{{ _("Date") }}</label>
+            <input class="form-field__input form-field__input--plain" type="date" id="session-history-date" name="date">
         </div>
     </form>
 </section>
@@ -113,10 +66,11 @@
                 <tr>
                     <th scope="col">{{ _("Session ID") }}</th>
                     <th scope="col">{{ _("Procedure") }}</th>
-                    <th scope="col">{{ _("Kit Type") }}</th>
+                    <th scope="col">{{ _("Kit") }}</th>
+                    <th scope="col">{{ _("OR") }}</th>
                     <th scope="col">{{ _("Final Count") }}</th>
-                    <th scope="col">{{ _("Corrections") }}</th>
-                    <th scope="col">{{ _("Resolved Discrepancies") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Corrections") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Resolved Discrepancies") }}</th>
                     <th scope="col">{{ _("Closed At") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
@@ -127,9 +81,10 @@
                     <th scope="row">{{ session.session_id }}</th>
                     <td>{{ session.procedure_name }}-{{ session.operating_room }}</td>
                     <td>{{ session.kit_name }}</td>
+                    <td>{{ session.operating_room }}</td>
                     <td>{{ session.final_count }}</td>
-                    <td>{{ session.corrections }}</td>
-                    <td>{{ session.resolved_discrepancies }}</td>
+                    <td class="data-table__numeric-column">{{ session.corrections }}</td>
+                    <td class="data-table__numeric-column">{{ session.resolved_discrepancies }}</td>
                     <td>{{ session.closed_at }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ session.action_label }}</a>
@@ -141,7 +96,7 @@
     </div>
 
     <nav class="pagination" aria-label="{{ _('Pagination') }}">
-        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s historical records", shown=sessions_shown_count, total=sessions_total_count) }}</p>
+        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s sessions", shown=sessions_shown_count, total=sessions_total_count) }}</p>
         <div class="pagination__controls">
             <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
             <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>

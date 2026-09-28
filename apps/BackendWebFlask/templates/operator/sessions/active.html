@@ -21,45 +21,26 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    session, instrument_counts, and current_alerts below are placeholder values used only so
-    this page is visually reviewable before the backend supplies real data. Expected shapes
-    are documented in FRONTEND_INTEGRATION.md.
-#}
 {% set session = session|default({
-    'session_id': 'WS-026',
-    'procedure_name': 'Appendectomy',
-    'operating_room': 'OR-3',
-    'patient_name': 'Maria García',
-    'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit',
-    'capture_station_name': 'Station CDE-01',
-    'operator_name': 'Alex Morgan',
-    'status_label': _('In Progress'),
-    'status_variant': 'info'
+    'session_id': '',
+    'procedure_name': '',
+    'operating_room': '',
+    'patient_name': '',
+    'physician_name': '',
+    'kit_name': '',
+    'capture_station_name': '',
+    'operator_name': '',
+    'status_label': '',
+    'status_variant': 'neutral'
 }) %}
-{% set instrument_counts = instrument_counts|default([
-    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'counted_quantity': 4, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
-    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
-    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'counted_quantity': 1, 'difference': -1, 'status_label': _('Discrepancy'), 'status_variant': 'danger'},
-    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'counted_quantity': 1, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'},
-    {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'counted_quantity': 2, 'difference': 0, 'status_label': _('Match'), 'status_variant': 'success'}
-]) %}
+{% set instrument_counts = instrument_counts|default([]) %}
 {% set session_summary = session_summary|default({
-    'expected_total': 11,
-    'counted_total': 10,
-    'discrepancy_count': 1,
-    'discrepancy_variant': 'danger'
+    'expected_total': 0,
+    'counted_total': 0,
+    'discrepancy_count': 0,
+    'discrepancy_variant': 'neutral'
 }) %}
-{% set current_alerts = current_alerts|default([
-    {
-        'variant': 'danger',
-        'title': _('Current Alerts'),
-        'message': _('Instrument discrepancy detected - Mayo-Hegar Needle Holder: Expected 2, Counted 1, Difference -1')
-    }
-]) %}
+{% set current_alerts = current_alerts|default([]) %}
 {% set cancel_session_url = cancel_session_url|default('#') %}
 {% set save_progress_url = save_progress_url|default('#') %}
 {% set validate_count_url = validate_count_url|default('#') %}
