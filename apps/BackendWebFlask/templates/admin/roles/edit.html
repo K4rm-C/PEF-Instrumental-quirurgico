@@ -24,7 +24,7 @@
 <ol class="breadcrumb-list">
     <li class="breadcrumb-item">{{ _("Administration") }}</li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
-    <li class="breadcrumb-item"><a href="{{ cancel_url|default('#') }}">{{ _("Roles") }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ cancel_url|default('/admin/roles') }}">{{ _("Roles") }}</a></li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
     <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Edit") }}</li>
 </ol>
@@ -70,7 +70,7 @@
         </div>
 
         <div class="form-actions">
-            <a class="btn btn--secondary" href="{{ cancel_url|default('#') }}">{{ _("Cancel") }}</a>
+            <a class="btn btn--secondary" href="{{ cancel_url|default('/admin/roles') }}">{{ _("Cancel") }}</a>
             <button type="submit" class="btn btn--primary">{{ _("Save Role") }}</button>
         </div>
     </form>

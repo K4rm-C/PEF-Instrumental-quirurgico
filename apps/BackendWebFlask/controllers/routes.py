@@ -836,13 +836,116 @@ def admin_roles():
 @web_bp.route('/admin/roles/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_role_new():
-    return _page('admin/roles/form.html', **role_form_data(), page_title='New Role', form_mode='create')
+    if request.method == 'GET':
+        return _render_role_form('create')
+
+    values = {
+        'code': request.form.get('code', '').strip(),
+        'description': request.form.get('description', '').strip(),
+    }
+    error = _validate_role_values(values, include_code=True)
+    if error:
+        return _render_role_form('create', values=values, form_error=error, status=400)
+
+    institution = db.session.scalar(select(Institution).order_by(Institution.name))
+    if institution is None:
+        return _render_role_form(
+            'create', values=values,
+            form_error='Create an institution before adding a role.', status=400,
+        )
+
+    try:
+        db.session.add(Role(
+            code=values['code'],
+            description=values['description'],
+            institution_id=institution.id,
+        ))
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_role_form(
+            'create', values=values,
+            form_error='A role with this code already exists for the institution.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to create admin role')
+        return _render_role_form(
+            'create', values=values,
+            form_error='Unable to save this role right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_roles'))
 
 
 @web_bp.route('/admin/roles/<role_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_role_edit(role_id):
-    return _page('admin/roles/form.html', **role_form_data(role_id), page_title='Edit Role', form_mode='edit', role_id=role_id)
+    try:
+        parsed_role_id = UUID(role_id)
+    except ValueError:
+        abort(404)
+
+    role = db.session.get(Role, parsed_role_id)
+    if role is None:
+        abort(404)
+    if request.method == 'GET':
+        return _render_role_form('edit', role_id=parsed_role_id)
+
+    values = {'description': request.form.get('description', '').strip()}
+    error = _validate_role_values(values)
+    if error:
+        return _render_role_form(
+            'edit', role_id=parsed_role_id, values=values, form_error=error, status=400,
+        )
+
+    try:
+        role.description = values['description']
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_role_form(
+            'edit', role_id=parsed_role_id, values=values,
+            form_error='Unable to save this role because it conflicts with existing data.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to update admin role %s', parsed_role_id)
+        return _render_role_form(
+            'edit', role_id=parsed_role_id, values=values,
+            form_error='Unable to save this role right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_roles'))
+
+
+def _validate_role_values(values, include_code=False):
+    if include_code and not values['code']:
+        return 'Role code is required.'
+    if not values['description']:
+        return 'Description is required.'
+    if include_code and len(values['code']) > 64:
+        return 'Role code must contain at most 64 characters.'
+    if len(values['description']) > 255:
+        return 'Description must contain at most 255 characters.'
+    return None
+
+
+def _render_role_form(form_mode, role_id=None, values=None, form_error=None, status=200):
+    is_edit = form_mode == 'edit'
+    context = role_form_data(role_id)
+    role_values = dict(context.get('role', {}))
+    role_values.update(values or {})
+    context.update({
+        'role': role_values,
+        'form_mode': form_mode,
+        'is_edit': is_edit,
+        'page_title': 'Edit Role' if is_edit else 'New Role',
+        'save_url': url_for('web.admin_role_edit', role_id=role_id) if is_edit else url_for('web.admin_role_new'),
+        'cancel_url': url_for('web.admin_roles'),
+        'form_error': form_error,
+    })
+    return _page('admin/roles/form.html', **context), status
 
 
 @web_bp.route('/admin/vision-models')

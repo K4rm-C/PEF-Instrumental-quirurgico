@@ -17,21 +17,6 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    roles below is a placeholder value used only so this page is visually reviewable before
-    the backend supplies real data. Expected shape is documented in FRONTEND_INTEGRATION.md.
-    Description and Assigned Users are always kept as separate columns, never concatenated.
-    The Role model has no separate "name" field and no active/status field, so this list never
-    shows a Role Name column or a Status column/filter — only Code, Description, Institution,
-    and Assigned Users.
-#}
-{% set roles = roles|default([
-    {'code': 'OPERATOR', 'description': _('Performs instrument counting and validation activities.'), 'institution': _('Hospital Institution'), 'assigned_users': 10, 'edit_url': url_for('web.admin_role_edit', role_id='OPERATOR')},
-    {'code': 'SUPERVISOR', 'description': _('Reviews sessions, discrepancies, and authorizes closure.'), 'institution': _('Hospital Institution'), 'assigned_users': 5, 'edit_url': url_for('web.admin_role_edit', role_id='SUPERVISOR')},
-    {'code': 'ADMIN', 'description': _('Manages users, roles, catalogs, and system configuration.'), 'institution': _('Hospital Institution'), 'assigned_users': 3, 'edit_url': url_for('web.admin_role_edit', role_id='ADMIN')}
-], true) %}
 {% set roles_shown_count = roles_shown_count|default(roles|length, true) %}
 {% set roles_total_count = roles_total_count|default(roles|length, true) %}
 
@@ -40,7 +25,7 @@
         <h1 class="page-heading__title">{{ _("Roles") }}</h1>
         <p class="page-heading__subtitle">{{ _("Manage the roles available in the system.") }}</p>
     </div>
-    <a class="btn btn--primary" href="{{ new_role_url|default('#') }}">
+    <a class="btn btn--primary" href="{{ new_role_url|default('/admin/roles/new') }}">
         {{ macros.icon_plus() }}
         <span>{{ _("New Role") }}</span>
     </a>
