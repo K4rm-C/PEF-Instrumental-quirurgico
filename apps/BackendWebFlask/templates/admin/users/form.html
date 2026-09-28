@@ -66,6 +66,9 @@
 <section class="card card--form">
     <form class="form" id="user-form" action="{{ save_url|default('#') }}" method="post"
           data-password-mismatch-message="{{ _('Passwords do not match.') }}">
+        {% if form_error %}
+        <p class="form-field__helper form-field__helper--error" role="alert">{{ form_error }}</p>
+        {% endif %}
         <div class="form-field">
             <label class="form-field__label" for="user-name">{{ _("Name") }}</label>
             <input class="form-field__input form-field__input--plain" type="text" id="user-name" name="name"
@@ -139,7 +142,7 @@
         {% endif %}
 
         <div class="form-actions">
-            <a class="btn btn--secondary" href="{{ cancel_url|default('#') }}">{{ _("Cancel") }}</a>
+            <a class="btn btn--secondary" href="{{ cancel_url|default('/admin/users') }}">{{ _("Cancel") }}</a>
             <button type="submit" class="btn btn--primary">{{ _("Save Changes") if is_edit else _("Save User") }}</button>
         </div>
     </form>

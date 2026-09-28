@@ -1,24 +1,13 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    session must be set here, outside every block: block breadcrumb renders before
-    page_content in layouts/authenticated.html, and a variable set inside one block is not
-    visible from another. Preserves the approved WS-026 reference case
-    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
-#}
-{% set session_id = session_id|default('WS-026') %}
+{% set session_id = session_id|default('') %}
 {% set session = session|default({
-    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
-    'status_label': _('In Progress'), 'status_variant': 'info'
+    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
+    'patient_name': '', 'physician_name': '',
+    'kit_name': '', 'capture_station_name': '',
+    'status_label': '', 'status_variant': 'neutral'
 }, true) %}
-{#
-    Also top-level (not inside page_content) for the same reason: block page_action_bar
-    renders as a sibling of block page_content in layouts/authenticated.html, not nested
-    inside it, so it cannot see variables set inside page_content either.
-#}
 {% set back_to_ai_results_url = back_to_ai_results_url|default(url_for('web.operator_session_ai_detection', session_id=session.session_id)) %}
 {% set submit_validation_url = submit_validation_url|default(url_for('web.operator_session_validation_summary', session_id=session.session_id)) %}
 
@@ -40,31 +29,11 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA (remaining, page_content-only)
-    --------------------
-    A confirmation (validated_quantity == ai_detected, e.g. Mayo-Hegar Needle Holder) is NOT
-    the same as a human correction (validated_quantity != ai_detected, e.g. Allis Tissue
-    Forceps) — corrections is a separate, explicit list, never inferred from the table rows.
-#}
-{% set validation_rows = validation_rows|default([
-    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'ai_detected': 4, 'validated_quantity': 4, 'needs_attention': false, 'unresolved': false, 'status_label': _('Confirmed'), 'status_variant': 'success'},
-    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'ai_detected': 2, 'validated_quantity': 2, 'needs_attention': false, 'unresolved': false, 'status_label': _('Confirmed'), 'status_variant': 'success'},
-    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'ai_detected': 1, 'validated_quantity': 1, 'needs_attention': true, 'unresolved': true, 'status_label': _('Confirmed'), 'status_variant': 'danger'},
-    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'ai_detected': 1, 'validated_quantity': 1, 'needs_attention': false, 'unresolved': false, 'status_label': _('Confirmed'), 'status_variant': 'success'},
-    {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'ai_detected': 1, 'validated_quantity': 2, 'needs_attention': true, 'unresolved': false, 'status_label': _('Corrected'), 'status_variant': 'danger'}
-]) %}
-{% set validated_total = validated_total|default(validation_rows|sum(attribute='validated_quantity')) %}
-{% set expected_total = expected_total|default(validation_rows|sum(attribute='expected_quantity')) %}
-{% set discrepancy_count = discrepancy_count|default(validation_rows|selectattr('unresolved')|list|length) %}
-{% set corrections = corrections|default([
-    {
-        'instrument_name': 'Allis Tissue Forceps', 'original_ai_quantity': 1, 'corrected_quantity': 2,
-        'reason_label': _('Second instrument partially occluded'),
-        'notes': _('Instrument was partially obscured during capture. Physically verified count is 2.'),
-        'corrected_by': 'Alex Morgan', 'timestamp': '2024-01-15 09:45:22'
-    }
-]) %}
+{% set validation_rows = validation_rows|default([]) %}
+{% set validated_total = validated_total|default(validation_rows|sum(attribute='validated_quantity') if validation_rows else 0) %}
+{% set expected_total = expected_total|default(validation_rows|sum(attribute='expected_quantity') if validation_rows else 0) %}
+{% set discrepancy_count = discrepancy_count|default(validation_rows|selectattr('unresolved')|list|length if validation_rows else 0) %}
+{% set corrections = corrections|default([]) %}
 
 <section class="card">
     <div class="session-context-bar">

@@ -1,18 +1,12 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    session must be set here, outside every block: block breadcrumb renders before
-    page_content in layouts/authenticated.html, and a variable set inside one block is not
-    visible from another. Preserves the approved WS-026 reference case
-    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
-#}
-{% set session_id = session_id|default('WS-026') %}
+{% set session_id = session_id|default('') %}
 {% set session = session|default({
-    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
-    'status_label': _('Correction Required'), 'status_variant': 'danger'
+    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
+    'patient_name': '', 'physician_name': '',
+    'kit_name': '', 'capture_station_name': '',
+    'status_label': '', 'status_variant': 'neutral'
 }, true) %}
 
 {% block title %}{{ _("Correction Requested") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
@@ -37,22 +31,15 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA (remaining, page_content-only)
-    --------------------
-    Reached when a Supervisor rejects a discrepancy resolution and asks the Operator to
-    recount; "Review Count" returns to Human Validation so the affected instrument can be
-    revalidated.
-#}
 {% set supervisor_request = supervisor_request|default({
-    'supervisor_name': 'Sophia Turner', 'requested_at': '2024-01-15 10:05:30',
-    'message': _('"Please review the Mayo-Hegar Needle Holder count. The captured image shows a possible second instrument partially visible under the drape. Confirm the final count."')
+    'supervisor_name': '', 'requested_at': '',
+    'message': ''
 }) %}
 {% set affected_discrepancy = affected_discrepancy|default({
-    'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2,
-    'ai_detected_quantity': 1, 'final_quantity': 1, 'final_difference': -1
+    'instrument_name': '', 'expected_quantity': 0,
+    'ai_detected_quantity': 0, 'final_quantity': 0, 'final_difference': 0
 }) %}
-{% set captured_evidence = captured_evidence|default({'capture_id': 'CAP-98012', 'timestamp': '2024-01-15 09:42:15'}) %}
+{% set captured_evidence = captured_evidence|default({'capture_id': '', 'timestamp': ''}) %}
 {% set review_count_url = review_count_url|default(url_for('web.operator_session_validation', session_id=session.session_id)) %}
 
 <div class="page-heading">

@@ -51,6 +51,7 @@ def _read(operation, fallback):
         return operation()
     except SQLAlchemyError:
         db.session.rollback()
+        current_app.logger.exception('Database-backed view data query failed; using fallback data')
         return fallback
 
 

@@ -1,19 +1,12 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    session must be set here, outside every block, not inside page_content: block title and
-    block breadcrumb both render before page_content in layouts/authenticated.html, and a
-    variable set inside one block is not visible from another. Preserves the approved WS-026
-    reference case (prompts/09_Operator_V2.md) regardless of the session_id in the URL, since
-    no capture pipeline exists to source this per-session yet.
-#}
-{% set session_id = session_id|default('WS-026') %}
+{% set session_id = session_id|default('') %}
 {% set session = session|default({
-    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
-    'phase_label': _('Pre-Procedure'), 'status_label': _('In Progress'), 'status_variant': 'info'
+    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
+    'patient_name': '', 'physician_name': '',
+    'kit_name': '', 'capture_station_name': '',
+    'phase_label': '', 'status_label': '', 'status_variant': 'neutral'
 }, true) %}
 
 {% block title %}{{ _("Counting Session") }} {{ session.session_id }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
@@ -38,22 +31,9 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA (remaining, page_content-only)
-    --------------------
-    capture_image is intentionally NOT a real photograph — no camera/upload pipeline or
-    photography assets exist in this repository (see V2_IMPLEMENTATION_NOTES.md);
-    .evidence-image renders a token-driven placeholder instead of an <img>.
-#}
-{% set expected_inventory = expected_inventory|default([
-    {'instrument_family_name': 'Kelly Clamp', 'expected_quantity': 4},
-    {'instrument_family_name': 'Foerster Sponge Forceps', 'expected_quantity': 2},
-    {'instrument_family_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2},
-    {'instrument_family_name': 'Mayo Scissors', 'expected_quantity': 1},
-    {'instrument_family_name': 'Allis Tissue Forceps', 'expected_quantity': 2}
-]) %}
-{% set expected_inventory_total = expected_inventory_total|default(expected_inventory|sum(attribute='expected_quantity')) %}
-{% set captured_at = captured_at|default('2024-01-15 09:42:15') %}
+{% set expected_inventory = expected_inventory|default([]) %}
+{% set expected_inventory_total = expected_inventory_total|default(expected_inventory|sum(attribute='expected_quantity') if expected_inventory else 0) %}
+{% set captured_at = captured_at|default('') %}
 {% set run_ai_analysis_url = run_ai_analysis_url|default(url_for('web.operator_session_ai_detection', session_id=session.session_id)) %}
 
 <section class="card">

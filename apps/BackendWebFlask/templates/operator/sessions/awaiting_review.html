@@ -1,18 +1,12 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    session must be set here, outside every block: block breadcrumb renders before
-    page_content in layouts/authenticated.html, and a variable set inside one block is not
-    visible from another. Preserves the approved WS-026 reference case
-    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
-#}
-{% set session_id = session_id|default('WS-026') %}
+{% set session_id = session_id|default('') %}
 {% set session = session|default({
-    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
-    'status_label': _('Awaiting Review'), 'status_variant': 'warning'
+    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
+    'patient_name': '', 'physician_name': '',
+    'kit_name': '', 'capture_station_name': '',
+    'status_label': '', 'status_variant': 'neutral'
 }, true) %}
 
 {% block title %}{{ _("Awaiting Supervisor Review") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
@@ -33,25 +27,19 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA (remaining, page_content-only)
-    --------------------
-    Read-only waiting state. No action here can resolve or close the session — that is a
-    Supervisor-only decision, out of scope for this Operator-only iteration.
-#}
-{% set session_summary = session_summary|default({'expected_count': 11, 'validated_count': 10, 'discrepancy_count': 1}) %}
+{% set session_summary = session_summary|default({'expected_count': 0, 'validated_count': 0, 'discrepancy_count': 0}) %}
 {% set review_status = review_status|default({
-    'assigned_supervisor': 'Sophia Turner', 'escalated_time': '2024-01-15 09:46:01',
-    'current_status_label': _('Awaiting Review')
+    'assigned_supervisor': '', 'escalated_time': '',
+    'current_status_label': ''
 }) %}
 {% set discrepancy_details = discrepancy_details|default({
-    'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_count': 2,
-    'ai_detected': 1, 'operator_validated': 1, 'final_difference': -1
+    'instrument_name': '', 'expected_count': 0,
+    'ai_detected': 0, 'operator_validated': 0, 'final_difference': 0
 }) %}
 {% set operator_validation_record = operator_validation_record|default({
-    'ai_detected': 1, 'operator_validated': 1, 'result_label': _('AI result confirmed'),
-    'notes': _('"Physical recount confirmed only one Mayo-Hegar Needle Holder present."'),
-    'operator_name': 'Alex Morgan', 'timestamp': '2024-01-15 09:45:22'
+    'ai_detected': 0, 'operator_validated': 0, 'result_label': '',
+    'notes': '',
+    'operator_name': '', 'timestamp': ''
 }) %}
 {% set back_to_sessions_url = back_to_sessions_url|default(url_for('web.operator_sessions')) %}
 

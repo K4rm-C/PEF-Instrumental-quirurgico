@@ -1,18 +1,12 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    session must be set here, outside every block: block breadcrumb renders before
-    page_content in layouts/authenticated.html, and a variable set inside one block is not
-    visible from another. Preserves the approved WS-026 reference case
-    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
-#}
-{% set session_id = session_id|default('WS-026') %}
+{% set session_id = session_id|default('') %}
 {% set session = session|default({
-    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit', 'capture_station_name': 'CDE-01',
-    'status_label': _('In Progress'), 'status_variant': 'info'
+    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
+    'patient_name': '', 'physician_name': '',
+    'kit_name': '', 'capture_station_name': '',
+    'status_label': '', 'status_variant': 'neutral'
 }, true) %}
 
 {% block title %}{{ _("AI Suggested Count") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
@@ -35,25 +29,13 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA (remaining, page_content-only)
-    --------------------
-    AI results are suggestions only: this page never lets the operator edit a count directly,
-    only proceed to Human Validation.
-#}
-{% set captured_at = captured_at|default('09:42:15') %}
-{% set ai_detections = ai_detections|default([
-    {'instrument_name': 'Kelly Clamp', 'expected_quantity': 4, 'ai_detected': 4, 'confidence': 98, 'result_label': _('Match'), 'result_variant': 'success', 'needs_attention': false},
-    {'instrument_name': 'Foerster Sponge Forceps', 'expected_quantity': 2, 'ai_detected': 2, 'confidence': 95, 'result_label': _('Match'), 'result_variant': 'success', 'needs_attention': false},
-    {'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'ai_detected': 1, 'confidence': 87, 'result_label': _('Missing'), 'result_variant': 'warning', 'needs_attention': true},
-    {'instrument_name': 'Mayo Scissors', 'expected_quantity': 1, 'ai_detected': 1, 'confidence': 96, 'result_label': _('Match'), 'result_variant': 'success', 'needs_attention': false},
-    {'instrument_name': 'Allis Tissue Forceps', 'expected_quantity': 2, 'ai_detected': 1, 'confidence': 94, 'result_label': _('Possible Miss'), 'result_variant': 'warning', 'needs_attention': true}
-]) %}
-{% set ai_expected_total = ai_expected_total|default(ai_detections|sum(attribute='expected_quantity')) %}
-{% set ai_detected_total = ai_detected_total|default(ai_detections|sum(attribute='ai_detected')) %}
+{% set captured_at = captured_at|default('') %}
+{% set ai_detections = ai_detections|default([]) %}
+{% set ai_expected_total = ai_expected_total|default(ai_detections|sum(attribute='expected_quantity') if ai_detections else 0) %}
+{% set ai_detected_total = ai_detected_total|default(ai_detections|sum(attribute='ai_detected') if ai_detections else 0) %}
 {% set ai_analysis_details = ai_analysis_details|default({
-    'vision_model': 'Instrument YOLO', 'model_version': 'v0.4.2',
-    'confidence_threshold': '0.70', 'analysis_timestamp': '2024-01-15 09:42:15'
+    'vision_model': '', 'model_version': '',
+    'confidence_threshold': '', 'analysis_timestamp': ''
 }) %}
 {% set proceed_to_validation_url = proceed_to_validation_url|default(url_for('web.operator_session_validation', session_id=session.session_id)) %}
 
