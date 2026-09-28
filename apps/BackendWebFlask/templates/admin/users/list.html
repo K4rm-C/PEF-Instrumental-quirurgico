@@ -17,21 +17,8 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    users and the pagination values below are placeholder values used only so this page is
-    visually reviewable before the backend supplies real data. Expected shapes are documented
-    in FRONTEND_INTEGRATION.md. Names/roles/institution match the approved reference and the
-    same demo identities already used across the Operator and Supervisor previews.
-#}
-{% set users = users|default([
-    {'name': 'Alex Morgan', 'email': 'alex.morgan@institution.edu', 'institution': 'Hospital Institution', 'roles': [{'label': _('Operator CDE')}], 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_user_edit', user_id='alex-morgan')},
-    {'name': 'Sophia Turner', 'email': 'sophia.turner@institution.edu', 'institution': 'Hospital Institution', 'roles': [{'label': _('Supervisor CDE / Quality')}], 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_user_edit', user_id='sophia-turner')},
-    {'name': 'Daniel Brooks', 'email': 'daniel.brooks@institution.edu', 'institution': 'Hospital Institution', 'roles': [{'label': _('IT Administrator')}], 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_user_edit', user_id='daniel-brooks')}
-], true) %}
 {% set users_shown_count = users_shown_count|default(users|length, true) %}
-{% set users_total_count = users_total_count|default(3, true) %}
+{% set users_total_count = users_total_count|default(users|length, true) %}
 {% set current_page = current_page|default(1, true) %}
 {% set total_pages = total_pages|default(1, true) %}
 {% set previous_url = previous_url|default('#', true) %}
@@ -42,7 +29,7 @@
         <h1 class="page-heading__title">{{ _("Users") }}</h1>
         <p class="page-heading__subtitle">{{ _("Manage authorized system users and their assigned roles.") }}</p>
     </div>
-    <a class="btn btn--primary" href="{{ new_user_url|default('#') }}">
+    <a class="btn btn--primary" href="{{ new_user_url|default('/admin/users/new') }}">
         {{ macros.icon_plus() }}
         <span>{{ _("New User") }}</span>
     </a>
@@ -101,6 +88,7 @@
                 </tr>
             </thead>
             <tbody>
+                {% if users %}
                 {% for user in users %}
                 <tr>
                     <th scope="row">{{ user.name }}</th>
@@ -119,6 +107,11 @@
                     </td>
                 </tr>
                 {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="6" class="data-table__empty-state">{{ _("No users found.") }}</td>
+                </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>

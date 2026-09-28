@@ -1,9 +1,19 @@
 from datetime import date
 from functools import wraps
+from uuid import UUID
 
 import requests
 from flask import Blueprint, abort, current_app, g, redirect, render_template, request, session, url_for
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from werkzeug.urls import urlsplit
+from werkzeug.security import generate_password_hash
+
+from extensions import db
+from models.Institution import Institution
+from models.Role import Role
+from models.User import User
+from models.UserRole import UserRole
 
 from controllers.view_data import (
     admin_dashboard_overview,
@@ -653,13 +663,167 @@ def admin_users():
 @web_bp.route('/admin/users/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_user_new():
-    return _page('admin/users/form.html', **user_form_data(), page_title='New User', is_edit=False, form_mode='create')
+    if request.method == 'GET':
+        return _render_user_form('create')
+
+    values = _submitted_user_values()
+    name = values['name']
+    email = values['email']
+    institution_id = values['institution']
+    role_codes = values['assigned_role_codes']
+    password = request.form.get('password', '')
+    confirm_password = request.form.get('confirm_password', '')
+
+    error = _validate_user_values(values)
+    if not error and len(password) < 8:
+        error = 'Password must contain at least 8 characters.'
+    if not error and password != confirm_password:
+        error = 'Passwords do not match.'
+    if error:
+        return _render_user_form('create', values=values, form_error=error, status=400)
+
+    institution, roles = _validated_institution_and_roles(institution_id, role_codes)
+    if institution is None or roles is None:
+        return _render_user_form(
+            'create', values=values,
+            form_error='Choose a valid institution and at least one role assigned to it.', status=400,
+        )
+
+    try:
+        user = User(
+            name=name,
+            email=email,
+            password_hash=generate_password_hash(password),
+            institution_id=institution.id,
+            active=values['status'] == 'active',
+        )
+        db.session.add(user)
+        for role in roles:
+            db.session.add(UserRole(user=user, role=role))
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_user_form('create', values=values, form_error='A user with this email already exists.', status=409)
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to create admin user')
+        return _render_user_form('create', values=values, form_error='Unable to save this user right now.', status=503)
+
+    return redirect(url_for('web.admin_users'))
 
 
 @web_bp.route('/admin/users/<user_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_user_edit(user_id):
-    return _page('admin/users/form.html', **user_form_data(user_id), page_title='Edit User', is_edit=True, form_mode='edit', user_id=user_id)
+    try:
+        parsed_user_id = UUID(user_id)
+    except ValueError:
+        abort(404)
+
+    user = db.session.get(User, parsed_user_id)
+    if user is None:
+        abort(404)
+    if request.method == 'GET':
+        return _render_user_form('edit', user_id=parsed_user_id)
+
+    values = _submitted_user_values()
+    error = _validate_user_values(values)
+    if error:
+        return _render_user_form('edit', user_id=parsed_user_id, values=values, form_error=error, status=400)
+
+    institution, roles = _validated_institution_and_roles(values['institution'], values['assigned_role_codes'])
+    if institution is None or roles is None:
+        return _render_user_form(
+            'edit', user_id=parsed_user_id, values=values,
+            form_error='Choose a valid institution and at least one role assigned to it.', status=400,
+        )
+
+    try:
+        user.name = values['name']
+        user.email = values['email']
+        user.institution_id = institution.id
+        user.active = values['status'] == 'active'
+        assignments = db.session.execute(
+            select(UserRole).where(UserRole.user_id == user.id)
+        ).scalars().all()
+        roles_to_add = {role.id: role for role in roles}
+        for assignment in assignments:
+            if assignment.role_id in roles_to_add:
+                roles_to_add.pop(assignment.role_id)
+            else:
+                db.session.delete(assignment)
+        for role in roles_to_add.values():
+            db.session.add(UserRole(user=user, role=role))
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_user_form('edit', user_id=parsed_user_id, values=values, form_error='A user with this email already exists.', status=409)
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to update admin user %s', parsed_user_id)
+        return _render_user_form('edit', user_id=parsed_user_id, values=values, form_error='Unable to save this user right now.', status=503)
+
+    return redirect(url_for('web.admin_users'))
+
+
+def _submitted_user_values():
+    return {
+        'name': request.form.get('name', '').strip(),
+        'email': request.form.get('email', '').strip().lower(),
+        'institution': request.form.get('institution', '').strip(),
+        'assigned_role_codes': list(dict.fromkeys(request.form.getlist('roles[]'))),
+        'status': request.form.get('status', 'active'),
+    }
+
+
+def _validate_user_values(values):
+    if not values['name'] or not values['email'] or not values['institution']:
+        return 'Name, email, and institution are required.'
+    if len(values['name']) > 160 or len(values['email']) > 255:
+        return 'Name or email is too long.'
+    email_parts = values['email'].split('@')
+    if len(email_parts) != 2 or not email_parts[0] or '.' not in email_parts[1] or any(char.isspace() for char in values['email']):
+        return 'Enter a valid email address.'
+    if values['status'] not in {'active', 'inactive'}:
+        return 'Choose a valid user status.'
+    if not values['assigned_role_codes']:
+        return 'Assign at least one role.'
+    return None
+
+
+def _validated_institution_and_roles(institution_id, role_codes):
+    try:
+        parsed_institution_id = UUID(institution_id)
+    except ValueError:
+        return None, None
+    institution = db.session.get(Institution, parsed_institution_id)
+    if institution is None:
+        return None, None
+    roles = db.session.execute(
+        select(Role).where(
+            Role.institution_id == parsed_institution_id,
+            Role.code.in_(role_codes),
+        )
+    ).scalars().all()
+    if {role.code for role in roles} != set(role_codes):
+        return None, None
+    return institution, roles
+
+
+def _render_user_form(form_mode, user_id=None, values=None, form_error=None, status=200):
+    is_edit = form_mode == 'edit'
+    context = user_form_data(user_id)
+    values = values or context.get('user', {})
+    context.update({
+        'user': values,
+        'form_mode': form_mode,
+        'is_edit': is_edit,
+        'page_title': 'Edit User' if is_edit else 'New User',
+        'save_url': url_for('web.admin_user_edit', user_id=user_id) if is_edit else url_for('web.admin_user_new'),
+        'cancel_url': url_for('web.admin_users'),
+        'form_error': form_error,
+    })
+    return _page('admin/users/form.html', **context), status
 
 
 @web_bp.route('/admin/roles')
