@@ -13,9 +13,8 @@
       instrument_families        list of {value, label} for each composition row's select
       save_url, cancel_url      URL strings, default "#"
     Kit Composition's "+ Add Instrument Type" / "Remove" and the live Instrument Types /
-    Total Expected Instruments summary are presentation-only client-side behavior (section 19
-    of the implementation prompt) implemented by static/js/pages/kit-form.js — nothing here
-    is persisted or validated against real catalog data.
+    Total Expected Instruments summary are client-side behavior implemented by
+    static/js/pages/kit-form.js; submitted composition is validated and persisted by the backend.
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
@@ -36,7 +35,7 @@
 ] if is_edit else [], true) %}
 {% set page_title = _("Edit Kit") if is_edit else _("New Kit") %}
 {% set page_subtitle = _("Configure composition and general characteristics for %(name)s.", name=kit.name) if is_edit else _("Create a surgical instrument kit and define its expected composition.") %}
-{% set total_expected_instruments = kit_composition|sum(attribute='expected_quantity') %}
+{% set total_expected_instruments = kit_composition|map(attribute='expected_quantity')|map('int')|sum %}
 
 {% block title %}{{ page_title }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
@@ -49,7 +48,7 @@
 <ol class="breadcrumb-list">
     <li class="breadcrumb-item">{{ _("Catalogs") }}</li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
-    <li class="breadcrumb-item"><a href="{{ cancel_url|default('#') }}">{{ _("Kits") }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ cancel_url|default('/admin/kits') }}">{{ _("Kits") }}</a></li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
     <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Edit") if is_edit else _("New") }}</li>
 </ol>
@@ -65,6 +64,9 @@
 
 <section class="card card--form">
     <form class="form" id="kit-form" action="{{ save_url|default('#') }}" method="post">
+        {% if form_error %}
+        <p class="form-field__helper form-field__helper--error" role="alert">{{ form_error }}</p>
+        {% endif %}
         <div class="form-field">
             <label class="form-field__label" for="kit-name">{{ _("Kit Name") }}</label>
             <input class="form-field__input form-field__input--plain" type="text" id="kit-name" name="name" value="{{ kit.name }}">
@@ -110,7 +112,7 @@
                             </div>
                         </td>
                         <td>
-                            <input class="data-table__input js-kit-quantity" type="number" min="0" step="1" name="expected_quantity[]" value="{{ item.expected_quantity }}">
+                            <input class="data-table__input js-kit-quantity" type="number" min="1" max="32767" step="1" name="expected_quantity[]" value="{{ item.expected_quantity }}">
                         </td>
                         <td class="data-table__action-column">
                             <button type="button" class="link-danger js-kit-remove-row">{{ _("Remove") }}</button>
@@ -131,7 +133,7 @@
         </div>
 
         <div class="form-actions">
-            <a class="btn btn--secondary" href="{{ cancel_url|default('#') }}">{{ _("Cancel") }}</a>
+            <a class="btn btn--secondary" href="{{ cancel_url|default('/admin/kits') }}">{{ _("Cancel") }}</a>
             <button type="submit" class="btn btn--primary">{{ _("Save Kit") }}</button>
         </div>
     </form>

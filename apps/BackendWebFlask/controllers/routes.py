@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import wraps
 from uuid import UUID
 
@@ -10,7 +10,14 @@ from werkzeug.urls import urlsplit
 from werkzeug.security import generate_password_hash
 
 from extensions import db
+from models.CatOperationPhase import CatOperationPhase
+from models.CatProcedureType import CatProcedureType
 from models.Institution import Institution
+from models.Kit import Kit
+from models.KitItem import KitItem
+from models.InstrumentFamily import InstrumentFamily
+from models.ProcedureKit import ProcedureKit
+from models.ProcedurePhase import ProcedurePhase
 from models.Role import Role
 from models.User import User
 from models.UserRole import UserRole
@@ -625,13 +632,198 @@ def admin_kits():
 @web_bp.route('/admin/kits/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_kit_new():
-    return _page('admin/kits/form.html', **kit_form_data(), page_title='New Kit', form_mode='create')
+    if request.method == 'GET':
+        return _render_kit_form('create')
+
+    values, error = _submitted_kit_values()
+    if error:
+        return _render_kit_form('create', values=values, form_error=error, status=400)
+
+    user = _current_user()
+    try:
+        institution_id = UUID(user.get('institution_id') or '')
+    except (AttributeError, TypeError, ValueError):
+        return _render_kit_form(
+            'create', values=values,
+            form_error='Your account must be assigned to an institution before creating a kit.', status=400,
+        )
+
+    try:
+        institution = db.session.get(Institution, institution_id)
+        if institution is None:
+            return _render_kit_form(
+                'create', values=values,
+                form_error='Your assigned institution could not be found.', status=400,
+            )
+        error = _validate_kit_families(values)
+        if error:
+            return _render_kit_form('create', values=values, form_error=error, status=400)
+
+        kit = Kit(
+            name=values['kit']['name'],
+            version=1,
+            active=values['kit']['status'] == 'active',
+            institution_id=institution.id,
+        )
+        db.session.add(kit)
+        db.session.flush()
+        _sync_kit_composition(kit, values['kit_composition'])
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_kit_form(
+            'create', values=values,
+            form_error='A kit with this name and version already exists for the institution.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to create admin kit')
+        return _render_kit_form(
+            'create', values=values,
+            form_error='Unable to save this kit right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_kits'))
 
 
 @web_bp.route('/admin/kits/<kit_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_kit_edit(kit_id):
-    return _page('admin/kits/form.html', **kit_form_data(kit_id), page_title='Edit Kit', form_mode='edit', kit_id=kit_id)
+    try:
+        parsed_kit_id = UUID(kit_id)
+    except ValueError:
+        abort(404)
+
+    kit = db.session.get(Kit, parsed_kit_id)
+    if kit is None:
+        abort(404)
+    if request.method == 'GET':
+        return _render_kit_form('edit', kit_id=parsed_kit_id)
+
+    values, error = _submitted_kit_values()
+    if error:
+        return _render_kit_form(
+            'edit', kit_id=parsed_kit_id, values=values, form_error=error, status=400,
+        )
+
+    try:
+        error = _validate_kit_families(values)
+        if error:
+            return _render_kit_form(
+                'edit', kit_id=parsed_kit_id, values=values, form_error=error, status=400,
+            )
+
+        kit.name = values['kit']['name']
+        kit.active = values['kit']['status'] == 'active'
+        _sync_kit_composition(kit, values['kit_composition'])
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_kit_form(
+            'edit', kit_id=parsed_kit_id, values=values,
+            form_error='A kit with this name and version already exists for the institution.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to update admin kit %s', parsed_kit_id)
+        return _render_kit_form(
+            'edit', kit_id=parsed_kit_id, values=values,
+            form_error='Unable to save this kit right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_kits'))
+
+
+def _submitted_kit_values():
+    kit_values = {
+        'name': request.form.get('name', '').strip(),
+        'status': request.form.get('status', 'active'),
+    }
+    values = {'kit': kit_values, 'kit_composition': []}
+    error = None
+    if not kit_values['name']:
+        error = 'Kit name is required.'
+    elif len(kit_values['name']) > 160:
+        error = 'Kit name must contain at most 160 characters.'
+    elif kit_values['status'] not in {'active', 'inactive'}:
+        error = 'Choose a valid kit status.'
+
+    family_ids = request.form.getlist('instrument_family[]')
+    quantities = request.form.getlist('expected_quantity[]')
+    if len(family_ids) != len(quantities):
+        return values, error or 'Kit composition rows are incomplete.'
+
+    for family_id, quantity_value in zip(family_ids, quantities):
+        try:
+            UUID(family_id)
+        except (TypeError, ValueError):
+            error = error or 'Choose a valid instrument family and quantity for every row.'
+        try:
+            quantity = int(quantity_value)
+        except (TypeError, ValueError):
+            quantity = quantity_value
+            error = error or 'Choose a valid instrument family and quantity for every row.'
+        if isinstance(quantity, int) and (quantity < 1 or quantity > 32767):
+            error = error or 'Expected quantity must be between 1 and 32767.'
+        values['kit_composition'].append({
+            'instrument_family_value': family_id,
+            'expected_quantity': quantity,
+        })
+
+    if len({item['instrument_family_value'] for item in values['kit_composition']}) != len(values['kit_composition']):
+        error = error or 'An instrument family can only appear once in the composition.'
+    return values, error
+
+
+def _validate_kit_families(values):
+    family_ids = {UUID(item['instrument_family_value']) for item in values['kit_composition']}
+    if not family_ids:
+        return None
+    existing_ids = {
+        item.id
+        for item in db.session.execute(
+            select(InstrumentFamily).where(InstrumentFamily.id.in_(family_ids))
+        ).scalars()
+    }
+    if existing_ids != family_ids:
+        return 'Choose instrument families from the available catalog.'
+    return None
+
+
+def _sync_kit_composition(kit, composition):
+    existing_items = db.session.execute(
+        select(KitItem).where(KitItem.kit_id == kit.id)
+    ).scalars().all()
+    for item in existing_items:
+        db.session.delete(item)
+    db.session.flush()
+    for item in composition:
+        db.session.add(KitItem(
+            kit_id=kit.id,
+            family_id=UUID(item['instrument_family_value']),
+            quantity=item['expected_quantity'],
+        ))
+
+
+def _render_kit_form(form_mode, kit_id=None, values=None, form_error=None, status=200):
+    is_edit = form_mode == 'edit'
+    context = kit_form_data(kit_id)
+    if values:
+        kit_values = dict(context.get('kit', {}))
+        kit_values.update(values.get('kit', {}))
+        context.update({
+            'kit': kit_values,
+            'kit_composition': values.get('kit_composition', context.get('kit_composition', [])),
+        })
+    context.update({
+        'form_mode': form_mode,
+        'is_edit': is_edit,
+        'page_title': 'Edit Kit' if is_edit else 'New Kit',
+        'save_url': url_for('web.admin_kit_edit', kit_id=kit_id) if is_edit else url_for('web.admin_kit_new'),
+        'cancel_url': url_for('web.admin_kits'),
+        'form_error': form_error,
+    })
+    return _page('admin/kits/form.html', **context), status
 
 
 @web_bp.route('/admin/procedures')
@@ -644,13 +836,256 @@ def admin_procedures():
 @web_bp.route('/admin/procedures/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_procedure_new():
-    return _page('admin/procedures/form.html', **procedure_form_data(), page_title='New Procedure', form_mode='create')
+    if request.method == 'GET':
+        return _render_procedure_form('create')
+
+    values, error = _submitted_procedure_values()
+    if error:
+        return _render_procedure_form('create', values=values, form_error=error, status=400)
+
+    try:
+        error = _validate_procedure_catalog_rows(values)
+        if error:
+            return _render_procedure_form('create', values=values, form_error=error, status=400)
+
+        procedure = CatProcedureType(
+            code=values['procedure']['code'],
+            name=values['procedure']['name'],
+        )
+        db.session.add(procedure)
+        db.session.flush()
+        _sync_procedure_associations(procedure, values)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_procedure_form(
+            'create', values=values,
+            form_error='A procedure with this code already exists.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to create admin procedure')
+        return _render_procedure_form(
+            'create', values=values,
+            form_error='Unable to save this procedure right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_procedures'))
 
 
 @web_bp.route('/admin/procedures/<procedure_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_procedure_edit(procedure_id):
-    return _page('admin/procedures/form.html', **procedure_form_data(procedure_id), page_title='Edit Procedure', form_mode='edit', procedure_id=procedure_id)
+    try:
+        parsed_procedure_id = UUID(procedure_id)
+    except ValueError:
+        abort(404)
+
+    procedure = db.session.get(CatProcedureType, parsed_procedure_id)
+    if procedure is None:
+        abort(404)
+    if request.method == 'GET':
+        return _render_procedure_form('edit', procedure_id=parsed_procedure_id)
+
+    values, error = _submitted_procedure_values()
+    if error:
+        return _render_procedure_form(
+            'edit', procedure_id=parsed_procedure_id, values=values,
+            form_error=error, status=400,
+        )
+
+    try:
+        error = _validate_procedure_catalog_rows(values)
+        if error:
+            return _render_procedure_form(
+                'edit', procedure_id=parsed_procedure_id, values=values,
+                form_error=error, status=400,
+            )
+
+        procedure.code = values['procedure']['code']
+        procedure.name = values['procedure']['name']
+        _sync_procedure_associations(procedure, values)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_procedure_form(
+            'edit', procedure_id=parsed_procedure_id, values=values,
+            form_error='A procedure with this code already exists.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to update admin procedure %s', parsed_procedure_id)
+        return _render_procedure_form(
+            'edit', procedure_id=parsed_procedure_id, values=values,
+            form_error='Unable to save this procedure right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_procedures'))
+
+
+def _submitted_procedure_values():
+    procedure = {
+        'code': request.form.get('code', '').strip(),
+        'name': request.form.get('name', '').strip(),
+    }
+    values = {'procedure': procedure, 'associated_kits': [], 'counting_phases': []}
+    error = _validate_procedure_values(procedure)
+
+    kit_ids = request.form.getlist('kit[]')
+    kit_indices = request.form.getlist('kit_row_index[]')
+    technique_labels = request.form.getlist('technique_label[]')
+    default_indices = request.form.getlist('is_default[]')
+    kit_active_indices = request.form.getlist('kit_active[]')
+    if not (len(kit_ids) == len(kit_indices) == len(technique_labels)):
+        return values, error or 'Associated kit rows are incomplete.'
+
+    phase_ids = request.form.getlist('phase[]')
+    phase_indices = request.form.getlist('phase_row_index[]')
+    sort_orders = request.form.getlist('sort_order[]')
+    count_required_indices = request.form.getlist('count_required[]')
+    phase_active_indices = request.form.getlist('phase_active[]')
+    if not (len(phase_ids) == len(phase_indices) == len(sort_orders)):
+        return values, error or 'Counting phase rows are incomplete.'
+
+    try:
+        kit_row_indices = [int(value) for value in kit_indices]
+        phase_row_indices = [int(value) for value in phase_indices]
+        checked_default_indices = {int(value) for value in default_indices}
+        checked_kit_active_indices = {int(value) for value in kit_active_indices}
+        checked_count_required_indices = {int(value) for value in count_required_indices}
+        checked_phase_active_indices = {int(value) for value in phase_active_indices}
+        parsed_phase_orders = [int(value) for value in sort_orders]
+    except ValueError:
+        return values, error or 'Procedure row data is invalid.'
+
+    if (len(set(kit_row_indices)) != len(kit_row_indices)
+            or len(set(phase_row_indices)) != len(phase_row_indices)
+            or not checked_default_indices.issubset(kit_row_indices)
+            or not checked_kit_active_indices.issubset(kit_row_indices)
+            or not checked_count_required_indices.issubset(phase_row_indices)
+            or not checked_phase_active_indices.issubset(phase_row_indices)):
+        return values, error or 'Procedure row data is invalid.'
+
+    for index, (kit_id, technique_label) in enumerate(zip(kit_ids, technique_labels)):
+        try:
+            UUID(kit_id)
+        except ValueError:
+            return values, error or 'Choose a valid kit for every associated kit row.'
+        if len(technique_label.strip()) > 160:
+            return values, error or 'Technique labels must contain at most 160 characters.'
+        row_index = kit_row_indices[index]
+        values['associated_kits'].append({
+            'kit_value': kit_id,
+            'technique_label': technique_label.strip(),
+            'is_default': row_index in checked_default_indices,
+            'active': row_index in checked_kit_active_indices,
+            'row_index': row_index,
+        })
+
+    if sum(item['is_default'] for item in values['associated_kits']) > 1:
+        return values, error or 'Choose at most one default kit.'
+
+    for index, (phase_id, sort_order) in enumerate(zip(phase_ids, parsed_phase_orders)):
+        try:
+            UUID(phase_id)
+        except ValueError:
+            return values, error or 'Choose a valid phase for every counting phase row.'
+        if sort_order < 1 or sort_order > 32767:
+            return values, error or 'Phase order must be between 1 and 32767.'
+        row_index = phase_row_indices[index]
+        values['counting_phases'].append({
+            'phase_value': phase_id,
+            'is_count_required': row_index in checked_count_required_indices,
+            'sort_order': sort_order,
+            'active': row_index in checked_phase_active_indices,
+            'row_index': row_index,
+        })
+
+    if len({item['kit_value'] for item in values['associated_kits']}) != len(values['associated_kits']):
+        return values, error or 'A kit can only be associated once.'
+    if len({item['phase_value'] for item in values['counting_phases']}) != len(values['counting_phases']):
+        return values, error or 'A phase can only be added once.'
+    if len({item['sort_order'] for item in values['counting_phases']}) != len(values['counting_phases']):
+        return values, error or 'Each counting phase must have a unique order.'
+    return values, error
+
+
+def _validate_procedure_values(values):
+    if not values['code'] or not values['name']:
+        return 'Procedure code and name are required.'
+    if len(values['code']) > 64 or len(values['name']) > 200:
+        return 'Procedure code must be at most 64 characters and name at most 200 characters.'
+    return None
+
+
+def _validate_procedure_catalog_rows(values):
+    kit_ids = {UUID(item['kit_value']) for item in values['associated_kits']}
+    phase_ids = {UUID(item['phase_value']) for item in values['counting_phases']}
+    kits = {
+        item.id
+        for item in db.session.execute(select(Kit).where(Kit.id.in_(kit_ids))).scalars()
+    } if kit_ids else set()
+    phases = {
+        item.id
+        for item in db.session.execute(select(CatOperationPhase).where(CatOperationPhase.id.in_(phase_ids))).scalars()
+    } if phase_ids else set()
+    if kits != kit_ids or phases != phase_ids:
+        return 'Choose kits and phases from the available catalogs.'
+    return None
+
+
+def _sync_procedure_associations(procedure, values):
+    existing_kits = db.session.execute(
+        select(ProcedureKit).where(ProcedureKit.procedure_type_id == procedure.id)
+    ).scalars().all()
+    existing_phases = db.session.execute(
+        select(ProcedurePhase).where(ProcedurePhase.procedure_type_id == procedure.id)
+    ).scalars().all()
+    for association in existing_kits + existing_phases:
+        db.session.delete(association)
+    db.session.flush()
+
+    now = datetime.now(timezone.utc)
+    for item in values['associated_kits']:
+        db.session.add(ProcedureKit(
+            procedure_type_id=procedure.id,
+            kit_id=UUID(item['kit_value']),
+            technique_label=item['technique_label'],
+            is_default=item['is_default'],
+            active=item['active'],
+            created_at=now,
+            updated_at=now,
+        ))
+    for item in values['counting_phases']:
+        db.session.add(ProcedurePhase(
+            procedure_type_id=procedure.id,
+            phase_id=UUID(item['phase_value']),
+            sort_order=item['sort_order'],
+            is_count_required=item['is_count_required'],
+            active=item['active'],
+        ))
+
+
+def _render_procedure_form(form_mode, procedure_id=None, values=None, form_error=None, status=200):
+    is_edit = form_mode == 'edit'
+    context = procedure_form_data(procedure_id)
+    if values:
+        procedure_values = dict(context.get('procedure', {}))
+        procedure_values.update(values.get('procedure', {}))
+        context.update({
+            'procedure': procedure_values,
+            'associated_kits': values.get('associated_kits', context.get('associated_kits', [])),
+            'counting_phases': values.get('counting_phases', context.get('counting_phases', [])),
+        })
+    context.update({
+        'form_mode': form_mode,
+        'is_edit': is_edit,
+        'page_title': 'Edit Procedure' if is_edit else 'New Procedure',
+        'save_url': url_for('web.admin_procedure_edit', procedure_id=procedure_id) if is_edit else url_for('web.admin_procedure_new'),
+        'cancel_url': url_for('web.admin_procedures'),
+        'form_error': form_error,
+    })
+    return _page('admin/procedures/form.html', **context), status
 
 
 @web_bp.route('/admin/users')

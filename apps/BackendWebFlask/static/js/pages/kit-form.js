@@ -1,10 +1,8 @@
 /*
-  IT Administrator Kit form (New Kit / Edit Kit) — presentation-only Kit Composition editing
-  (implementation prompt section 19): "+ Add Instrument Type" appends another composition
-  row, each row's "Remove" removes it, and the Instrument Types / Total Expected Instruments
-  summary tiles recompute from the rows currently on the page. Nothing here is persisted,
-  submitted, or validated against real catalog data — the backend remains the source of truth
-  for actual kit composition.
+    IT Administrator Kit form (New Kit / Edit Kit): "+ Add Instrument Type" appends another
+    composition row, each row's "Remove" removes it, and the Instrument Types / Total Expected
+    Instruments summary tiles recompute from the rows currently on the page. The backend
+    validates and persists submitted kit composition against the real catalog.
 */
 (function () {
     "use strict";
@@ -62,7 +60,7 @@
             "</select>" +
             '<span class="form-field__select-icon"></span>' +
             "</div></td>" +
-            '<td><input class="data-table__input js-kit-quantity" type="number" min="0" step="1" name="expected_quantity[]" value="1"></td>' +
+            '<td><input class="data-table__input js-kit-quantity" type="number" min="1" max="32767" step="1" name="expected_quantity[]" value="1"></td>' +
             '<td class="data-table__action-column"><button type="button" class="link-danger js-kit-remove-row"></button></td>';
         row.querySelector(".js-kit-remove-row").textContent = removeLabel;
         rowsBody.appendChild(row);

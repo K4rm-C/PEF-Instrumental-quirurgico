@@ -1,9 +1,7 @@
 /*
-  IT Administrator Procedure form (New Procedure / Edit Procedure) — presentation-only row
-  insertion for Associated Kits ("+ Add Kit") and Counting Phases ("+ Add Phase"), mirroring
-  static/js/pages/kit-form.js's Kit Composition editor. Nothing here is persisted, submitted,
-  or validated against real catalog data — the backend remains the source of truth for actual
-  procedure/kit/phase associations.
+    IT Administrator Procedure form (New Procedure / Edit Procedure) — client-side row insertion
+    for Associated Kits ("+ Add Kit") and Counting Phases ("+ Add Phase"). The backend validates
+    and persists submitted procedure, kit, and phase data against the real catalogs.
 */
 (function () {
     "use strict";
@@ -34,9 +32,17 @@
         if (!rowsBody || !addButton) {
             return;
         }
+        var nextRowIndex = Array.prototype.reduce.call(
+            rowsBody.querySelectorAll("[data-row-index]"),
+            function (nextIndex, row) {
+                return Math.max(nextIndex, Number(row.getAttribute("data-row-index")) + 1);
+            },
+            0
+        );
 
         addButton.addEventListener("click", function () {
-            rowsBody.insertAdjacentHTML("beforeend", buildRow());
+            rowsBody.insertAdjacentHTML("beforeend", buildRow(nextRowIndex));
+            nextRowIndex += 1;
         });
 
         rowsBody.addEventListener("click", function (event) {
@@ -58,15 +64,15 @@
         return rowsBody ? rowsBody.getAttribute("data-remove-label") || "Remove" : "Remove";
     })();
 
-    wireAddRemove("associated-kits-rows", "add-kit-btn", "js-procedure-kit-row", "js-procedure-remove-row", function () {
+    wireAddRemove("associated-kits-rows", "add-kit-btn", "js-procedure-kit-row", "js-procedure-remove-row", function (rowIndex) {
         return (
-            '<tr class="js-procedure-kit-row">' +
-            '<td><div class="form-field__input-wrapper"><select class="form-field__input form-field__select" name="kit[]">' +
+            '<tr class="js-procedure-kit-row" data-row-index="' + rowIndex + '">' +
+            '<td><input type="hidden" name="kit_row_index[]" value="' + rowIndex + '"><div class="form-field__input-wrapper"><select class="form-field__input form-field__select" name="kit[]">' +
             buildOptionsMarkup(kitOptions) +
             "</select></div></td>" +
             '<td><input class="data-table__input" type="text" name="technique_label[]" value=""></td>' +
-            '<td><div class="form-checkbox"><input type="checkbox" name="is_default[]"></div></td>' +
-            '<td><div class="form-checkbox"><input type="checkbox" name="kit_active[]" checked></div></td>' +
+            '<td><div class="form-checkbox"><input type="checkbox" name="is_default[]" value="' + rowIndex + '"></div></td>' +
+            '<td><div class="form-checkbox"><input type="checkbox" name="kit_active[]" value="' + rowIndex + '" checked></div></td>' +
             '<td class="data-table__action-column"><button type="button" class="link-danger js-procedure-remove-row">' +
             removeLabel +
             "</button></td>" +
@@ -74,15 +80,15 @@
         );
     });
 
-    wireAddRemove("counting-phases-rows", "add-phase-btn", "js-procedure-phase-row", "js-procedure-remove-row", function () {
+    wireAddRemove("counting-phases-rows", "add-phase-btn", "js-procedure-phase-row", "js-procedure-remove-row", function (rowIndex) {
         return (
-            '<tr class="js-procedure-phase-row">' +
-            '<td><div class="form-field__input-wrapper"><select class="form-field__input form-field__select" name="phase[]">' +
+            '<tr class="js-procedure-phase-row" data-row-index="' + rowIndex + '">' +
+            '<td><input type="hidden" name="phase_row_index[]" value="' + rowIndex + '"><div class="form-field__input-wrapper"><select class="form-field__input form-field__select" name="phase[]">' +
             buildOptionsMarkup(phaseOptions) +
             "</select></div></td>" +
-            '<td><div class="form-checkbox"><input type="checkbox" name="count_required[]" checked></div></td>' +
+            '<td><div class="form-checkbox"><input type="checkbox" name="count_required[]" value="' + rowIndex + '" checked></div></td>' +
             '<td><input class="data-table__input" type="number" min="1" step="1" name="sort_order[]" value="1"></td>' +
-            '<td><div class="form-checkbox"><input type="checkbox" name="phase_active[]" checked></div></td>' +
+            '<td><div class="form-checkbox"><input type="checkbox" name="phase_active[]" value="' + rowIndex + '" checked></div></td>' +
             "</tr>"
         );
     });
