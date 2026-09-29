@@ -11,10 +11,10 @@
       expected_count, validated_count, human_corrections, resolved_discrepancies,
       operator_name, timestamp — backs the optional "Session Audit Review" box (Operator V2's
       Ready to Close flow). Omitted entirely by callers that don't have this detail yet.
-    Integration point: in production, "Close Session" should finalize the validated count and
-    close the WorkSession — not implemented here.
+    Submits a real POST to close_session_url; the backend re-checks the closing rule (validating,
+    human validation complete, zero unresolved discrepancies) before closing.
 #}
-{% set close_session_url = close_session_url|default('#') %}
+{% set close_session_url = close_session_url|default('') %}
 <div class="modal-overlay" id="close-session-modal" hidden>
     <div class="modal-dialog" role="dialog" aria-modal="true"
          aria-labelledby="close-session-modal-title" aria-describedby="close-session-modal-description">
@@ -38,7 +38,9 @@
         {% endif %}
         <div class="modal-dialog__actions">
             <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Keep Session Open") }}</button>
-            <a class="btn btn--primary" href="{{ close_session_url }}">{{ _("Close Session") }}</a>
+            <form method="post" action="{{ close_session_url }}">
+                <button type="submit" class="btn btn--primary">{{ _("Close Session") }}</button>
+            </form>
         </div>
     </div>
 </div>

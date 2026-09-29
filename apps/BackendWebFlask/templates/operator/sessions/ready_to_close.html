@@ -1,13 +1,8 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
+{% import "components/session_review.html" as review with context %}
 
 {% set session_id = session_id|default('') %}
-{% set session = session|default({
-    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
-    'patient_name': '', 'physician_name': '',
-    'kit_name': '', 'capture_station_name': '',
-    'status_label': '', 'status_variant': 'neutral'
-}, true) %}
 {% set back_to_sessions_url = back_to_sessions_url|default(url_for('web.operator_sessions')) %}
 
 {% block title %}{{ _("Ready to Close") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
@@ -28,81 +23,33 @@
 {% endblock %}
 
 {% block page_content %}
-{% set resolution_summary = resolution_summary|default({
-    'variant': 'neutral',
-    'message': ''
-}) %}
-{% set session_summary_metrics = session_summary_metrics|default({
-    'expected_count': 0, 'validated_count': 0, 'human_corrections': 0, 'resolved_discrepancies': 0
-}) %}
-{% set resolution = resolution|default({
-    'instrument_name': '', 'original_ai_count': 0, 'final_validated_count': 0,
-    'status_label': '',
-    'resolved_by': '', 'timestamp': ''
-}) %}
-{% set close_session_url = close_session_url|default(url_for('web.operator_session_closed', session_id=session.session_id)) %}
-
-<div class="page-heading">
-    <div>
-        <h1 class="page-heading__title">{{ _("Ready to Close") }}</h1>
-        <p class="page-heading__subtitle">{{ _("Discrepancies resolved. Securely seal and close this operational session.") }}</p>
-    </div>
-</div>
-
-{{ macros.alert_banner(resolution_summary.variant, resolution_summary.message) }}
-
+{{ review.context_bar(session) }}
+{% set state = report.readiness %}
+{% if state.ready %}
+{{ macros.alert_banner('success', _("Ready to close: human validation complete and no unresolved discrepancies.")) }}
+{% else %}
+{{ macros.alert_banner('danger', _("Not ready to close"), _("Unresolved discrepancies: %(n)s · Human validation complete: %(v)s", n=state.unresolved_discrepancies, v=_("Yes") if state.validation_complete else _("No"))) }}
+{% endif %}
 <section class="card">
-    <div class="session-context-bar">
-        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
-        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
-    </div>
+    <h2 class="card__title">{{ _("Session Summary") }}</h2>
+    <dl class="detail-list">
+        <div class="detail-list__row"><dt>{{ _("Expected / AI / Human Final") }}</dt><dd>{{ report.expected_total }} / {{ report.ai_total }} / {{ report.human_total }}</dd></div>
+        <div class="detail-list__row"><dt>{{ _("Human Corrections Logged") }}</dt><dd>{{ report.corrections|length }}</dd></div>
+        <div class="detail-list__row"><dt>{{ _("Resolved Discrepancies") }}</dt><dd class="text-success">{{ report.discrepancies|selectattr('resolved')|list|length }}</dd></div>
+        <div class="detail-list__row"><dt>{{ _("Unresolved Discrepancies") }}</dt><dd class="{{ 'text-danger' if state.unresolved_discrepancies else 'text-success' }}">{{ state.unresolved_discrepancies }}</dd></div>
+    </dl>
 </section>
-
-<section class="panel-grid--two">
-    <div class="card">
-        <h2 class="card__title">{{ _("Session Summary Metrics") }}</h2>
-        <dl class="detail-list">
-            <div class="detail-list__row"><dt>{{ _("Session ID") }}</dt><dd>{{ session.session_id }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Expected Count") }}</dt><dd>{{ _("%(count)s Instruments", count=session_summary_metrics.expected_count) }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Final Validated Count") }}</dt><dd>{{ _("%(count)s Instruments", count=session_summary_metrics.validated_count) }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Human Corrections Logged") }}</dt><dd>{{ session_summary_metrics.human_corrections }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Resolved Discrepancies") }}</dt><dd class="text-success">{{ session_summary_metrics.resolved_discrepancies }}</dd></div>
-        </dl>
-    </div>
-    <div class="card">
-        <h2 class="card__title">{{ _("%(name)s Resolution", name=resolution.instrument_name) }}</h2>
-        <p>
-            {{ _("Original AI Count:") }} <strong>{{ resolution.original_ai_count }}</strong>
-            &nbsp;|&nbsp;{{ _("Final Validated Count:") }} <strong>{{ resolution.final_validated_count }}</strong>
-        </p>
-        <p>{{ _("Status:") }} <strong class="text-success">{{ resolution.status_label }}</strong></p>
-        <div class="sub-panel">
-            <span class="sub-panel__label">{{ _("Resolved by:") }} <strong>{{ resolution.resolved_by }}</strong></span>
-            <span class="sub-panel__label">{{ _("Time:") }} {{ resolution.timestamp }}</span>
-        </div>
-    </div>
-</section>
-
-{% set close_session_audit_review = close_session_audit_review|default({
-    'session_id': session.session_id, 'procedure_label': session.procedure_name ~ ' - ' ~ session.operating_room,
-    'expected_count': session_summary_metrics.expected_count, 'validated_count': session_summary_metrics.validated_count,
-    'human_corrections': session_summary_metrics.human_corrections, 'resolved_discrepancies': session_summary_metrics.resolved_discrepancies,
-    'operator_name': '', 'timestamp': ''
-}) %}
+{{ review.discrepancies_table(report) }}
+{% with close_session_url=close_session_url %}
 {% include "components/modals/close_session.html" %}
+{% endwith %}
 {% endblock %}
 
 {% block page_action_bar %}
 <div class="page-action-bar">
-    <a class="btn btn--secondary" href="{{ back_to_sessions_url }}">{{ _("Back to Sessions") }}</a>
-    <button type="button" class="btn btn--primary" data-modal-open="close-session-modal">
-        {{ macros.icon_check_square() }}
-        <span>{{ _("Close Counting Session") }}</span>
+    <a class="btn btn--secondary" href="{{ url_for('web.operator_sessions') }}">{{ _("Back to Sessions") }}</a>
+    <button type="button" class="btn btn--primary" data-modal-open="close-session-modal" {% if not report.readiness.ready %}disabled{% endif %}>
+        {{ macros.icon_check_square() }}<span>{{ _("Close Session") }}</span>
     </button>
 </div>
 {% endblock %}

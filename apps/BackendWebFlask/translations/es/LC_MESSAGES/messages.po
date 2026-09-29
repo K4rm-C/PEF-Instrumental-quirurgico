@@ -1,0 +1,2977 @@
+# Spanish UI translations for PEF Instrumental Quirurgico (BackendWebFlask).
+# English is the source/canonical language; see docs/IMPLEMENTATION_STATUS.md (Localization).
+msgid ""
+msgstr ""
+"Project-Id-Version: PEF Instrumental Quirurgico VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2026-09-29 13:54-0600\n"
+"PO-Revision-Date: 2026-09-29 13:54-0600\n"
+"Last-Translator: PEF team\n"
+"Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.18.0\n"
+
+#, python-format
+msgid "\"%(family)s\" appears more than once in the kit composition."
+msgstr "\"%(family)s\" aparece más de una vez en la composición del kit."
+
+#, python-format
+msgid "%(count)s Active"
+msgstr "%(count)s activos"
+
+#, python-format
+msgid "%(count)s Configured"
+msgstr "%(count)s configurados"
+
+#, python-format
+msgid "%(count)s Kit(s)"
+msgstr "%(count)s kit(s)"
+
+#, python-format
+msgid "%(count)s Registered"
+msgstr "%(count)s registrados"
+
+#, python-format
+msgid "%(count)s discrepancy(ies) recorded."
+msgstr "%(count)s discrepancia(s) registrada(s)."
+
+#, python-format
+msgid "%(count)s discrepancy(ies) require supervisor review before the session can be closed."
+msgstr "%(count)s discrepancia(s) requiere(n) revisión del supervisor antes de poder cerrar la sesión."
+
+#, python-format
+msgid "%(field)s is required."
+msgstr "%(field)s es obligatorio."
+
+#, python-format
+msgid "%(field)s must be a whole number."
+msgstr "%(field)s debe ser un número entero."
+
+#, python-format
+msgid "%(field)s must be at most %(max_length)s characters."
+msgstr "%(field)s debe tener como máximo %(max_length)s caracteres."
+
+#, python-format
+msgid "%(field)s must be between %(minimum)s and %(maximum)s."
+msgstr "%(field)s debe estar entre %(minimum)s y %(maximum)s."
+
+#, python-format
+msgid "%(name)s profile photo"
+msgstr "Foto de perfil de %(name)s"
+
+#, python-format
+msgid "%(num)d Class"
+msgid_plural "%(num)d Classes"
+msgstr[0] "%(num)d clase"
+msgstr[1] "%(num)d clases"
+
+msgid "(unmapped)"
+msgstr "(sin mapeo)"
+
+msgid "A count was submitted twice for the same instrument."
+msgstr "Se envió dos veces un conteo para el mismo instrumento."
+
+msgid ""
+"A digital system designed to support instrument traceability, counting, and validation workflows "
+"with role-based access controls."
+msgstr ""
+"Sistema digital diseñado para apoyar los flujos de trazabilidad, conteo y validación de "
+"instrumental con control de acceso basado en roles."
+
+msgid "A justification is required for every count that differs from the value under review."
+msgstr "Se requiere una justificación para cada conteo que difiera del valor en revisión."
+
+msgid "A kit with this name and version already exists in your institution."
+msgstr "Ya existe un kit con este nombre y versión en su institución."
+
+msgid "A note explaining the decision is required."
+msgstr "Se requiere una nota que explique la decisión."
+
+msgid "A procedure with this code already exists."
+msgstr "Ya existe un procedimiento con este código."
+
+msgid "A role with this code already exists in your institution."
+msgstr "Ya existe un rol con este código en su institución."
+
+msgid "A user with this email already exists."
+msgstr "Ya existe un usuario con este correo electrónico."
+
+msgid "A vision model with this version tag already exists."
+msgstr "Ya existe un modelo de visión con esta etiqueta de versión."
+
+msgid "AI"
+msgstr "IA"
+
+#, python-format
+msgid "AI %(ai)s ≠ Human %(human)s"
+msgstr "IA %(ai)s ≠ Humano %(human)s"
+
+msgid "AI Analysis Details"
+msgstr "Detalles del análisis de IA"
+
+msgid "AI Detected"
+msgstr "Detectado por IA"
+
+msgid "AI Detection Complete"
+msgstr "Detección de IA completada"
+
+msgid "AI Difference"
+msgstr "Diferencia de IA"
+
+msgid "AI Original"
+msgstr "Original de IA"
+
+msgid "AI Result"
+msgstr "Resultado de IA"
+
+msgid "AI Result Timestamp"
+msgstr "Fecha y hora del resultado de IA"
+
+msgid "AI Results vs Human Final Results"
+msgstr "Resultados de IA frente a resultados finales humanos"
+
+msgid "AI Suggested Count"
+msgstr "Conteo sugerido por IA"
+
+msgid "AI detection results - these are suggestions only and require human validation."
+msgstr "Resultados de detección de IA: son solo sugerencias y requieren validación humana."
+
+msgid "AI results are suggestions only. Proceed to human validation to confirm or correct counts."
+msgstr ""
+"Los resultados de IA son solo sugerencias. Continúe con la validación humana para confirmar o "
+"corregir los conteos."
+
+msgid "AI-Assisted Counting"
+msgstr "Conteo asistido por IA"
+
+msgid "AI-Human Agreement"
+msgstr "Concordancia IA-humano"
+
+#, python-format
+msgid ""
+"AI-Human agreement: %(m)s of %(r)s reviewed AI rows where the AI count equals the final human "
+"count. Resolution time averages %(n)s resolved discrepancies."
+msgstr ""
+"Concordancia IA-humano: %(m)s de %(r)s filas de IA revisadas en las que el conteo de IA coincide "
+"con el conteo humano final. El tiempo de resolución promedia %(n)s discrepancias resueltas."
+
+msgid ""
+"AI-assisted counting generates suggested instrument locations and counts based on the captured "
+"image."
+msgstr ""
+"El conteo asistido por IA genera ubicaciones y conteos sugeridos del instrumental a partir de la "
+"imagen capturada."
+
+msgid "AI-assisted counting helps reduce manual effort and supports faster review."
+msgstr "El conteo asistido por IA ayuda a reducir el esfuerzo manual y agiliza la revisión."
+
+msgid "About"
+msgstr "Acerca de"
+
+msgid "Access Controls"
+msgstr "Controles de acceso"
+
+msgid "Access for authorized hospital personnel"
+msgstr "Acceso para personal hospitalario autorizado"
+
+msgid "Access is restricted to authorized personnel."
+msgstr "El acceso está restringido al personal autorizado."
+
+msgid "Access is restricted to authorized users."
+msgstr "El acceso está restringido a usuarios autorizados."
+
+msgid ""
+"Access to operational information is restricted to authenticated users with appropriate role-"
+"based permissions."
+msgstr ""
+"El acceso a la información operativa está restringido a usuarios autenticados con los permisos de"
+" rol adecuados."
+
+msgid "Account"
+msgstr "Cuenta"
+
+msgid "Account Information"
+msgstr "Información de la cuenta"
+
+msgid "Account Status"
+msgstr "Estado de la cuenta"
+
+msgid "Action"
+msgstr "Acción"
+
+msgid "Action or entity..."
+msgstr "Acción o entidad..."
+
+msgid "Activate"
+msgstr "Activar"
+
+msgid "Activate Model"
+msgstr "Activar modelo"
+
+msgid "Activate Vision Model?"
+msgstr "¿Activar el modelo de visión?"
+
+msgid "Activate this model on save"
+msgstr "Activar este modelo al guardar"
+
+msgid "Active"
+msgstr "Activo"
+
+msgid "Active Institution"
+msgstr "Institución activa"
+
+msgid "Active Kits"
+msgstr "Kits activos"
+
+msgid "Active Model"
+msgstr "Modelo activo"
+
+msgid "Active Status"
+msgstr "Estado de actividad"
+
+msgid "Active Users"
+msgstr "Usuarios activos"
+
+msgid "Active Vision Model"
+msgstr "Modelo de visión activo"
+
+msgid "Active Vision Model Version (global)"
+msgstr "Versión del modelo de visión activo (global)"
+
+msgid "Activity Log"
+msgstr "Registro de actividad"
+
+msgid "Add Class Mapping"
+msgstr "Agregar mapeo de clase"
+
+msgid "Add Instrument Family"
+msgstr "Agregar familia de instrumental"
+
+msgid "Add Kit"
+msgstr "Agregar kit"
+
+msgid "Add Phase"
+msgstr "Agregar fase"
+
+msgid "Add at least one instrument family to the kit."
+msgstr "Agregue al menos una familia de instrumental al kit."
+
+msgid "Administration"
+msgstr "Administración"
+
+msgctxt "role_short"
+msgid "Administrator"
+msgstr "Administrador"
+
+msgid "All Entities"
+msgstr "Todas las entidades"
+
+msgid "All Event Types"
+msgstr "Todos los tipos de evento"
+
+msgid "All History"
+msgstr "Todo el historial"
+
+msgid "All Kits"
+msgstr "Todos los kits"
+
+msgid "All Operators"
+msgstr "Todos los operadores"
+
+msgid "All Results"
+msgstr "Todos los resultados"
+
+msgid "All Statuses"
+msgstr "Todos los estados"
+
+msgid "All Users"
+msgstr "Todos los usuarios"
+
+msgid "All access-audit events of your institution (read-only)."
+msgstr "Todos los eventos de auditoría de acceso de su institución (solo lectura)."
+
+msgid "All counts validated and no open discrepancies."
+msgstr "Todos los conteos están validados y no hay discrepancias abiertas."
+
+msgid "All discrepancies are resolved. The session can be closed."
+msgstr "Todas las discrepancias están resueltas. La sesión puede cerrarse."
+
+msgid "An instrument family with this code already exists."
+msgstr "Ya existe una familia de instrumental con este código."
+
+msgid "An instrument with this internal code already exists in your institution."
+msgstr "Ya existe un instrumento con este código interno en su institución."
+
+msgid "An operating room with this code already exists in your institution."
+msgstr "Ya existe un quirófano con este código en su institución."
+
+msgid "Analysis Timestamp"
+msgstr "Fecha y hora del análisis"
+
+msgid "Analysis pending"
+msgstr "Análisis pendiente"
+
+msgid "Analysis stored. Review the suggested count before human validation."
+msgstr "Análisis guardado. Revise el conteo sugerido antes de la validación humana."
+
+msgctxt "surgical_role"
+msgid "Anesthesiologist"
+msgstr "Anestesiólogo"
+
+msgctxt "specialty"
+msgid "Anesthesiology"
+msgstr "Anestesiología"
+
+msgid "Appearance"
+msgstr "Apariencia"
+
+msgctxt "procedure_type"
+msgid "Appendectomy"
+msgstr "Apendicectomía"
+
+msgid "Apply"
+msgstr "Aplicar"
+
+msgid "Apply Filters"
+msgstr "Aplicar filtros"
+
+msgid "Approve"
+msgstr "Aprobar"
+
+msgid "Approve Resolution"
+msgstr "Aprobar resolución"
+
+msgid "Approved"
+msgstr "Aprobada"
+
+msgctxt "review_status"
+msgid "Approved"
+msgstr "Aprobada"
+
+msgid "Assign at least one role."
+msgstr "Asigne al menos un rol."
+
+msgid "Assigned Roles"
+msgstr "Roles asignados"
+
+msgid "Assigned Users"
+msgstr "Usuarios asignados"
+
+msgid "Associated Kits"
+msgstr "Kits asociados"
+
+msgid "Audit Log"
+msgstr "Bitácora de auditoría"
+
+msgid "Auditability"
+msgstr "Auditabilidad"
+
+msgid "Authentication service unavailable."
+msgstr "El servicio de autenticación no está disponible."
+
+msgid "Authorized Staff Access"
+msgstr "Acceso de personal autorizado"
+
+msgid "Authorized users review the suggested count and confirm or correct the instrument state."
+msgstr ""
+"Los usuarios autorizados revisan el conteo sugerido y confirman o corrigen el estado del "
+"instrumental."
+
+msgctxt "instrument_cycle_status"
+msgid "Available"
+msgstr "Disponible"
+
+msgid "Average Resolution Time"
+msgstr "Tiempo promedio de resolución"
+
+msgid "Awaiting Supervisor Review"
+msgstr "En espera de revisión del supervisor"
+
+#, python-format
+msgid "Awaiting supervisor review of %(count)s discrepancy(ies)."
+msgstr "En espera de que el supervisor revise %(count)s discrepancia(s)."
+
+msgid "Back"
+msgstr "Volver"
+
+msgid "Back to AI Results"
+msgstr "Volver a los resultados de IA"
+
+msgid "Back to Discrepancies"
+msgstr "Volver a discrepancias"
+
+msgid "Back to History"
+msgstr "Volver al historial"
+
+msgid "Back to Sessions"
+msgstr "Volver a sesiones"
+
+msgctxt "session_status"
+msgid "Blocked by Discrepancy"
+msgstr "Bloqueada por discrepancia"
+
+msgid "Breadcrumb"
+msgstr "Ruta de navegación"
+
+msgid "By"
+msgstr "Por"
+
+msgctxt "role"
+msgid "CDE Operator"
+msgstr "Operador CDE"
+
+msgctxt "role"
+msgid "CDE Supervisor / Quality Supervisor"
+msgstr "Supervisor CDE / Supervisor de Calidad"
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "Cancel Session"
+msgstr "Cancelar sesión de conteo"
+
+msgctxt "operation_status"
+msgid "Cancelled"
+msgstr "Cancelada"
+
+msgctxt "session_status"
+msgid "Cancelled"
+msgstr "Cancelada"
+
+msgid "Capture"
+msgstr "Captura"
+
+msgid "Capture Area"
+msgstr "Área de captura"
+
+msgid "Capture Area - Reserved for camera-assisted instrument counting."
+msgstr "Área de captura: reservada para el conteo de instrumental asistido por cámara."
+
+msgid "Capture Image"
+msgstr "Capturar imagen"
+
+msgid "Capture Station"
+msgstr "Estación de captura"
+
+msgid "Capture Stations"
+msgstr "Estaciones de captura"
+
+msgid "Capture a high-resolution overhead image of the prepared instrument layout."
+msgstr "Capture una imagen cenital de alta resolución del instrumental preparado."
+
+msgid "Capture analysed by the model"
+msgstr "Captura analizada por el modelo"
+
+msgid "Capture analysed for this session"
+msgstr "Captura analizada para esta sesión"
+
+msgid "Capture saved. The session is now counting."
+msgstr "Captura guardada. La sesión ahora está en conteo."
+
+msgid "Capture station saved."
+msgstr "Estación de captura guardada."
+
+msgid "Captured at"
+msgstr "Capturada el"
+
+msgid "Captures can only be added while the session is open or counting."
+msgstr "Solo se pueden agregar capturas mientras la sesión está abierta o en conteo."
+
+msgid "Catalog Overview"
+msgstr "Resumen de catálogos"
+
+msgid "Catalogs"
+msgstr "Catálogos"
+
+msgid "Category"
+msgstr "Categoría"
+
+msgid "Category: All"
+msgstr "Categoría: Todas"
+
+msgctxt "procedure_type"
+msgid "Cesarean Section"
+msgstr "Cesárea"
+
+msgid "Change"
+msgstr "Cambio"
+
+msgid "Change Password"
+msgstr "Cambiar contraseña"
+
+msgid "Change User Password"
+msgstr "Cambiar contraseña del usuario"
+
+msgid "Checksum"
+msgstr "Suma de verificación"
+
+msgid "Checksum must be a 64-character SHA-256 hex digest."
+msgstr "La suma de verificación debe ser un resumen SHA-256 hexadecimal de 64 caracteres."
+
+msgid "Choose a counting phase configured for this procedure."
+msgstr "Elija una fase de conteo configurada para este procedimiento."
+
+msgid "Choose a valid category."
+msgstr "Elija una categoría válida."
+
+msgid "Choose a valid cycle status."
+msgstr "Elija un estado de ciclo válido."
+
+msgid "Choose a valid instrument family for every class mapping."
+msgstr "Elija una familia de instrumental válida para cada mapeo de clase."
+
+msgid "Choose a valid instrument family for every kit row."
+msgstr "Elija una familia de instrumental válida para cada fila del kit."
+
+msgid "Choose a valid instrument family."
+msgstr "Elija una familia de instrumental válida."
+
+msgid "Choose a valid kit for every associated kit row."
+msgstr "Elija un kit válido para cada fila de kit asociado."
+
+msgid "Choose a valid operating room."
+msgstr "Elija un quirófano válido."
+
+msgid "Choose a valid phase for every counting phase row."
+msgstr "Elija una fase válida para cada fila de fase de conteo."
+
+msgid "Choose a valid scheduled or in-progress operation of your institution."
+msgstr "Elija una operación válida de su institución, programada o en curso."
+
+msgid "Choose a valid status."
+msgstr "Elija un estado válido."
+
+msgid "Choose an active capture station located in the operation's operating room."
+msgstr "Elija una estación de captura activa ubicada en el quirófano de la operación."
+
+msgid "Choose an active kit of your institution that is allowed for this procedure."
+msgstr "Elija un kit activo de su institución que esté permitido para este procedimiento."
+
+msgid "Choose roles that belong to your institution."
+msgstr "Elija roles que pertenezcan a su institución."
+
+msgid "Classes"
+msgstr "Clases"
+
+msgid "Classification Characteristics"
+msgstr "Características de clasificación"
+
+msgid "Clear"
+msgstr "Limpiar"
+
+msgid "Clinical traceability events of your institution (read-only)."
+msgstr "Eventos de trazabilidad clínica de su institución (solo lectura)."
+
+msgid "Close Counting Session?"
+msgstr "¿Cerrar la sesión de conteo?"
+
+msgid "Close Session"
+msgstr "Cerrar sesión de conteo"
+
+msgctxt "event_type"
+msgid "Close attempt blocked"
+msgstr "Intento de cierre bloqueado"
+
+msgid "Closed"
+msgstr "Cerrada"
+
+msgctxt "operation_status"
+msgid "Closed"
+msgstr "Cerrada"
+
+msgctxt "session_status"
+msgid "Closed"
+msgstr "Cerrada"
+
+msgid "Closed At"
+msgstr "Cerrada el"
+
+msgid "Closed Session Details"
+msgstr "Detalles de la sesión cerrada"
+
+msgid "Closed Sessions"
+msgstr "Sesiones cerradas"
+
+msgid "Closed by"
+msgstr "Cerrada por"
+
+msgid "Closed counting sessions of your institution."
+msgstr "Sesiones de conteo cerradas de su institución."
+
+msgid "Closed with Discrepancy"
+msgstr "Cerrada con discrepancia"
+
+msgctxt "operation_phase"
+msgid "Closure"
+msgstr "Cierre"
+
+msgid "Code"
+msgstr "Código"
+
+msgid "Confidence"
+msgstr "Confianza"
+
+msgid "Confidence (0-1)"
+msgstr "Confianza (0-1)"
+
+msgid "Confidence Threshold"
+msgstr "Umbral de confianza"
+
+#, python-format
+msgid "Confidence for class %(class_id)s must be a number between 0 and 1."
+msgstr "La confianza de la clase %(class_id)s debe ser un número entre 0 y 1."
+
+#, python-format
+msgid "Confidence for class %(class_id)s must be between 0 and 1."
+msgstr "La confianza de la clase %(class_id)s debe estar entre 0 y 1."
+
+msgid "Configuration"
+msgstr "Configuración"
+
+msgid "Configure code, description, institution, and assigned users for this system role."
+msgstr ""
+"Configure el código, la descripción, la institución y los usuarios asignados de este rol del "
+"sistema."
+
+msgid "Configure code, descriptive definitions, and status for this system role."
+msgstr "Configure el código, las definiciones descriptivas y el estado de este rol del sistema."
+
+#, python-format
+msgid "Configure composition and general characteristics for %(name)s."
+msgstr "Configure la composición y las características generales de %(name)s."
+
+msgid "Configure the session details and select the kit and capture station."
+msgstr "Configure los datos de la sesión y seleccione el kit y la estación de captura."
+
+msgid "Configured"
+msgstr "Configurado"
+
+msgid "Configured Roles"
+msgstr "Roles configurados"
+
+msgid "Confirm Approval"
+msgstr "Confirmar aprobación"
+
+msgid "Confirm New Password"
+msgstr "Confirmar nueva contraseña"
+
+msgid "Confirm Password"
+msgstr "Confirmar contraseña"
+
+msgid ""
+"Confirm or correct each AI suggestion. The original AI value is preserved; a justification is "
+"required when you change it."
+msgstr ""
+"Confirme o corrija cada sugerencia de la IA. El valor original de la IA se conserva; se requiere "
+"una justificación cuando lo cambie."
+
+msgid "Confirm that the instrument set is physically present before starting."
+msgstr "Confirme que el juego de instrumental está físicamente presente antes de comenzar."
+
+msgid "Confirm the instrument set is complete before starting the session."
+msgstr "Confirme que el juego de instrumental está completo antes de iniciar la sesión."
+
+msgid "Contact"
+msgstr "Contacto"
+
+msgctxt "inference_provider"
+msgid "Controlled inference (development provider)"
+msgstr "Inferencia controlada (proveedor de desarrollo)"
+
+msgid "Correction Requested"
+msgstr "Corrección solicitada"
+
+msgid "Correction Requests"
+msgstr "Solicitudes de corrección"
+
+msgctxt "review_status"
+msgid "Correction Required"
+msgstr "Corrección requerida"
+
+msgctxt "event_type"
+msgid "Correction requested by supervisor"
+msgstr "Corrección solicitada por el supervisor"
+
+msgctxt "validation_kind"
+msgid "Correction requested by supervisor"
+msgstr "Corrección solicitada por el supervisor"
+
+msgid "Correction requested from the operator."
+msgstr "Se solicitó una corrección al operador."
+
+msgid "Correction sent back to the supervisor."
+msgstr "Corrección enviada de vuelta al supervisor."
+
+msgid "Correction?"
+msgstr "¿Corrección?"
+
+msgid "Corrections"
+msgstr "Correcciones"
+
+msgctxt "operation_phase"
+msgid "Count Before Cavity Closure"
+msgstr "Conteo antes del cierre de cavidad"
+
+msgid "Count Comparison: Expected / AI / Human"
+msgstr "Comparación de conteos: esperado / IA / humano"
+
+msgid "Count Required"
+msgstr "Conteo obligatorio"
+
+msgid "Count Summary"
+msgstr "Resumen del conteo"
+
+msgid "Counted"
+msgstr "Contado"
+
+msgid "Counting"
+msgstr "En conteo"
+
+msgctxt "session_status"
+msgid "Counting"
+msgstr "En conteo"
+
+msgid "Counting Phase"
+msgstr "Fase de conteo"
+
+msgid "Counting Phases"
+msgstr "Fases de conteo"
+
+msgid "Counting Session"
+msgstr "Sesión de conteo"
+
+msgid "Counting Session:"
+msgstr "Sesión de conteo:"
+
+msgid "Counting Sessions"
+msgstr "Sesiones de conteo"
+
+msgid "Counting phase order values are too large."
+msgstr "Los valores de orden de las fases de conteo son demasiado grandes."
+
+msgctxt "processing_purpose"
+msgid "Counting process quality and operations"
+msgstr "Calidad y operación del proceso de conteo"
+
+msgid "Counting session started. Expected inventory frozen from the selected kit."
+msgstr "Sesión de conteo iniciada. El inventario esperado se congeló a partir del kit seleccionado."
+
+msgid "Counting sessions and discrepancies of your institution."
+msgstr "Sesiones de conteo y discrepancias de su institución."
+
+msgid "Counting sessions of your institution."
+msgstr "Sesiones de conteo de su institución."
+
+msgid "Counting sessions per day this week"
+msgstr "Sesiones de conteo por día esta semana"
+
+msgid "Counting sessions per day, last 7 days"
+msgstr "Sesiones de conteo por día, últimos 7 días"
+
+msgid "Create a surgical instrument kit and define its expected composition."
+msgstr "Cree un kit de instrumental quirúrgico y defina su composición esperada."
+
+msgid "Create an authorized system user and assign a role."
+msgstr "Cree un usuario autorizado del sistema y asígnele un rol."
+
+msgid "Created At"
+msgstr "Creado el"
+
+msgid "Current Active Model"
+msgstr "Modelo activo actual"
+
+msgid "Current Role Codes"
+msgstr "Códigos de rol actuales"
+
+msgctxt "instrument_category"
+msgid "Cutting"
+msgstr "Corte"
+
+msgctxt "instrument_family_function"
+msgid "Cutting and dissection of delicate tissue."
+msgstr "Corte y disección de tejido delicado."
+
+msgid "Cycle Status"
+msgstr "Estado del ciclo"
+
+msgid "Cycle: All"
+msgstr "Ciclo: Todos"
+
+msgctxt "audit_outcome"
+msgid "DENIED"
+msgstr "DENEGADO"
+
+msgid "Dark"
+msgstr "Oscuro"
+
+msgid "Dashboard"
+msgstr "Panel"
+
+msgid "Date"
+msgstr "Fecha"
+
+msgid "Date & Time"
+msgstr "Fecha y hora"
+
+msgid "Date Range"
+msgstr "Rango de fechas"
+
+msgid "Deactivate User"
+msgstr "Desactivar usuario"
+
+msgid "Deactivate User?"
+msgstr "¿Desactivar usuario?"
+
+msgid "Deactivate this user to prevent system access while preserving historical records."
+msgstr "Desactive este usuario para impedir el acceso al sistema conservando los registros históricos."
+
+#, python-format
+msgid "Decrease %(name)s count"
+msgstr "Disminuir el conteo de %(name)s"
+
+msgid "Default"
+msgstr "Predeterminado"
+
+msgid "Default Kit"
+msgstr "Kit predeterminado"
+
+msgid "Description"
+msgstr "Descripción"
+
+msgid "Details"
+msgstr "Detalles"
+
+msgid "Detected Quantity"
+msgstr "Cantidad detectada"
+
+#, python-format
+msgid "Detected quantity for class %(class_id)s"
+msgstr "Cantidad detectada de la clase %(class_id)s"
+
+msgid ""
+"Development provider: enter the structured model output (one row per YOLO class). This is not a "
+"real YOLO result."
+msgstr ""
+"Proveedor de desarrollo: capture la salida estructurada del modelo (una fila por clase YOLO). "
+"Esto no es un resultado real de YOLO."
+
+msgid "Difference"
+msgstr "Diferencia"
+
+msgid "Discrepancies"
+msgstr "Discrepancias"
+
+msgid "Discrepancies Requiring Attention"
+msgstr "Discrepancias que requieren atención"
+
+msgid "Discrepancies Under Review"
+msgstr "Discrepancias en revisión"
+
+msgid "Discrepancies by Instrument Family"
+msgstr "Discrepancias por familia de instrumental"
+
+msgid "Discrepancies by Reason"
+msgstr "Discrepancias por motivo"
+
+msgid "Discrepancies by Type"
+msgstr "Discrepancias por tipo"
+
+msgid "Discrepancies of your institution's counting sessions."
+msgstr "Discrepancias de las sesiones de conteo de su institución."
+
+msgid "Discrepancy"
+msgstr "Discrepancia"
+
+msgid "Discrepancy Management"
+msgstr "Gestión de discrepancias"
+
+msgid "Discrepancy Review"
+msgstr "Revisión de discrepancias"
+
+msgid "Discrepancy approved and resolved."
+msgstr "Discrepancia aprobada y resuelta."
+
+msgctxt "event_type"
+msgid "Discrepancy raised"
+msgstr "Discrepancia generada"
+
+#, python-format
+msgid "Discrepancy reason \"%(code)s\" is not configured."
+msgstr "El motivo de discrepancia \"%(code)s\" no está configurado."
+
+#, python-format
+msgid ""
+"Discrepancy reason(s) %(codes)s missing; the catalogs must be updated "
+"(data/seeds/002_seed_catalogs.sql)."
+msgstr ""
+"Faltan los motivos de discrepancia %(codes)s; deben actualizarse los catálogos "
+"(data/seeds/002_seed_catalogs.sql)."
+
+msgctxt "checkpoint_reason"
+msgid "Discrepancy recorded"
+msgstr "Discrepancia registrada"
+
+msgctxt "instrument_category"
+msgid "Dissection"
+msgstr "Disección"
+
+msgid "Each YOLO class ID and each instrument family can be mapped only once."
+msgstr "Cada ID de clase YOLO y cada familia de instrumental solo pueden mapearse una vez."
+
+msgid "Each counting phase needs a different order."
+msgstr "Cada fase de conteo necesita un orden distinto."
+
+msgid "Edit"
+msgstr "Editar"
+
+msgid "Edit Capture Station"
+msgstr "Editar estación de captura"
+
+msgid "Edit Count"
+msgstr "Editar conteo"
+
+msgid "Edit Institution Information"
+msgstr "Editar información de la institución"
+
+msgid "Edit Instrument"
+msgstr "Editar instrumento"
+
+msgid "Edit Instrument Family"
+msgstr "Editar familia de instrumental"
+
+msgid "Edit Kit"
+msgstr "Editar kit"
+
+msgid "Edit Operating Room"
+msgstr "Editar quirófano"
+
+msgid "Edit Procedure"
+msgstr "Editar procedimiento"
+
+msgid "Edit Role"
+msgstr "Editar rol"
+
+msgid "Edit User"
+msgstr "Editar usuario"
+
+msgid "Edit Vision Model"
+msgstr "Editar modelo de visión"
+
+msgid "Email"
+msgstr "Correo electrónico"
+
+msgid "Ended"
+msgstr "Finalizada"
+
+msgid "Enter a valid email address."
+msgstr "Ingrese un correo electrónico válido."
+
+msgid "Enter at least one model output row (class ID, detected quantity, confidence)."
+msgstr "Ingrese al menos una fila de salida del modelo (ID de clase, cantidad detectada, confianza)."
+
+msgid "Enter full name"
+msgstr "Ingrese el nombre completo"
+
+msgid "Enter institutional email address"
+msgstr "Ingrese el correo electrónico institucional"
+
+msgid "Enter your password"
+msgstr "Ingrese su contraseña"
+
+msgid "Entity"
+msgstr "Entidad"
+
+msgid "Event"
+msgstr "Evento"
+
+msgid "Event Type"
+msgstr "Tipo de evento"
+
+#, python-format
+msgid ""
+"Event type \"%(code)s\" is not configured. The catalogs must be updated "
+"(data/seeds/002_seed_catalogs.sql)."
+msgstr ""
+"El tipo de evento \"%(code)s\" no está configurado. Deben actualizarse los catálogos "
+"(data/seeds/002_seed_catalogs.sql)."
+
+#, python-format
+msgid "Event type \"%(code)s\" is not configured. The catalogs must be updated."
+msgstr "El tipo de evento \"%(code)s\" no está configurado. Deben actualizarse los catálogos."
+
+msgid "Every Human Final Count must be a whole number."
+msgstr "Cada conteo final humano debe ser un número entero."
+
+msgid "Every instrument of the AI result must be validated before continuing."
+msgstr "Debe validar cada instrumento del resultado de IA antes de continuar."
+
+msgid "Evidence & Model"
+msgstr "Evidencia y modelo"
+
+msgid "Evidence captured"
+msgstr "Evidencia capturada"
+
+msgid "Expected"
+msgstr "Esperado"
+
+msgid "Expected / AI / Human"
+msgstr "Esperado / IA / humano"
+
+msgid "Expected / AI / Human Final"
+msgstr "Esperado / IA / final humano"
+
+msgid "Expected Instruments"
+msgstr "Instrumentos esperados"
+
+msgid "Expected Inventory"
+msgstr "Inventario esperado"
+
+msgid "Expected Inventory (frozen)"
+msgstr "Inventario esperado (congelado)"
+
+msgid "Expected Kit"
+msgstr "Kit esperado"
+
+msgid "Expected Quantity"
+msgstr "Cantidad esperada"
+
+msgid "Expected inventory was frozen when the session started."
+msgstr "El inventario esperado se congeló al iniciar la sesión."
+
+msgid "Expected inventory will be frozen when the session starts."
+msgstr "El inventario esperado se congelará al iniciar la sesión."
+
+msgid "Family: All"
+msgstr "Familia: Todas"
+
+msgctxt "instrument_family"
+msgid "Farabeuf Retractor"
+msgstr "Separador Farabeuf"
+
+msgctxt "gender"
+msgid "Female"
+msgstr "Femenino"
+
+msgid "Final Count"
+msgstr "Conteo final"
+
+msgctxt "operation_phase"
+msgid "Final Count"
+msgstr "Conteo final"
+
+msgid "Final Difference"
+msgstr "Diferencia final"
+
+msgid "Final Validated Instruments"
+msgstr "Instrumentos validados finales"
+
+msgid "Final validation requires human review and confirmation before a session is closed."
+msgstr "La validación final requiere revisión y confirmación humana antes de cerrar una sesión."
+
+msgctxt "surgical_role"
+msgid "First Assistant"
+msgstr "Primer ayudante"
+
+msgid "From selected operation"
+msgstr "De la operación seleccionada"
+
+msgid "Full Name"
+msgstr "Nombre completo"
+
+msgid "Function"
+msgstr "Función"
+
+msgctxt "specialty"
+msgid "General Surgery"
+msgstr "Cirugía General"
+
+msgid "Generated when the model is published or activated"
+msgstr "Se genera cuando el modelo se publica o se activa"
+
+msgctxt "instrument_category"
+msgid "Grasping"
+msgstr "Prensión"
+
+msgid "Guest User"
+msgstr "Usuario invitado"
+
+msgctxt "specialty"
+msgid "Gynecology and Obstetrics"
+msgstr "Ginecología y Obstetricia"
+
+msgctxt "instrument_category"
+msgid "Hemostasis"
+msgstr "Hemostasia"
+
+msgctxt "instrument_family_function"
+msgid "Hemostasis of fine vessels."
+msgstr "Hemostasia de vasos finos."
+
+msgid "High-Level Workflow"
+msgstr "Flujo de trabajo general"
+
+msgctxt "procedure_type"
+msgid "Hip Arthroplasty"
+msgstr "Artroplastia de cadera"
+
+msgid "Historical Records"
+msgstr "Registros históricos"
+
+msgid "Historical counting sessions will retain the model version originally used."
+msgstr "Las sesiones de conteo históricas conservarán la versión del modelo utilizada originalmente."
+
+msgid "Historical record of completed counting sessions."
+msgstr "Registro histórico de las sesiones de conteo completadas."
+
+msgid "Historical session data is retained for reference and review."
+msgstr "Los datos históricos de las sesiones se conservan para consulta y revisión."
+
+msgctxt "instrument_family_function"
+msgid "Hold the needle while suturing."
+msgstr "Sujetar la aguja durante la sutura."
+
+msgid "Home"
+msgstr "Inicio"
+
+msgid "How It Works"
+msgstr "Cómo funciona"
+
+msgid "How to Identify"
+msgstr "Cómo identificarla"
+
+msgid "Human Corrections"
+msgstr "Correcciones humanas"
+
+msgid "Human Corrections Logged"
+msgstr "Correcciones humanas registradas"
+
+msgid "Human Corrections by Instrument Family"
+msgstr "Correcciones humanas por familia de instrumental"
+
+msgid "Human Final"
+msgstr "Final humano"
+
+msgid "Human Final Count"
+msgstr "Conteo final humano"
+
+msgid "Human Final Count must be zero or greater."
+msgstr "El conteo final humano debe ser cero o mayor."
+
+msgid "Human Previous"
+msgstr "Humano anterior"
+
+msgid "Human Validation"
+msgstr "Validación humana"
+
+msgctxt "event_type"
+msgid "Human correction applied"
+msgstr "Corrección humana aplicada"
+
+msgid "Human result rejected; the operator must recount."
+msgstr "Resultado humano rechazado; el operador debe volver a contar."
+
+msgctxt "validation_kind"
+msgid "Human validation"
+msgstr "Validación humana"
+
+msgid "Human validation is not complete for this session."
+msgstr "La validación humana de esta sesión no está completa."
+
+msgid "I confirm the instrument set is physically present and matches the expected inventory."
+msgstr ""
+"Confirmo que el juego de instrumental está físicamente presente y coincide con el inventario "
+"esperado."
+
+msgctxt "role"
+msgid "IT Administrator"
+msgstr "Administrador de TI"
+
+msgctxt "role_description"
+msgid "IT Administrator"
+msgstr "Administrador de TI"
+
+msgid "IT Administrator navigation"
+msgstr "Navegación del administrador de TI"
+
+msgctxt "instrument_cycle_status"
+msgid "In Maintenance"
+msgstr "En mantenimiento"
+
+msgctxt "operation_status"
+msgid "In Progress"
+msgstr "En curso"
+
+msgctxt "instrument_cycle_status"
+msgid "In Sterilization"
+msgstr "En esterilización"
+
+msgctxt "instrument_cycle_status"
+msgid "In Use"
+msgstr "En uso"
+
+msgid "In Validation"
+msgstr "En validación"
+
+msgid "Inactive"
+msgstr "Inactivo"
+
+msgid "Inactive Users"
+msgstr "Usuarios inactivos"
+
+#, python-format
+msgid "Increase %(name)s count"
+msgstr "Aumentar el conteo de %(name)s"
+
+msgid "Indicator totals"
+msgstr "Totales de indicadores"
+
+msgid "Indicators"
+msgstr "Indicadores"
+
+msgid "Inference Run"
+msgstr "Ejecución de inferencia"
+
+msgid "Information associated with your authenticated account"
+msgstr "Información asociada a su cuenta autenticada"
+
+msgctxt "procedure_type"
+msgid "Inguinal Hernia Repair"
+msgstr "Hernioplastia inguinal"
+
+msgctxt "operation_phase"
+msgid "Initial Count Before Incision"
+msgstr "Conteo inicial antes de la incisión"
+
+msgid "Institution"
+msgstr "Institución"
+
+msgid "Institution Code"
+msgstr "Código de la institución"
+
+msgid "Institution Information"
+msgstr "Información de la institución"
+
+msgid "Institution Name"
+msgstr "Nombre de la institución"
+
+msgid "Institution information saved."
+msgstr "Información de la institución guardada."
+
+msgid "Institution: All"
+msgstr "Institución: Todas"
+
+msgid "Institutional Email"
+msgstr "Correo electrónico institucional"
+
+msgid "Instrument"
+msgstr "Instrumento"
+
+msgid "Instrument Count"
+msgstr "Conteo de instrumental"
+
+msgid "Instrument Families"
+msgstr "Familias de instrumental"
+
+msgid "Instrument Families (global)"
+msgstr "Familias de instrumental (global)"
+
+msgid "Instrument Family"
+msgstr "Familia de instrumental"
+
+msgid "Instrument Name"
+msgstr "Nombre del instrumento"
+
+msgid "Instrument Traceability"
+msgstr "Trazabilidad del instrumental"
+
+msgid "Instrument Traceability and Validation System"
+msgstr "Sistema de trazabilidad y validación de instrumental"
+
+msgid "Instrument Validation"
+msgstr "Validación de instrumental"
+
+msgid "Instrument family saved."
+msgstr "Familia de instrumental guardada."
+
+msgid "Instrument saved."
+msgstr "Instrumento guardado."
+
+msgid "Instruments"
+msgstr "Instrumentos"
+
+msgid "Integration client"
+msgstr "Cliente de integración"
+
+msgid "Interface Preferences"
+msgstr "Preferencias de la interfaz"
+
+msgid "Interface language"
+msgstr "Idioma de la interfaz"
+
+msgid "Internal Code"
+msgstr "Código interno"
+
+msgctxt "operation_phase"
+msgid "Intraoperative"
+msgstr "Transoperatorio"
+
+msgid "Invalid email or password."
+msgstr "Correo electrónico o contraseña no válidos."
+
+msgctxt "discrepancy_reason"
+msgid "Item classified into the wrong family"
+msgstr "Pieza clasificada en una familia incorrecta"
+
+msgctxt "discrepancy_reason"
+msgid "Item occluded or outside the region of interest"
+msgstr "Pieza ocluida o fuera de la región de interés"
+
+msgctxt "discrepancy_reason"
+msgid "Item present but not identified by the model"
+msgstr "Pieza presente pero no identificada por el modelo"
+
+msgid "Items"
+msgstr "Elementos"
+
+msgid "Justification"
+msgstr "Justificación"
+
+msgid "Justification (required if changed)"
+msgstr "Justificación (obligatoria si se modifica)"
+
+msgid "Keep Session Open"
+msgstr "Mantener la sesión abierta"
+
+msgctxt "instrument_family"
+msgid "Kelly Forceps"
+msgstr "Pinza Kelly"
+
+msgid "Key counting and discrepancy indicators for your institution (all history)."
+msgstr "Indicadores clave de conteo y discrepancias de su institución (todo el historial)."
+
+msgid "Key counting metrics"
+msgstr "Métricas clave de conteo"
+
+msgid "Key system metrics"
+msgstr "Métricas clave del sistema"
+
+msgid "Kit"
+msgstr "Kit"
+
+#, python-format
+msgid "Kit \"%(kit)s\" has no instruments configured; a counting session cannot start with an empty kit."
+msgstr ""
+"El kit \"%(kit)s\" no tiene instrumental configurado; no se puede iniciar una sesión de conteo "
+"con un kit vacío."
+
+#, python-format
+msgid "Kit \"%(kit)s\" is associated more than once."
+msgstr "El kit \"%(kit)s\" está asociado más de una vez."
+
+msgid "Kit Composition"
+msgstr "Composición del kit"
+
+msgid "Kit Name"
+msgstr "Nombre del kit"
+
+msgid "Kit Type"
+msgstr "Tipo de kit"
+
+msgid "Kit saved."
+msgstr "Kit guardado."
+
+msgid "Kits"
+msgstr "Kits"
+
+msgid "Language"
+msgstr "Idioma"
+
+#, python-format
+msgid "Language: %(language)s"
+msgstr "Idioma: %(language)s"
+
+msgctxt "procedure_type"
+msgid "Laparoscopic Cholecystectomy"
+msgstr "Colecistectomía laparoscópica"
+
+msgid "Last 30 Days"
+msgstr "Últimos 30 días"
+
+msgid "Last 7 Days"
+msgstr "Últimos 7 días"
+
+msgid "Latest capture of the instrument tray"
+msgstr "Última captura de la charola de instrumental"
+
+msgid "Learn How It Works"
+msgstr "Conozca cómo funciona"
+
+msgid "Light"
+msgstr "Claro"
+
+msgid "Light, Dark, or System theme"
+msgstr "Tema claro, oscuro o del sistema"
+
+msgctxt "vision_result"
+msgid "Low confidence"
+msgstr "Confianza baja"
+
+msgctxt "gender"
+msgid "Male"
+msgstr "Masculino"
+
+msgid "Manage authorized system users and their assigned roles."
+msgstr "Administre los usuarios autorizados del sistema y sus roles asignados."
+
+msgid "Manage computer vision model versions used for AI-assisted instrument counting."
+msgstr ""
+"Administre las versiones de los modelos de visión por computadora usados en el conteo de "
+"instrumental asistido por IA."
+
+msgid "Manage individual surgical instruments registered in the system."
+msgstr "Administre los instrumentos quirúrgicos individuales registrados en el sistema."
+
+msgid "Manage instrument types and their classification information."
+msgstr "Administre los tipos de instrumental y su información de clasificación."
+
+msgid "Manage operational system configuration required by the application."
+msgstr "Administre la configuración operativa del sistema que requiere la aplicación."
+
+msgid "Manage surgical instrument kits and their expected composition."
+msgstr "Administre los kits de instrumental quirúrgico y su composición esperada."
+
+msgid "Manage surgical procedures, associated kits, and configured counting phases."
+msgstr "Administre los procedimientos quirúrgicos, los kits asociados y las fases de conteo configuradas."
+
+msgid "Manage the roles available in the system."
+msgstr "Administre los roles disponibles en el sistema."
+
+msgctxt "event_type"
+msgid "Manual count"
+msgstr "Conteo manual"
+
+msgid "Map YOLO class identifiers to registered instrument families."
+msgstr "Asocie los identificadores de clase YOLO con las familias de instrumental registradas."
+
+msgid "Mapped Family"
+msgstr "Familia mapeada"
+
+msgctxt "vision_result"
+msgid "Match"
+msgstr "Coincide"
+
+msgctxt "instrument_family"
+msgid "Mayo-Hegar Needle Holder"
+msgstr "Portaagujas Mayo-Hegar"
+
+msgctxt "instrument_family"
+msgid "Metzenbaum Scissors"
+msgstr "Tijera Metzenbaum"
+
+msgid "Missing inference run identifier; reload the page and try again."
+msgstr "Falta el identificador de la ejecución de inferencia; recargue la página e intente de nuevo."
+
+msgid "Missing validation batch identifier; reload the page and try again."
+msgstr "Falta el identificador del lote de validación; recargue la página e intente de nuevo."
+
+msgid "Model"
+msgstr "Modelo"
+
+msgid "Model Asset"
+msgstr "Archivo del modelo"
+
+msgid "Model Asset Reference"
+msgstr "Referencia del archivo del modelo"
+
+msgid ""
+"Model Asset Reference must be a storage URI like gs://bucket/path/model.pt or "
+"s3://bucket/path/model.pt."
+msgstr ""
+"La referencia del archivo del modelo debe ser una URI de almacenamiento como "
+"gs://bucket/ruta/model.pt o s3://bucket/ruta/model.pt."
+
+msgid "Model Classes"
+msgstr "Clases del modelo"
+
+msgid "Model Information"
+msgstr "Información del modelo"
+
+msgid "Model Reference"
+msgstr "Referencia del modelo"
+
+msgid "Model Version"
+msgstr "Versión del modelo"
+
+msgctxt "discrepancy_reason"
+msgid "Model confidence below threshold"
+msgstr "Confianza del modelo por debajo del umbral"
+
+msgctxt "event_type"
+msgid "Model-suggested count"
+msgstr "Conteo sugerido por el modelo"
+
+msgid "Monitoring"
+msgstr "Monitoreo"
+
+msgid "More than one vision model is marked active; the model registry is inconsistent."
+msgstr "Hay más de un modelo de visión marcado como activo; el registro de modelos es inconsistente."
+
+msgctxt "instrument_family"
+msgid "Mosquito Forceps"
+msgstr "Pinza Mosquito"
+
+msgid "My Profile"
+msgstr "Mi perfil"
+
+msgid "My Sessions"
+msgstr "Mis sesiones"
+
+msgid "N/A"
+msgstr "N/D"
+
+msgid "Name"
+msgstr "Nombre"
+
+msgctxt "specialty"
+msgid "Neurosurgery"
+msgstr "Neurocirugía"
+
+msgid "New"
+msgstr "Nuevo"
+
+msgid "New Capture Station"
+msgstr "Nueva estación de captura"
+
+msgid "New Counting Session"
+msgstr "Nueva sesión de conteo"
+
+msgid "New Human Final Count"
+msgstr "Nuevo conteo final humano"
+
+msgid "New Instrument"
+msgstr "Nuevo instrumento"
+
+msgid "New Instrument Family"
+msgstr "Nueva familia de instrumental"
+
+msgid "New Kit"
+msgstr "Nuevo kit"
+
+msgid "New Operating Room"
+msgstr "Nuevo quirófano"
+
+msgid "New Password"
+msgstr "Nueva contraseña"
+
+msgid "New Procedure"
+msgstr "Nuevo procedimiento"
+
+msgid "New Role"
+msgstr "Nuevo rol"
+
+msgid "New Session"
+msgstr "Nueva sesión"
+
+msgid "New User"
+msgstr "Nuevo usuario"
+
+msgid "New Vision Model"
+msgstr "Nuevo modelo de visión"
+
+msgid "Next"
+msgstr "Siguiente"
+
+msgid "No"
+msgstr "No"
+
+msgid ""
+"No active counting phase is configured for this procedure. An administrator must configure the "
+"counting phases (Procedures > Counting Phases) before starting a session."
+msgstr ""
+"No hay ninguna fase de conteo activa configurada para este procedimiento. Un administrador debe "
+"configurar las fases de conteo (Procedimientos > Fases de conteo) antes de iniciar una sesión."
+
+msgid "No active counting phase is configured for this procedure. Ask an administrator to configure it."
+msgstr ""
+"No hay ninguna fase de conteo activa configurada para este procedimiento. Pida a un administrador"
+" que la configure."
+
+msgid ""
+"No active kit is associated with this procedure. An administrator must configure the procedure "
+"kits (Procedures > Associated Kits) before starting a session."
+msgstr ""
+"No hay ningún kit activo asociado a este procedimiento. Un administrador debe configurar los kits"
+" del procedimiento (Procedimientos > Kits asociados) antes de iniciar una sesión."
+
+msgid "No active kit is associated with this procedure. Ask an administrator to configure it."
+msgstr "No hay ningún kit activo asociado a este procedimiento. Pida a un administrador que lo configure."
+
+msgid "No analysis has been run for this session."
+msgstr "No se ha ejecutado ningún análisis para esta sesión."
+
+msgid "No audit events match the current filters."
+msgstr "Ningún evento de auditoría coincide con los filtros actuales."
+
+msgid "No capture available for this session."
+msgstr "No hay captura disponible para esta sesión."
+
+msgid "No capture has been taken for this session yet."
+msgstr "Todavía no se ha tomado ninguna captura para esta sesión."
+
+msgid "No capture yet"
+msgstr "Aún no hay captura"
+
+msgid "No discrepancies found."
+msgstr "No se encontraron discrepancias."
+
+msgid "No discrepancies in this selection."
+msgstr "No hay discrepancias en esta selección."
+
+msgid "No discrepancies recorded yet."
+msgstr "Todavía no hay discrepancias registradas."
+
+msgid "No discrepancies were recorded for this session."
+msgstr "No se registraron discrepancias en esta sesión."
+
+msgid "No human corrections in this selection."
+msgstr "No hay correcciones humanas en esta selección."
+
+msgid "No human corrections recorded yet."
+msgstr "Todavía no hay correcciones humanas registradas."
+
+msgid "No human corrections were recorded."
+msgstr "No se registraron correcciones humanas."
+
+msgid "No sessions found."
+msgstr "No se encontraron sesiones."
+
+msgid "No sessions in this selection."
+msgstr "No hay sesiones en esta selección."
+
+msgid "No sessions."
+msgstr "No hay sesiones."
+
+msgid "No users found."
+msgstr "No se encontraron usuarios."
+
+msgid "None"
+msgstr "Ninguno"
+
+msgid "Not Configured"
+msgstr "No configurado"
+
+msgid "Not available"
+msgstr "No disponible"
+
+msgid "Not configured"
+msgstr "No configurado"
+
+msgid "Not ready to close"
+msgstr "Aún no se puede cerrar"
+
+msgid "Not set"
+msgstr "Sin definir"
+
+msgid "Not specified"
+msgstr "Sin especificar"
+
+msgid "Note for the operator (required)"
+msgstr "Nota para el operador (obligatoria)"
+
+msgid "Notifications"
+msgstr "Notificaciones"
+
+msgid "Number of Discrepancies"
+msgstr "Número de discrepancias"
+
+msgid "Number of Sessions"
+msgstr "Número de sesiones"
+
+msgid "OR"
+msgstr "Quirófano"
+
+msgctxt "instrument_family_function"
+msgid "Occlude small and medium-caliber vessels."
+msgstr "Ocluir vasos de calibre pequeño y mediano."
+
+msgid "One of the submitted rows does not belong to this session."
+msgstr "Una de las filas enviadas no pertenece a esta sesión."
+
+msgid "Only JPEG images are accepted."
+msgstr "Solo se aceptan imágenes JPEG."
+
+msgid "Only one associated kit can be the Default Kit."
+msgstr "Solo un kit asociado puede ser el kit predeterminado."
+
+msgid "Open"
+msgstr "Abierta"
+
+msgctxt "review_status"
+msgid "Open"
+msgstr "Abierta"
+
+msgctxt "session_status"
+msgid "Open"
+msgstr "Abierta"
+
+msgctxt "procedure_type"
+msgid "Open Cholecystectomy"
+msgstr "Colecistectomía abierta"
+
+msgid "Open Discrepancies"
+msgstr "Discrepancias abiertas"
+
+msgid "Open Sessions"
+msgstr "Sesiones abiertas"
+
+msgid "Operating Room"
+msgstr "Quirófano"
+
+msgid "Operating Rooms"
+msgstr "Quirófanos"
+
+msgid "Operating room saved."
+msgstr "Quirófano guardado."
+
+msgid "Operation / Procedure"
+msgstr "Operación / procedimiento"
+
+msgid "Operational Information Requires Authenticated Access"
+msgstr "La información operativa requiere acceso autenticado"
+
+msgid "Operational Metrics"
+msgstr "Métricas operativas"
+
+msgid "Operational information is accessible only through authenticated, role-based access controls."
+msgstr ""
+"La información operativa solo es accesible mediante controles de acceso autenticados y basados en"
+" roles."
+
+msgid "Operational summaries of your institution's counting sessions."
+msgstr "Resúmenes operativos de las sesiones de conteo de su institución."
+
+msgid "Operations"
+msgstr "Operaciones"
+
+msgctxt "usage_context"
+msgid "Operative use during surgery"
+msgstr "Uso operatorio durante la cirugía"
+
+msgid "Operator"
+msgstr "Operador"
+
+msgctxt "role_short"
+msgid "Operator"
+msgstr "Operador"
+
+msgctxt "role_description"
+msgid "Operator CDE"
+msgstr "Operador CDE"
+
+msgctxt "discrepancy_reason"
+msgid "Operator capture or handling error"
+msgstr "Error de captura o manipulación del operador"
+
+msgctxt "checkpoint_reason"
+msgid "Operator manual pin"
+msgstr "Marca manual del operador"
+
+msgid "Operator navigation"
+msgstr "Navegación del operador"
+
+msgid "Order"
+msgstr "Orden"
+
+msgid "Order determines the sequence of counting phases."
+msgstr "El orden determina la secuencia de las fases de conteo."
+
+#, python-format
+msgid "Order for \"%(phase)s\""
+msgstr "Orden de \"%(phase)s\""
+
+msgid "Original AI value preserved"
+msgstr "Se conserva el valor original de la IA"
+
+msgctxt "specialty"
+msgid "Orthopedics and Traumatology"
+msgstr "Ortopedia y Traumatología"
+
+msgctxt "gender"
+msgid "Other"
+msgstr "Otro"
+
+msgid "Overhead Capture"
+msgstr "Captura cenital"
+
+msgid "Overview of instrument counting operations"
+msgstr "Resumen de las operaciones de conteo de instrumental"
+
+msgid "Overview of system catalogs, users, and configuration."
+msgstr "Resumen de catálogos, usuarios y configuración del sistema."
+
+#, python-format
+msgid "Page %(current)s of %(total)s"
+msgstr "Página %(current)s de %(total)s"
+
+msgid "Pagination"
+msgstr "Paginación"
+
+msgid "Password"
+msgstr "Contraseña"
+
+msgid "Password changed."
+msgstr "Contraseña cambiada."
+
+#, python-format
+msgid "Password must contain at least %(count)s characters."
+msgstr "La contraseña debe tener al menos %(count)s caracteres."
+
+msgid "Passwords do not match."
+msgstr "Las contraseñas no coinciden."
+
+msgid "Patient"
+msgstr "Paciente"
+
+msgid "Pending Discrepancies"
+msgstr "Discrepancias pendientes"
+
+msgid "Pending Reviews"
+msgstr "Revisiones pendientes"
+
+msgid "Period"
+msgstr "Periodo"
+
+msgctxt "checkpoint_reason"
+msgid "Periodic capture"
+msgstr "Captura periódica"
+
+msgid "Phase"
+msgstr "Fase"
+
+#, python-format
+msgid "Phase \"%(phase)s\" is listed more than once."
+msgstr "La fase \"%(phase)s\" aparece más de una vez."
+
+msgid "Phase:"
+msgstr "Fase:"
+
+msgid "Physician"
+msgstr "Médico"
+
+msgid "Physician / Surgeon"
+msgstr "Médico / cirujano"
+
+msgid "Preferences available from the application header"
+msgstr "Preferencias disponibles en el encabezado de la aplicación"
+
+msgid "Prepare a surgical instrument counting session."
+msgstr "Prepare una sesión de conteo de instrumental quirúrgico."
+
+msgid "Previous"
+msgstr "Anterior"
+
+msgid "Primary"
+msgstr "Principal"
+
+msgid "Primary navigation"
+msgstr "Navegación principal"
+
+msgid "Privacy"
+msgstr "Privacidad"
+
+msgid "Privacy Policy"
+msgstr "Aviso de privacidad"
+
+msgid "Procedure"
+msgstr "Procedimiento"
+
+msgid "Procedure / Operation"
+msgstr "Procedimiento / operación"
+
+msgid "Procedure Code"
+msgstr "Código del procedimiento"
+
+msgid "Procedure Information"
+msgstr "Información del procedimiento"
+
+msgid "Procedure Name"
+msgstr "Nombre del procedimiento"
+
+msgid "Procedure saved."
+msgstr "Procedimiento guardado."
+
+msgid "Procedures"
+msgstr "Procedimientos"
+
+msgid "Procedures (global)"
+msgstr "Procedimientos (global)"
+
+msgid "Proceed to Close"
+msgstr "Continuar al cierre"
+
+msgid "Proceed to Validation"
+msgstr "Continuar a la validación"
+
+msgid "Provider"
+msgstr "Proveedor"
+
+msgid "Published At"
+msgstr "Publicado el"
+
+#, python-format
+msgid "Quantity for \"%(family)s\""
+msgstr "Cantidad de \"%(family)s\""
+
+msgid "ROI Configuration"
+msgstr "Configuración de la ROI"
+
+msgid "Ready to Close"
+msgstr "Listo para cerrar"
+
+msgid "Ready to close: human validation complete and no unresolved discrepancies."
+msgstr "Lista para cerrar: validación humana completa y sin discrepancias pendientes."
+
+msgid "Reason"
+msgstr "Motivo"
+
+msgid "Recent Counting Sessions"
+msgstr "Sesiones de conteo recientes"
+
+msgid "Recent Sessions"
+msgstr "Sesiones recientes"
+
+msgid "Record ID"
+msgstr "ID del registro"
+
+msgid "Recorded discrepancy"
+msgstr "Discrepancia registrada"
+
+msgid "Register a capture station available for counting sessions."
+msgstr "Registre una estación de captura disponible para las sesiones de conteo."
+
+msgid "Register a computer vision model version and its instrument class mappings."
+msgstr "Registre una versión del modelo de visión por computadora y sus mapeos de clases de instrumental."
+
+msgid "Register a new individual surgical instrument in the system."
+msgstr "Registre un nuevo instrumento quirúrgico individual en el sistema."
+
+msgid "Register a new surgical instrument type and its classification information."
+msgstr "Registre un nuevo tipo de instrumental quirúrgico y su información de clasificación."
+
+msgid "Register a new system role and its description."
+msgstr "Registre un nuevo rol del sistema y su descripción."
+
+msgid "Register a surgical procedure and configure its available kits and counting phases."
+msgstr "Registre un procedimiento quirúrgico y configure sus kits disponibles y fases de conteo."
+
+msgid "Registered Instruments"
+msgstr "Instrumentos registrados"
+
+msgid "Reject"
+msgstr "Rechazar"
+
+msgctxt "supervisor_decision"
+msgid "Reject"
+msgstr "Rechazo"
+
+msgid "Reject Human Result"
+msgstr "Rechazar resultado humano"
+
+msgid "Rejection reason (required)"
+msgstr "Motivo del rechazo (obligatorio)"
+
+msgctxt "checkpoint_reason"
+msgid "Relevant state change"
+msgstr "Cambio de estado relevante"
+
+msgid "Remove"
+msgstr "Quitar"
+
+msgid "Reports"
+msgstr "Reportes"
+
+msgid "Request Correction"
+msgstr "Solicitar corrección"
+
+msgctxt "supervisor_decision"
+msgid "Request correction"
+msgstr "Corrección solicitada"
+
+msgctxt "instrument_cycle_status"
+msgid "Reserved"
+msgstr "Reservado"
+
+msgctxt "surgical_role"
+msgid "Resident Physician"
+msgstr "Médico residente"
+
+msgid "Resolved"
+msgstr "Resuelta"
+
+msgid "Resolved / Unresolved"
+msgstr "Resueltas / sin resolver"
+
+msgid "Resolved Discrepancies"
+msgstr "Discrepancias resueltas"
+
+msgid "Result"
+msgstr "Resultado"
+
+msgid "Retake Photograph"
+msgstr "Volver a tomar la fotografía"
+
+msgctxt "instrument_cycle_status"
+msgid "Retired"
+msgstr "Dado de baja"
+
+msgctxt "instrument_family_function"
+msgid "Retract superficial tissue planes."
+msgstr "Separar planos superficiales."
+
+msgctxt "instrument_category"
+msgid "Retraction"
+msgstr "Separación"
+
+msgid "Review"
+msgstr "Revisar"
+
+msgid "Review Correction Request"
+msgstr "Revisar solicitud de corrección"
+
+msgid "Review Discrepancies"
+msgstr "Revisar discrepancias"
+
+msgid "Review the expected instrument quantities for the selected kit."
+msgstr "Revise las cantidades de instrumental esperadas para el kit seleccionado."
+
+msgid "Review your account information and interface preferences"
+msgstr "Revise la información de su cuenta y sus preferencias de interfaz"
+
+msgid "Role"
+msgstr "Rol"
+
+msgid "Role Code"
+msgstr "Código del rol"
+
+msgid "Role Name"
+msgstr "Nombre del rol"
+
+msgid "Role saved."
+msgstr "Rol guardado."
+
+msgid "Role: All"
+msgstr "Rol: Todos"
+
+msgid "Roles"
+msgstr "Roles"
+
+msgid "Room Code"
+msgstr "Código del quirófano"
+
+msgid "Room Name"
+msgstr "Nombre del quirófano"
+
+msgid "Run AI Analysis"
+msgstr "Ejecutar análisis de IA"
+
+msgid "SECTION 1 - Session Setup"
+msgstr "SECCIÓN 1 - Configuración de la sesión"
+
+msgid "SECTION 2 - Expected Inventory Preview"
+msgstr "SECCIÓN 2 - Vista previa del inventario esperado"
+
+msgid "SECTION 3 - Instrument Readiness"
+msgstr "SECCIÓN 3 - Preparación del instrumental"
+
+msgctxt "audit_outcome"
+msgid "SUCCESS"
+msgstr "ÉXITO"
+
+msgid "Save Capture"
+msgstr "Guardar captura"
+
+msgid "Save Capture Station"
+msgstr "Guardar estación de captura"
+
+msgid "Save Changes"
+msgstr "Guardar cambios"
+
+msgid "Save Instrument"
+msgstr "Guardar instrumento"
+
+msgid "Save Instrument Family"
+msgstr "Guardar familia de instrumental"
+
+msgid "Save Kit"
+msgstr "Guardar kit"
+
+msgid "Save Operating Room"
+msgstr "Guardar quirófano"
+
+msgid "Save Procedure"
+msgstr "Guardar procedimiento"
+
+msgid "Save Progress"
+msgstr "Guardar avance"
+
+msgid "Save Role"
+msgstr "Guardar rol"
+
+msgid "Save User"
+msgstr "Guardar usuario"
+
+msgid "Save Vision Model"
+msgstr "Guardar modelo de visión"
+
+msgctxt "operation_status"
+msgid "Scheduled"
+msgstr "Programada"
+
+msgid "Search Events"
+msgstr "Buscar eventos"
+
+msgid "Search Families"
+msgstr "Buscar familias"
+
+msgid "Search Instruments"
+msgstr "Buscar instrumentos"
+
+msgid "Search Kits"
+msgstr "Buscar kits"
+
+msgid "Search Models"
+msgstr "Buscar modelos"
+
+msgid "Search Procedures"
+msgstr "Buscar procedimientos"
+
+msgid "Search Roles"
+msgstr "Buscar roles"
+
+msgid "Search Sessions"
+msgstr "Buscar sesiones"
+
+msgid "Search Users"
+msgstr "Buscar usuarios"
+
+msgid "Search families..."
+msgstr "Buscar familias..."
+
+msgid "Search historical sessions..."
+msgstr "Buscar sesiones históricas..."
+
+msgid "Search instruments..."
+msgstr "Buscar instrumentos..."
+
+msgid "Search kits..."
+msgstr "Buscar kits..."
+
+msgid "Search models..."
+msgstr "Buscar modelos..."
+
+msgid "Search procedures..."
+msgstr "Buscar procedimientos..."
+
+msgid "Search roles..."
+msgstr "Buscar roles..."
+
+msgid "Search sessions..."
+msgstr "Buscar sesiones..."
+
+msgid "Search users..."
+msgstr "Buscar usuarios..."
+
+msgid "Secondary system metrics"
+msgstr "Métricas secundarias del sistema"
+
+msgid "Select a category"
+msgstr "Seleccione una categoría"
+
+msgid "Select an instrument family"
+msgstr "Seleccione una familia de instrumental"
+
+msgid "Select an operating room"
+msgstr "Seleccione un quirófano"
+
+msgid "Select and load the designed tray manifest template to define the expected instrument set."
+msgstr ""
+"Seleccione y cargue la plantilla del manifiesto de la charola para definir el juego de "
+"instrumental esperado."
+
+msgid "Select or take a photo of the instrument tray."
+msgstr "Seleccione o tome una foto de la charola de instrumental."
+
+msgid "Selected photo preview"
+msgstr "Vista previa de la foto seleccionada"
+
+msgid "Session"
+msgstr "Sesión"
+
+msgid "Session Audit Review"
+msgstr "Revisión de auditoría de la sesión"
+
+msgid "Session Closure"
+msgstr "Cierre de la sesión"
+
+msgid "Session Details"
+msgstr "Detalles de la sesión"
+
+msgid "Session History"
+msgstr "Historial de sesiones"
+
+msgid "Session ID"
+msgstr "ID de sesión"
+
+msgid "Session Record"
+msgstr "Registro de la sesión"
+
+msgid "Session Status"
+msgstr "Estado de la sesión"
+
+msgid "Session Summary"
+msgstr "Resumen de la sesión"
+
+msgctxt "checkpoint_reason"
+msgid "Session close"
+msgstr "Cierre de sesión de conteo"
+
+msgctxt "event_type"
+msgid "Session closed"
+msgstr "Sesión cerrada"
+
+msgid "Session closed."
+msgstr "Sesión de conteo cerrada."
+
+msgctxt "event_type"
+msgid "Session opened"
+msgstr "Sesión abierta"
+
+msgid "Session records are stored for future review and audit."
+msgstr "Los registros de las sesiones se guardan para revisión y auditoría futuras."
+
+msgctxt "checkpoint_reason"
+msgid "Session start"
+msgstr "Inicio de sesión de conteo"
+
+msgid "Session status"
+msgstr "Estado de la sesión"
+
+#, python-format
+msgid "Session status \"%(code)s\" is not configured. Contact the administrator."
+msgstr "El estado de sesión \"%(code)s\" no está configurado. Contacte al administrador."
+
+#, python-format
+msgid "Session status \"%(code)s\" is not configured. The catalogs must be updated."
+msgstr "El estado de sesión \"%(code)s\" no está configurado. Deben actualizarse los catálogos."
+
+msgid "Session status \"closed\" is not configured. The catalogs must be updated."
+msgstr "El estado de sesión \"closed\" no está configurado. Deben actualizarse los catálogos."
+
+msgid "Sessions"
+msgstr "Sesiones"
+
+msgid "Sessions Open / Counting / Validating / Closed"
+msgstr "Sesiones abiertas / en conteo / en validación / cerradas"
+
+msgid "Sessions Pending Review"
+msgstr "Sesiones pendientes de revisión"
+
+msgid "Sessions Today"
+msgstr "Sesiones de hoy"
+
+msgid "Sessions by Day (last 7 days, UTC)"
+msgstr "Sesiones por día (últimos 7 días, UTC)"
+
+msgid "Sessions by Status"
+msgstr "Sesiones por estado"
+
+msgid "Sessions in Counting"
+msgstr "Sesiones en conteo"
+
+msgid "Sessions in Validation"
+msgstr "Sesiones en validación"
+
+#, python-format
+msgid "Set a new password for %(name)s. The user will need to use this password for their next sign in."
+msgstr ""
+"Defina una nueva contraseña para %(name)s. El usuario deberá usar esta contraseña en su próximo "
+"inicio de sesión."
+
+msgid "Set the initial password for this user."
+msgstr "Defina la contraseña inicial de este usuario."
+
+msgctxt "vision_result"
+msgid "Shortage"
+msgstr "Faltante"
+
+msgctxt "discrepancy_reason"
+msgid "Shortage against expected inventory"
+msgstr "Faltante respecto al inventario esperado"
+
+#, python-format
+msgid "Showing %(shown)s events (latest 300)"
+msgstr "Mostrando %(shown)s eventos (últimos 300)"
+
+#, python-format
+msgid "Showing %(shown)s of %(total)s families"
+msgstr "Mostrando %(shown)s de %(total)s familias"
+
+#, python-format
+msgid "Showing %(shown)s of %(total)s instruments"
+msgstr "Mostrando %(shown)s de %(total)s instrumentos"
+
+#, python-format
+msgid "Showing %(shown)s of %(total)s kits"
+msgstr "Mostrando %(shown)s de %(total)s kits"
+
+#, python-format
+msgid "Showing %(shown)s of %(total)s models"
+msgstr "Mostrando %(shown)s de %(total)s modelos"
+
+#, python-format
+msgid "Showing %(shown)s of %(total)s procedures"
+msgstr "Mostrando %(shown)s de %(total)s procedimientos"
+
+#, python-format
+msgid "Showing %(shown)s of %(total)s roles"
+msgstr "Mostrando %(shown)s de %(total)s roles"
+
+#, python-format
+msgid "Showing %(shown)s of %(total)s sessions"
+msgstr "Mostrando %(shown)s de %(total)s sesiones"
+
+#, python-format
+msgid "Showing %(shown)s of %(total)s users"
+msgstr "Mostrando %(shown)s de %(total)s usuarios"
+
+#, python-format
+msgid "Showing %(shown)s sessions"
+msgstr "Mostrando %(shown)s sesiones"
+
+msgid "Sign In"
+msgstr "Iniciar sesión"
+
+msgid "Sign Out"
+msgstr "Cerrar sesión"
+
+msgid "Size (KB)"
+msgstr "Tamaño (KB)"
+
+msgid "Start Session"
+msgstr "Iniciar sesión de conteo"
+
+msgid "Started"
+msgstr "Iniciada"
+
+msgid "Station"
+msgstr "Estación"
+
+msgid "Station Name"
+msgstr "Nombre de la estación"
+
+msgid "Status"
+msgstr "Estado"
+
+msgid "Status: Active"
+msgstr "Estado: Activo"
+
+msgid "Status: All"
+msgstr "Estado: Todos"
+
+msgid "Status: Inactive"
+msgstr "Estado: Inactivo"
+
+#, python-format
+msgid ""
+"Stored canonical name (English). System catalog values are displayed translated; in this "
+"language: %(name)s"
+msgstr ""
+"Nombre canónico almacenado (inglés). Los valores de catálogo del sistema se muestran traducidos; "
+"en este idioma: %(name)s"
+
+msgid "Submit Correction"
+msgstr "Enviar corrección"
+
+msgid "Submit Validation"
+msgstr "Enviar validación"
+
+msgid "Submit at least one validated count."
+msgstr "Envíe al menos un conteo validado."
+
+msgid "Submit for Supervisor Review"
+msgstr "Enviar a revisión del supervisor"
+
+msgctxt "instrument_category"
+msgid "Suction"
+msgstr "Aspiración"
+
+msgid "Supervisor"
+msgstr "Supervisor"
+
+msgctxt "role_short"
+msgid "Supervisor"
+msgstr "Supervisor"
+
+msgctxt "role_description"
+msgid "Supervisor CDE / Quality"
+msgstr "Supervisor CDE / Calidad"
+
+msgid "Supervisor Decisions"
+msgstr "Decisiones del supervisor"
+
+msgid "Supervisor Notes (optional)"
+msgstr "Notas del supervisor (opcional)"
+
+msgid "Supervisor navigation"
+msgstr "Navegación del supervisor"
+
+msgid "Supporting Instrument Traceability and Validation Workflows"
+msgstr "Apoyo a los flujos de trazabilidad y validación de instrumental"
+
+msgctxt "surgical_role"
+msgid "Surgeon"
+msgstr "Cirujano"
+
+msgid "Surgical Instrument"
+msgstr "Instrumental quirúrgico"
+
+msgid "Surgical Instrument Traceability System"
+msgstr "Sistema de trazabilidad de instrumental quirúrgico"
+
+msgctxt "event_type"
+msgid "Surgical phase change"
+msgstr "Cambio de fase quirúrgica"
+
+msgctxt "vision_result"
+msgid "Surplus"
+msgstr "Sobrante"
+
+msgctxt "discrepancy_reason"
+msgid "Surplus against expected inventory"
+msgstr "Sobrante respecto al inventario esperado"
+
+msgctxt "instrument_category"
+msgid "Suturing"
+msgstr "Sutura"
+
+msgid "System"
+msgstr "Sistema"
+
+msgid "System Benefits"
+msgstr "Beneficios del sistema"
+
+msgid "System Overview"
+msgstr "Resumen del sistema"
+
+msgid "System Purpose"
+msgstr "Propósito del sistema"
+
+msgctxt "operation_phase"
+msgid "Table Setup"
+msgstr "Preparación de mesa"
+
+msgid "Take a capture of the instrument tray before running the analysis."
+msgstr "Tome una captura de la charola de instrumental antes de ejecutar el análisis."
+
+msgctxt "usage_context"
+msgid "Teaching or training use"
+msgstr "Uso docente o de capacitación"
+
+msgid "Technique Label"
+msgstr "Etiqueta de técnica"
+
+msgid "Technique Label must be at most 160 characters."
+msgstr "La etiqueta de técnica debe tener como máximo 160 caracteres."
+
+msgid "Terms of Service"
+msgstr "Términos del servicio"
+
+msgid "The action could not be stored. Nothing was saved; please try again."
+msgstr "No se pudo guardar la acción. No se guardó nada; intente de nuevo."
+
+#, python-format
+msgid "The active vision model %(version)s has no class mappings configured."
+msgstr "El modelo de visión activo %(version)s no tiene mapeos de clases configurados."
+
+msgid "The active vision model has no version tag."
+msgstr "El modelo de visión activo no tiene etiqueta de versión."
+
+msgid "The analysis can only run once, while the session is counting."
+msgstr "El análisis solo puede ejecutarse una vez, mientras la sesión está en conteo."
+
+msgid "The analysis conflicts with existing records and was not stored."
+msgstr "El análisis entra en conflicto con registros existentes y no se guardó."
+
+msgid "The analysis could not be stored. Nothing was saved; please try again."
+msgstr "No se pudo guardar el análisis. No se guardó nada; intente de nuevo."
+
+msgid "The baseline inventory registered for this operation kit."
+msgstr "El inventario base registrado para el kit de esta operación."
+
+msgid "The bucket name is too long."
+msgstr "El nombre del bucket es demasiado largo."
+
+msgid "The capture could not be saved. Please try again."
+msgstr "No se pudo guardar la captura. Intente de nuevo."
+
+#, python-format
+msgid "The class mapping of model %(version)s is inconsistent."
+msgstr "El mapeo de clases del modelo %(version)s es inconsistente."
+
+msgid "The default kit must be active."
+msgstr "El kit predeterminado debe estar activo."
+
+msgid "The discrepancy has no new human result to review yet."
+msgstr "La discrepancia aún no tiene un nuevo resultado humano para revisar."
+
+msgid "The discrepancy will be marked as resolved. AI and human records remain unchanged."
+msgstr "La discrepancia se marcará como resuelta. Los registros de IA y humanos no cambian."
+
+msgid "The file is not a valid JPEG image."
+msgstr "El archivo no es una imagen JPEG válida."
+
+msgid ""
+"The final instrument count has been validated. Closing the session will finalize the validated "
+"count and record the session completion."
+msgstr ""
+"El conteo final de instrumental fue validado. Al cerrar la sesión se finalizará el conteo "
+"validado y se registrará la conclusión de la sesión."
+
+msgid "The human result is rejected and the operator must recount. The discrepancy stays open."
+msgstr "El resultado humano se rechaza y el operador debe volver a contar. La discrepancia sigue abierta."
+
+msgid "The image exceeds the maximum allowed size."
+msgstr "La imagen excede el tamaño máximo permitido."
+
+#, python-format
+msgid "The image exceeds the maximum size of %(size)s MB."
+msgstr "La imagen excede el tamaño máximo de %(size)s MB."
+
+msgid "The note must be at most 2000 characters."
+msgstr "La nota debe tener como máximo 2000 caracteres."
+
+msgid "The operator will be asked to recount this instrument. The discrepancy stays open."
+msgstr "Se pedirá al operador que vuelva a contar este instrumento. La discrepancia sigue abierta."
+
+msgid "The selected file is empty."
+msgstr "El archivo seleccionado está vacío."
+
+msgid "The selected instrument family is inactive."
+msgstr "La familia de instrumental seleccionada está inactiva."
+
+#, python-format
+msgid "The session cannot be closed: %(count)s unresolved discrepancy(ies)."
+msgstr "La sesión no puede cerrarse: %(count)s discrepancia(s) sin resolver."
+
+#, python-format
+msgid ""
+"The session cannot be closed: %(count)s unresolved discrepancy(ies); human validation is "
+"incomplete."
+msgstr ""
+"La sesión no puede cerrarse: %(count)s discrepancia(s) sin resolver; la validación humana está "
+"incompleta."
+
+msgid "The session could not be closed. Nothing was changed; please try again."
+msgstr "No se pudo cerrar la sesión. No se modificó nada; intente de nuevo."
+
+msgid "The supervisor requested a correction."
+msgstr "El supervisor solicitó una corrección."
+
+msgid "The supervisor requested a new count. Review the evidence and submit your final count."
+msgstr "El supervisor solicitó un nuevo conteo. Revise la evidencia y envíe su conteo final."
+
+msgid "The system highlights discrepancies and supports a structured review process."
+msgstr "El sistema resalta las discrepancias y apoya un proceso de revisión estructurado."
+
+msgid "The system highlights discrepancies for review and approval before the session can be closed."
+msgstr ""
+"El sistema resalta las discrepancias para su revisión y aprobación antes de poder cerrar la "
+"sesión."
+
+msgid ""
+"The system is designed to support instrument traceability, counting, and validation workflows by "
+"combining visual capture, AI-assisted suggestions, and human review."
+msgstr ""
+"El sistema está diseñado para apoyar los flujos de trazabilidad, conteo y validación de "
+"instrumental combinando captura visual, sugerencias asistidas por IA y revisión humana."
+
+msgid "The validated session is recorded and stored for future reference and audit."
+msgstr "La sesión validada se registra y se guarda para consulta y auditoría futuras."
+
+msgid "There are no corrections requested by the supervisor for this session."
+msgstr "No hay correcciones solicitadas por el supervisor para esta sesión."
+
+msgid "There are no pending correction requests for this session."
+msgstr "No hay solicitudes de corrección pendientes para esta sesión."
+
+msgid "There are no scheduled or in-progress operations available for your institution."
+msgstr "No hay operaciones programadas o en curso disponibles para su institución."
+
+msgid "There is no AI result to validate for this session."
+msgstr "No hay resultado de IA que validar en esta sesión."
+
+msgid "There is no AI result to validate yet."
+msgstr "Todavía no hay resultado de IA que validar."
+
+msgid "There is no active vision model. An administrator must activate one first."
+msgstr "No hay ningún modelo de visión activo. Un administrador debe activar uno primero."
+
+msgctxt "processing_purpose"
+msgid "Third-party data sharing"
+msgstr "Compartición de datos con terceros"
+
+msgid "This action conflicts with existing records and was not stored."
+msgstr "Esta acción entra en conflicto con registros existentes y no se guardó."
+
+msgid "This action is not available in the current session state."
+msgstr "Esta acción no está disponible en el estado actual de la sesión."
+
+msgid "This analysis was already stored."
+msgstr "Este análisis ya estaba guardado."
+
+msgid ""
+"This change conflicts with an existing record (duplicate code/name or another default/active "
+"record)."
+msgstr ""
+"Este cambio entra en conflicto con un registro existente (código/nombre duplicado u otro registro"
+" predeterminado/activo)."
+
+msgid "This correction was already stored."
+msgstr "Esta corrección ya estaba guardada."
+
+msgid "This discrepancy is already approved."
+msgstr "Esta discrepancia ya está aprobada."
+
+msgid "This operation has no procedure type; a counting session cannot be started for it."
+msgstr "Esta operación no tiene tipo de procedimiento; no se puede iniciar una sesión de conteo para ella."
+
+msgid "This session has no capture to analyse."
+msgstr "Esta sesión no tiene captura para analizar."
+
+msgid "This session is not in validation."
+msgstr "Esta sesión no está en validación."
+
+msgid "This session was already closed."
+msgstr "Esta sesión ya estaba cerrada."
+
+msgid ""
+"This user will no longer be able to access the system while inactive. You can reactivate this "
+"user at any time from the Users management screen."
+msgstr ""
+"Este usuario no podrá acceder al sistema mientras esté inactivo. Puede reactivarlo en cualquier "
+"momento desde la pantalla de administración de usuarios."
+
+msgid "This validation was already stored."
+msgstr "Esta validación ya estaba guardada."
+
+msgid "This version will become the active model used for new AI-assisted counting sessions."
+msgstr "Esta versión será el modelo activo que se usará en las nuevas sesiones de conteo asistidas por IA."
+
+msgid "Threshold"
+msgstr "Umbral"
+
+msgid "Timestamp"
+msgstr "Fecha y hora"
+
+msgid "Today"
+msgstr "Hoy"
+
+msgid "Top Instrument Families with Discrepancies"
+msgstr "Familias de instrumental con más discrepancias"
+
+msgid "Total AI"
+msgstr "Total IA"
+
+msgid "Total AI Detected"
+msgstr "Total detectado por IA"
+
+msgid "Total Counted"
+msgstr "Total contado"
+
+msgid "Total Discrepancies"
+msgstr "Total de discrepancias"
+
+msgid "Total Expected"
+msgstr "Total esperado"
+
+msgid "Total Expected Instruments"
+msgstr "Total de instrumentos esperados"
+
+msgid "Total Human Final"
+msgstr "Total final humano"
+
+msgid "Total Sessions"
+msgstr "Total de sesiones"
+
+msgid "Traceability"
+msgstr "Trazabilidad"
+
+msgid "Traceability System"
+msgstr "Sistema de trazabilidad"
+
+msgid "Track instrument presence and session history across the validation workflow."
+msgstr ""
+"Dé seguimiento a la presencia del instrumental y al historial de sesiones a lo largo del flujo de"
+" validación."
+
+msgctxt "operation_phase"
+msgid "Tray Handover and Removal"
+msgstr "Entrega y retiro de charola"
+
+msgid "Unable to save right now. Please try again."
+msgstr "No se puede guardar en este momento. Intente de nuevo."
+
+msgid "Unassigned"
+msgstr "Sin asignar"
+
+msgid "Unassigned room"
+msgstr "Quirófano sin asignar"
+
+msgid "Uncategorized"
+msgstr "Sin categoría"
+
+msgctxt "review_status"
+msgid "Under Review"
+msgstr "En revisión"
+
+msgid "Unidentified"
+msgstr "No identificado"
+
+msgctxt "vision_result"
+msgid "Unidentified"
+msgstr "No identificado"
+
+#, python-format
+msgid "Unidentified (YOLO class %(class_id)s)"
+msgstr "No identificado (clase YOLO %(class_id)s)"
+
+msgid "Unknown"
+msgstr "Desconocido"
+
+msgid "Unknown family"
+msgstr "Familia desconocida"
+
+msgid "Unknown institution"
+msgstr "Institución desconocida"
+
+msgid "Unknown kit"
+msgstr "Kit desconocido"
+
+msgid "Unknown operator"
+msgstr "Operador desconocido"
+
+msgid "Unknown phase"
+msgstr "Fase desconocida"
+
+msgid "Unknown user"
+msgstr "Usuario desconocido"
+
+msgid "Unresolved / Resolved Discrepancies"
+msgstr "Discrepancias sin resolver / resueltas"
+
+msgid "Unresolved Discrepancies"
+msgstr "Discrepancias sin resolver"
+
+#, python-format
+msgid "Unresolved discrepancies: %(n)s · Human validation complete: %(v)s"
+msgstr "Discrepancias sin resolver: %(n)s · Validación humana completa: %(v)s"
+
+msgctxt "gender"
+msgid "Unspecified"
+msgstr "No especificado"
+
+msgid "Unspecified instrument"
+msgstr "Instrumento sin especificar"
+
+msgid "Unspecified kit"
+msgstr "Kit sin especificar"
+
+msgid "Unspecified procedure"
+msgstr "Procedimiento sin especificar"
+
+msgid "Unspecified room"
+msgstr "Quirófano sin especificar"
+
+msgid "Unspecified station"
+msgstr "Estación sin especificar"
+
+msgid "Update capture station information and status."
+msgstr "Actualice la información y el estado de la estación de captura."
+
+msgid "Update model settings and instrument class mappings."
+msgstr "Actualice la configuración del modelo y los mapeos de clases de instrumental."
+
+msgid "Update the institution information used by the system."
+msgstr "Actualice la información de la institución que usa el sistema."
+
+msgid "Update the procedure, associated kits, and counting phases."
+msgstr "Actualice el procedimiento, los kits asociados y las fases de conteo."
+
+msgid "Update this instrument type's classification information."
+msgstr "Actualice la información de clasificación de este tipo de instrumental."
+
+msgid "Update this instrument's family, cycle status, and active status."
+msgstr "Actualice la familia, el estado del ciclo y el estado de actividad de este instrumento."
+
+msgid "Update user information and assigned role."
+msgstr "Actualice la información del usuario y el rol asignado."
+
+msgid "Upload Image"
+msgstr "Subir imagen"
+
+msgid "Uploading..."
+msgstr "Subiendo..."
+
+msgctxt "specialty"
+msgid "Urology"
+msgstr "Urología"
+
+msgid "Use the language and theme controls in the top-right header to change these preferences."
+msgstr ""
+"Use los controles de idioma y tema en la esquina superior derecha del encabezado para cambiar "
+"estas preferencias."
+
+msgid "User"
+msgstr "Usuario"
+
+msgid "User deactivated."
+msgstr "Usuario desactivado."
+
+msgid "User menu"
+msgstr "Menú de usuario"
+
+msgid "User saved."
+msgstr "Usuario guardado."
+
+msgid "Users"
+msgstr "Usuarios"
+
+msgid "Validate Count"
+msgstr "Validar conteo"
+
+msgid "Validate Counts"
+msgstr "Validar conteos"
+
+msgid "Validate every instrument before continuing."
+msgstr "Valide cada instrumento antes de continuar."
+
+msgid "Validated Counts"
+msgstr "Conteos validados"
+
+msgctxt "session_status"
+msgid "Validating"
+msgstr "En validación"
+
+msgid "Validation Summary"
+msgstr "Resumen de la validación"
+
+msgid "Validation stored."
+msgstr "Validación guardada."
+
+msgctxt "event_type"
+msgid "Validation without discrepancies"
+msgstr "Validación sin discrepancias"
+
+msgid "Version"
+msgstr "Versión"
+
+msgid "Version Tag"
+msgstr "Etiqueta de versión"
+
+msgid "View"
+msgstr "Ver"
+
+msgid "View / Edit"
+msgstr "Ver / editar"
+
+msgid "View Details"
+msgstr "Ver detalles"
+
+msgid "View and manage all counting sessions."
+msgstr "Consulte y administre todas las sesiones de conteo."
+
+msgid "Vision Model"
+msgstr "Modelo de visión"
+
+msgid "Vision Models"
+msgstr "Modelos de visión"
+
+msgid "Vision Models (global)"
+msgstr "Modelos de visión (global)"
+
+#, python-format
+msgid "Vision inference provider \"%(name)s\" is not available in this deployment."
+msgstr "El proveedor de inferencia de visión \"%(name)s\" no está disponible en esta instalación."
+
+#, python-format
+msgid "Vision model %(version)s is now active."
+msgstr "El modelo de visión %(version)s ahora está activo."
+
+msgctxt "processing_purpose"
+msgid "Vision model improvement"
+msgstr "Mejora del modelo de visión"
+
+msgid "Vision model saved."
+msgstr "Modelo de visión guardado."
+
+msgid "Warning: the historical version number must not be silently overwritten."
+msgstr "Advertencia: el número de versión histórico no debe sobrescribirse sin aviso."
+
+msgid "With Discrepancies"
+msgstr "Con discrepancias"
+
+msgid "With Discrepancy"
+msgstr "Con discrepancia"
+
+msgid "With Human Corrections"
+msgstr "Con correcciones humanas"
+
+msgid "Without Discrepancies"
+msgstr "Sin discrepancias"
+
+msgid "Workflow"
+msgstr "Flujo de trabajo"
+
+msgid "YOLO Class ID"
+msgstr "ID de clase YOLO"
+
+msgid "YOLO class ID"
+msgstr "ID de clase YOLO"
+
+#, python-format
+msgid "YOLO class ID %(class_id)s is listed more than once."
+msgstr "El ID de clase YOLO %(class_id)s aparece más de una vez."
+
+msgid "Yes"
+msgstr "Sí"
+
+msgid "You cannot deactivate your own account."
+msgstr "No puede desactivar su propia cuenta."
+
+msgid "Your account has no application role."
+msgstr "Su cuenta no tiene un rol en la aplicación."
+
+msgid "Your language preference could not be saved. Please try again."
+msgstr "No se pudo guardar su preferencia de idioma. Intente de nuevo."
+
+msgid "Your own institution cannot be deactivated from here."
+msgstr "Su propia institución no puede desactivarse desde aquí."
+
+msgid "name@institution.edu"
+msgstr "nombre@institucion.edu"
+
+msgid "this user"
+msgstr "este usuario"
+
+#, python-format
+msgid ""
+"© %(year)s Surgical Instrument Traceability System. All Rights Reserved. Hospital Restricted "
+"Software."
+msgstr ""
+"© %(year)s Sistema de trazabilidad de instrumental quirúrgico. Todos los derechos reservados. "
+"Software de uso hospitalario restringido."
+

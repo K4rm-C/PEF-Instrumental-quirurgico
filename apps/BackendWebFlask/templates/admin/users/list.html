@@ -18,7 +18,7 @@
 
 {% block page_content %}
 {% set users_shown_count = users_shown_count|default(users|length, true) %}
-{% set users_total_count = users_total_count|default(users|length, true) %}
+{% set users_total_count = users_total_count|default(0) %}
 {% set current_page = current_page|default(1, true) %}
 {% set total_pages = total_pages|default(1, true) %}
 {% set previous_url = previous_url|default('#', true) %}
@@ -36,9 +36,8 @@
 </div>
 
 <section class="card">
-    {# Filters are presentation-only in this iteration: no client-side or server-side
-       filtering is wired up yet. #}
-    <form class="filter-bar" action="#" method="get" role="search">
+    {# Filters work client-side over the real rows (static/js/table-filter.js). #}
+    <form class="filter-bar" action="" method="get" role="search" data-client-filter>
         <div class="filter-bar__search">
             <label class="visually-hidden" for="users-search">{{ _("Search Users") }}</label>
             <div class="form-field__input-wrapper">
@@ -51,16 +50,18 @@
             <label class="visually-hidden" for="users-role">{{ _("Role") }}</label>
             <select class="form-field__input form-field__input--plain" id="users-role" name="role">
                 <option value="">{{ _("Role: All") }}</option>
-                <option value="operator">{{ _("Operator CDE") }}</option>
-                <option value="supervisor">{{ _("Supervisor CDE / Quality") }}</option>
-                <option value="admin">{{ _("IT Administrator") }}</option>
+                {% for option in filter_roles|default([]) %}
+                <option value="{{ option.value }}">{{ option.label }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="filter-bar__select">
             <label class="visually-hidden" for="users-institution">{{ _("Institution") }}</label>
             <select class="form-field__input form-field__input--plain" id="users-institution" name="institution">
                 <option value="">{{ _("Institution: All") }}</option>
-                <option value="hospital-institution">{{ _("Hospital Institution") }}</option>
+                {% for option in filter_institutions|default([]) %}
+                <option value="{{ option.value }}">{{ option.label }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="filter-bar__select">

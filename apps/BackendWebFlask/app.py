@@ -1,6 +1,7 @@
 from flask import Flask, g, request
 
-from controllers import web_bp
+import localization
+from controllers import routes, web_bp
 from config import Config
 from extensions import db
 
@@ -9,6 +10,8 @@ def create_app():
 	app = Flask(__name__)
 	app.config.from_object(Config)
 	db.init_app(app)
+	# looked up at call time so tests can replace routes._current_user
+	localization.init_app(app, user_loader=lambda: routes._current_user())
 	app.register_blueprint(web_bp)
 
 	@app.before_request

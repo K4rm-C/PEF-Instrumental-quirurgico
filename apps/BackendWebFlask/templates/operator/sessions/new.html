@@ -43,6 +43,12 @@
         <p class="card__subtitle">{{ _("Configure the session details and select the kit and capture station.") }}</p>
     </div>
 
+    {% if session_setup_notice %}
+    <div class="alert alert--warning" role="status">
+        {{ macros.icon_alert_triangle() }}
+        <span class="alert__message">{{ session_setup_notice }}</span>
+    </div>
+    {% endif %}
     <form id="new-counting-session-form" action="{{ start_session_url|default('#') }}" method="post">
         <div class="form-grid">
             <div class="form-field">

@@ -17,13 +17,8 @@
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
-{% set capture_station = capture_station|default({'name': 'Station CDE-01', 'operating_room': 'or-3', 'status': 'active', 'roi_configured': true} if is_edit else {'name': '', 'operating_room': '', 'status': 'active', 'roi_configured': false}, true) %}
-{% set operating_rooms = operating_rooms|default([
-    {'value': 'or-1', 'label': _('OR-1')},
-    {'value': 'or-2', 'label': _('OR-2')},
-    {'value': 'or-3', 'label': _('OR-3')},
-    {'value': 'or-4', 'label': _('OR-4')}
-], true) %}
+{% set capture_station = capture_station|default({'name': '', 'operating_room': '', 'status': 'active', 'roi_configured': false}, true) %}
+{% set operating_rooms = operating_rooms|default([], true) %}
 {% set page_title = _("Edit Capture Station") if is_edit else _("New Capture Station") %}
 {% set page_subtitle = _("Update capture station information and status.") if is_edit else _("Register a capture station available for counting sessions.") %}
 

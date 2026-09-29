@@ -26,6 +26,10 @@
 </ol>
 {% endblock %}
 
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/capture-evidence.js') }}" defer></script>
+{% endblock %}
+
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/active-counting-session.css') }}">
 {% endblock %}
@@ -53,29 +57,73 @@
     <div class="card">
         <div class="card__title-bar">
             <h2 class="card__title">{{ _("Capture Image") }}</h2>
-            {{ macros.status_badge(_("AI Counting Ready"), 'success') }}
+            {% if latest_capture %}
+            {{ macros.status_badge(_("Evidence captured"), 'success') }}
+            {% else %}
+            {{ macros.status_badge(_("No capture yet"), 'warning') }}
+            {% endif %}
         </div>
-        <div class="evidence-image" aria-hidden="true">{{ macros.icon_camera() }}</div>
+        {# Evidence is private: images are served only through the authenticated
+           operator_session_media route, never from /static. #}
+        <div class="evidence-image">
+            <img id="capture-preview" alt="{{ _('Selected photo preview') }}" hidden
+                 style="width: 100%; height: 100%; object-fit: contain; border-radius: inherit;">
+            {% if latest_capture %}
+            <img id="capture-latest" src="{{ latest_capture.url }}" alt="{{ _('Latest capture of the instrument tray') }}"
+                 style="width: 100%; height: 100%; object-fit: contain; border-radius: inherit;">
+            {% else %}
+            <span id="capture-empty" aria-hidden="true">{{ macros.icon_camera() }}</span>
+            {% endif %}
+        </div>
         <div class="evidence-image__meta">
+            {% if latest_capture %}
             <span>{{ _("Captured at") }}: {{ captured_at }}</span>
+            {% else %}
+            <span>{{ _("No capture has been taken for this session yet.") }}</span>
+            {% endif %}
             <span>{{ _("Capture Station") }}: {{ session.capture_station_name }}</span>
+            <span>{{ _("Session status") }}: {{ session.status_label }}</span>
         </div>
-        {# Integration point: no camera/upload pipeline exists yet — these are presentational
-           actions only, not wired to a real capture or file-upload flow. #}
-        <div class="evidence-image__actions">
-            <button type="button" class="btn btn--secondary btn--small" disabled>
-                {{ macros.icon_camera() }}
-                <span>{{ _("Capture Image") }}</span>
-            </button>
-            <button type="button" class="btn btn--secondary btn--small" disabled>
-                {{ macros.icon_history() }}
-                <span>{{ _("Upload Image") }}</span>
-            </button>
-            <button type="button" class="btn btn--secondary btn--small" disabled>
-                {{ macros.icon_history() }}
-                <span>{{ _("Retake Photograph") }}</span>
-            </button>
+        <form id="capture-form" action="{{ upload_capture_url|default('') }}" method="post" enctype="multipart/form-data"
+              data-uploading-label="{{ _('Uploading...') }}">
+            <input type="file" id="capture-input" name="capture_image" accept="image/jpeg" hidden>
+            <div class="evidence-image__actions">
+                <button type="button" class="btn btn--secondary btn--small" data-capture-source="camera">
+                    {{ macros.icon_camera() }}
+                    <span>{{ _("Retake Photograph") if latest_capture else _("Capture Image") }}</span>
+                </button>
+                <button type="button" class="btn btn--secondary btn--small" data-capture-source="file">
+                    {{ macros.icon_history() }}
+                    <span>{{ _("Upload Image") }}</span>
+                </button>
+                <button type="submit" class="btn btn--primary btn--small" id="capture-submit" disabled>
+                    <span>{{ _("Save Capture") }}</span>
+                </button>
+            </div>
+            <p class="form-field__helper" id="capture-selected-name" hidden></p>
+        </form>
+        {% if captures|default([])|length > 1 %}
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Capture") }}</th>
+                        <th scope="col">{{ _("Captured at") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Size (KB)") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for capture in captures %}
+                    <tr>
+                        <td><a href="{{ capture.url }}" target="_blank" rel="noopener">{{ _("Capture") }} {{ loop.revindex }}</a></td>
+                        <td>{{ capture.captured_at }}</td>
+                        <td class="data-table__numeric-column">{{ capture.size_kb }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
+        {% endif %}
     </div>
 
     <div class="card">

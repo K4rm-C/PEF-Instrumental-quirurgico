@@ -1,13 +1,8 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
+{% import "components/session_review.html" as review with context %}
 
 {% set session_id = session_id|default('') %}
-{% set session = session|default({
-    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
-    'patient_name': '', 'physician_name': '',
-    'kit_name': '', 'capture_station_name': '',
-    'status_label': '', 'status_variant': 'neutral'
-}, true) %}
 
 {% block title %}{{ _("Awaiting Supervisor Review") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
@@ -27,92 +22,36 @@
 {% endblock %}
 
 {% block page_content %}
-{% set session_summary = session_summary|default({'expected_count': 0, 'validated_count': 0, 'discrepancy_count': 0}) %}
-{% set review_status = review_status|default({
-    'assigned_supervisor': '', 'escalated_time': '',
-    'current_status_label': ''
-}) %}
-{% set discrepancy_details = discrepancy_details|default({
-    'instrument_name': '', 'expected_count': 0,
-    'ai_detected': 0, 'operator_validated': 0, 'final_difference': 0
-}) %}
-{% set operator_validation_record = operator_validation_record|default({
-    'ai_detected': 0, 'operator_validated': 0, 'result_label': '',
-    'notes': '',
-    'operator_name': '', 'timestamp': ''
-}) %}
-{% set back_to_sessions_url = back_to_sessions_url|default(url_for('web.operator_sessions')) %}
-
-<div class="page-heading">
-    <div>
-        <h1 class="page-heading__title">{{ _("Awaiting Supervisor Review") }}</h1>
-        <p class="page-heading__subtitle">{{ _("This session is pending supervisor review.") }}</p>
-    </div>
-</div>
-
-<div class="alert alert--warning" role="status">
-    {{ macros.icon_alert_triangle() }}
-    <span class="alert__message">{{ _("Supervisor review pending. Session closure is not available until all discrepancies are resolved.") }}</span>
-</div>
-
+{{ review.context_bar(session) }}
+{% if not report.validation_complete %}
+<div class="alert alert--warning" role="status">{{ macros.icon_alert_triangle() }}<span class="alert__message">{{ _("Human validation is not complete for this session.") }}</span></div>
+{% elif report.correction_required %}
+<div class="alert alert--danger" role="status">{{ macros.icon_alert_triangle() }}<span class="alert__message">{{ _("The supervisor requested a correction.") }}</span></div>
+{% elif report.open_discrepancies %}
+<div class="alert alert--warning" role="status">{{ macros.icon_alert_triangle() }}<span class="alert__message">{{ _("Awaiting supervisor review of %(count)s discrepancy(ies).", count=report.open_discrepancies|length) }}</span></div>
+{% else %}
+<div class="alert alert--success" role="status">{{ macros.icon_check_circle() }}<span class="alert__message">{{ _("All discrepancies are resolved. The session can be closed.") }}</span></div>
+{% endif %}
 <section class="card">
-    <div class="session-context-bar">
-        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
-        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    <div class="stat-card-grid">
+        {{ macros.stat_card(_("Expected"), report.expected_total, 'neutral') }}
+        {{ macros.stat_card(_("Human Final"), report.human_total, 'neutral') }}
+        {{ macros.stat_card(_("Open Discrepancies"), report.open_discrepancies|length, 'danger' if report.open_discrepancies else 'success') }}
     </div>
 </section>
+{{ review.discrepancies_table(report) }}
+{{ review.results_table(report, _("Validated Counts")) }}
+{% endblock %}
 
-<section class="panel-grid--two">
-    <div class="card">
-        <h2 class="card__title">{{ _("Session Summary") }}</h2>
-        <div class="stat-card-grid stat-card-grid--three">
-            {{ macros.stat_card(_("Expected"), _("%(count)s Instruments", count=session_summary.expected_count), 'neutral') }}
-            {{ macros.stat_card(_("Validated"), _("%(count)s Instruments", count=session_summary.validated_count), 'neutral') }}
-            {{ macros.stat_card(_("Discrepancies"), _("%(count)s Instrument", count=session_summary.discrepancy_count), 'danger') }}
-        </div>
-    </div>
-    <div class="card">
-        <h2 class="card__title">{{ _("Review Status") }}</h2>
-        <dl class="detail-list">
-            <div class="detail-list__row"><dt>{{ _("Assigned Supervisor") }}</dt><dd>{{ review_status.assigned_supervisor }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Escalated Time") }}</dt><dd>{{ review_status.escalated_time }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Current Status") }}</dt><dd>{{ macros.status_badge(review_status.current_status_label, 'warning') }}</dd></div>
-        </dl>
-    </div>
-</section>
-
-<section class="panel-grid--two">
-    <div class="card">
-        <h2 class="card__title">{{ _("Discrepancy Details") }}</h2>
-        <dl class="detail-list">
-            <div class="detail-list__row"><dt>{{ _("Instrument Type") }}</dt><dd>{{ discrepancy_details.instrument_name }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Expected Count") }}</dt><dd>{{ discrepancy_details.expected_count }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("AI Detected") }}</dt><dd>{{ discrepancy_details.ai_detected }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Operator Validated") }}</dt><dd>{{ discrepancy_details.operator_validated }}</dd></div>
-        </dl>
-        <p class="form-field__helper text-danger"><strong>{{ _("Final Difference") }}</strong>: {{ discrepancy_details.final_difference }} {{ _("Instrument") }}</p>
-    </div>
-    <div class="card">
-        <h2 class="card__title">{{ _("Operator Validation Record") }}</h2>
-        <p>{{ _("AI Detected:") }} <strong>{{ operator_validation_record.ai_detected }}</strong> | {{ _("Operator Validated:") }} <strong>{{ operator_validation_record.operator_validated }}</strong></p>
-        <p>{{ _("Result:") }} <strong>{{ operator_validation_record.result_label }}</strong></p>
-        <p class="card__subtitle">{{ _("Notes:") }} {{ operator_validation_record.notes }}</p>
-        <p class="form-field__helper">
-            {{ _("Operator:") }} <strong>{{ operator_validation_record.operator_name }}</strong>
-            &nbsp;&nbsp;{{ _("Time:") }} <strong>{{ operator_validation_record.timestamp }}</strong>
-        </p>
-    </div>
-</section>
-
-{# .page-content is a flex column with the default stretch cross-axis alignment, so a lone
-   .btn placed directly inside it would stretch full-width; a plain wrapping div keeps the
-   button at its natural content width, matching every approved reference. #}
-<div>
-    <a class="btn btn--secondary" href="{{ back_to_sessions_url }}">{{ _("Back to Sessions") }}</a>
+{% block page_action_bar %}
+<div class="page-action-bar">
+    <a class="btn btn--secondary" href="{{ url_for('web.operator_sessions') }}">{{ _("Back to Sessions") }}</a>
+    {% if not report.validation_complete %}
+    <a class="btn btn--primary" href="{{ url_for('web.operator_session_validation', session_id=session.session_id) }}">{{ _("Validate Counts") }}</a>
+    {% elif report.correction_required %}
+    <a class="btn btn--primary" href="{{ url_for('web.operator_session_correction', session_id=session.session_id) }}">{{ _("Review Correction Request") }}</a>
+    {% elif not report.open_discrepancies %}
+    <a class="btn btn--primary" href="{{ url_for('web.operator_session_ready_to_close', session_id=session.session_id) }}">{{ _("Proceed to Close") }}</a>
+    {% endif %}
 </div>
 {% endblock %}

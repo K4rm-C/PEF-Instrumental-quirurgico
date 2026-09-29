@@ -53,6 +53,7 @@
 }
 
 .dropdown__item[aria-selected="true"],
+.dropdown__item[aria-current="true"],
 [aria-selected="true"] > .dropdown__item {
     color: var(--color-primary);
     font-weight: var(--font-weight-semibold);

@@ -1,7 +1,7 @@
 from extensions import db
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP, INET
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, String, CheckConstraint
+from sqlalchemy import ForeignKey, String, CheckConstraint, func, text
 import uuid
 from datetime import datetime
 
@@ -21,16 +21,16 @@ class AccessAudit(db.Model):
         CheckConstraint("outcome IN ('success', 'denied')", name='chk_access_audit_outcome'),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    occurred_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text('gen_random_uuid()'))
+    occurred_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
     actor_type: Mapped[str] = mapped_column(String(16), nullable=False)
-    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('user.id'), nullable=True)
-    actor_client_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('integration_client.id'), nullable=True)
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
+    actor_client_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('integration_client.id', ondelete='SET NULL'), nullable=True)
     action: Mapped[str] = mapped_column(String(64), nullable=False)
     resource_type: Mapped[str] = mapped_column(String(64), nullable=False)
     resource_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    institution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('institution.id'), nullable=True)
-    outcome: Mapped[str] = mapped_column(String(16), nullable=False, default='success')
+    institution_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('institution.id', ondelete='SET NULL'), nullable=True)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False, default='success', server_default=text("'success'"))
     correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     ip: Mapped[str | None] = mapped_column(INET, nullable=True)
 

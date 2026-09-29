@@ -1,43 +1,36 @@
 /*
-  New Counting Session — presentation-only behavior.
-
-  When the Operator changes the selected Operation / Procedure, the read-only Patient,
-  Physician / Surgeon, and Operating Room fields are updated from data-* attributes already
-  rendered by the server on each <option>. No business logic, API calls, or database access
-  happen here — the server is the source of truth for this data; this script only reflects
-  the already-rendered attributes of whichever option becomes selected.
+  New Counting Session — the server computes which kits, capture stations and counting phases
+  are valid for the selected operation (and the expected-inventory preview for the selected
+  kit). Changing the Operation or Kit reloads the page with the current selection as query
+  parameters so those server-side lists refresh; the POST is validated again server-side.
 */
 (function () {
     "use strict";
 
-    function updateOperationDependentFields(operationSelect) {
-        var selectedOption = operationSelect.options[operationSelect.selectedIndex];
-        if (!selectedOption) {
-            return;
-        }
-
-        var patientField = document.getElementById("session-setup-patient");
-        var physicianField = document.getElementById("session-setup-physician");
-        var operatingRoomField = document.getElementById("session-setup-operating-room");
-
-        if (patientField) {
-            patientField.value = selectedOption.getAttribute("data-patient-name") || "";
-        }
-        if (physicianField) {
-            physicianField.value = selectedOption.getAttribute("data-physician-name") || "";
-        }
-        if (operatingRoomField) {
-            operatingRoomField.value = selectedOption.getAttribute("data-operating-room-name") || "";
-        }
+    function reloadWithSelection(form, changedName) {
+        var params = new URLSearchParams();
+        ["operation_id", "kit_id", "capture_station_id", "counting_phase"].forEach(function (name) {
+            var field = form.elements[name];
+            // a new operation invalidates the dependent selections
+            if (field && field.value && (changedName !== "operation_id" || name === "operation_id")) {
+                params.set(name, field.value);
+            }
+        });
+        window.location.search = params.toString();
     }
 
     document.addEventListener("DOMContentLoaded", function () {
-        var operationSelect = document.getElementById("operation-select");
-        if (!operationSelect) {
+        var form = document.getElementById("new-counting-session-form");
+        if (!form) {
             return;
         }
-        operationSelect.addEventListener("change", function () {
-            updateOperationDependentFields(operationSelect);
+        ["operation_id", "kit_id"].forEach(function (name) {
+            var select = form.elements[name];
+            if (select) {
+                select.addEventListener("change", function () {
+                    reloadWithSelection(form, name);
+                });
+            }
         });
     });
 })();

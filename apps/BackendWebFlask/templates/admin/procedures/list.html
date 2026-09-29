@@ -17,24 +17,11 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    procedures below is a placeholder value used only so this page is visually reviewable
-    before the backend supplies real data. Base procedure information (Code, Procedure Name)
-    comes from CatProcedureType; Associated Kits / Default Kit come from ProcedureKit;
-    Counting Phases come from ProcedurePhase joined to CatOperationPhase. No Description or
-    Status field exists on CatProcedureType, so neither is shown here.
-#}
-{% set procedures = procedures|default([
-    {'code': 'PROC-001', 'name': _('Appendectomy'), 'associated_kits_count': 2, 'default_kit_name': _('Delivery Kit'), 'counting_phases_label': _('Pre-Procedure, Post-Procedure'), 'edit_url': url_for('web.admin_procedure_edit', procedure_id='PROC-001')},
-    {'code': 'PROC-002', 'name': _('Cholecystectomy'), 'associated_kits_count': 1, 'default_kit_name': _('Suture Kit'), 'counting_phases_label': _('Pre-Procedure, Post-Procedure'), 'edit_url': url_for('web.admin_procedure_edit', procedure_id='PROC-002')},
-    {'code': 'PROC-003', 'name': _('Hernia Repair'), 'associated_kits_count': 1, 'default_kit_name': _('General Surgery Kit'), 'counting_phases_label': _('Pre-Procedure, Post-Procedure'), 'edit_url': url_for('web.admin_procedure_edit', procedure_id='PROC-003')}
-], true) %}
+{% set procedures = procedures|default([], true) %}
 {% set procedures_shown_count = procedures_shown_count|default(procedures|length, true) %}
-{% set procedures_total_count = procedures_total_count|default(5, true) %}
+{% set procedures_total_count = procedures_total_count|default(0) %}
 {% set current_page = current_page|default(1, true) %}
-{% set total_pages = total_pages|default(2, true) %}
+{% set total_pages = total_pages|default(1, true) %}
 
 <div class="page-heading">
     <div>
@@ -49,9 +36,8 @@
 
 <section class="card">
     <span class="form-field__label">{{ _("Search Procedures") }}</span>
-    {# Search is presentation-only in this iteration: no client-side or server-side filtering
-       is wired up yet. #}
-    <form class="filter-bar" action="#" method="get" role="search">
+    {# Filters work client-side over the real rows (static/js/table-filter.js). #}
+    <form class="filter-bar" action="" method="get" role="search" data-client-filter>
         <div class="filter-bar__search">
             <label class="visually-hidden" for="procedures-search">{{ _("Search Procedures") }}</label>
             <div class="form-field__input-wrapper">

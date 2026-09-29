@@ -17,29 +17,9 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    institution and capture_stations below are placeholder values used only so this page is
-    visually reviewable before the backend supplies real data. Expected shapes are documented
-    in FRONTEND_INTEGRATION.md. Per section 29, this page keeps ONLY Institution Information
-    and Capture Stations — no General Settings, Session Timeout, AI/YOLO, GPU, database, or
-    cloud configuration sections exist anywhere in this interface.
-#}
-{% set institution = institution|default({
-    'name': 'Hospital Institution', 'code': 'HOSP-001', 'status_label': _('Active'), 'status_variant': 'success'
-}, true) %}
-{% set operating_rooms = operating_rooms|default([
-    {'code': 'OR-1', 'name': _('Operating Room 1'), 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_operating_room_edit', room_id='OR-1')},
-    {'code': 'OR-2', 'name': _('Operating Room 2'), 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_operating_room_edit', room_id='OR-2')},
-    {'code': 'OR-3', 'name': _('Operating Room 3'), 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_operating_room_edit', room_id='OR-3')},
-    {'code': 'OR-4', 'name': _('Operating Room 4'), 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_operating_room_edit', room_id='OR-4')}
-], true) %}
-{% set capture_stations = capture_stations|default([
-    {'name': 'Station CDE-01', 'operating_room': 'OR-3', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_capture_station_edit', station_id='station-cde-01')},
-    {'name': 'Station CDE-02', 'operating_room': 'OR-2', 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_capture_station_edit', station_id='station-cde-02')},
-    {'name': 'Station CDE-03', 'operating_room': 'OR-1', 'status_label': _('Inactive'), 'status_variant': 'neutral', 'edit_url': url_for('web.admin_capture_station_edit', station_id='station-cde-03')}
-], true) %}
+{% set institution = institution|default({'name': '', 'code': '', 'status_label': '', 'status_variant': 'neutral'}, true) %}
+{% set operating_rooms = operating_rooms|default([], true) %}
+{% set capture_stations = capture_stations|default([], true) %}
 
 <div class="page-heading">
     <div>

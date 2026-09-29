@@ -1,11 +1,17 @@
 /*
-  IT Administrator Vision Model form (New Vision Model / Edit Vision Model) — presentation-
-  only Model Classes row insertion ("+ Add Class Mapping"), mirroring
-  static/js/pages/kit-form.js's Kit Composition editor. Nothing here is persisted, submitted,
-  or validated against real catalog data.
+  IT Administrator Vision Model form (New Vision Model / Edit Vision Model) — client-side
+  Model Classes row insertion ("+ Add Class Mapping"), mirroring
+  static/js/pages/kit-form.js's Kit Composition editor. Rows are submitted with the form and
+  validated/persisted by the backend (ModelClass).
 */
 (function () {
     "use strict";
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function (ch) {
+            return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[ch];
+        });
+    }
 
     var rowsBody = document.getElementById("model-classes-rows");
     var addButton = document.getElementById("add-class-mapping-btn");
@@ -25,13 +31,13 @@
     function buildOptionsMarkup() {
         return familyOptions
             .map(function (family) {
-                return '<option value="' + family.value + '">' + family.label + "</option>";
+                return '<option value="' + escapeHtml(family.value) + '">' + escapeHtml(family.label) + "</option>";
             })
             .join("");
     }
 
     addButton.addEventListener("click", function () {
-        var removeLabel = rowsBody.getAttribute("data-remove-label") || "Remove";
+        var removeLabel = rowsBody.getAttribute("data-remove-label") || (window.PEF_I18N ? window.PEF_I18N.t("remove", "Remove") : "Remove");
         var row = document.createElement("tr");
         row.className = "js-model-class-row";
         row.innerHTML =

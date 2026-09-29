@@ -1,0 +1,128 @@
+{% import "components/macros.html" as macros %}
+{#
+    Chart/list building blocks for dashboards, reports and indicators. Values always come from
+    services/analytics_service (PostgreSQL); empty data renders an explicit empty state.
+#}
+{% macro progress_list(items, empty_label) %}
+{% set max_value = items|map(attribute='value')|max if items else 1 %}
+{% if not items %}
+<p class="card__subtitle">{{ empty_label }}</p>
+{% else %}
+<ul class="status-progress-list">
+    {% for item in items %}
+    <li class="status-progress-item">
+        <div class="status-progress-item__header">
+            <span>{{ item.label }}</span>
+            <span class="status-progress-item__value">{{ item.value }}</span>
+        </div>
+        <div class="status-progress-item__track">
+            <div class="status-progress-item__fill status-progress-item__fill--{{ item.variant|default('neutral') }}"
+                 style="--status-progress-fill: {{ ((item.value / (max_value or 1)) * 100)|round(0, 'floor')|int }}%"></div>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+{% endif %}
+{% endmacro %}
+
+{% macro bar_chart(days) %}
+{% set max_value = days|map(attribute='count')|max if days else 1 %}
+<div class="bar-chart" role="img" aria-label="{{ _('Counting sessions per day, last 7 days') }}">
+    {% for day in days %}
+    <div class="bar-chart__column">
+        <div class="bar-chart__track">
+            <div class="bar-chart__bar" style="--bar-chart-fill: {{ ((day.count / (max_value or 1)) * 100)|round(0, 'floor')|int }}%"></div>
+        </div>
+        <span class="bar-chart__label">{{ day.label }} ({{ day.count }})</span>
+    </div>
+    {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro audit_filters(filters, filter_options, periods, audit_url) %}
+<form class="form-grid form-grid--four" action="{{ audit_url }}" method="get" role="search">
+    <div class="form-field">
+        <label class="form-field__label" for="audit-log-search">{{ _("Search Events") }}</label>
+        <input class="form-field__input form-field__input--plain" type="search" id="audit-log-search" name="search" value="{{ filters.search }}" placeholder="{{ _('Action or entity...') }}">
+    </div>
+    <div class="form-field">
+        <label class="form-field__label" for="audit-log-user">{{ _("User") }}</label>
+        <select class="form-field__input form-field__select" id="audit-log-user" name="user">
+            <option value="">{{ _("All Users") }}</option>
+            {% for option in filter_options.users %}<option value="{{ option.value }}" {% if option.value == filters.user %}selected{% endif %}>{{ option.label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="form-field">
+        <label class="form-field__label" for="audit-log-event-type">{{ _("Event Type") }}</label>
+        <select class="form-field__input form-field__select" id="audit-log-event-type" name="event_type">
+            <option value="">{{ _("All Event Types") }}</option>
+            {% for action in filter_options.event_types %}<option value="{{ action }}" {% if action == filters.event_type %}selected{% endif %}>{{ action }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="form-field">
+        <label class="form-field__label" for="audit-log-outcome">{{ _("Result") }}</label>
+        <select class="form-field__input form-field__select" id="audit-log-outcome" name="outcome">
+            <option value="">{{ _("All Results") }}</option>
+            <option value="success" {% if filters.outcome == 'success' %}selected{% endif %}>{{ catalog_label('audit_outcome', 'success') if catalog_label is defined else 'SUCCESS' }}</option>
+            <option value="denied" {% if filters.outcome == 'denied' %}selected{% endif %}>{{ catalog_label('audit_outcome', 'denied') if catalog_label is defined else 'DENIED' }}</option>
+        </select>
+    </div>
+    <div class="form-field">
+        <label class="form-field__label" for="audit-log-entity">{{ _("Entity") }}</label>
+        <select class="form-field__input form-field__select" id="audit-log-entity" name="entity">
+            <option value="">{{ _("All Entities") }}</option>
+            {% for entity in filter_options.entities %}<option value="{{ entity }}" {% if entity == filters.entity %}selected{% endif %}>{{ entity }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="form-field">
+        <label class="form-field__label" for="audit-log-period">{{ _("Period") }}</label>
+        <select class="form-field__input form-field__select" id="audit-log-period" name="period">
+            {% for value, label in periods %}<option value="{{ value }}" {% if value == filters.period %}selected{% endif %}>{{ label }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="form-field">
+        <label class="form-field__label" for="audit-log-date">{{ _("Date") }}</label>
+        <input class="form-field__input form-field__input--plain" type="date" id="audit-log-date" name="date" value="{{ filters.date }}">
+    </div>
+    <div class="form-actions">
+        <a class="btn btn--secondary" href="{{ audit_url }}">{{ _("Clear") }}</a>
+        <button type="submit" class="btn btn--primary">{{ _("Apply Filters") }}</button>
+    </div>
+</form>
+{% endmacro %}
+
+{% macro audit_table(entries) %}
+<div class="table-wrapper">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th scope="col">{{ _("Timestamp") }}</th>
+                <th scope="col">{{ _("User") }}</th>
+                <th scope="col">{{ _("Role") }}</th>
+                <th scope="col">{{ _("Event") }}</th>
+                <th scope="col">{{ _("Entity") }}</th>
+                <th scope="col">{{ _("Record ID") }}</th>
+                <th scope="col">{{ _("Result") }}</th>
+                <th scope="col">{{ _("Details") }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+            <tr>
+                <th scope="row">{{ entry.timestamp }}</th>
+                <td>{{ entry.user_name }}</td>
+                <td>{{ entry.role_label }}</td>
+                <td><strong>{{ entry.event_label }}</strong></td>
+                <td class="text-primary">{{ entry.entity_label }}</td>
+                <td>{{ entry.record_id }}</td>
+                <td>{{ macros.status_badge(entry.result_label, entry.event_variant) }}</td>
+                <td>{{ entry.details }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8">{{ _("No audit events match the current filters.") }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<p class="pagination__info">{{ _("Showing %(shown)s events (latest 300)", shown=entries|length) }}</p>
+{% endmacro %}

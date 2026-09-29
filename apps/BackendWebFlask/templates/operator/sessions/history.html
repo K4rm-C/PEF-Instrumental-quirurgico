@@ -36,7 +36,7 @@
 
 <section class="card">
     {# Filters are wired to the backend via GET params (search, status, date). #}
-    <form class="filter-bar" action="#" method="get" role="search">
+    <form class="filter-bar" action="" method="get" role="search" data-client-filter>
         <div class="filter-bar__search">
             <label class="visually-hidden" for="session-history-search">{{ _("Search Sessions") }}</label>
             <div class="form-field__input-wrapper">
@@ -49,7 +49,7 @@
             <label class="visually-hidden" for="session-history-status">{{ _("Status") }}</label>
             <select class="form-field__input form-field__input--plain" id="session-history-status" name="status">
                 <option value="">{{ _("All Statuses") }}</option>
-                <option value="closed">{{ _("Closed") }}</option>
+                {% for option in filter_statuses|default([]) %}<option value="{{ option.value }}">{{ option.label }}</option>{% endfor %}
             </select>
         </div>
         <div class="filter-bar__select">

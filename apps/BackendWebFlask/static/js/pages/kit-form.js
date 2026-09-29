@@ -1,13 +1,17 @@
 /*
-  IT Administrator Kit form (New Kit / Edit Kit) — presentation-only Kit Composition editing
-  (implementation prompt section 19): "+ Add Instrument Type" appends another composition
+  IT Administrator Kit form (New Kit / Edit Kit) — client-side Kit Composition row editing: "+ Add Instrument Type" appends another composition
   row, each row's "Remove" removes it, and the Instrument Types / Total Expected Instruments
-  summary tiles recompute from the rows currently on the page. Nothing here is persisted,
-  submitted, or validated against real catalog data — the backend remains the source of truth
-  for actual kit composition.
+  summary tiles recompute from the rows currently on the page. The rows are submitted with the form
+  and validated/persisted by the backend (KitItem).
 */
 (function () {
     "use strict";
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function (ch) {
+            return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[ch];
+        });
+    }
 
     var rowsBody = document.getElementById("kit-composition-rows");
     var addButton = document.getElementById("add-instrument-type-btn");
@@ -27,7 +31,7 @@
     function buildOptionsMarkup() {
         return familyOptions
             .map(function (family) {
-                return '<option value="' + family.value + '">' + family.label + "</option>";
+                return '<option value="' + escapeHtml(family.value) + '">' + escapeHtml(family.label) + "</option>";
             })
             .join("");
     }
@@ -52,7 +56,7 @@
     }
 
     function addRow() {
-        var removeLabel = rowsBody.getAttribute("data-remove-label") || "Remove";
+        var removeLabel = rowsBody.getAttribute("data-remove-label") || (window.PEF_I18N ? window.PEF_I18N.t("remove", "Remove") : "Remove");
         var row = document.createElement("tr");
         row.className = "js-kit-composition-row";
         row.innerHTML =

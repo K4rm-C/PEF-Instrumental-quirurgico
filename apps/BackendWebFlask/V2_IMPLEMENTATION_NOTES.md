@@ -1,3 +1,10 @@
+> **ARCHIVED / HISTORICAL DOCUMENT**
+>
+> This document reflects an earlier frontend-only implementation stage (V2 visual migration with
+> reference/demo data). Statements below about pending backend work, demo fallbacks or WS-026
+> reference data are no longer accurate. For the current functional status see
+> [`docs/IMPLEMENTATION_STATUS.md`](../../docs/IMPLEMENTATION_STATUS.md).
+
 # V2 Implementation Notes — Shared Foundation, Public Landing Page, Sign In
 
 Scope: `prompts/08_v2_shared_foundation.md`. This iteration evolves the existing Flask/Jinja

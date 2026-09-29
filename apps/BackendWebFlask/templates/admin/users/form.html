@@ -20,21 +20,15 @@
       change_password_url, deactivate_user_url   URL strings, default "#" (edit mode only;
                                            feed components/modals/change_password.html and
                                            deactivate_user.html)
-    Integration point: Save submits to save_url — not implemented here. Password fields are
+    Save POSTs to save_url and is persisted by services/admin_service.save_user. Password fields are
     never pre-filled and never round-tripped back from the server; see FRONTEND_INTEGRATION.md
     for the frontend/backend password responsibility split.
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
-{% set user = user|default({'name': 'Alex Morgan', 'email': 'alex.morgan@institution.edu', 'institution': 'hospital-institution', 'assigned_role_codes': ['operator'], 'status': 'active'} if is_edit else {'name': '', 'email': '', 'institution': 'hospital-institution', 'assigned_role_codes': ['operator'], 'status': 'active'}, true) %}
-{% set institutions = institutions|default([
-    {'value': 'hospital-institution', 'label': _('Hospital Institution')}
-], true) %}
-{% set roles = roles|default([
-    {'value': 'operator', 'label': _('Operator CDE')},
-    {'value': 'supervisor', 'label': _('Supervisor CDE / Quality')},
-    {'value': 'admin', 'label': _('IT Administrator')}
-], true) %}
+{% set user = user|default({'name': '', 'email': '', 'institution': '', 'assigned_role_codes': [], 'status': 'active'}, true) %}
+{% set institutions = institutions|default([], true) %}
+{% set roles = roles|default([], true) %}
 {% set page_title = _("Edit User") if is_edit else _("New User") %}
 {% set page_subtitle = _("Update user information and assigned role.") if is_edit else _("Create an authorized system user and assign a role.") %}
 

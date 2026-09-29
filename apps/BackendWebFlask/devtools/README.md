@@ -119,9 +119,9 @@ The page is read-only and the My Profile sidebar item becomes active on that vie
 
 - **Theme switching** (Light / Dark / System) — fully functional, backed by the real
   `static/js/theme.js` and `localStorage`, exactly as it will behave in production.
-- **Language selector dropdown** — opens and shows English / Español (México); selecting an
-  option does not translate the page, since Flask-Babel integration has not been built yet.
-  This preview does not fake or hard-code any client-side translation.
+- **Language selector dropdown** — opens and shows English / Español; in this preview selecting an
+  option does not translate the page (the real application translates with Flask-Babel, see
+  `docs/IMPLEMENTATION_STATUS.md`). This preview does not fake or hard-code any client-side translation.
 - **Operator sidebar navigation** — clickable between all four implemented pages in this
   preview (see "Sidebar navigation" below), with the correct item highlighted as active on
   each page. Breadcrumb, stat cards, charts, and tables all render from the real templates

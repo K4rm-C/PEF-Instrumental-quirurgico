@@ -1,21 +1,25 @@
 from extensions import db
 from sqlalchemy.dialects.postgresql import UUID, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, Boolean
+from sqlalchemy import ForeignKey, Boolean, CheckConstraint, UniqueConstraint, func, text
 import uuid
 from datetime import datetime
 
 
 class SessionProcessingAgreement(db.Model):
     __tablename__ = 'session_processing_agreement'
+    __table_args__ = (
+        UniqueConstraint('session_id', name='uk_session_processing_agreement_session'),
+        CheckConstraint('purpose_quality_ops = TRUE', name='chk_session_processing_agreement_quality_ops'),
+    )
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('work_session.id'), nullable=False, unique=True)
-    privacy_notice_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('privacy_notice_version.id'), nullable=False)
-    purpose_quality_ops: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    purpose_model_improvement: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    agreed_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
-    agreed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('user.id'), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text('gen_random_uuid()'))
+    session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('work_session.id', ondelete='CASCADE'), nullable=False)
+    privacy_notice_version_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('privacy_notice_version.id', ondelete='RESTRICT'), nullable=False)
+    purpose_quality_ops: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text('true'))
+    purpose_model_improvement: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
+    agreed_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+    agreed_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('user.id', ondelete='SET NULL'), nullable=True)
 
     session: Mapped["WorkSession"] = relationship("WorkSession", back_populates="processing_agreement")
     privacy_notice_version: Mapped["PrivacyNoticeVersion"] = relationship(

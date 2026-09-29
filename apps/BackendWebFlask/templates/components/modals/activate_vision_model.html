@@ -14,11 +14,11 @@
       on the same list page (one per inactive row)
     - activate_vision_model (dict): version_tag, classes_label, checksum
     - activate_vision_model_url (optional string, defaults to "#")
-    Integration point: no POST route/service exists yet to actually flip YoloModel.active —
-    documented as pending in V2_IMPLEMENTATION_NOTES.md rather than invented here.
+    Submits by POST to activate_vision_model_url (defaults to the row's activate_url), which
+    deactivates the previously active model and activates this one in one transaction.
 #}
-{% set activate_vision_model = activate_vision_model|default({'version_tag': 'v0.4.2', 'classes_label': _('11 Classes'), 'checksum': ''}) %}
-{% set activate_vision_model_url = activate_vision_model_url|default('#') %}
+{% set activate_vision_model = activate_vision_model|default({'version_tag': '', 'classes_label': '', 'checksum': ''}) %}
+{% set activate_vision_model_url = activate_vision_model_url|default(activate_vision_model.activate_url) %}
 <div class="modal-overlay" id="{{ activate_modal_id }}" hidden>
     <div class="modal-dialog" role="dialog" aria-modal="true"
          aria-labelledby="{{ activate_modal_id }}-title" aria-describedby="{{ activate_modal_id }}-description">
@@ -39,7 +39,9 @@
 
         <div class="modal-dialog__actions">
             <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
-            <a class="btn btn--primary" href="{{ activate_vision_model_url }}">{{ _("Activate Model") }}</a>
+            <form method="post" action="{{ activate_vision_model_url }}">
+                <button type="submit" class="btn btn--primary">{{ _("Activate Model") }}</button>
+            </form>
         </div>
     </div>
 </div>

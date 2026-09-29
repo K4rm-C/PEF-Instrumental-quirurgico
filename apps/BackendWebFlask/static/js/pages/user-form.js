@@ -23,7 +23,7 @@
 
     function checkPasswordsMatch() {
         var mismatch = confirmPassword.value.length > 0 && password.value !== confirmPassword.value;
-        mismatchMessage.textContent = mismatch ? form.getAttribute("data-password-mismatch-message") : "";
+        mismatchMessage.textContent = mismatch ? form.getAttribute("data-password-mismatch-message") || (window.PEF_I18N ? window.PEF_I18N.t("passwordMismatch") : "") : "";
         mismatchMessage.hidden = !mismatch;
         return !mismatch;
     }

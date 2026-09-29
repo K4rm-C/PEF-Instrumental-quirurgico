@@ -10,8 +10,8 @@
     Status field exists on YoloModel/ModelClass, so none of them appear here. Editing an
     already-active model shows a warning that historical counting sessions keep the model
     version they were originally run with (activating a different model never rewrites that
-    traceability). "+ Add Class Mapping" is presentation-only client-side row insertion
-    (static/js/pages/vision-model-form.js), mirroring Kit form's Kit Composition editor.
+    traceability). "+ Add Class Mapping" inserts rows client-side
+    (static/js/pages/vision-model-form.js); the backend persists them as ModelClass rows.
 
     Expected context:
       form_mode                "create" | "edit", defaults to "create"
@@ -23,17 +23,9 @@
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
-{% set vision_model = vision_model|default({'version_tag': 'v0.4.2', 'model_asset_reference': 'yolo_model.weights', 'active': true, 'checksum': '7f82c4e1a9b2d3c4e5f6a7b8c9d0e1f2a3b4c5d6e7f8', 'published_at': '2026-09-10'} if is_edit else {'version_tag': '', 'model_asset_reference': '', 'active': true, 'checksum': '', 'published_at': ''}, true) %}
-{% set instrument_families = instrument_families|default([
-    {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
-    {'value': 'mayo-hegar-needle-holder', 'label': _('Mayo-Hegar Needle Holder')},
-    {'value': 'allis-tissue-forceps', 'label': _('Allis Tissue Forceps')}
-], true) %}
-{% set model_classes = model_classes|default([
-    {'yolo_class_id': 0, 'instrument_family_value': 'kelly-clamp', 'instrument_family_label': _('Kelly Clamp')},
-    {'yolo_class_id': 1, 'instrument_family_value': 'mayo-hegar-needle-holder', 'instrument_family_label': _('Mayo-Hegar Needle Holder')},
-    {'yolo_class_id': 2, 'instrument_family_value': 'allis-tissue-forceps', 'instrument_family_label': _('Allis Tissue Forceps')}
-], true) %}
+{% set vision_model = vision_model|default({'version_tag': '', 'model_asset_reference': '', 'active': false, 'checksum': '', 'published_at': ''}, true) %}
+{% set instrument_families = instrument_families|default([], true) %}
+{% set model_classes = model_classes|default([], true) %}
 {% set page_title = _("Edit Vision Model") if is_edit else _("New Vision Model") %}
 {% set page_subtitle = _("Update model settings and instrument class mappings.") if is_edit else _("Register a computer vision model version and its instrument class mappings.") %}
 

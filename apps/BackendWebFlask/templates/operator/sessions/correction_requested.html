@@ -1,13 +1,8 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
+{% import "components/session_review.html" as review with context %}
 
 {% set session_id = session_id|default('') %}
-{% set session = session|default({
-    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
-    'patient_name': '', 'physician_name': '',
-    'kit_name': '', 'capture_station_name': '',
-    'status_label': '', 'status_variant': 'neutral'
-}, true) %}
 
 {% block title %}{{ _("Correction Requested") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
@@ -31,77 +26,51 @@
 {% endblock %}
 
 {% block page_content %}
-{% set supervisor_request = supervisor_request|default({
-    'supervisor_name': '', 'requested_at': '',
-    'message': ''
-}) %}
-{% set affected_discrepancy = affected_discrepancy|default({
-    'instrument_name': '', 'expected_quantity': 0,
-    'ai_detected_quantity': 0, 'final_quantity': 0, 'final_difference': 0
-}) %}
-{% set captured_evidence = captured_evidence|default({'capture_id': '', 'timestamp': ''}) %}
-{% set review_count_url = review_count_url|default(url_for('web.operator_session_validation', session_id=session.session_id)) %}
-
-<div class="page-heading">
-    <div>
-        <h1 class="page-heading__title">{{ _("Correction Requested") }}</h1>
-        <p class="page-heading__subtitle">{{ _("Review the Supervisor request and revalidate the affected instrument count.") }}</p>
-    </div>
-</div>
-
-<div class="alert alert--danger" role="status">
-    {{ macros.icon_alert_triangle() }}
-    <span class="alert__message">{{ _("Supervisor %(name)s requested a review. Review the discrepancy and confirm the final count below.", name=supervisor_request.supervisor_name) }}</span>
-</div>
-
-<section class="card">
-    <div class="session-context-bar">
-        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
-        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
-    </div>
-</section>
-
+{{ review.context_bar(session) }}
+{% if not report.correction_required %}
+<div class="alert alert--info" role="status">{{ macros.icon_info() }}<span class="alert__message">{{ _("There are no pending correction requests for this session.") }}</span></div>
+{% else %}
+<div class="alert alert--danger" role="status">{{ macros.icon_alert_triangle() }}<span class="alert__message">{{ _("The supervisor requested a new count. Review the evidence and submit your final count.") }}</span></div>
 <section class="session-workspace-grid">
-    <div class="card">
-        <h2 class="card__title">{{ _("Supervisor Review Request") }}</h2>
-        <p class="card__subtitle">
-            {{ _("Supervisor:") }} <strong>{{ supervisor_request.supervisor_name }}</strong>
-            &nbsp;&nbsp;{{ _("Requested:") }} <strong>{{ supervisor_request.requested_at }}</strong>
-        </p>
-        <div class="sub-panel sub-panel--warning">
-            <span class="sub-panel__value">{{ supervisor_request.message }}</span>
+{{ review.evidence_card(report, capture_url) }}
+<section class="card">
+    <h2 class="card__title">{{ _("Correction Requests") }}</h2>
+    <form id="correction-form" method="post" action="{{ url_for('web.operator_session_correction', session_id=session.session_id) }}">
+        <input type="hidden" name="validation_batch_id" value="{{ validation_batch_id }}">
+        {% for d in report.correction_required %}
+        <div class="sub-panel">
+            <p><strong>{{ d.instrument_name }}</strong> · {{ d.reason_label }}</p>
+            <p class="form-field__helper">{{ _("Supervisor") }}: <strong>{{ d.last_decision.by }}</strong> · {{ d.last_decision.at }} · {{ d.last_decision.decision }}</p>
+            <p class="sub-panel__value">{{ d.last_decision.note }}</p>
+            <dl class="detail-list">
+                <div class="detail-list__row"><dt>{{ _("Expected") }}</dt><dd>{{ d.expected_quantity }}</dd></div>
+                <div class="detail-list__row"><dt>{{ _("AI Original") }}</dt><dd>{{ d.ai_detected }}</dd></div>
+                <div class="detail-list__row"><dt>{{ _("Human Previous") }}</dt><dd>{{ d.human_final if d.human_final is not none else '—' }}</dd></div>
+            </dl>
+            <input type="hidden" name="event_id[]" value="{{ d.root_event_id }}">
+            <div class="form-grid">
+                <div class="form-field">
+                    <label class="form-field__label">{{ _("New Human Final Count") }}</label>
+                    <input class="form-field__input form-field__input--plain" type="number" min="0" step="1" required name="final_quantity[]" value="{{ d.human_final if d.human_final is not none else d.ai_detected }}">
+                </div>
+                <div class="form-field">
+                    <label class="form-field__label">{{ _("Justification (required if changed)") }}</label>
+                    <input class="form-field__input form-field__input--plain" type="text" maxlength="2000" name="justification[]">
+                </div>
+            </div>
         </div>
-
-        <h3 class="card__title">{{ _("Affected Discrepancy (%(name)s)", name=affected_discrepancy.instrument_name) }}</h3>
-        <dl class="detail-list">
-            <div class="detail-list__row"><dt>{{ _("Expected Count") }}</dt><dd>{{ affected_discrepancy.expected_quantity }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("AI Detected Count") }}</dt><dd>{{ affected_discrepancy.ai_detected_quantity }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Final Count") }}</dt><dd>{{ affected_discrepancy.final_quantity }} ({{ _("Difference") }} {{ affected_discrepancy.final_difference }})</dd></div>
-        </dl>
-    </div>
-
-    <div class="card">
-        <h2 class="card__title">{{ _("Captured Image Evidence") }}</h2>
-        <div class="evidence-image" aria-hidden="true">{{ macros.icon_camera() }}</div>
-        <div class="evidence-image__meta">
-            <span>{{ _("Capture-ID:") }} {{ captured_evidence.capture_id }}</span>
-            <span>{{ _("Timestamp:") }} {{ captured_evidence.timestamp }}</span>
-        </div>
-    </div>
+        {% endfor %}
+    </form>
 </section>
+</section>
+{% endif %}
+{% endblock %}
 
-{# .page-content is a flex column with the default stretch cross-axis alignment, so a lone
-   .btn placed directly inside it would stretch full-width; a plain wrapping div keeps the
-   button at its natural content width, matching every approved reference. #}
-<div>
-    <a class="btn btn--primary" href="{{ review_count_url }}">
-        {{ macros.icon_check_square() }}
-        <span>{{ _("Review Count") }}</span>
-    </a>
+{% block page_action_bar %}
+<div class="page-action-bar">
+    <a class="btn btn--secondary" href="{{ url_for('web.operator_session_awaiting_review', session_id=session.session_id) }}">{{ _("Back") }}</a>
+    {% if report.correction_required %}
+    <button type="submit" form="correction-form" class="btn btn--primary" onclick="this.disabled=true; this.form.submit();">{{ macros.icon_check_square() }}<span>{{ _("Submit Correction") }}</span></button>
+    {% endif %}
 </div>
 {% endblock %}

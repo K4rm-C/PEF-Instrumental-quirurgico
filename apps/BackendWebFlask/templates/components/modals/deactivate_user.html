@@ -8,9 +8,9 @@
     the Administrator interfaces (section 34 of the implementation prompt).
 
     Expected context: target_user (dict with `name`, `role_label`, `avatar_url` — same shape
-    as current_user) and deactivate_user_url (string, defaults to "#"). Integration point: in
-    production, "Deactivate User" should set the user's status to Inactive and revoke session
-    access while preserving every historical record tied to that user — not implemented here.
+    as current_user) and deactivate_user_url (string, defaults to "#"). Submits by POST: the
+    backend sets user.active = FALSE (no delete), so the auth service rejects new sign-ins
+    while every historical record tied to the user is preserved.
 #}
 {% set target_user = target_user|default({'name': _('this user'), 'role_label': '', 'avatar_url': none}) %}
 {% set deactivate_user_url = deactivate_user_url|default('#') %}
@@ -37,7 +37,9 @@
         </div>
         <div class="modal-dialog__actions">
             <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
-            <a class="btn btn--danger-solid" href="{{ deactivate_user_url }}">{{ _("Deactivate User") }}</a>
+            <form method="post" action="{{ deactivate_user_url }}">
+                <button type="submit" class="btn btn--danger-solid">{{ _("Deactivate User") }}</button>
+            </form>
         </div>
     </div>
 </div>

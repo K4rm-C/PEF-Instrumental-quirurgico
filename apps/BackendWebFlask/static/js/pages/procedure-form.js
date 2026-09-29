@@ -1,12 +1,18 @@
 /*
-  IT Administrator Procedure form (New Procedure / Edit Procedure) — presentation-only row
+  IT Administrator Procedure form (New Procedure / Edit Procedure) — client-side row
   insertion for Associated Kits ("+ Add Kit") and Counting Phases ("+ Add Phase"), mirroring
-  static/js/pages/kit-form.js's Kit Composition editor. Nothing here is persisted, submitted,
-  or validated against real catalog data — the backend remains the source of truth for actual
-  procedure/kit/phase associations.
+  static/js/pages/kit-form.js's Kit Composition editor. Checkbox values are re-indexed to their row
+  position on submit so the backend can pair is_default[] / kit_active[] / count_required[] /
+  phase_active[] with each row; the backend validates and persists everything.
 */
 (function () {
     "use strict";
+
+    function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function (ch) {
+            return {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[ch];
+        });
+    }
 
     function loadOptions(scriptId) {
         var script = document.getElementById(scriptId);
@@ -23,7 +29,7 @@
     function buildOptionsMarkup(options) {
         return options
             .map(function (option) {
-                return '<option value="' + option.value + '">' + option.label + "</option>";
+                return '<option value="' + escapeHtml(option.value) + '">' + escapeHtml(option.label) + "</option>";
             })
             .join("");
     }
@@ -55,7 +61,8 @@
     var phaseOptions = loadOptions("procedure-phase-options");
     var removeLabel = (function () {
         var rowsBody = document.getElementById("associated-kits-rows");
-        return rowsBody ? rowsBody.getAttribute("data-remove-label") || "Remove" : "Remove";
+        var fallback = window.PEF_I18N ? window.PEF_I18N.t("remove", "Remove") : "Remove";
+        return rowsBody ? rowsBody.getAttribute("data-remove-label") || fallback : fallback;
     })();
 
     wireAddRemove("associated-kits-rows", "add-kit-btn", "js-procedure-kit-row", "js-procedure-remove-row", function () {
@@ -86,4 +93,24 @@
             "</tr>"
         );
     });
+
+    function reindex(rowsBodyId, rowClass) {
+        var rowsBody = document.getElementById(rowsBodyId);
+        if (!rowsBody) {
+            return;
+        }
+        rowsBody.querySelectorAll("." + rowClass).forEach(function (row, index) {
+            row.querySelectorAll('input[type="checkbox"]').forEach(function (checkbox) {
+                checkbox.value = String(index);
+            });
+        });
+    }
+
+    var form = document.getElementById("procedure-form");
+    if (form) {
+        form.addEventListener("submit", function () {
+            reindex("associated-kits-rows", "js-procedure-kit-row");
+            reindex("counting-phases-rows", "js-procedure-phase-row");
+        });
+    }
 })();

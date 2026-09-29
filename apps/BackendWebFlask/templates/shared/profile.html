@@ -13,7 +13,7 @@
                          email, institution, profile_role_label, status_label,
                          status_variant, avatar_url
       nav_urls           role-appropriate sidebar URLs (same shape already used by each role)
-      current_locale     current rendered locale, defaults to "en"
+      current_locale     current UI locale ("en" / "es"), from localization.resolve_locale
 #}
 {% set profile_role = profile_role|default('operator') %}
 {% set profile_user = current_user|default({
@@ -28,8 +28,7 @@
 {% set name_parts = profile_user.name.split() %}
 {% set profile_initials = (name_parts[0][0] ~ (name_parts[-1][0] if name_parts|length > 1 else '')) | upper %}
 {% set profile_role_label = profile_user.profile_role_label|default(profile_user.role_label) %}
-{% set locale_labels = {'en': _('English'), 'es-MX': _('Español (México)')} %}
-{% set current_language_label = locale_labels.get(current_locale|default('en'), _('English')) %}
+{% set current_language_label = ((language_options|default([]))|selectattr('code', 'equalto', current_locale|default('en'))|map(attribute='label')|first) or 'English' %}
 
 {% block title %}{{ _("My Profile") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 

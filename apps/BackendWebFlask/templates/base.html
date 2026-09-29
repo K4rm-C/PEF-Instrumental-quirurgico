@@ -45,9 +45,13 @@
 <body class="{% block body_class %}{% endblock %}">
     {% block content %}{% endblock %}
 
+    {# Strings built by JavaScript, already localized by the server (static/js/i18n.js). #}
+    <script type="application/json" id="pef-i18n">{{ (js_messages() if js_messages is defined else {})|tojson }}</script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/table-filter.js') }}" defer></script>
     {% block page_scripts %}{% endblock %}
 </body>
 </html>

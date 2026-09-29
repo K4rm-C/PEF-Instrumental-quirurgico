@@ -25,15 +25,13 @@
    Awaiting Review / Correction Required / Ready to Close / Closed. #}
 
 {% set dashboard_stats = dashboard_stats|default({
-    'sessions_today': 0,
-    'active_sessions': 0,
-    'closed_sessions': 0,
-    'open_discrepancies': 0
+    'sessions_today': 0, 'open_sessions': 0, 'counting_sessions': 0, 'validating_sessions': 0,
+    'closed_sessions': 0, 'open_discrepancies': 0, 'my_sessions': 0
 }, true) %}
 {% set sessions_by_day = sessions_by_day|default([]) %}
-{% set sessions_by_day_max = sessions_by_day|map(attribute='count')|max if sessions_by_day else 1 %}
+{% set sessions_by_day_max = (sessions_by_day|map(attribute='count')|max if sessions_by_day else 1) or 1 %}
 {% set session_status_breakdown = session_status_breakdown|default([]) %}
-{% set session_status_max = session_status_breakdown|map(attribute='value')|max if session_status_breakdown else 1 %}
+{% set session_status_max = (session_status_breakdown|map(attribute='value')|max if session_status_breakdown else 1) or 1 %}
 {% set recent_sessions = recent_sessions|default([]) %}
 
 <div class="page-heading">
@@ -49,14 +47,17 @@
 
 <section class="stat-card-grid" aria-label="{{ _('Key counting metrics') }}">
     {{ macros.stat_card(_("Sessions Today"), dashboard_stats.sessions_today, 'neutral') }}
-    {{ macros.stat_card(_("Active Sessions"), dashboard_stats.active_sessions, 'info') }}
+    {{ macros.stat_card(_("Open Sessions"), dashboard_stats.open_sessions, 'info') }}
+    {{ macros.stat_card(_("Sessions in Counting"), dashboard_stats.counting_sessions, 'info') }}
+    {{ macros.stat_card(_("Sessions in Validation"), dashboard_stats.validating_sessions, 'warning') }}
     {{ macros.stat_card(_("Closed Sessions"), dashboard_stats.closed_sessions, 'neutral') }}
-    {{ macros.stat_card(_("Open Discrepancies"), dashboard_stats.open_discrepancies, 'danger') }}
+    {{ macros.stat_card(_("Pending Discrepancies"), dashboard_stats.open_discrepancies, 'danger') }}
+    {{ macros.stat_card(_("My Sessions"), dashboard_stats.my_sessions, 'neutral') }}
 </section>
 
 <section class="dashboard-panels">
     <div class="card">
-        <h2 class="card__title">{{ _("Sessions by Day") }}</h2>
+        <h2 class="card__title">{{ _("Sessions by Day (last 7 days, UTC)") }}</h2>
         <div class="bar-chart" role="img" aria-label="{{ _('Counting sessions per day this week') }}">
             {% for day in sessions_by_day %}
             <div class="bar-chart__column">

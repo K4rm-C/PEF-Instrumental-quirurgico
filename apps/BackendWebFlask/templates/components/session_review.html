@@ -1,0 +1,162 @@
+{#
+    Shared building blocks for the validation / supervisor review / closing screens. Every value
+    comes from services/review_service.session_report (PostgreSQL): AI results (auto_count),
+    human results (manual_count chains), HumanCorrection, Discrepancy and derived workflow state.
+#}
+{% import "components/macros.html" as macros %}
+
+{% macro context_bar(session) %}
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Station") }}:</strong> {{ session.capture_station_name }}</span>
+        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+</section>
+{% endmacro %}
+
+{% macro signed(value) %}{% if value is none %}—{% elif value > 0 %}+{{ value }}{% else %}{{ value }}{% endif %}{% endmacro %}
+
+{% macro results_table(report, title) %}
+<section class="card">
+    <h2 class="card__title">{{ title }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Instrument Family") }}</th>
+                    <th scope="col">{{ _("Expected") }}</th>
+                    <th scope="col">{{ _("AI Result") }}</th>
+                    <th scope="col">{{ _("Confidence") }}</th>
+                    <th scope="col">{{ _("Human Final") }}</th>
+                    <th scope="col">{{ _("Correction?") }}</th>
+                    <th scope="col">{{ _("Justification") }}</th>
+                    <th scope="col">{{ _("Final Difference") }}</th>
+                    <th scope="col">{{ _("Discrepancy") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in report.rows %}
+                <tr class="{{ 'data-table__row--highlight-warning' if row.needs_attention else '' }}">
+                    <th scope="row">{{ row.instrument_name }}</th>
+                    <td>{{ row.expected_label }}</td>
+                    <td>{{ row.ai_detected }}</td>
+                    <td>{% if row.confidence is none %}—{% else %}{{ row.confidence }}%{% endif %}</td>
+                    <td><strong>{{ row.human_final if row.human_final is not none else '—' }}</strong></td>
+                    <td>{% if row.corrected %}{{ macros.status_badge(_("AI %(ai)s ≠ Human %(human)s", ai=row.ai_detected, human=row.human_final), 'warning') }}{% else %}{{ _("No") }}{% endif %}</td>
+                    <td>{{ row.justification }}</td>
+                    <td class="{{ 'text-success' if row.final_difference == 0 else 'text-danger' }}">{{ signed(row.final_difference) }}</td>
+                    <td>{{ row.reasons or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="comparison-row">
+        <div class="comparison-row__item"><span class="comparison-row__label">{{ _("Total Expected") }}</span><span class="comparison-row__value">{{ report.expected_total }}</span></div>
+        <div class="comparison-row__item"><span class="comparison-row__label">{{ _("Total AI") }}</span><span class="comparison-row__value">{{ report.ai_total }}</span></div>
+        <div class="comparison-row__item comparison-row__item--end"><span class="comparison-row__label">{{ _("Total Human Final") }}</span><span class="comparison-row__value">{{ report.human_total }}</span></div>
+    </div>
+</section>
+{% endmacro %}
+
+{% macro discrepancies_table(report, actions=false) %}
+<section class="card">
+    <h2 class="card__title">{{ _("Discrepancies") }}</h2>
+    {% if not report.discrepancies %}
+    <p class="card__subtitle">{{ _("No discrepancies were recorded for this session.") }}</p>
+    {% else %}
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Instrument Family") }}</th>
+                    <th scope="col">{{ _("Reason") }}</th>
+                    <th scope="col">{{ _("Expected") }}</th>
+                    <th scope="col">{{ _("AI") }}</th>
+                    <th scope="col">{{ _("Human Final") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                    <th scope="col">{{ _("Supervisor Decisions") }}</th>
+                    {% if actions %}<th scope="col" class="data-table__action-column">{{ _("Action") }}</th>{% endif %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in report.discrepancies %}
+                <tr>
+                    <th scope="row">{{ d.instrument_name }}</th>
+                    <td>{{ d.reason_label }}</td>
+                    <td>{{ d.expected_quantity }}</td>
+                    <td>{{ d.ai_detected }}</td>
+                    <td>{{ d.human_final if d.human_final is not none else '—' }}</td>
+                    <td>{{ macros.status_badge(d.state_label, d.state_variant) }}{% if d.resolved_at %}<br><span class="form-field__helper">{{ d.resolved_at }}</span>{% endif %}</td>
+                    <td>{% for decision in d.decisions %}<div>{{ decision.decision_label }}: {{ decision.note }} <span class="form-field__helper">({{ decision.by }}, {{ decision.at }})</span></div>{% else %}—{% endfor %}</td>
+                    {% if actions %}
+                    <td class="data-table__action-column">
+                        {% if d.state == 'UNDER_REVIEW' %}
+                        <button type="button" class="btn btn--primary btn--small" data-modal-open="approve-review-modal-{{ loop.index }}">{{ _("Approve") }}</button>
+                        <button type="button" class="btn btn--secondary btn--small" data-modal-open="request-correction-modal-{{ loop.index }}">{{ _("Request Correction") }}</button>
+                        <button type="button" class="btn btn--danger-solid btn--small" data-modal-open="reject-review-modal-{{ loop.index }}">{{ _("Reject") }}</button>
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+{% endmacro %}
+
+{% macro corrections_table(report) %}
+<section class="card">
+    <h2 class="card__title">{{ _("Human Corrections") }}</h2>
+    {% if not report.corrections %}
+    <p class="card__subtitle">{{ _("No human corrections were recorded.") }}</p>
+    {% else %}
+    <table class="data-table">
+        <thead><tr><th scope="col">{{ _("Instrument Family") }}</th><th scope="col">{{ _("Change") }}</th><th scope="col">{{ _("Justification") }}</th><th scope="col">{{ _("By") }}</th><th scope="col">{{ _("Timestamp") }}</th></tr></thead>
+        <tbody>
+            {% for c in report.corrections %}
+            <tr><th scope="row">{{ c.instrument_name }}</th><td>{{ c.from_quantity }} → {{ c.to_quantity }}</td><td>{{ c.justification }}</td><td>{{ c.corrected_by }}</td><td>{{ c.timestamp }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</section>
+{% endmacro %}
+
+{% macro evidence_card(report, capture_url) %}
+<div class="card">
+    <h2 class="card__title">{{ _("Evidence & Model") }}</h2>
+    <div class="evidence-image">
+        {% if capture_url %}
+        <img src="{{ capture_url }}" alt="{{ _('Capture analysed by the model') }}" style="width: 100%; height: 100%; object-fit: contain; border-radius: inherit;">
+        {% else %}<span aria-hidden="true">{{ macros.icon_camera() }}</span>{% endif %}
+    </div>
+    <dl class="detail-list">
+        <div class="detail-list__row"><dt>{{ _("Model Version") }}</dt><dd>{{ report.run.model_version or '—' }}</dd></div>
+        <div class="detail-list__row"><dt>{{ _("Provider") }}</dt><dd>{{ report.run.provider_label or '—' }}</dd></div>
+        <div class="detail-list__row"><dt>{{ _("Confidence Threshold") }}</dt><dd>{{ report.run.threshold }}</dd></div>
+        <div class="detail-list__row"><dt>{{ _("AI Result Timestamp") }}</dt><dd>{{ report.run.timestamp }}</dd></div>
+    </dl>
+</div>
+{% endmacro %}
+
+{% macro timeline(report) %}
+<section class="card">
+    <h2 class="card__title">{{ _("Activity Log") }}</h2>
+    <table class="data-table">
+        <thead><tr><th scope="col">{{ _("Timestamp") }}</th><th scope="col">{{ _("Event") }}</th><th scope="col">{{ _("User") }}</th><th scope="col">{{ _("Result") }}</th></tr></thead>
+        <tbody>
+            {% for entry in report.timeline %}
+            <tr><td>{{ entry.timestamp }}</td><td><strong>{{ entry.action }}</strong></td><td>{{ entry.user_name }}</td><td>{{ macros.status_badge(entry.outcome_label, 'success' if entry.outcome == 'success' else 'danger') }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endmacro %}

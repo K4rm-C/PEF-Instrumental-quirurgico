@@ -1,5 +1,7 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
+{% import "components/session_review.html" as review with context %}
+{% import "components/analytics.html" as charts with context %}
 
 {% block title %}{{ _("Dashboard") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
@@ -21,137 +23,103 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    dashboard_stats, sessions_by_day, review_status, and sessions_requiring_attention below
-    are placeholder values used only so this page is visually reviewable before the backend
-    supplies real data. Expected shapes are documented in FRONTEND_INTEGRATION.md.
-#}
-{% set dashboard_stats = dashboard_stats|default({
-    'sessions_today': 12,
-    'active_sessions': 3,
-    'pending_reviews': 2,
-    'open_discrepancies': 3
-}, true) %}
-{% set sessions_by_day = sessions_by_day|default([
-    {'label': _('Mon'), 'count': 8},
-    {'label': _('Tue'), 'count': 12},
-    {'label': _('Wed'), 'count': 10},
-    {'label': _('Thu'), 'count': 15},
-    {'label': _('Fri'), 'count': 11}
-]) %}
-{% set sessions_by_day_max = sessions_by_day|map(attribute='count')|max %}
-{% set review_status = review_status|default([
-    {'label': _('Pending Reviews'), 'value': 2, 'variant': 'warning'},
-    {'label': _('Human Corrections'), 'value': 1, 'variant': 'success'},
-    {'label': _('Open Discrepancies'), 'value': 3, 'variant': 'danger'}
-]) %}
-{% set review_status_max = review_status|map(attribute='value')|max %}
-{% set sessions_requiring_attention = sessions_requiring_attention|default([
-    {
-        'session_id': 'WS-026', 'procedure_label': 'Appendectomy - OR-3', 'kit_name': 'Delivery Kit',
-        'operator_name': 'Alex Morgan', 'issue_label': _('Missing Instrument'), 'submitted_at': '15:42',
-        'status_label': _('Awaiting Review'), 'status_variant': 'pending',
-        'action_label': _('Review'), 'action_url': '#'
-    },
-    {
-        'session_id': 'WS-025', 'procedure_label': 'Cholecystectomy - OR-1', 'kit_name': 'Suture Kit',
-        'operator_name': 'Emily Carter', 'issue_label': _('Counting error'), 'submitted_at': '14:20',
-        'status_label': _('Awaiting Review'), 'status_variant': 'pending',
-        'action_label': _('Review'), 'action_url': '#'
-    },
-    {
-        'session_id': 'WS-024', 'procedure_label': 'Hernia Repair - OR-2', 'kit_name': 'General Surgery Kit',
-        'operator_name': 'Daniel Lee', 'issue_label': _('Instrument mismatch'), 'submitted_at': '11:15',
-        'status_label': _('Awaiting Review'), 'status_variant': 'pending',
-        'action_label': _('View Details'), 'action_url': '#'
-    }
-], true) %}
-
-<div class="page-heading">
-    <div>
-        <h1 class="page-heading__title">{{ _("Dashboard") }}</h1>
-        <p class="page-heading__subtitle">{{ _("Overview of counting operations, discrepancies, and pending reviews.") }}</p>
-    </div>
-</div>
-
-<section class="stat-card-grid" aria-label="{{ _('Key supervision metrics') }}">
-    {{ macros.stat_card(_("Sessions Today"), dashboard_stats.sessions_today, 'neutral') }}
-    {{ macros.stat_card(_("In Progress Sessions"), dashboard_stats.active_sessions, 'info') }}
-    {{ macros.stat_card(_("Pending Reviews"), dashboard_stats.pending_reviews, 'warning') }}
-    {{ macros.stat_card(_("Open Discrepancies"), dashboard_stats.open_discrepancies, 'danger') }}
-</section>
-
-<section class="dashboard-panels">
-    <div class="card">
-        <h2 class="card__title">{{ _("Sessions by Day") }}</h2>
-        <div class="bar-chart" role="img" aria-label="{{ _('Counting sessions per day this week') }}">
-            {% for day in sessions_by_day %}
-            <div class="bar-chart__column">
-                <div class="bar-chart__track">
-                    <div class="bar-chart__bar" style="--bar-chart-fill: {{ (day.count / sessions_by_day_max * 100)|round(0, 'floor')|int }}%"></div>
-                </div>
-                <span class="bar-chart__label">{{ day.label }} ({{ day.count }})</span>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-
-    <div class="card">
-        <h2 class="card__title">{{ _("Review Status") }}</h2>
-        <ul class="status-progress-list">
-            {% for status in review_status %}
-            <li class="status-progress-item">
-                <div class="status-progress-item__header">
-                    <span>{{ status.label }}</span>
-                    <span class="status-progress-item__value">{{ status.value }}</span>
-                </div>
-                <div class="status-progress-item__track">
-                    <div class="status-progress-item__fill status-progress-item__fill--{{ status.variant }}"
-                         style="--status-progress-fill: {{ (status.value / review_status_max * 100)|round(0, 'floor')|int }}%"></div>
-                </div>
-            </li>
-            {% endfor %}
-        </ul>
+{% set dashboard_stats = dashboard_stats|default({'sessions_today': 0, 'sessions_in_validation': 0, 'sessions_pending_review': 0, 'pending_reviews': 0, 'open_discrepancies': 0, 'resolved_discrepancies': 0, 'human_corrections': 0}, true) %}
+<div class="page-heading"><div><h1 class="page-heading__title">{{ _("Dashboard") }}</h1><p class="page-heading__subtitle">{{ _("Counting sessions and discrepancies of your institution.") }}</p></div></div>
+<section class="card">
+    <div class="stat-card-grid">
+        {{ macros.stat_card(_("Open Discrepancies"), dashboard_stats.open_discrepancies, 'danger') }}
+        {{ macros.stat_card(_("Sessions Pending Review"), dashboard_stats.sessions_pending_review, 'warning') }}
+        {{ macros.stat_card(_("Discrepancies Under Review"), dashboard_stats.pending_reviews, 'warning') }}
+        {{ macros.stat_card(_("Sessions in Validation"), dashboard_stats.sessions_in_validation, 'info') }}
+        {{ macros.stat_card(_("Resolved Discrepancies"), dashboard_stats.resolved_discrepancies, 'success') }}
+        {{ macros.stat_card(_("Human Corrections"), dashboard_stats.human_corrections, 'neutral') }}
+        {{ macros.stat_card(_("Sessions Today"), dashboard_stats.sessions_today, 'neutral') }}
     </div>
 </section>
+<section class="card">
+    <h2 class="card__title">{{ _("Top Instrument Families with Discrepancies") }}</h2>
+    {{ charts.progress_list(top_families|default([]), _("No discrepancies recorded yet.")) }}
+</section>
+<h2 class="card__title">{{ _("Discrepancies Requiring Attention") }}</h2>
 
 <section class="card">
-    <h2 class="card__title">{{ _("Sessions Requiring Attention") }}</h2>
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
                 <tr>
-                    <th scope="col">{{ _("Session / Procedure") }}</th>
-                    <th scope="col">{{ _("Kit") }}</th>
+                    <th scope="col">{{ _("Session") }}</th>
+                    <th scope="col">{{ _("Procedure") }}</th>
+                    <th scope="col">{{ _("Instrument Family") }}</th>
+                    <th scope="col">{{ _("Reason") }}</th>
+                    <th scope="col">{{ _("Expected") }}</th>
+                    <th scope="col">{{ _("AI") }}</th>
+                    <th scope="col">{{ _("Human Final") }}</th>
                     <th scope="col">{{ _("Operator") }}</th>
-                    <th scope="col">{{ _("Issue") }}</th>
-                    <th scope="col">{{ _("Submitted") }}</th>
+                    <th scope="col">{{ _("Timestamp") }}</th>
                     <th scope="col">{{ _("Status") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in sessions_requiring_attention %}
+                {% for d in sessions_requiring_attention %}
                 <tr>
-                    <th scope="row">
-                        <span class="data-table__primary">{{ item.session_id }}</span>
-                        <span class="data-table__secondary">{{ item.procedure_label }}</span>
-                    </th>
-                    <td>{{ item.kit_name }}</td>
-                    <td>{{ item.operator_name }}</td>
-                    <td>{{ item.issue_label }}</td>
-                    <td>{{ item.submitted_at }}</td>
-                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
-                    <td class="data-table__action-column">
-                        <a class="btn btn--small {{ 'btn--accent' if item.action_label == _('Review') else 'btn--secondary' }}"
-                           href="{{ item.action_url }}">{{ item.action_label }}</a>
-                    </td>
+                    <th scope="row">{{ d.session_id }}</th>
+                    <td>{{ d.procedure_name }}</td>
+                    <td>{{ d.instrument_name }}</td>
+                    <td>{{ d.reason_label }}</td>
+                    <td>{{ d.expected_quantity }}</td>
+                    <td>{{ d.ai_detected }}</td>
+                    <td>{{ d.human_final if d.human_final is not none else '—' }}</td>
+                    <td>{{ d.operator_name }}</td>
+                    <td>{{ d.timestamp }}</td>
+                    <td>{{ macros.status_badge(d.state_label, d.state_variant) }}</td>
+                    <td class="data-table__action-column"><a class="btn btn--secondary btn--small" href="{{ d.action_url }}">{{ _("Review") }}</a></td>
                 </tr>
+                {% else %}
+                <tr><td colspan="11">{{ _("No discrepancies found.") }}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+</section>
+
+<h2 class="card__title">{{ _("Recent Sessions") }}</h2>
+
+<section class="card">
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Session ID") }}</th>
+                    <th scope="col">{{ _("Procedure") }}</th>
+                    <th scope="col">{{ _("OR") }}</th>
+                    <th scope="col">{{ _("Kit") }}</th>
+                    <th scope="col">{{ _("Operator") }}</th>
+                    <th scope="col">{{ _("Started") }}</th>
+                    <th scope="col">{{ _("Closed") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in recent_sessions %}
+                <tr>
+                    <th scope="row">{{ s.session_id }}</th>
+                    <td>{{ s.procedure_name }}</td>
+                    <td>{{ s.operating_room }}</td>
+                    <td>{{ s.kit_name }}</td>
+                    <td>{{ s.operator_name }}</td>
+                    <td>{{ s.started_at }}</td>
+                    <td>{{ s.closed_at or '—' }}</td>
+                    <td>{{ macros.status_badge(s.status_label, s.status_variant) }}</td>
+                    <td class="data-table__action-column"><a class="btn btn--secondary btn--small" href="{{ s.action_url }}">{{ _("View Details") }}</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="9">{{ _("No sessions found.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <p class="pagination__info">{{ _("Showing %(shown)s sessions", shown=recent_sessions|length) }}</p>
 </section>
 {% endblock %}

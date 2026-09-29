@@ -169,6 +169,8 @@ def token_required(token_type: str | None = "access"):
 						{"id": token["user_id"]},
 					).first()
 				if not user or not user[0]:
+					# deleted/deactivated user: kill this token so it cannot be replayed
+					revoke_token(claims["jti"])
 					return error("Token is revoked or user is inactive", 401)
 				g.auth_claims = claims
 				g.auth_user_id = token["user_id"]
@@ -214,6 +216,32 @@ def register():
 		return error("Email or institution is already in use or invalid", 409)
 
 
+def _uuid_param(name: str) -> str:
+	return f"CAST(:{name} AS uuid)" if engine.dialect.name == "postgresql" else f":{name}"
+
+
+def audit_access(connection, action: str, user_id, institution_id, outcome: str = "success") -> None:
+	"""Insert one access_audit row (same schema as BackendWebFlask services/audit.py).
+
+	Only attributable events are stored: access_audit requires actor_user_id for actor_type
+	'user', so a login attempt for an unknown e-mail is not audited (no actor exists).
+	"""
+	forwarded = request.headers.get("X-Forwarded-For", "")
+	ip = (forwarded.split(",")[0].strip() or request.remote_addr or None) if request else None
+	connection.execute(
+		text(
+			"INSERT INTO access_audit (id, actor_type, actor_user_id, action, resource_type, resource_id, "
+			"institution_id, outcome, correlation_id, ip) VALUES ("
+			f"{_uuid_param('id')}, 'user', {_uuid_param('user_id')}, :action, 'user', {_uuid_param('user_id')}, "
+			f"{_uuid_param('institution_id')}, :outcome, :correlation_id, "
+			+ ("CAST(:ip AS inet)" if engine.dialect.name == "postgresql" else ":ip") + ")"
+		),
+		{"id": str(uuid.uuid4()), "user_id": str(user_id), "action": action,
+		 "institution_id": str(institution_id) if institution_id else None, "outcome": outcome,
+		 "correlation_id": (request.headers.get("X-Request-ID") or "")[:64] or None, "ip": ip},
+	)
+
+
 @app.post("/login")
 def login():
 	payload = request_json()
@@ -221,13 +249,22 @@ def login():
 	password = str(payload.get("password", ""))
 	with engine.connect() as connection:
 		user = connection.execute(
-			text("SELECT id, name, email, password_hash, active FROM \"user\" WHERE email = :email"),
+			text("SELECT id, name, email, password_hash, active, institution_id FROM \"user\" WHERE email = :email"),
 			{"email": email},
 		).mappings().first()
 	if not user or not user["active"] or not check_password_hash(user["password_hash"], password):
+		if user:
+			# failed attempt against an existing account: audited as denied; never blocks the 401
+			try:
+				with engine.begin() as connection:
+					audit_access(connection, "LOGIN", user["id"], user["institution_id"], outcome="denied")
+			except SQLAlchemyError:
+				app.logger.exception("Could not audit failed login")
 		return error("Invalid credentials", 401)
 	with engine.begin() as connection:
-		connection.execute(text("UPDATE \"user\" SET last_login_at = now() WHERE id = :id"), {"id": user["id"]})
+		connection.execute(text("UPDATE \"user\" SET last_login_at = CURRENT_TIMESTAMP WHERE id = :id"), {"id": user["id"]})
+		# LOGIN is audited once here (never by /verify or /refresh), in the same transaction
+		audit_access(connection, "LOGIN", user["id"], user["institution_id"])
 	with engine.connect() as connection:
 		role_rows = connection.execute(
 			text(
@@ -265,6 +302,15 @@ def refresh():
 @app.post("/logout")
 @token_required(None)
 def logout():
+	# LOGOUT is audited only for an explicit logout (token expiry is not a logout). An audit
+	# failure is logged but never prevents revoking the token.
+	try:
+		with engine.begin() as connection:
+			institution = connection.execute(
+				text("SELECT institution_id FROM \"user\" WHERE id = :id"), {"id": g.auth_user_id}).first()
+			audit_access(connection, "LOGOUT", g.auth_user_id, institution[0] if institution else None)
+	except SQLAlchemyError:
+		app.logger.exception("Could not audit logout")
 	revoke_token(g.auth_claims["jti"])
 	return clear_auth_cookies(jsonify({"message": "Logged out"}))
 
@@ -281,14 +327,15 @@ def verify():
 				FROM "user" u
 				LEFT JOIN user_role ur ON ur.user_id = u.id
 				LEFT JOIN role r ON r.id = ur.role_id
-				WHERE u.id = :id
+				WHERE u.id = :id AND u.active = TRUE
 				ORDER BY r.code
 				"""
 			),
 			{"id": g.auth_user_id},
 		).mappings().all()
 	if not user:
-		return error("User not found", 401)
+		revoke_token(g.auth_claims["jti"])
+		return error("User not found or inactive", 401)
 	first_user = user[0]
 	roles = [
 		{"code": row["role_code"], "description": row["role_description"]}

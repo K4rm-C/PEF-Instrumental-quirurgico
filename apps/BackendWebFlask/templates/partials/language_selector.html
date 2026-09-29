@@ -1,33 +1,39 @@
 {% import "components/macros.html" as macros %}
 {% set current_locale = current_locale|default('en') %}
-{% set language_options = [
-    {'code': 'en', 'label': _('English'), 'short_label': _('EN')},
-    {'code': 'es-MX', 'label': _('Español (México)'), 'short_label': _('ES')}
-] %}
+{% set language_options = language_options|default([
+    {'code': 'en', 'label': 'English', 'short_label': 'EN'},
+    {'code': 'es', 'label': 'Español', 'short_label': 'ES'}
+]) %}
 {% set current_language_option = (language_options|selectattr('code', 'equalto', current_locale)|first) or language_options[0] %}
 
 {#
-    Integration point: selecting a language here does not persist or change the rendered
-    locale yet. Once Flask-Babel is configured, wire each item's selection to whatever
-    mechanism sets the session/user locale (e.g. a POST to a language-switch route), and
-    render current_locale from that source instead of the 'en' default above.
+    UI language switch (EN / ES). Each option is a small POST form to /preferences/locale
+    (routes.set_locale_preference): signed-in users get user.ui_preferences.locale updated
+    (only that key), anonymous visitors the web session; then the same page is reloaded
+    (locale_next_url). Works without JavaScript; static/js/dropdown.js only opens/closes the
+    menu. Language names are endonyms and intentionally not translated.
 #}
 <div class="dropdown" data-dropdown>
     <button type="button"
             class="dropdown__trigger"
             id="language-selector-trigger"
-            aria-haspopup="listbox"
+            aria-haspopup="true"
             aria-expanded="false"
+            aria-label="{{ _('Language: %(language)s', language=current_language_option.label) }}"
             data-dropdown-trigger>
-        <span>{{ current_language_option.short_label }}</span>
+        <span aria-hidden="true">{{ current_language_option.short_label }}</span>
         {{ macros.icon_chevron_down() }}
     </button>
-    <ul class="dropdown__menu" role="listbox" aria-labelledby="language-selector-trigger" data-dropdown-menu hidden>
+    <ul class="dropdown__menu" aria-labelledby="language-selector-trigger" data-dropdown-menu hidden>
         {% for option in language_options %}
-        <li role="option" aria-selected="{{ 'true' if option.code == current_locale else 'false' }}">
-            <button type="button" class="dropdown__item" data-language-code="{{ option.code }}">
-                {{ option.label }}
-            </button>
+        <li>
+            <form method="post" action="{{ locale_switch_url|default('#') }}">
+                <input type="hidden" name="next" value="{{ locale_next_url|default('') }}">
+                <button type="submit" class="dropdown__item" name="locale" value="{{ option.code }}" lang="{{ option.code }}"
+                        {% if option.code == current_locale %}aria-current="true"{% endif %}>
+                    {{ option.label }}
+                </button>
+            </form>
         </li>
         {% endfor %}
     </ul>

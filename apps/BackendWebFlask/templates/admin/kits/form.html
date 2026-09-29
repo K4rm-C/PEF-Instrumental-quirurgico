@@ -12,28 +12,15 @@
                                  expected_quantity}
       instrument_families        list of {value, label} for each composition row's select
       save_url, cancel_url      URL strings, default "#"
-    Kit Composition's "+ Add Instrument Type" / "Remove" and the live Instrument Types /
-    Total Expected Instruments summary are presentation-only client-side behavior (section 19
-    of the implementation prompt) implemented by static/js/pages/kit-form.js — nothing here
-    is persisted or validated against real catalog data.
+    Kit Composition rows (instrument_family[] / expected_quantity[]) are added/removed client-side
+    by static/js/pages/kit-form.js and persisted server-side as KitItem rows in the same
+    transaction as the Kit. Save POSTs to save_url; services/admin_service.py validates and persists it (errors via flash).
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
-{% set kit = kit|default({'name': 'Delivery Kit', 'version': 1, 'status': 'active'} if is_edit else {'name': '', 'version': 1, 'status': 'active'}, true) %}
-{% set instrument_families = instrument_families|default([
-    {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
-    {'value': 'foerster-sponge-forceps', 'label': _('Foerster Sponge Forceps')},
-    {'value': 'mayo-hegar-needle-holder', 'label': _('Mayo-Hegar Needle Holder')},
-    {'value': 'mayo-scissors', 'label': _('Mayo Scissors')},
-    {'value': 'allis-tissue-forceps', 'label': _('Allis Tissue Forceps')}
-], true) %}
-{% set kit_composition = kit_composition|default([
-    {'instrument_family_value': 'kelly-clamp', 'instrument_family_label': _('Kelly Clamp'), 'expected_quantity': 4},
-    {'instrument_family_value': 'foerster-sponge-forceps', 'instrument_family_label': _('Foerster Sponge Forceps'), 'expected_quantity': 2},
-    {'instrument_family_value': 'mayo-hegar-needle-holder', 'instrument_family_label': _('Mayo-Hegar Needle Holder'), 'expected_quantity': 2},
-    {'instrument_family_value': 'mayo-scissors', 'instrument_family_label': _('Mayo Scissors'), 'expected_quantity': 1},
-    {'instrument_family_value': 'allis-tissue-forceps', 'instrument_family_label': _('Allis Tissue Forceps'), 'expected_quantity': 2}
-] if is_edit else [], true) %}
+{% set kit = kit|default({'name': '', 'version': 1, 'status': 'active'}, true) %}
+{% set instrument_families = instrument_families|default([], true) %}
+{% set kit_composition = kit_composition|default([], true) %}
 {% set page_title = _("Edit Kit") if is_edit else _("New Kit") %}
 {% set page_subtitle = _("Configure composition and general characteristics for %(name)s.", name=kit.name) if is_edit else _("Create a surgical instrument kit and define its expected composition.") %}
 {% set total_expected_instruments = kit_composition|sum(attribute='expected_quantity') %}

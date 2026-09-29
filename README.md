@@ -25,6 +25,26 @@ Equipo de apoyo
 
 **Asesor:** Dr. Raúl Morales Salcedo
 
+## Estado actual de la implementación
+
+La versión actual del repositorio es un **monolito Flask** (`apps/BackendWebFlask`, plantillas Jinja)
+con autenticación separada en `apps/BackendAuthService` y persistencia en PostgreSQL
+(`data/migrations/001_init.sql`). El flujo completo (catálogos → sesión → captura → análisis →
+discrepancias → validación humana → supervisor → cierre → dashboards/auditoría) está implementado,
+pero:
+
+- la inferencia usa el provider temporal **`controlled`** (aún no hay worker YOLO real);
+- las pruebas se han ejecutado con SQLite temporal; **falta la validación contra PostgreSQL real**.
+
+El idioma canónico de los datos persistidos (negocio y catálogos) es el **inglés**; la localización de la interfaz se hace en la capa de aplicación.
+La interfaz web está disponible en **inglés** (`en`, predeterminado) y **español** (`es`) con Flask-Babel: el selector EN / ES
+guarda la elección en `user.ui_preferences.locale` (usuarios autenticados) o en la sesión web (visitantes), y los valores de
+catálogo se traducen por su código estable, nunca por el nombre guardado. Detalles, reglas y cómo añadir traducciones:
+[`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) (sección 19b).
+
+Detalle y pendientes: [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md).
+Las secciones siguientes describen el alcance y el stack **objetivo** del proyecto.
+
 ## Alcance del MVP
 
 - Detección por familias de instrumental (cajas YOLO) sobre charola cenital fija
