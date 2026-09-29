@@ -49,7 +49,7 @@
 <ol class="breadcrumb-list">
     <li class="breadcrumb-item">{{ _("Administration") }}</li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
-    <li class="breadcrumb-item"><a href="{{ cancel_url|default('#') }}">{{ _("Users") }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ cancel_url|default('/admin/users') }}">{{ _("Users") }}</a></li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
     <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Edit") if is_edit else _("New") }}</li>
 </ol>

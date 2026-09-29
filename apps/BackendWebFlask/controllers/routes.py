@@ -10,9 +10,11 @@ from werkzeug.urls import urlsplit
 from werkzeug.security import generate_password_hash
 
 from extensions import db
+from models.CatInstrumentCycleStatus import CatInstrumentCycleStatus
 from models.CatOperationPhase import CatOperationPhase
 from models.CatProcedureType import CatProcedureType
 from models.Institution import Institution
+from models.Instrument import Instrument
 from models.Kit import Kit
 from models.KitItem import KitItem
 from models.InstrumentFamily import InstrumentFamily
@@ -613,13 +615,167 @@ def admin_instruments():
 @web_bp.route('/admin/instruments/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_instrument_new():
-    return _page('admin/instruments/form.html', **instrument_form_data(), page_title='New Instrument', form_mode='create')
+    if request.method == 'GET':
+        return _render_instrument_form('create')
+
+    values = _submitted_instrument_values()
+    error = _validate_instrument_values(values, include_code=True)
+    if error:
+        return _render_instrument_form('create', values=values, form_error=error, status=400)
+
+    user = _current_user()
+    try:
+        institution_id = UUID(user.get('institution_id') or '')
+    except (AttributeError, TypeError, ValueError):
+        return _render_instrument_form(
+            'create', values=values,
+            form_error='Your account must be assigned to an institution before creating an instrument.', status=400,
+        )
+
+    try:
+        institution = db.session.get(Institution, institution_id)
+        if institution is None:
+            return _render_instrument_form(
+                'create', values=values,
+                form_error='Your assigned institution could not be found.', status=400,
+            )
+        family, cycle_status = _validated_instrument_catalog_values(values)
+        if family is None or cycle_status is None:
+            return _render_instrument_form(
+                'create', values=values,
+                form_error='Choose a valid instrument family and cycle status.', status=400,
+            )
+
+        instrument = Instrument(
+            internal_code=values['internal_code'],
+            family_id=family.id,
+            cycle_status_id=cycle_status.id,
+            institution_id=institution.id,
+            active=values['active_status'] == 'active',
+        )
+        db.session.add(instrument)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_instrument_form(
+            'create', values=values,
+            form_error='An instrument with this internal code already exists for the institution.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to create admin instrument')
+        return _render_instrument_form(
+            'create', values=values,
+            form_error='Unable to save this instrument right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_instruments'))
 
 
 @web_bp.route('/admin/instruments/<instrument_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_instrument_edit(instrument_id):
-    return _page('admin/instruments/form.html', **instrument_form_data(instrument_id), page_title='Edit Instrument', form_mode='edit', instrument_id=instrument_id)
+    try:
+        parsed_instrument_id = UUID(instrument_id)
+    except ValueError:
+        abort(404)
+
+    instrument = db.session.get(Instrument, parsed_instrument_id)
+    if instrument is None:
+        abort(404)
+    if request.method == 'GET':
+        return _render_instrument_form('edit', instrument_id=parsed_instrument_id)
+
+    values = _submitted_instrument_values()
+    error = _validate_instrument_values(values)
+    if error:
+        return _render_instrument_form(
+            'edit', instrument_id=parsed_instrument_id, values=values,
+            form_error=error, status=400,
+        )
+
+    try:
+        family, cycle_status = _validated_instrument_catalog_values(values)
+        if family is None or cycle_status is None:
+            return _render_instrument_form(
+                'edit', instrument_id=parsed_instrument_id, values=values,
+                form_error='Choose a valid instrument family and cycle status.', status=400,
+            )
+
+        instrument.family_id = family.id
+        instrument.cycle_status_id = cycle_status.id
+        instrument.active = values['active_status'] == 'active'
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_instrument_form(
+            'edit', instrument_id=parsed_instrument_id, values=values,
+            form_error='Unable to save this instrument because it conflicts with existing data.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to update admin instrument %s', parsed_instrument_id)
+        return _render_instrument_form(
+            'edit', instrument_id=parsed_instrument_id, values=values,
+            form_error='Unable to save this instrument right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_instruments'))
+
+
+def _submitted_instrument_values():
+    return {
+        'internal_code': request.form.get('internal_code', '').strip(),
+        'instrument_family': request.form.get('instrument_family', '').strip(),
+        'cycle_status': request.form.get('cycle_status', '').strip(),
+        'active_status': request.form.get('active_status', 'active'),
+    }
+
+
+def _validate_instrument_values(values, include_code=False):
+    if include_code and not values['internal_code']:
+        return 'Internal code is required.'
+    if include_code and len(values['internal_code']) > 64:
+        return 'Internal code must contain at most 64 characters.'
+    if not values['instrument_family'] or not values['cycle_status']:
+        return 'Instrument family and cycle status are required.'
+    if values['active_status'] not in {'active', 'inactive'}:
+        return 'Choose a valid active status.'
+    return None
+
+
+def _validated_instrument_catalog_values(values):
+    try:
+        family_id = UUID(values['instrument_family'])
+    except (TypeError, ValueError):
+        return None, None
+    family = db.session.get(InstrumentFamily, family_id)
+    cycle_status = db.session.scalar(
+        select(CatInstrumentCycleStatus).where(
+            CatInstrumentCycleStatus.code == values['cycle_status']
+        )
+    )
+    return family, cycle_status
+
+
+def _render_instrument_form(form_mode, instrument_id=None, values=None, form_error=None, status=200):
+    is_edit = form_mode == 'edit'
+    context = instrument_form_data(instrument_id)
+    if values:
+        instrument_values = dict(context.get('instrument', {}))
+        instrument_values.update(values)
+        if is_edit:
+            instrument_values['internal_code'] = context.get('instrument', {}).get('internal_code', '')
+        context['instrument'] = instrument_values
+    context.update({
+        'form_mode': form_mode,
+        'is_edit': is_edit,
+        'page_title': 'Edit Instrument' if is_edit else 'New Instrument',
+        'save_url': url_for('web.admin_instrument_edit', instrument_id=instrument_id) if is_edit else url_for('web.admin_instrument_new'),
+        'cancel_url': url_for('web.admin_instruments'),
+        'form_error': form_error,
+    })
+    return _page('admin/instruments/form.html', **context), status
 
 
 @web_bp.route('/admin/kits')

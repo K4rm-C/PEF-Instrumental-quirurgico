@@ -246,15 +246,16 @@ def instrument_form_data(instrument_id=None):
         instrument = db.session.get(Instrument, instrument_id) if instrument_id else None
         families = db.session.execute(select(InstrumentFamily).order_by(InstrumentFamily.name)).scalars().all()
         statuses = db.session.execute(select(CatInstrumentCycleStatus).order_by(CatInstrumentCycleStatus.name)).scalars().all()
+        status_codes = {item.id: item.code for item in statuses}
         return {
             'instrument': {
                 'internal_code': instrument.internal_code if instrument else '',
                 'instrument_family': str(instrument.family_id) if instrument else '',
-                'cycle_status': str(instrument.cycle_status_id) if instrument else '',
+                'cycle_status': status_codes.get(instrument.cycle_status_id, '') if instrument else 'available',
                 'active_status': 'active' if not instrument or instrument.active else 'inactive',
             },
             'instrument_families': _options(families),
-            'cycle_statuses': _options(statuses),
+            'cycle_statuses': _options(statuses, value='code'),
         }
     return _read(query, {'instrument': {}, 'instrument_families': [], 'cycle_statuses': []})
 

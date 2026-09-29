@@ -17,21 +17,6 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    instruments and the pagination values below are placeholder values used only so this page
-    is visually reviewable before the backend supplies real data. Expected shapes are
-    documented in FRONTEND_INTEGRATION.md. Cycle Status (Available / In Use / Sterilization /
-    Unavailable) and Active Status (Active / Inactive) are kept as two separate fields/badges
-    per section 15 of the implementation prompt — they are never merged or visually confused.
-#}
-{% set instruments = instruments|default([
-    {'internal_code': 'INS-001', 'instrument_family_name': 'Kelly Clamp', 'cycle_status_label': _('Available'), 'cycle_status_variant': 'info', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': url_for('web.admin_instrument_edit', instrument_id='INS-001')},
-    {'internal_code': 'INS-002', 'instrument_family_name': 'Kelly Clamp', 'cycle_status_label': _('Sterilization'), 'cycle_status_variant': 'warning', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': url_for('web.admin_instrument_edit', instrument_id='INS-002')},
-    {'internal_code': 'INS-003', 'instrument_family_name': 'Foerster Sponge Forceps', 'cycle_status_label': _('Available'), 'cycle_status_variant': 'info', 'active_status_label': _('Active'), 'active_status_variant': 'success', 'edit_url': url_for('web.admin_instrument_edit', instrument_id='INS-003')},
-    {'internal_code': 'INS-004', 'instrument_family_name': 'Mayo-Hegar Needle Holder', 'cycle_status_label': _('Unavailable'), 'cycle_status_variant': 'danger', 'active_status_label': _('Inactive'), 'active_status_variant': 'neutral', 'edit_url': url_for('web.admin_instrument_edit', instrument_id='INS-004')}
-], true) %}
 {% set instrument_families_filter = instrument_families_filter|default([
     {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
     {'value': 'foerster-sponge-forceps', 'label': _('Foerster Sponge Forceps')},
@@ -49,7 +34,7 @@
         <h1 class="page-heading__title">{{ _("Instruments") }}</h1>
         <p class="page-heading__subtitle">{{ _("Manage individual surgical instruments registered in the system.") }}</p>
     </div>
-    <a class="btn btn--primary" href="{{ new_instrument_url|default('#') }}">
+    <a class="btn btn--primary" href="{{ new_instrument_url|default('/admin/instruments/new') }}">
         {{ macros.icon_plus() }}
         <span>{{ _("New Instrument") }}</span>
     </a>
