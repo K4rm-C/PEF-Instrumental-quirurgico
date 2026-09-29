@@ -46,4 +46,5 @@ class Config:
     # Development-only view-data fallback. Authentication always uses the auth service.
     FRONTEND_DEMO_MODE = os.getenv('FRONTEND_DEMO_MODE', 'false').strip().lower() == 'true'
     AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', os.getenv('AUTH_URL', 'http://127.0.0.1:5001')).strip().rstrip('/')
+    AUTH_BROWSER_URL = os.getenv('AUTH_BROWSER_URL', AUTH_SERVICE_URL).strip().rstrip('/')
     AUTH_SERVICE_TIMEOUT = float(os.getenv('AUTH_SERVICE_TIMEOUT', '5'))

@@ -42,12 +42,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/session-details.css') }}">
     {% block page_styles %}{% endblock %}
 </head>
-<body class="{% block body_class %}{% endblock %}">
+<body class="{% block body_class %}{% endblock %}" data-auth-service-url="{{ config.AUTH_BROWSER_URL }}">
     {% block content %}{% endblock %}
 
     <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/auth-client.js') }}" defer></script>
     {% block page_scripts %}{% endblock %}
 </body>
 </html>

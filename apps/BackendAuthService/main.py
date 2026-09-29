@@ -44,6 +44,11 @@ def seconds_from_env(name: str, default: int) -> int:
 
 
 app = Flask(__name__)
+allowed_origins = {
+	origin.strip().rstrip("/")
+	for origin in os.getenv("AUTH_ALLOWED_ORIGINS", "").split(",")
+	if origin.strip()
+}
 app.config.update(
 	JWT_SECRET_KEY=os.getenv("JWT_SECRET_KEY", "change-this-secret"),
 	JWT_ALGORITHM=os.getenv("JWT_ALGORITHM", "HS256"),
@@ -53,6 +58,7 @@ app.config.update(
 	RETURN_RESET_TOKEN=os.getenv("AUTH_RETURN_RESET_TOKEN", "true").lower() == "true",
 	COOKIE_DOMAIN=os.getenv("AUTH_COOKIE_DOMAIN") or None,
 	COOKIE_SECURE=os.getenv("AUTH_COOKIE_SECURE", "true").lower() == "true",
+	COOKIE_SAMESITE=os.getenv("AUTH_COOKIE_SAMESITE", "None"),
 )
 
 if app.config["JWT_SECRET_KEY"] == "change-this-secret" and not app.debug:
@@ -77,7 +83,7 @@ def set_auth_cookies(response, access_token: str, refresh_token: str):
 		"domain": app.config["COOKIE_DOMAIN"],
 		"secure": app.config["COOKIE_SECURE"],
 		"httponly": True,
-		"samesite": "Strict",
+		"samesite": app.config["COOKIE_SAMESITE"],
 		"path": "/",
 	}
 	response.set_cookie("access_token", access_token, **common)
@@ -90,11 +96,23 @@ def clear_auth_cookies(response):
 		"domain": app.config["COOKIE_DOMAIN"],
 		"secure": app.config["COOKIE_SECURE"],
 		"httponly": True,
-		"samesite": "Strict",
+		"samesite": app.config["COOKIE_SAMESITE"],
 		"path": "/",
 	}
 	response.delete_cookie("access_token", **common)
 	response.delete_cookie("refresh_token", **common)
+	return response
+
+
+@app.after_request
+def add_cors_headers(response):
+	origin = request.headers.get("Origin", "").rstrip("/")
+	if origin in allowed_origins:
+		response.headers["Access-Control-Allow-Origin"] = origin
+		response.headers["Access-Control-Allow-Credentials"] = "true"
+		response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+		response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+		response.vary.add("Origin")
 	return response
 
 

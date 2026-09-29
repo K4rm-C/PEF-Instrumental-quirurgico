@@ -22,9 +22,12 @@
         <p class="sign-in-card__section-subtitle">{{ _("Access for authorized hospital personnel") }}</p>
     </div>
 
-    <form class="form" id="sign-in-form" action="{{ url_for('web.sign_in') }}" method="post" novalidate>
+    <form class="form" id="sign-in-form" method="post" novalidate
+          data-operator-home="{{ url_for('web.operator_dashboard') }}"
+          data-supervisor-home="{{ url_for('web.supervisor_dashboard') }}"
+          data-admin-home="{{ url_for('web.admin_dashboard') }}">
         {% if redirect_target %}
-        <input type="hidden" name="next" value="{{ redirect_target }}">
+        <input type="hidden" name="next" value="{{ redirect_target|e }}">
         {% endif %}
         <div class="form-field">
             <label class="form-field__label" for="institutional-email">{{ _("Institutional Email") }}</label>
@@ -45,11 +48,13 @@
         </div>
 
         <button type="submit" class="btn btn--primary btn--block">{{ _("Sign In") }}</button>
-        {% if sign_in_error %}
-        <p class="form-error" role="alert">{{ sign_in_error }}</p>
-        {% endif %}
+        <p class="form-error" id="sign-in-error" role="alert" hidden></p>
     </form>
 
     <p class="sign-in-card__footnote">{{ _("Access is restricted to authorized personnel.") }}</p>
 </div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/sign-in.js') }}" defer></script>
 {% endblock %}
