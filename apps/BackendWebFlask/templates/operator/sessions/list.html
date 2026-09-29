@@ -17,58 +17,14 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    sessions, sessions_shown_count, sessions_total_count, current_page, total_pages,
-    previous_url, and next_url below are placeholder values used only so this page is
-    visually reviewable before the backend supplies real data. Expected shapes are
-    documented in FRONTEND_INTEGRATION.md. Session status terminology is fixed per
-    prompts/09_Operator_V2.md: In Progress / Awaiting Review / Correction Required /
-    Ready to Close / Closed.
-#}
-{% set sessions = sessions|default([
-    {
-        'session_id': 'WS-026', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-        'kit_name': 'Delivery Kit', 'created_at': '2024-01-15 08:30', 'discrepancy_count': 0,
-        'status_label': _('In Progress'), 'status_variant': 'info',
-        'action_label': _('Continue'), 'action_url': url_for('web.operator_session_capture', session_id='WS-026')
-    },
-    {
-        'session_id': 'WS-025', 'procedure_name': 'Cholecystectomy', 'operating_room': 'OR-1',
-        'kit_name': 'Suture Kit', 'created_at': '2024-01-15 07:45', 'discrepancy_count': 1,
-        'status_label': _('Awaiting Review'), 'status_variant': 'warning',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_awaiting_review', session_id='WS-025')
-    },
-    {
-        'session_id': 'WS-024', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
-        'kit_name': 'General Surgery Kit', 'created_at': '2024-01-14 14:20', 'discrepancy_count': 0,
-        'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-024')
-    },
-    {
-        'session_id': 'WS-023', 'procedure_name': 'Laparoscopic Cholecystectomy', 'operating_room': 'OR-4',
-        'kit_name': 'Laparoscopic Kit', 'created_at': '2024-01-14 11:00', 'discrepancy_count': 1,
-        'status_label': _('Correction Required'), 'status_variant': 'danger',
-        'action_label': _('Review Count'), 'action_url': url_for('web.operator_session_correction', session_id='WS-023')
-    },
-    {
-        'session_id': 'WS-022', 'procedure_name': 'Thyroidectomy', 'operating_room': 'OR-2',
-        'kit_name': 'General Surgery Kit', 'created_at': '2024-01-14 09:15', 'discrepancy_count': 0,
-        'status_label': _('Ready to Close'), 'status_variant': 'success',
-        'action_label': _('Close Session'), 'action_url': url_for('web.operator_session_ready_to_close', session_id='WS-022')
-    },
-    {
-        'session_id': 'WS-021', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-1',
-        'kit_name': 'Delivery Kit', 'created_at': '2024-01-13 16:30', 'discrepancy_count': 0,
-        'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': url_for('web.operator_session_closed', session_id='WS-021')
-    }
-], true) %}
+{# Session status terminology is fixed per prompts/09_Operator_V2.md: In Progress /
+   Awaiting Review / Correction Required / Ready to Close / Closed. #}
+
+{% set sessions = sessions|default([]) %}
 {% set sessions_shown_count = sessions_shown_count|default(sessions|length, true) %}
-{% set sessions_total_count = sessions_total_count|default(12, true) %}
+{% set sessions_total_count = sessions_total_count|default(sessions|length, true) %}
 {% set current_page = current_page|default(1, true) %}
-{% set total_pages = total_pages|default(2, true) %}
+{% set total_pages = total_pages|default(1, true) %}
 {% set previous_url = previous_url|default('#', true) %}
 {% set next_url = next_url|default('#', true) %}
 
@@ -84,8 +40,7 @@
 </div>
 
 <section class="card">
-    {# Filters are presentation-only in this iteration: no client-side or server-side
-       filtering is wired up yet. #}
+    {# Filters are wired to the backend via GET params (search, status, date). #}
     <form class="filter-bar" action="#" method="get" role="search">
         <div class="filter-bar__search">
             <label class="visually-hidden" for="counting-sessions-search">{{ _("Search Sessions") }}</label>
@@ -94,16 +49,6 @@
                 <input class="form-field__input" type="search" id="counting-sessions-search" name="search"
                        placeholder="{{ _('Search sessions...') }}">
             </div>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="counting-sessions-procedure">{{ _("Procedure") }}</label>
-            <select class="form-field__input form-field__input--plain" id="counting-sessions-procedure" name="procedure">
-                <option value="">{{ _("All Procedures") }}</option>
-                <option value="appendectomy">{{ _("Appendectomy") }}</option>
-                <option value="cholecystectomy">{{ _("Cholecystectomy") }}</option>
-                <option value="hernia-repair">{{ _("Hernia Repair") }}</option>
-                <option value="thyroidectomy">{{ _("Thyroidectomy") }}</option>
-            </select>
         </div>
         <div class="filter-bar__select">
             <label class="visually-hidden" for="counting-sessions-status">{{ _("Status") }}</label>
@@ -117,13 +62,8 @@
             </select>
         </div>
         <div class="filter-bar__select">
-            <label class="visually-hidden" for="counting-sessions-date">{{ _("Date Range") }}</label>
-            <select class="form-field__input form-field__input--plain" id="counting-sessions-date" name="date">
-                <option value="">{{ _("Date Range") }}</option>
-                <option value="today">{{ _("Today") }}</option>
-                <option value="last-7-days">{{ _("Last 7 Days") }}</option>
-                <option value="last-30-days">{{ _("Last 30 Days") }}</option>
-            </select>
+            <label class="visually-hidden" for="counting-sessions-date">{{ _("Date") }}</label>
+            <input class="form-field__input form-field__input--plain" type="date" id="counting-sessions-date" name="date">
         </div>
     </form>
 </section>

@@ -1,17 +1,11 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    session must be set here, outside every block: block breadcrumb renders before
-    page_content in layouts/authenticated.html, and a variable set inside one block is not
-    visible from another. Preserves the approved WS-026 reference case
-    (prompts/09_Operator_V2.md) regardless of the session_id in the URL — see capture.html.
-#}
-{% set session_id = session_id|default('WS-026') %}
+{% set session_id = session_id|default('') %}
 {% set session = session|default({
-    'session_id': session_id, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-    'patient_name': 'Maria García', 'physician_name': 'Dr. James Wilson',
-    'kit_name': 'Delivery Kit', 'status_label': _('Awaiting Review'), 'status_variant': 'warning'
+    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
+    'patient_name': '', 'physician_name': '',
+    'kit_name': '', 'status_label': '', 'status_variant': 'neutral'
 }, true) %}
 
 {% block title %}{{ _("Discrepancy Escalation") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
@@ -32,27 +26,20 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA (remaining, page_content-only)
-    --------------------
-    This is the evidence/audit detail reached right after the discrepancy has been escalated
-    (status is already 'Awaiting Review') — the operator cannot close the session from here
-    or anywhere else while a discrepancy remains unresolved.
-#}
 {% set discrepancy_details = discrepancy_details|default({
-    'instrument_name': 'Mayo-Hegar Needle Holder', 'expected_quantity': 2, 'ai_detected': 1,
-    'validated_quantity': 1, 'difference': -1, 'severity_label': _('Critical'),
-    'discrepancy_type': _('Missing Instrument')
+    'instrument_name': '', 'expected_quantity': 0, 'ai_detected': 0,
+    'validated_quantity': 0, 'difference': 0, 'severity_label': '',
+    'discrepancy_type': ''
 }) %}
 {% set ai_detection_evidence = ai_detection_evidence|default({
-    'detected_count': 1, 'confidence': 87, 'timestamp': '09:42:15'
+    'detected_count': 0, 'confidence': 0, 'timestamp': ''
 }) %}
 {% set operator_validation_evidence = operator_validation_evidence|default({
-    'validated_count': 1, 'operator_name': 'Alex Morgan',
-    'reason': _('instrument not detected by camera'), 'timestamp': '09:45:22'
+    'validated_count': 0, 'operator_name': '',
+    'reason': '', 'timestamp': ''
 }) %}
 {% set supervisor_review_evidence = supervisor_review_evidence|default({
-    'status_label': _('Awaiting Review'), 'assigned_supervisor': 'Sophia Turner', 'escalated_at': '09:46:01'
+    'status_label': '', 'assigned_supervisor': '', 'escalated_at': ''
 }) %}
 {% set back_to_session_url = back_to_session_url|default(url_for('web.operator_sessions')) %}
 
