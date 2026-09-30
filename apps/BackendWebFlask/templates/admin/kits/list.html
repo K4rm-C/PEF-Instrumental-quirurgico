@@ -17,19 +17,6 @@
 {% endblock %}
 
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    kits and the pagination values below are placeholder values used only so this page is
-    visually reviewable before the backend supplies real data. Expected shapes are documented
-    in FRONTEND_INTEGRATION.md. Per section 17, the term "Kit" is used consistently — never
-    "Tray".
-#}
-{% set kits = kits|default([
-    {'name': 'Delivery Kit', 'version': 1, 'instrument_family_count': 5, 'total_expected_instruments': 11, 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_kit_edit', kit_id='delivery-kit')},
-    {'name': 'Suture Kit', 'version': 2, 'instrument_family_count': 4, 'total_expected_instruments': 8, 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_kit_edit', kit_id='suture-kit')},
-    {'name': 'General Surgery Kit', 'version': 1, 'instrument_family_count': 8, 'total_expected_instruments': 18, 'status_label': _('Active'), 'status_variant': 'success', 'edit_url': url_for('web.admin_kit_edit', kit_id='general-surgery-kit')}
-], true) %}
 {% set kits_shown_count = kits_shown_count|default(kits|length, true) %}
 {% set kits_total_count = kits_total_count|default(8, true) %}
 {% set current_page = current_page|default(1, true) %}
@@ -42,7 +29,7 @@
         <h1 class="page-heading__title">{{ _("Kits") }}</h1>
         <p class="page-heading__subtitle">{{ _("Manage surgical instrument kits and their expected composition.") }}</p>
     </div>
-    <a class="btn btn--primary" href="{{ new_kit_url|default('#') }}">
+    <a class="btn btn--primary" href="{{ new_kit_url|default('/admin/kits/new') }}">
         {{ macros.icon_plus() }}
         <span>{{ _("New Kit") }}</span>
     </a>

@@ -33,7 +33,7 @@
 <ol class="breadcrumb-list">
     <li class="breadcrumb-item">{{ _("Administration") }}</li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
-    <li class="breadcrumb-item"><a href="{{ cancel_url|default('#') }}">{{ _("Roles") }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ cancel_url|default('/admin/roles') }}">{{ _("Roles") }}</a></li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
     <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Edit") if is_edit else _("New") }}</li>
 </ol>
@@ -49,6 +49,9 @@
 
 <section class="card card--form">
     <form class="form" action="{{ save_url|default('#') }}" method="post">
+        {% if form_error %}
+        <p class="form-field__helper form-field__helper--error" role="alert">{{ form_error }}</p>
+        {% endif %}
         {% if not is_edit %}
         <div class="form-field">
             <span class="form-field__label">{{ _("Current Role Codes") }}</span>
@@ -87,7 +90,7 @@
         {% endif %}
 
         <div class="form-actions">
-            <a class="btn btn--secondary" href="{{ cancel_url|default('#') }}">{{ _("Cancel") }}</a>
+            <a class="btn btn--secondary" href="{{ cancel_url|default('/admin/roles') }}">{{ _("Cancel") }}</a>
             <button type="submit" class="btn btn--primary">{{ _("Save Role") }}</button>
         </div>
     </form>

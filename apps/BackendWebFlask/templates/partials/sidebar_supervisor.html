@@ -112,7 +112,7 @@
                 </a>
             </li>
             <li>
-                <a class="sidebar__nav-link" href="{{ nav_urls.sign_out|default('#') }}">
+                <a class="sidebar__nav-link" href="{{ nav_urls.sign_out|default('#') }}" data-auth-logout>
                     {{ macros.icon_sign_out() }}
                     <span>{{ _("Sign Out") }}</span>
                 </a>

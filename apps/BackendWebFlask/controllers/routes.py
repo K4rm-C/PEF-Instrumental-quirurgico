@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import wraps
 from uuid import UUID
 
@@ -6,11 +6,19 @@ import requests
 from flask import Blueprint, abort, current_app, g, redirect, render_template, request, session, url_for
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from werkzeug.urls import urlsplit
 from werkzeug.security import generate_password_hash
 
 from extensions import db
+from models.CatInstrumentCycleStatus import CatInstrumentCycleStatus
+from models.CatOperationPhase import CatOperationPhase
+from models.CatProcedureType import CatProcedureType
 from models.Institution import Institution
+from models.Instrument import Instrument
+from models.Kit import Kit
+from models.KitItem import KitItem
+from models.InstrumentFamily import InstrumentFamily
+from models.ProcedureKit import ProcedureKit
+from models.ProcedurePhase import ProcedurePhase
 from models.Role import Role
 from models.User import User
 from models.UserRole import UserRole
@@ -181,13 +189,6 @@ def _upstream_set_cookies(upstream_response):
     return headers.getlist('Set-Cookie')
 
 
-def _forward_set_cookies(response, upstream_response):
-    if upstream_response is not None:
-        for set_cookie in _upstream_set_cookies(upstream_response):
-            response.headers.add('Set-Cookie', set_cookie)
-    return response
-
-
 def require_role(*role_codes):
     """Authorize using the role returned by the auth service token verification."""
     def decorator(view):
@@ -203,30 +204,6 @@ def require_role(*role_codes):
         return wrapped
 
     return decorator
-
-
-def _role_home(role_code):
-    return {
-        'operator_cde': 'web.operator_dashboard',
-        'supervisor_quality': 'web.supervisor_dashboard',
-        'it_admin': 'web.admin_dashboard',
-    }[role_code]
-
-
-def _safe_next_url(value, user):
-    if not value:
-        return url_for(_role_home(user['role_code']))
-    parsed = urlsplit(value)
-    if parsed.scheme or parsed.netloc or not parsed.path.startswith('/'):
-        return url_for(_role_home(user['role_code']))
-    allowed_prefixes = {
-        'operator_cde': '/operator/',
-        'supervisor_quality': '/supervisor/',
-        'it_admin': '/admin/',
-    }
-    if parsed.path.startswith(allowed_prefixes[user['role_code']]):
-        return value
-    return url_for(_role_home(user['role_code']))
 
 
 def _nav_urls(user):
@@ -289,46 +266,19 @@ def index():
     return _page('shared/landing.html', current_year=date.today().year)
 
 
-@web_bp.route('/sign-in', methods=['GET', 'POST'])
+@web_bp.get('/sign-in')
 def sign_in():
-    redirect_target = request.form.get('next') or request.args.get('next')
-    if request.method == 'POST':
-        email = request.form.get('institutional_email', '').strip().lower()
-        password = request.form.get('password', '')
-        auth_response = _auth_request(
-            'post',
-            '/login',
-            json={'email': email, 'password': password},
-        )
-        if auth_response is None:
-            return _page('auth/sign_in.html', sign_in_error='Authentication service unavailable.'), 503
-        if not auth_response.ok:
-            return _page('auth/sign_in.html', sign_in_error='Invalid email or password.'), 401
-
-        user_data = auth_response.json().get('user', {})
-        roles = user_data.get('roles', [])
-        role = next((item for item in roles if item.get('code') in ROLE_LABELS), None)
-        if role is None:
-            return _page('auth/sign_in.html', sign_in_error='Your account has no application role.'), 403
-
-        response = redirect(_safe_next_url(redirect_target, {'role_code': role['code']}), code=303)
-        return _forward_set_cookies(response, auth_response)
+    redirect_target = request.args.get('next')
     return _page(
         'auth/sign_in.html',
-        sign_in_error=None,
         redirect_target=redirect_target,
     )
 
 
 @web_bp.route('/sign-out', methods=['POST', 'GET'])
 def sign_out():
-    access_token = request.cookies.get('access_token')
-    auth_response = None
-    if access_token:
-        auth_response = _auth_request('post', '/logout', token=access_token)
     session.clear()
-    response = redirect(url_for('web.sign_in'))
-    return _forward_set_cookies(response, auth_response)
+    return redirect(url_for('web.sign_in'))
 
 
 @web_bp.route('/operator/profile')
@@ -606,13 +556,167 @@ def admin_instruments():
 @web_bp.route('/admin/instruments/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_instrument_new():
-    return _page('admin/instruments/form.html', **instrument_form_data(), page_title='New Instrument', form_mode='create')
+    if request.method == 'GET':
+        return _render_instrument_form('create')
+
+    values = _submitted_instrument_values()
+    error = _validate_instrument_values(values, include_code=True)
+    if error:
+        return _render_instrument_form('create', values=values, form_error=error, status=400)
+
+    user = _current_user()
+    try:
+        institution_id = UUID(user.get('institution_id') or '')
+    except (AttributeError, TypeError, ValueError):
+        return _render_instrument_form(
+            'create', values=values,
+            form_error='Your account must be assigned to an institution before creating an instrument.', status=400,
+        )
+
+    try:
+        institution = db.session.get(Institution, institution_id)
+        if institution is None:
+            return _render_instrument_form(
+                'create', values=values,
+                form_error='Your assigned institution could not be found.', status=400,
+            )
+        family, cycle_status = _validated_instrument_catalog_values(values)
+        if family is None or cycle_status is None:
+            return _render_instrument_form(
+                'create', values=values,
+                form_error='Choose a valid instrument family and cycle status.', status=400,
+            )
+
+        instrument = Instrument(
+            internal_code=values['internal_code'],
+            family_id=family.id,
+            cycle_status_id=cycle_status.id,
+            institution_id=institution.id,
+            active=values['active_status'] == 'active',
+        )
+        db.session.add(instrument)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_instrument_form(
+            'create', values=values,
+            form_error='An instrument with this internal code already exists for the institution.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to create admin instrument')
+        return _render_instrument_form(
+            'create', values=values,
+            form_error='Unable to save this instrument right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_instruments'))
 
 
 @web_bp.route('/admin/instruments/<instrument_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_instrument_edit(instrument_id):
-    return _page('admin/instruments/form.html', **instrument_form_data(instrument_id), page_title='Edit Instrument', form_mode='edit', instrument_id=instrument_id)
+    try:
+        parsed_instrument_id = UUID(instrument_id)
+    except ValueError:
+        abort(404)
+
+    instrument = db.session.get(Instrument, parsed_instrument_id)
+    if instrument is None:
+        abort(404)
+    if request.method == 'GET':
+        return _render_instrument_form('edit', instrument_id=parsed_instrument_id)
+
+    values = _submitted_instrument_values()
+    error = _validate_instrument_values(values)
+    if error:
+        return _render_instrument_form(
+            'edit', instrument_id=parsed_instrument_id, values=values,
+            form_error=error, status=400,
+        )
+
+    try:
+        family, cycle_status = _validated_instrument_catalog_values(values)
+        if family is None or cycle_status is None:
+            return _render_instrument_form(
+                'edit', instrument_id=parsed_instrument_id, values=values,
+                form_error='Choose a valid instrument family and cycle status.', status=400,
+            )
+
+        instrument.family_id = family.id
+        instrument.cycle_status_id = cycle_status.id
+        instrument.active = values['active_status'] == 'active'
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_instrument_form(
+            'edit', instrument_id=parsed_instrument_id, values=values,
+            form_error='Unable to save this instrument because it conflicts with existing data.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to update admin instrument %s', parsed_instrument_id)
+        return _render_instrument_form(
+            'edit', instrument_id=parsed_instrument_id, values=values,
+            form_error='Unable to save this instrument right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_instruments'))
+
+
+def _submitted_instrument_values():
+    return {
+        'internal_code': request.form.get('internal_code', '').strip(),
+        'instrument_family': request.form.get('instrument_family', '').strip(),
+        'cycle_status': request.form.get('cycle_status', '').strip(),
+        'active_status': request.form.get('active_status', 'active'),
+    }
+
+
+def _validate_instrument_values(values, include_code=False):
+    if include_code and not values['internal_code']:
+        return 'Internal code is required.'
+    if include_code and len(values['internal_code']) > 64:
+        return 'Internal code must contain at most 64 characters.'
+    if not values['instrument_family'] or not values['cycle_status']:
+        return 'Instrument family and cycle status are required.'
+    if values['active_status'] not in {'active', 'inactive'}:
+        return 'Choose a valid active status.'
+    return None
+
+
+def _validated_instrument_catalog_values(values):
+    try:
+        family_id = UUID(values['instrument_family'])
+    except (TypeError, ValueError):
+        return None, None
+    family = db.session.get(InstrumentFamily, family_id)
+    cycle_status = db.session.scalar(
+        select(CatInstrumentCycleStatus).where(
+            CatInstrumentCycleStatus.code == values['cycle_status']
+        )
+    )
+    return family, cycle_status
+
+
+def _render_instrument_form(form_mode, instrument_id=None, values=None, form_error=None, status=200):
+    is_edit = form_mode == 'edit'
+    context = instrument_form_data(instrument_id)
+    if values:
+        instrument_values = dict(context.get('instrument', {}))
+        instrument_values.update(values)
+        if is_edit:
+            instrument_values['internal_code'] = context.get('instrument', {}).get('internal_code', '')
+        context['instrument'] = instrument_values
+    context.update({
+        'form_mode': form_mode,
+        'is_edit': is_edit,
+        'page_title': 'Edit Instrument' if is_edit else 'New Instrument',
+        'save_url': url_for('web.admin_instrument_edit', instrument_id=instrument_id) if is_edit else url_for('web.admin_instrument_new'),
+        'cancel_url': url_for('web.admin_instruments'),
+        'form_error': form_error,
+    })
+    return _page('admin/instruments/form.html', **context), status
 
 
 @web_bp.route('/admin/kits')
@@ -625,13 +729,198 @@ def admin_kits():
 @web_bp.route('/admin/kits/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_kit_new():
-    return _page('admin/kits/form.html', **kit_form_data(), page_title='New Kit', form_mode='create')
+    if request.method == 'GET':
+        return _render_kit_form('create')
+
+    values, error = _submitted_kit_values()
+    if error:
+        return _render_kit_form('create', values=values, form_error=error, status=400)
+
+    user = _current_user()
+    try:
+        institution_id = UUID(user.get('institution_id') or '')
+    except (AttributeError, TypeError, ValueError):
+        return _render_kit_form(
+            'create', values=values,
+            form_error='Your account must be assigned to an institution before creating a kit.', status=400,
+        )
+
+    try:
+        institution = db.session.get(Institution, institution_id)
+        if institution is None:
+            return _render_kit_form(
+                'create', values=values,
+                form_error='Your assigned institution could not be found.', status=400,
+            )
+        error = _validate_kit_families(values)
+        if error:
+            return _render_kit_form('create', values=values, form_error=error, status=400)
+
+        kit = Kit(
+            name=values['kit']['name'],
+            version=1,
+            active=values['kit']['status'] == 'active',
+            institution_id=institution.id,
+        )
+        db.session.add(kit)
+        db.session.flush()
+        _sync_kit_composition(kit, values['kit_composition'])
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_kit_form(
+            'create', values=values,
+            form_error='A kit with this name and version already exists for the institution.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to create admin kit')
+        return _render_kit_form(
+            'create', values=values,
+            form_error='Unable to save this kit right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_kits'))
 
 
 @web_bp.route('/admin/kits/<kit_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_kit_edit(kit_id):
-    return _page('admin/kits/form.html', **kit_form_data(kit_id), page_title='Edit Kit', form_mode='edit', kit_id=kit_id)
+    try:
+        parsed_kit_id = UUID(kit_id)
+    except ValueError:
+        abort(404)
+
+    kit = db.session.get(Kit, parsed_kit_id)
+    if kit is None:
+        abort(404)
+    if request.method == 'GET':
+        return _render_kit_form('edit', kit_id=parsed_kit_id)
+
+    values, error = _submitted_kit_values()
+    if error:
+        return _render_kit_form(
+            'edit', kit_id=parsed_kit_id, values=values, form_error=error, status=400,
+        )
+
+    try:
+        error = _validate_kit_families(values)
+        if error:
+            return _render_kit_form(
+                'edit', kit_id=parsed_kit_id, values=values, form_error=error, status=400,
+            )
+
+        kit.name = values['kit']['name']
+        kit.active = values['kit']['status'] == 'active'
+        _sync_kit_composition(kit, values['kit_composition'])
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_kit_form(
+            'edit', kit_id=parsed_kit_id, values=values,
+            form_error='A kit with this name and version already exists for the institution.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to update admin kit %s', parsed_kit_id)
+        return _render_kit_form(
+            'edit', kit_id=parsed_kit_id, values=values,
+            form_error='Unable to save this kit right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_kits'))
+
+
+def _submitted_kit_values():
+    kit_values = {
+        'name': request.form.get('name', '').strip(),
+        'status': request.form.get('status', 'active'),
+    }
+    values = {'kit': kit_values, 'kit_composition': []}
+    error = None
+    if not kit_values['name']:
+        error = 'Kit name is required.'
+    elif len(kit_values['name']) > 160:
+        error = 'Kit name must contain at most 160 characters.'
+    elif kit_values['status'] not in {'active', 'inactive'}:
+        error = 'Choose a valid kit status.'
+
+    family_ids = request.form.getlist('instrument_family[]')
+    quantities = request.form.getlist('expected_quantity[]')
+    if len(family_ids) != len(quantities):
+        return values, error or 'Kit composition rows are incomplete.'
+
+    for family_id, quantity_value in zip(family_ids, quantities):
+        try:
+            UUID(family_id)
+        except (TypeError, ValueError):
+            error = error or 'Choose a valid instrument family and quantity for every row.'
+        try:
+            quantity = int(quantity_value)
+        except (TypeError, ValueError):
+            quantity = quantity_value
+            error = error or 'Choose a valid instrument family and quantity for every row.'
+        if isinstance(quantity, int) and (quantity < 1 or quantity > 32767):
+            error = error or 'Expected quantity must be between 1 and 32767.'
+        values['kit_composition'].append({
+            'instrument_family_value': family_id,
+            'expected_quantity': quantity,
+        })
+
+    if len({item['instrument_family_value'] for item in values['kit_composition']}) != len(values['kit_composition']):
+        error = error or 'An instrument family can only appear once in the composition.'
+    return values, error
+
+
+def _validate_kit_families(values):
+    family_ids = {UUID(item['instrument_family_value']) for item in values['kit_composition']}
+    if not family_ids:
+        return None
+    existing_ids = {
+        item.id
+        for item in db.session.execute(
+            select(InstrumentFamily).where(InstrumentFamily.id.in_(family_ids))
+        ).scalars()
+    }
+    if existing_ids != family_ids:
+        return 'Choose instrument families from the available catalog.'
+    return None
+
+
+def _sync_kit_composition(kit, composition):
+    existing_items = db.session.execute(
+        select(KitItem).where(KitItem.kit_id == kit.id)
+    ).scalars().all()
+    for item in existing_items:
+        db.session.delete(item)
+    db.session.flush()
+    for item in composition:
+        db.session.add(KitItem(
+            kit_id=kit.id,
+            family_id=UUID(item['instrument_family_value']),
+            quantity=item['expected_quantity'],
+        ))
+
+
+def _render_kit_form(form_mode, kit_id=None, values=None, form_error=None, status=200):
+    is_edit = form_mode == 'edit'
+    context = kit_form_data(kit_id)
+    if values:
+        kit_values = dict(context.get('kit', {}))
+        kit_values.update(values.get('kit', {}))
+        context.update({
+            'kit': kit_values,
+            'kit_composition': values.get('kit_composition', context.get('kit_composition', [])),
+        })
+    context.update({
+        'form_mode': form_mode,
+        'is_edit': is_edit,
+        'page_title': 'Edit Kit' if is_edit else 'New Kit',
+        'save_url': url_for('web.admin_kit_edit', kit_id=kit_id) if is_edit else url_for('web.admin_kit_new'),
+        'cancel_url': url_for('web.admin_kits'),
+        'form_error': form_error,
+    })
+    return _page('admin/kits/form.html', **context), status
 
 
 @web_bp.route('/admin/procedures')
@@ -644,13 +933,256 @@ def admin_procedures():
 @web_bp.route('/admin/procedures/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_procedure_new():
-    return _page('admin/procedures/form.html', **procedure_form_data(), page_title='New Procedure', form_mode='create')
+    if request.method == 'GET':
+        return _render_procedure_form('create')
+
+    values, error = _submitted_procedure_values()
+    if error:
+        return _render_procedure_form('create', values=values, form_error=error, status=400)
+
+    try:
+        error = _validate_procedure_catalog_rows(values)
+        if error:
+            return _render_procedure_form('create', values=values, form_error=error, status=400)
+
+        procedure = CatProcedureType(
+            code=values['procedure']['code'],
+            name=values['procedure']['name'],
+        )
+        db.session.add(procedure)
+        db.session.flush()
+        _sync_procedure_associations(procedure, values)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_procedure_form(
+            'create', values=values,
+            form_error='A procedure with this code already exists.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to create admin procedure')
+        return _render_procedure_form(
+            'create', values=values,
+            form_error='Unable to save this procedure right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_procedures'))
 
 
 @web_bp.route('/admin/procedures/<procedure_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_procedure_edit(procedure_id):
-    return _page('admin/procedures/form.html', **procedure_form_data(procedure_id), page_title='Edit Procedure', form_mode='edit', procedure_id=procedure_id)
+    try:
+        parsed_procedure_id = UUID(procedure_id)
+    except ValueError:
+        abort(404)
+
+    procedure = db.session.get(CatProcedureType, parsed_procedure_id)
+    if procedure is None:
+        abort(404)
+    if request.method == 'GET':
+        return _render_procedure_form('edit', procedure_id=parsed_procedure_id)
+
+    values, error = _submitted_procedure_values()
+    if error:
+        return _render_procedure_form(
+            'edit', procedure_id=parsed_procedure_id, values=values,
+            form_error=error, status=400,
+        )
+
+    try:
+        error = _validate_procedure_catalog_rows(values)
+        if error:
+            return _render_procedure_form(
+                'edit', procedure_id=parsed_procedure_id, values=values,
+                form_error=error, status=400,
+            )
+
+        procedure.code = values['procedure']['code']
+        procedure.name = values['procedure']['name']
+        _sync_procedure_associations(procedure, values)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_procedure_form(
+            'edit', procedure_id=parsed_procedure_id, values=values,
+            form_error='A procedure with this code already exists.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to update admin procedure %s', parsed_procedure_id)
+        return _render_procedure_form(
+            'edit', procedure_id=parsed_procedure_id, values=values,
+            form_error='Unable to save this procedure right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_procedures'))
+
+
+def _submitted_procedure_values():
+    procedure = {
+        'code': request.form.get('code', '').strip(),
+        'name': request.form.get('name', '').strip(),
+    }
+    values = {'procedure': procedure, 'associated_kits': [], 'counting_phases': []}
+    error = _validate_procedure_values(procedure)
+
+    kit_ids = request.form.getlist('kit[]')
+    kit_indices = request.form.getlist('kit_row_index[]')
+    technique_labels = request.form.getlist('technique_label[]')
+    default_indices = request.form.getlist('is_default[]')
+    kit_active_indices = request.form.getlist('kit_active[]')
+    if not (len(kit_ids) == len(kit_indices) == len(technique_labels)):
+        return values, error or 'Associated kit rows are incomplete.'
+
+    phase_ids = request.form.getlist('phase[]')
+    phase_indices = request.form.getlist('phase_row_index[]')
+    sort_orders = request.form.getlist('sort_order[]')
+    count_required_indices = request.form.getlist('count_required[]')
+    phase_active_indices = request.form.getlist('phase_active[]')
+    if not (len(phase_ids) == len(phase_indices) == len(sort_orders)):
+        return values, error or 'Counting phase rows are incomplete.'
+
+    try:
+        kit_row_indices = [int(value) for value in kit_indices]
+        phase_row_indices = [int(value) for value in phase_indices]
+        checked_default_indices = {int(value) for value in default_indices}
+        checked_kit_active_indices = {int(value) for value in kit_active_indices}
+        checked_count_required_indices = {int(value) for value in count_required_indices}
+        checked_phase_active_indices = {int(value) for value in phase_active_indices}
+        parsed_phase_orders = [int(value) for value in sort_orders]
+    except ValueError:
+        return values, error or 'Procedure row data is invalid.'
+
+    if (len(set(kit_row_indices)) != len(kit_row_indices)
+            or len(set(phase_row_indices)) != len(phase_row_indices)
+            or not checked_default_indices.issubset(kit_row_indices)
+            or not checked_kit_active_indices.issubset(kit_row_indices)
+            or not checked_count_required_indices.issubset(phase_row_indices)
+            or not checked_phase_active_indices.issubset(phase_row_indices)):
+        return values, error or 'Procedure row data is invalid.'
+
+    for index, (kit_id, technique_label) in enumerate(zip(kit_ids, technique_labels)):
+        try:
+            UUID(kit_id)
+        except ValueError:
+            return values, error or 'Choose a valid kit for every associated kit row.'
+        if len(technique_label.strip()) > 160:
+            return values, error or 'Technique labels must contain at most 160 characters.'
+        row_index = kit_row_indices[index]
+        values['associated_kits'].append({
+            'kit_value': kit_id,
+            'technique_label': technique_label.strip(),
+            'is_default': row_index in checked_default_indices,
+            'active': row_index in checked_kit_active_indices,
+            'row_index': row_index,
+        })
+
+    if sum(item['is_default'] for item in values['associated_kits']) > 1:
+        return values, error or 'Choose at most one default kit.'
+
+    for index, (phase_id, sort_order) in enumerate(zip(phase_ids, parsed_phase_orders)):
+        try:
+            UUID(phase_id)
+        except ValueError:
+            return values, error or 'Choose a valid phase for every counting phase row.'
+        if sort_order < 1 or sort_order > 32767:
+            return values, error or 'Phase order must be between 1 and 32767.'
+        row_index = phase_row_indices[index]
+        values['counting_phases'].append({
+            'phase_value': phase_id,
+            'is_count_required': row_index in checked_count_required_indices,
+            'sort_order': sort_order,
+            'active': row_index in checked_phase_active_indices,
+            'row_index': row_index,
+        })
+
+    if len({item['kit_value'] for item in values['associated_kits']}) != len(values['associated_kits']):
+        return values, error or 'A kit can only be associated once.'
+    if len({item['phase_value'] for item in values['counting_phases']}) != len(values['counting_phases']):
+        return values, error or 'A phase can only be added once.'
+    if len({item['sort_order'] for item in values['counting_phases']}) != len(values['counting_phases']):
+        return values, error or 'Each counting phase must have a unique order.'
+    return values, error
+
+
+def _validate_procedure_values(values):
+    if not values['code'] or not values['name']:
+        return 'Procedure code and name are required.'
+    if len(values['code']) > 64 or len(values['name']) > 200:
+        return 'Procedure code must be at most 64 characters and name at most 200 characters.'
+    return None
+
+
+def _validate_procedure_catalog_rows(values):
+    kit_ids = {UUID(item['kit_value']) for item in values['associated_kits']}
+    phase_ids = {UUID(item['phase_value']) for item in values['counting_phases']}
+    kits = {
+        item.id
+        for item in db.session.execute(select(Kit).where(Kit.id.in_(kit_ids))).scalars()
+    } if kit_ids else set()
+    phases = {
+        item.id
+        for item in db.session.execute(select(CatOperationPhase).where(CatOperationPhase.id.in_(phase_ids))).scalars()
+    } if phase_ids else set()
+    if kits != kit_ids or phases != phase_ids:
+        return 'Choose kits and phases from the available catalogs.'
+    return None
+
+
+def _sync_procedure_associations(procedure, values):
+    existing_kits = db.session.execute(
+        select(ProcedureKit).where(ProcedureKit.procedure_type_id == procedure.id)
+    ).scalars().all()
+    existing_phases = db.session.execute(
+        select(ProcedurePhase).where(ProcedurePhase.procedure_type_id == procedure.id)
+    ).scalars().all()
+    for association in existing_kits + existing_phases:
+        db.session.delete(association)
+    db.session.flush()
+
+    now = datetime.now(timezone.utc)
+    for item in values['associated_kits']:
+        db.session.add(ProcedureKit(
+            procedure_type_id=procedure.id,
+            kit_id=UUID(item['kit_value']),
+            technique_label=item['technique_label'],
+            is_default=item['is_default'],
+            active=item['active'],
+            created_at=now,
+            updated_at=now,
+        ))
+    for item in values['counting_phases']:
+        db.session.add(ProcedurePhase(
+            procedure_type_id=procedure.id,
+            phase_id=UUID(item['phase_value']),
+            sort_order=item['sort_order'],
+            is_count_required=item['is_count_required'],
+            active=item['active'],
+        ))
+
+
+def _render_procedure_form(form_mode, procedure_id=None, values=None, form_error=None, status=200):
+    is_edit = form_mode == 'edit'
+    context = procedure_form_data(procedure_id)
+    if values:
+        procedure_values = dict(context.get('procedure', {}))
+        procedure_values.update(values.get('procedure', {}))
+        context.update({
+            'procedure': procedure_values,
+            'associated_kits': values.get('associated_kits', context.get('associated_kits', [])),
+            'counting_phases': values.get('counting_phases', context.get('counting_phases', [])),
+        })
+    context.update({
+        'form_mode': form_mode,
+        'is_edit': is_edit,
+        'page_title': 'Edit Procedure' if is_edit else 'New Procedure',
+        'save_url': url_for('web.admin_procedure_edit', procedure_id=procedure_id) if is_edit else url_for('web.admin_procedure_new'),
+        'cancel_url': url_for('web.admin_procedures'),
+        'form_error': form_error,
+    })
+    return _page('admin/procedures/form.html', **context), status
 
 
 @web_bp.route('/admin/users')
@@ -836,13 +1368,116 @@ def admin_roles():
 @web_bp.route('/admin/roles/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_role_new():
-    return _page('admin/roles/form.html', **role_form_data(), page_title='New Role', form_mode='create')
+    if request.method == 'GET':
+        return _render_role_form('create')
+
+    values = {
+        'code': request.form.get('code', '').strip(),
+        'description': request.form.get('description', '').strip(),
+    }
+    error = _validate_role_values(values, include_code=True)
+    if error:
+        return _render_role_form('create', values=values, form_error=error, status=400)
+
+    institution = db.session.scalar(select(Institution).order_by(Institution.name))
+    if institution is None:
+        return _render_role_form(
+            'create', values=values,
+            form_error='Create an institution before adding a role.', status=400,
+        )
+
+    try:
+        db.session.add(Role(
+            code=values['code'],
+            description=values['description'],
+            institution_id=institution.id,
+        ))
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_role_form(
+            'create', values=values,
+            form_error='A role with this code already exists for the institution.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to create admin role')
+        return _render_role_form(
+            'create', values=values,
+            form_error='Unable to save this role right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_roles'))
 
 
 @web_bp.route('/admin/roles/<role_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_role_edit(role_id):
-    return _page('admin/roles/form.html', **role_form_data(role_id), page_title='Edit Role', form_mode='edit', role_id=role_id)
+    try:
+        parsed_role_id = UUID(role_id)
+    except ValueError:
+        abort(404)
+
+    role = db.session.get(Role, parsed_role_id)
+    if role is None:
+        abort(404)
+    if request.method == 'GET':
+        return _render_role_form('edit', role_id=parsed_role_id)
+
+    values = {'description': request.form.get('description', '').strip()}
+    error = _validate_role_values(values)
+    if error:
+        return _render_role_form(
+            'edit', role_id=parsed_role_id, values=values, form_error=error, status=400,
+        )
+
+    try:
+        role.description = values['description']
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return _render_role_form(
+            'edit', role_id=parsed_role_id, values=values,
+            form_error='Unable to save this role because it conflicts with existing data.', status=409,
+        )
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception('Failed to update admin role %s', parsed_role_id)
+        return _render_role_form(
+            'edit', role_id=parsed_role_id, values=values,
+            form_error='Unable to save this role right now.', status=503,
+        )
+
+    return redirect(url_for('web.admin_roles'))
+
+
+def _validate_role_values(values, include_code=False):
+    if include_code and not values['code']:
+        return 'Role code is required.'
+    if not values['description']:
+        return 'Description is required.'
+    if include_code and len(values['code']) > 64:
+        return 'Role code must contain at most 64 characters.'
+    if len(values['description']) > 255:
+        return 'Description must contain at most 255 characters.'
+    return None
+
+
+def _render_role_form(form_mode, role_id=None, values=None, form_error=None, status=200):
+    is_edit = form_mode == 'edit'
+    context = role_form_data(role_id)
+    role_values = dict(context.get('role', {}))
+    role_values.update(values or {})
+    context.update({
+        'role': role_values,
+        'form_mode': form_mode,
+        'is_edit': is_edit,
+        'page_title': 'Edit Role' if is_edit else 'New Role',
+        'save_url': url_for('web.admin_role_edit', role_id=role_id) if is_edit else url_for('web.admin_role_new'),
+        'cancel_url': url_for('web.admin_roles'),
+        'form_error': form_error,
+    })
+    return _page('admin/roles/form.html', **context), status
 
 
 @web_bp.route('/admin/vision-models')

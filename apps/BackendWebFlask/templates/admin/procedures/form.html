@@ -7,9 +7,9 @@
     CatProcedureType (Code, Name only — no Description or Status field exists on that model).
     Associated Kits use the real ProcedureKit relationship (kit, technique_label, is_default,
     active); Counting Phases use the real ProcedurePhase relationship (phase, sort_order,
-    is_count_required, active). "+ Add Kit" / "+ Add Phase" are presentation-only client-side
-    row insertion (static/js/pages/procedure-form.js), mirroring Kit form's Kit Composition
-    editor — nothing here is persisted or validated against real catalog data.
+    is_count_required, active). "+ Add Kit" / "+ Add Phase" perform client-side row insertion
+    (static/js/pages/procedure-form.js); submitted rows are validated and persisted by the
+    backend against the real catalog data.
 
     Expected context:
       form_mode                "create" | "edit", defaults to "create"
@@ -54,7 +54,7 @@
 <ol class="breadcrumb-list">
     <li class="breadcrumb-item">{{ _("Catalogs") }}</li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
-    <li class="breadcrumb-item"><a href="{{ cancel_url|default('#') }}">{{ _("Procedures") }}</a></li>
+    <li class="breadcrumb-item"><a href="{{ cancel_url|default('/admin/procedures') }}">{{ _("Procedures") }}</a></li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
     <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Edit") if is_edit else _("New") }}</li>
 </ol>
@@ -69,6 +69,9 @@
 </div>
 
 <form class="form" id="procedure-form" action="{{ save_url|default('#') }}" method="post">
+    {% if form_error %}
+    <p class="form-field__helper form-field__helper--error" role="alert">{{ form_error }}</p>
+    {% endif %}
     <section class="card">
         <h2 class="card__title">{{ _("Procedure Information") }}</h2>
         <div class="form-grid">
@@ -98,8 +101,10 @@
                 </thead>
                 <tbody id="associated-kits-rows" data-remove-label="{{ _('Remove') }}">
                     {% for item in associated_kits %}
-                    <tr class="js-procedure-kit-row">
+                    {% set row_index = item.row_index|default(loop.index0) %}
+                    <tr class="js-procedure-kit-row" data-row-index="{{ row_index }}">
                         <td>
+                            <input type="hidden" name="kit_row_index[]" value="{{ row_index }}">
                             <div class="form-field__input-wrapper">
                                 <select class="form-field__input form-field__select" name="kit[]">
                                     {% for kit in kits %}
@@ -112,12 +117,12 @@
                         <td><input class="data-table__input" type="text" name="technique_label[]" value="{{ item.technique_label }}"></td>
                         <td>
                             <div class="form-checkbox">
-                                <input type="checkbox" name="is_default[]" value="{{ loop.index0 }}" {% if item.is_default %}checked{% endif %}>
+                                <input type="checkbox" name="is_default[]" value="{{ row_index }}" {% if item.is_default %}checked{% endif %}>
                             </div>
                         </td>
                         <td>
                             <div class="form-checkbox">
-                                <input type="checkbox" name="kit_active[]" value="{{ loop.index0 }}" {% if item.active %}checked{% endif %}>
+                                <input type="checkbox" name="kit_active[]" value="{{ row_index }}" {% if item.active %}checked{% endif %}>
                             </div>
                         </td>
                         <td class="data-table__action-column">
@@ -149,8 +154,10 @@
                 </thead>
                 <tbody id="counting-phases-rows">
                     {% for item in counting_phases %}
-                    <tr class="js-procedure-phase-row">
+                    {% set row_index = item.row_index|default(loop.index0) %}
+                    <tr class="js-procedure-phase-row" data-row-index="{{ row_index }}">
                         <td>
+                            <input type="hidden" name="phase_row_index[]" value="{{ row_index }}">
                             <div class="form-field__input-wrapper">
                                 <select class="form-field__input form-field__select" name="phase[]">
                                     {% for phase in phases %}
@@ -162,13 +169,13 @@
                         </td>
                         <td>
                             <div class="form-checkbox">
-                                <input type="checkbox" name="count_required[]" value="{{ loop.index0 }}" {% if item.is_count_required %}checked{% endif %}>
+                                <input type="checkbox" name="count_required[]" value="{{ row_index }}" {% if item.is_count_required %}checked{% endif %}>
                             </div>
                         </td>
                         <td><input class="data-table__input" type="number" min="1" step="1" name="sort_order[]" value="{{ item.sort_order }}"></td>
                         <td>
                             <div class="form-checkbox">
-                                <input type="checkbox" name="phase_active[]" value="{{ loop.index0 }}" {% if item.active %}checked{% endif %}>
+                                <input type="checkbox" name="phase_active[]" value="{{ row_index }}" {% if item.active %}checked{% endif %}>
                             </div>
                         </td>
                     </tr>
@@ -184,7 +191,7 @@
     </section>
 
     <div class="form-actions">
-        <a class="btn btn--secondary" href="{{ cancel_url|default('#') }}">{{ _("Cancel") }}</a>
+        <a class="btn btn--secondary" href="{{ cancel_url|default('/admin/procedures') }}">{{ _("Cancel") }}</a>
         <button type="submit" class="btn btn--primary">{{ _("Save Procedure") if not is_edit else _("Save Changes") }}</button>
     </div>
 </form>
