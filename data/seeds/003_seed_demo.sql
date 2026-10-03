@@ -11,9 +11,10 @@
 --
 -- REQUISITOS: 001_init.sql y 002_seed_catalogs.sql ejecutados previamente.
 --
--- CONTRASENAS: los hashes son marcadores de posicion sin contrasena valida
--- asociada. Antes de usar el ambiente, generar hashes reales con la funcion
--- de derivacion que emplee el backend. No colocar contrasenas en claro aqui.
+-- CONTRASENAS: hashes werkzeug pbkdf2 sha256 (mismo esquema que BackendAuthService).
+-- operator@instrumed.com / DemopwdOP78!
+-- supervisor@instrumed.com / DemopwdSPD78!
+-- admin@instrumed.com / DemopwdADM78!
 --
 -- ESCENARIO QUE CONSTRUYE:
 --   1. Una institucion con un quirofano y una estacion de captura con ROI.
@@ -50,27 +51,29 @@ INSERT INTO capture_station (id, name, roi, active, room_id) VALUES
 -- -----------------------------------------------------------------------------
 -- 2. Roles y usuarios (los tres perfiles del apartado 2 del reporte)
 -- -----------------------------------------------------------------------------
+-- Codigos de rol = RF (station_operator / spd_supervisor). it_admin = catalogo tecnico.
 INSERT INTO role (id, code, description, institution_id) VALUES
-  ('14141414-0000-4000-8000-000000000001', 'operator_cde',
-   'Operador de Central de Esterilizacion. Ejecuta sesiones de conteo.',
+  ('14141414-0000-4000-8000-000000000001', 'station_operator',
+   'Operador de estacion. Ejecuta sesiones de conteo asignadas.',
    '11111111-1111-1111-1111-111111111111'),
-  ('14141414-0000-4000-8000-000000000002', 'supervisor_quality',
-   'Supervisor de Proceso o Calidad. Revisa discrepancias y aprueba cierres.',
+  ('14141414-0000-4000-8000-000000000002', 'spd_supervisor',
+   'Supervisor SPD. Programa sesiones, aviso de privacidad y cierra casos.',
    '11111111-1111-1111-1111-111111111111'),
   ('14141414-0000-4000-8000-000000000003', 'it_admin',
    'Administrador Tecnico. Gestiona catalogos, usuarios y configuracion.',
    '11111111-1111-1111-1111-111111111111');
 
+-- ui_preferences: clave DS01 `locale` (en | es-MX) + theme. Babel/traduccion real = fase i18n posterior.
 INSERT INTO "user" (id, name, email, password_hash, active, ui_preferences, institution_id) VALUES
-  ('22222222-2222-2222-2222-222222222221', 'Ana Perez',    'ana.perez@demo.local',
-   'PLACEHOLDER_NO_VALIDA_REEMPLAZAR', TRUE,
-   '{"theme": "light", "language": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222222', 'Luis Ramirez', 'luis.ramirez@demo.local',
-   'PLACEHOLDER_NO_VALIDA_REEMPLAZAR', TRUE,
-   '{"theme": "dark", "language": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222223', 'Sofia Duarte', 'sofia.duarte@demo.local',
-   'PLACEHOLDER_NO_VALIDA_REEMPLAZAR', TRUE,
-   '{"theme": "system", "language": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111');
+  ('22222222-2222-2222-2222-222222222221', 'Operador Demo', 'operator@instrumed.com',
+   'pbkdf2:sha256:600000$q1YkN7fvtlFnwfZc$04dfe82983804ead8a83f535479601217903e355e16d32f20d0152ae970cba79', TRUE,
+   '{"theme": "light", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
+  ('22222222-2222-2222-2222-222222222222', 'Supervisor Demo', 'supervisor@instrumed.com',
+   'pbkdf2:sha256:600000$4nOgHclHpgqor4sA$adb64c6ed577594e684d746190dae5fab45eb239dae93f73a1dd42b9e00f234e', TRUE,
+   '{"theme": "dark", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
+  ('22222222-2222-2222-2222-222222222223', 'Admin Demo', 'admin@instrumed.com',
+   'pbkdf2:sha256:600000$7c8qfwZeUHfYRb6N$7ffb6e05addb4ed80157d1e532c25da5d2412ba16937f15eaf45eb01fb09f32e', TRUE,
+   '{"theme": "system", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111');
 
 INSERT INTO user_role (user_id, role_id) VALUES
   ('22222222-2222-2222-2222-222222222221', '14141414-0000-4000-8000-000000000001'),
@@ -126,29 +129,44 @@ JOIN cat_instrument_category c ON c.code = v.category_code;
 -- -----------------------------------------------------------------------------
 -- 5. Piezas fisicas
 --
--- El inventario NO se lleva como total agregado por familia: cada pieza es una
--- fila. La cantidad disponible se obtiene por consulta sobre el estado del
--- ciclo de vida y la ausencia de reserva activa.
---
--- Cantidades deliberadas para el escenario:
---   KELLY    8 piezas  -> el kit pide 6, la reserva tiene exito
---   METZ     3 piezas  -> el kit pide 2, la reserva tiene exito
---   MAYOHEG  2 piezas  -> el kit pide 2, queda al limite
---   FARABEUF 1 pieza   -> el kit pide 2, PROVOCA inventario insuficiente
+-- Inventario por pieza (no agregado). Al menos 5 available por familia del kit
+-- para que SP-02 no bloquee. Ademas piezas en estados de baja/ciclo variados.
 -- -----------------------------------------------------------------------------
+-- 5a) Disponibles: >= 5 por familia del kit
 INSERT INTO instrument (internal_code, family_id, cycle_status_id, institution_id, active)
 SELECT
-  f.code || '-' || lpad(g::text, 3, '0'),
+  f.code || '-A' || lpad(g::text, 3, '0'),
   f.id,
   s.id,
   '11111111-1111-1111-1111-111111111111',
   TRUE
-FROM (VALUES ('KELLY', 8), ('METZ', 3), ('MAYOHEG', 2), ('FARABEUF', 1))
+FROM (VALUES ('KELLY', 8), ('METZ', 6), ('MAYOHEG', 5), ('FARABEUF', 5))
        AS q(family_code, units)
 JOIN instrument_family f ON f.code = q.family_code
 CROSS JOIN LATERAL generate_series(1, q.units) AS g
 CROSS JOIN cat_instrument_cycle_status s
 WHERE s.code = 'available';
+
+-- 5b) Fuera de disponibilidad (variados; active puede seguir true salvo retired/lost)
+INSERT INTO instrument (internal_code, family_id, cycle_status_id, institution_id, active)
+SELECT
+  v.code || '-' || v.suffix,
+  f.id,
+  s.id,
+  '11111111-1111-1111-1111-111111111111',
+  v.active
+FROM (VALUES
+  ('KELLY',    'M001', 'maintenance',    TRUE),
+  ('KELLY',    'S001', 'sterilization',  TRUE),
+  ('METZ',     'R001', 'retired',        FALSE),
+  ('METZ',     'M001', 'maintenance',    TRUE),
+  ('MAYOHEG',  'L001', 'lost',           FALSE),
+  ('MAYOHEG',  'S001', 'sterilization',  TRUE),
+  ('FARABEUF', 'R001', 'retired',        FALSE),
+  ('FARABEUF', 'M001', 'maintenance',    TRUE)
+) AS v(code, suffix, status_code, active)
+JOIN instrument_family f ON f.code = v.code
+JOIN cat_instrument_cycle_status s ON s.code = v.status_code;
 
 -- -----------------------------------------------------------------------------
 -- 6. Kit y su vinculo con el procedimiento
@@ -217,27 +235,164 @@ JOIN instrument_family f ON f.id = i.family_id
 WHERE f.code IN ('KELLY', 'METZ', 'MAYOHEG', 'FARABEUF');
 
 -- -----------------------------------------------------------------------------
--- 9. Sesion de conteo cerrada
+-- 9. Sesiones de conteo
+--   A) cerrada (caso historico con vision + acuerdo SPD)
+--   B) scheduled CON aviso (lista Begin → path vision stub)
+--   C) scheduled SIN aviso (lista Begin → path manual_no_privacy)
 -- -----------------------------------------------------------------------------
 INSERT INTO work_session (
   id, started_at, ended_at, status_id, user_id, closed_by_user_id,
   operation_id, station_id, kit_id, current_phase_id, phase_changed_at,
-  atypical_session, extended_retention, retention_until)
+  capture_mode, atypical_session, extended_retention, retention_until)
 SELECT 'c1000001-0000-4000-8000-000000000001',
        '2026-09-05T16:02:11Z', '2026-09-05T18:12:40Z',
        ss.id,
-       '22222222-2222-2222-2222-222222222221',   -- abierta por la operadora
-       '22222222-2222-2222-2222-222222222222',   -- cerrada por el supervisor
+       '22222222-2222-2222-2222-222222222221',
+       '22222222-2222-2222-2222-222222222222',
        '61616161-0000-4000-8000-000000000001',
        '13131313-0000-4000-8000-000000000001',
        '51515151-0000-4000-8000-000000000001',
        ph.id, '2026-09-05T18:05:00Z',
-       FALSE, FALSE, '2026-12-04T00:00:00Z'
+       'vision', FALSE, FALSE, '2026-12-04T00:00:00Z'
 FROM cat_session_status ss, cat_operation_phase ph
 WHERE ss.code = 'closed' AND ph.code = 'final_count';
 
--- Copia inmutable del kit al abrir la sesion.
--- Esta copia conserva lo que se esperaba ese dia aunque el kit cambie despues.
+-- Operaciones programadas para sesiones B y C (mismo kit/OR/estacion demo).
+INSERT INTO operation (id, scheduled_at, started_at, ended_at, status_id, procedure_type_id, room_id, institution_id)
+SELECT '61616161-0000-4000-8000-000000000002',
+       '2026-10-03T15:00:00Z', NULL, NULL,
+       st.id, pt.id, '12121212-0000-4000-8000-000000000001',
+       '11111111-1111-1111-1111-111111111111'
+FROM cat_operation_status st, cat_procedure_type pt
+WHERE st.code = 'scheduled' AND pt.code = 'lap_chole';
+
+INSERT INTO operation (id, scheduled_at, started_at, ended_at, status_id, procedure_type_id, room_id, institution_id)
+SELECT '61616161-0000-4000-8000-000000000003',
+       '2026-10-03T17:00:00Z', NULL, NULL,
+       st.id, pt.id, '12121212-0000-4000-8000-000000000001',
+       '11111111-1111-1111-1111-111111111111'
+FROM cat_operation_status st, cat_procedure_type pt
+WHERE st.code = 'scheduled' AND pt.code = 'lap_chole';
+
+INSERT INTO operation_patient (operation_id, patient_id) VALUES
+  ('61616161-0000-4000-8000-000000000002', '31313131-0000-4000-8000-000000000001'),
+  ('61616161-0000-4000-8000-000000000003', '31313131-0000-4000-8000-000000000001');
+
+INSERT INTO operation_physician (operation_id, physician_id, surgical_role_id)
+SELECT v.operation_id::uuid, '32323232-0000-4000-8000-000000000001', r.id
+FROM (VALUES
+  ('61616161-0000-4000-8000-000000000002'),
+  ('61616161-0000-4000-8000-000000000003')
+) AS v(operation_id)
+JOIN cat_surgical_role r ON r.code = 'surgeon';
+
+-- B) scheduled + aviso confirmado por SPD (capture_mode aun NULL hasta Start)
+INSERT INTO work_session (
+  id, started_at, ended_at, status_id, user_id, closed_by_user_id,
+  operation_id, station_id, kit_id, current_phase_id, phase_changed_at,
+  capture_mode, atypical_session, extended_retention, retention_until)
+SELECT 'c1000002-0000-4000-8000-000000000001',
+       NULL, NULL, ss.id,
+       '22222222-2222-2222-2222-222222222221',
+       NULL,
+       '61616161-0000-4000-8000-000000000002',
+       '13131313-0000-4000-8000-000000000001',
+       '51515151-0000-4000-8000-000000000001',
+       ph.id, NULL,
+       NULL, FALSE, FALSE, NULL
+FROM cat_session_status ss, cat_operation_phase ph
+WHERE ss.code = 'scheduled' AND ph.code = 'setup';
+
+INSERT INTO expected_inventory (session_id, family_id, expected_quantity, source)
+SELECT 'c1000002-0000-4000-8000-000000000001', ki.family_id, ki.quantity, 'kit_snapshot'
+FROM kit_item ki
+WHERE ki.kit_id = '51515151-0000-4000-8000-000000000001';
+
+-- C) scheduled sin aviso → al Start sera manual_no_privacy
+INSERT INTO work_session (
+  id, started_at, ended_at, status_id, user_id, closed_by_user_id,
+  operation_id, station_id, kit_id, current_phase_id, phase_changed_at,
+  capture_mode, atypical_session, extended_retention, retention_until)
+SELECT 'c1000003-0000-4000-8000-000000000001',
+       NULL, NULL, ss.id,
+       '22222222-2222-2222-2222-222222222221',
+       NULL,
+       '61616161-0000-4000-8000-000000000003',
+       '13131313-0000-4000-8000-000000000001',
+       '51515151-0000-4000-8000-000000000001',
+       ph.id, NULL,
+       NULL, FALSE, FALSE, NULL
+FROM cat_session_status ss, cat_operation_phase ph
+WHERE ss.code = 'scheduled' AND ph.code = 'setup';
+
+INSERT INTO expected_inventory (session_id, family_id, expected_quantity, source)
+SELECT 'c1000003-0000-4000-8000-000000000001', ki.family_id, ki.quantity, 'kit_snapshot'
+FROM kit_item ki
+WHERE ki.kit_id = '51515151-0000-4000-8000-000000000001';
+
+-- D) awaiting_spd_review (manual match) — cola Confirm close (SP-05)
+INSERT INTO operation (id, scheduled_at, started_at, ended_at, status_id, procedure_type_id, room_id, institution_id)
+SELECT '61616161-0000-4000-8000-000000000004',
+       '2026-10-02T09:00:00Z', '2026-10-02T09:15:00Z', '2026-10-02T10:00:00Z',
+       st.id, pt.id, '12121212-0000-4000-8000-000000000001',
+       '11111111-1111-1111-1111-111111111111'
+FROM cat_operation_status st, cat_procedure_type pt
+WHERE st.code = 'closed' AND pt.code = 'lap_chole';
+
+INSERT INTO work_session (
+  id, started_at, ended_at, status_id, user_id, closed_by_user_id,
+  operation_id, station_id, kit_id, current_phase_id, phase_changed_at,
+  capture_mode, atypical_session, extended_retention, retention_until)
+SELECT 'c1000004-0000-4000-8000-000000000001',
+       '2026-10-02T09:20:00Z', '2026-10-02T09:55:00Z',
+       ss.id,
+       '22222222-2222-2222-2222-222222222221',
+       NULL,
+       '61616161-0000-4000-8000-000000000004',
+       '13131313-0000-4000-8000-000000000001',
+       '51515151-0000-4000-8000-000000000001',
+       ph.id, '2026-10-02T09:50:00Z',
+       'manual_no_privacy', FALSE, FALSE, NULL
+FROM cat_session_status ss, cat_operation_phase ph
+WHERE ss.code = 'awaiting_spd_review' AND ph.code = 'final_count';
+
+INSERT INTO expected_inventory (session_id, family_id, expected_quantity, source)
+SELECT 'c1000004-0000-4000-8000-000000000001', ki.family_id, ki.quantity, 'kit_snapshot'
+FROM kit_item ki
+WHERE ki.kit_id = '51515151-0000-4000-8000-000000000001';
+
+-- E) correction_required con discrepancia abierta — cola SP-06
+INSERT INTO operation (id, scheduled_at, started_at, ended_at, status_id, procedure_type_id, room_id, institution_id)
+SELECT '61616161-0000-4000-8000-000000000005',
+       '2026-10-02T11:00:00Z', '2026-10-02T11:10:00Z', '2026-10-02T11:50:00Z',
+       st.id, pt.id, '12121212-0000-4000-8000-000000000001',
+       '11111111-1111-1111-1111-111111111111'
+FROM cat_operation_status st, cat_procedure_type pt
+WHERE st.code = 'closed' AND pt.code = 'lap_chole';
+
+INSERT INTO work_session (
+  id, started_at, ended_at, status_id, user_id, closed_by_user_id,
+  operation_id, station_id, kit_id, current_phase_id, phase_changed_at,
+  capture_mode, atypical_session, extended_retention, retention_until)
+SELECT 'c1000005-0000-4000-8000-000000000001',
+       '2026-10-02T11:15:00Z', '2026-10-02T11:45:00Z',
+       ss.id,
+       '22222222-2222-2222-2222-222222222221',
+       NULL,
+       '61616161-0000-4000-8000-000000000005',
+       '13131313-0000-4000-8000-000000000001',
+       '51515151-0000-4000-8000-000000000001',
+       ph.id, '2026-10-02T11:40:00Z',
+       'manual_no_privacy', FALSE, FALSE, NULL
+FROM cat_session_status ss, cat_operation_phase ph
+WHERE ss.code = 'correction_required' AND ph.code = 'final_count';
+
+INSERT INTO expected_inventory (session_id, family_id, expected_quantity, source)
+SELECT 'c1000005-0000-4000-8000-000000000001', ki.family_id, ki.quantity, 'kit_snapshot'
+FROM kit_item ki
+WHERE ki.kit_id = '51515151-0000-4000-8000-000000000001';
+
+-- Copia inmutable del kit al abrir la sesion A (cerrada historica).
 INSERT INTO expected_inventory (session_id, family_id, expected_quantity, source)
 SELECT 'c1000001-0000-4000-8000-000000000001', ki.family_id, ki.quantity, 'kit_snapshot'
 FROM kit_item ki
@@ -272,7 +427,7 @@ FROM (VALUES
    '{"reason": "unresolved_discrepancy"}', '2026-09-05T18:00:10Z',
    '22222222-2222-2222-2222-222222222221'),
   ('71000001-0000-4000-8000-000000000008', 'correction_applied', 'FARABEUF',    2, 1,
-   '{"resolved_by_role": "supervisor_quality"}', '2026-09-05T18:04:00Z',
+   '{"resolved_by_role": "spd_supervisor"}', '2026-09-05T18:04:00Z',
    '22222222-2222-2222-2222-222222222222'),
   ('71000001-0000-4000-8000-000000000009', 'phase_change',       NULL,       NULL, NULL,
    '{"from_phase": "pre_closure", "to_phase": "final_count", "source": "station_button"}',
@@ -309,19 +464,94 @@ VALUES (
   '22222222-2222-2222-2222-222222222222'
 );
 
+-- Eventos + conteos reportados para sesion D (match completo → awaiting review)
+INSERT INTO count_event (id, event_type_id, family_id, expected_quantity, detected_quantity,
+                         payload, occurred_at, session_id, user_id)
+SELECT v.id::uuid, et.id, f.id, v.expected, NULL, v.payload::jsonb,
+       v.occurred_at::timestamptz,
+       'c1000004-0000-4000-8000-000000000001',
+       '22222222-2222-2222-2222-222222222221'
+FROM (VALUES
+  ('71000004-0000-4000-8000-000000000001', 'session_open', NULL, NULL,
+   '{"capture_mode":"manual_no_privacy","source":"station"}', '2026-10-02T09:20:00Z'),
+  ('71000004-0000-4000-8000-000000000002', 'manual_count', 'KELLY', 6,
+   '{"ai":false,"capture_mode":"manual_no_privacy","reported_quantity":6}', '2026-10-02T09:50:00Z'),
+  ('71000004-0000-4000-8000-000000000003', 'manual_count', 'METZ', 2,
+   '{"ai":false,"capture_mode":"manual_no_privacy","reported_quantity":2}', '2026-10-02T09:50:01Z'),
+  ('71000004-0000-4000-8000-000000000004', 'manual_count', 'MAYOHEG', 2,
+   '{"ai":false,"capture_mode":"manual_no_privacy","reported_quantity":2}', '2026-10-02T09:50:02Z'),
+  ('71000004-0000-4000-8000-000000000005', 'manual_count', 'FARABEUF', 2,
+   '{"ai":false,"capture_mode":"manual_no_privacy","reported_quantity":2}', '2026-10-02T09:50:03Z'),
+  ('71000004-0000-4000-8000-000000000006', 'manual_close', NULL, NULL,
+   '{"ai":false,"capture_mode":"manual_no_privacy","open_discrepancies":0,"next_status":"awaiting_spd_review"}',
+   '2026-10-02T09:55:00Z')
+) AS v(id, event_code, family_code, expected, payload, occurred_at)
+JOIN cat_event_type et ON et.code = v.event_code
+LEFT JOIN instrument_family f ON f.code = v.family_code;
+
+-- Eventos + discrepancia abierta para sesion E (correction_required)
+INSERT INTO count_event (id, event_type_id, family_id, expected_quantity, detected_quantity,
+                         payload, occurred_at, session_id, user_id)
+SELECT v.id::uuid, et.id, f.id, v.expected, NULL, v.payload::jsonb,
+       v.occurred_at::timestamptz,
+       'c1000005-0000-4000-8000-000000000001',
+       '22222222-2222-2222-2222-222222222221'
+FROM (VALUES
+  ('71000005-0000-4000-8000-000000000001', 'session_open', NULL, NULL,
+   '{"capture_mode":"manual_no_privacy","source":"station"}', '2026-10-02T11:15:00Z'),
+  ('71000005-0000-4000-8000-000000000002', 'manual_count', 'KELLY', 6,
+   '{"ai":false,"capture_mode":"manual_no_privacy","reported_quantity":6}', '2026-10-02T11:40:00Z'),
+  ('71000005-0000-4000-8000-000000000003', 'manual_count', 'METZ', 2,
+   '{"ai":false,"capture_mode":"manual_no_privacy","reported_quantity":2}', '2026-10-02T11:40:01Z'),
+  ('71000005-0000-4000-8000-000000000004', 'manual_count', 'MAYOHEG', 2,
+   '{"ai":false,"capture_mode":"manual_no_privacy","reported_quantity":2}', '2026-10-02T11:40:02Z'),
+  ('71000005-0000-4000-8000-000000000005', 'manual_count', 'FARABEUF', 2,
+   '{"ai":false,"capture_mode":"manual_no_privacy","reported_quantity":1,"reason_code":"shortage","notes":"One Farabeuf missing from tray"}',
+   '2026-10-02T11:40:03Z'),
+  ('71000005-0000-4000-8000-000000000006', 'manual_close', NULL, NULL,
+   '{"ai":false,"capture_mode":"manual_no_privacy","open_discrepancies":1,"next_status":"correction_required"}',
+   '2026-10-02T11:45:00Z')
+) AS v(id, event_code, family_code, expected, payload, occurred_at)
+JOIN cat_event_type et ON et.code = v.event_code
+LEFT JOIN instrument_family f ON f.code = v.family_code;
+
+INSERT INTO discrepancy (id, description, resolved, resolved_at, reason_id, family_id,
+                         expected_quantity, detected_quantity, session_id, origin_event_id)
+SELECT '81000005-0000-4000-8000-000000000001',
+       'Manual report shortfall: Farabeuf expected 2, reported 1.',
+       FALSE, NULL,
+       dr.id, f.id, 2, 1,
+       'c1000005-0000-4000-8000-000000000001',
+       '71000005-0000-4000-8000-000000000005'
+FROM cat_discrepancy_reason dr, instrument_family f
+WHERE dr.code = 'shortage' AND f.code = 'FARABEUF';
+
+INSERT INTO human_correction (justification, recorded_at, count_event_id, user_id)
+VALUES (
+  'shortage: One Farabeuf missing from tray',
+  '2026-10-02T11:40:03Z',
+  '71000005-0000-4000-8000-000000000005',
+  '22222222-2222-2222-2222-222222222221'
+);
+
 -- -----------------------------------------------------------------------------
--- 12. Acuerdo de tratamiento de la sesion
+-- 12. Acuerdos de tratamiento (RF-SP-02: confirma spd_supervisor)
 --
--- quality_ops es obligatorio (lo exige un CHECK del esquema).
--- model_improvement es opt-in por sesion: aqui se marca aceptado para que el
--- ambiente de desarrollo tenga al menos una sesion elegible para exportacion
--- de entrenamiento.
+-- quality_ops es obligatorio. model_improvement es opt-in.
+-- Sesion A (cerrada) y B (scheduled): con aviso. Sesion C: sin acuerdo.
 -- -----------------------------------------------------------------------------
 INSERT INTO session_processing_agreement (
   session_id, privacy_notice_version_id, purpose_quality_ops,
   purpose_model_improvement, agreed_at, agreed_by_user_id)
 SELECT 'c1000001-0000-4000-8000-000000000001', pnv.id, TRUE, TRUE,
-       '2026-09-05T16:02:11Z', '22222222-2222-2222-2222-222222222221'
+       '2026-09-05T16:00:00Z', '22222222-2222-2222-2222-222222222222'
+FROM privacy_notice_version pnv WHERE pnv.version = 'v1.0';
+
+INSERT INTO session_processing_agreement (
+  session_id, privacy_notice_version_id, purpose_quality_ops,
+  purpose_model_improvement, agreed_at, agreed_by_user_id)
+SELECT 'c1000002-0000-4000-8000-000000000001', pnv.id, TRUE, FALSE,
+       '2026-10-02T14:00:00Z', '22222222-2222-2222-2222-222222222222'
 FROM privacy_notice_version pnv WHERE pnv.version = 'v1.0';
 
 -- -----------------------------------------------------------------------------

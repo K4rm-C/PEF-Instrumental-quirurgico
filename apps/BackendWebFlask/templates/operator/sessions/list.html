@@ -17,9 +17,6 @@
 {% endblock %}
 
 {% block page_content %}
-{# Session status terminology is fixed per prompts/09_Operator_V2.md: In Progress /
-   Awaiting Review / Correction Required / Ready to Close / Closed. #}
-
 {% set sessions = sessions|default([]) %}
 {% set sessions_shown_count = sessions_shown_count|default(sessions|length, true) %}
 {% set sessions_total_count = sessions_total_count|default(sessions|length, true) %}
@@ -30,18 +27,13 @@
 
 <div class="page-heading">
     <div>
-        <h1 class="page-heading__title">{{ _("Counting Sessions") }}</h1>
-        <p class="page-heading__subtitle">{{ _("View and manage all counting sessions.") }}</p>
+        <h1 class="page-heading__title">{{ _("My Counting Sessions") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Sessions assigned to you. Schedule new sessions from the SPD supervisor portal.") }}</p>
     </div>
-    <a class="btn btn--primary" href="{{ url_for('web.operator_session_new') }}">
-        {{ macros.icon_plus() }}
-        <span>{{ _("New Counting Session") }}</span>
-    </a>
 </div>
 
 <section class="card">
-    {# Filters are wired to the backend via GET params (search, status, date). #}
-    <form class="filter-bar" action="#" method="get" role="search">
+    <form class="filter-bar" action="{{ url_for('web.operator_sessions') }}" method="get" role="search">
         <div class="filter-bar__search">
             <label class="visually-hidden" for="counting-sessions-search">{{ _("Search Sessions") }}</label>
             <div class="form-field__input-wrapper">
@@ -54,16 +46,13 @@
             <label class="visually-hidden" for="counting-sessions-status">{{ _("Status") }}</label>
             <select class="form-field__input form-field__input--plain" id="counting-sessions-status" name="status">
                 <option value="">{{ _("All Statuses") }}</option>
+                <option value="scheduled">{{ _("Scheduled") }}</option>
                 <option value="in_progress">{{ _("In Progress") }}</option>
-                <option value="awaiting_review">{{ _("Awaiting Review") }}</option>
+                <option value="awaiting_spd_review">{{ _("Awaiting Review") }}</option>
                 <option value="correction_required">{{ _("Correction Required") }}</option>
-                <option value="ready_to_close">{{ _("Ready to Close") }}</option>
                 <option value="closed">{{ _("Closed") }}</option>
+                <option value="aborted">{{ _("Aborted") }}</option>
             </select>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="counting-sessions-date">{{ _("Date") }}</label>
-            <input class="form-field__input form-field__input--plain" type="date" id="counting-sessions-date" name="date">
         </div>
     </form>
 </section>
@@ -75,27 +64,38 @@
                 <tr>
                     <th scope="col">{{ _("Session ID") }}</th>
                     <th scope="col">{{ _("Procedure") }}</th>
-                    <th scope="col">{{ _("Kit Type") }}</th>
+                    <th scope="col">{{ _("Kit") }}</th>
                     <th scope="col">{{ _("OR") }}</th>
-                    <th scope="col">{{ _("Created At") }}</th>
+                    <th scope="col">{{ _("Scheduled") }}</th>
                     <th scope="col">{{ _("Status") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Discrepancies") }}</th>
+                    <th scope="col">{{ _("Privacy / Capture") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Open discrepancies") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
             </thead>
             <tbody>
                 {% for session in sessions %}
                 <tr>
-                    <th scope="row">{{ session.session_id }}</th>
-                    <td>{{ session.procedure_name }}-{{ session.operating_room }}</td>
+                    <th scope="row">
+                        <a href="{{ session.details_url|default(url_for('web.operator_session_details', session_id=session.id)) }}">{{ session.session_id }}</a>
+                    </th>
+                    <td>{{ session.procedure_name }}</td>
                     <td>{{ session.kit_name }}</td>
                     <td>{{ session.operating_room }}</td>
                     <td>{{ session.created_at }}</td>
                     <td>{{ macros.status_badge(session.status_label, session.status_variant) }}</td>
+                    <td>{{ macros.status_badge(session.privacy_label|default('—'), session.privacy_variant|default('neutral')) }}</td>
                     <td class="data-table__numeric-column {{ 'text-danger' if session.discrepancy_count else '' }}">{{ session.discrepancy_count }}</td>
                     <td class="data-table__action-column">
-                        <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ session.action_label }}</a>
+                        <a class="btn btn--secondary btn--small" href="{{ session.details_url }}">{{ _("View details") }}</a>
+                        {% if session.action_label != 'View details' %}
+                        <a class="btn btn--primary btn--small" href="{{ session.action_url }}">{{ session.action_label }}</a>
+                        {% endif %}
                     </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="9">{{ _("No sessions assigned to you yet.") }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

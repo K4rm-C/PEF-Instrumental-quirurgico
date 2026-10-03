@@ -1,0 +1,124 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ session.session_id }} · {{ _("Session details") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'sessions' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item"><a href="{{ url_for('web.supervisor_sessions') }}">{{ _("Sessions") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ session.session_id }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ session.session_id }}</h1>
+        <p class="page-heading__subtitle">{{ session.procedure_name }} · {{ session.operating_room }}</p>
+    </div>
+    <div class="page-heading__actions">
+        <a class="btn btn--secondary" href="{{ url_for('web.supervisor_sessions') }}">{{ _("Back") }}</a>
+        {% if session.discrepancy_count and session.discrepancy_count > 0 %}
+        <a class="btn btn--primary" href="{{ url_for('web.supervisor_discrepancy_review', session_id=session.id) }}">{{ _("Review discrepancies") }}</a>
+        {% endif %}
+    </div>
+</div>
+
+{% if form_error %}
+<div class="alert alert--danger" role="alert">{{ form_error }}</div>
+{% endif %}
+
+<section class="card">
+    <h2 class="card__title">{{ _("Session") }}</h2>
+    <dl class="detail-list">
+        <div><dt>{{ _("Status") }}</dt><dd>{{ macros.status_badge(session.status_label, session.status_variant) }}</dd></div>
+        <div><dt>{{ _("Operator") }}</dt><dd>{{ session.operator_name }}</dd></div>
+        <div><dt>{{ _("Kit") }}</dt><dd>{{ session.kit_name }}</dd></div>
+        <div><dt>{{ _("Capture station") }}</dt><dd>{{ session.capture_station_name }}</dd></div>
+        <div><dt>{{ _("Started") }}</dt><dd>{{ session.started_at or '—' }}</dd></div>
+        <div><dt>{{ _("Ended") }}</dt><dd>{{ session.closed_at or '—' }}</dd></div>
+        <div><dt>{{ _("Capture mode") }}</dt><dd>{{ session.capture_mode or '—' }}</dd></div>
+        <div><dt>{{ _("Open discrepancies") }}</dt><dd>{{ session.discrepancy_count }}</dd></div>
+    </dl>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Expected vs reported") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Family") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Diff") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in session.expected_items|default([]) %}
+                <tr>
+                    <td>{{ item.family_name }}</td>
+                    <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                    <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
+                    <td class="data-table__numeric-column">{{ item.difference if item.difference is not none else '—' }}</td>
+                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5">{{ _("No expected inventory rows.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Timeline") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("When") }}</th>
+                    <th scope="col">{{ _("Event") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Detected") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in session.timeline|default([]) %}
+                <tr>
+                    <td>{{ event.occurred_at or '—' }}</td>
+                    <td>{{ event.event_name }} <code>{{ event.event_code }}</code></td>
+                    <td class="data-table__numeric-column">{{ event.expected_quantity if event.expected_quantity is not none else '—' }}</td>
+                    <td class="data-table__numeric-column">{{ event.detected_quantity if event.detected_quantity is not none else '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4">{{ _("No count events yet.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+{% if session.status_code == 'awaiting_spd_review' and (session.discrepancy_count|default(0)) == 0 %}
+<section class="card">
+    <h2 class="card__title">{{ _("Confirm close (SP-05)") }}</h2>
+    <p>{{ _("Confirm that material was recovered and reprocessing can start. This closes the session administratively.") }}</p>
+    <form method="post" action="{{ url_for('web.supervisor_session_close', session_id=session.id) }}">
+        <label class="form-field__checkbox">
+            <input type="checkbox" name="material_recovered" value="1" required>
+            <span>{{ _("Material recovered / reprocessing started") }}</span>
+        </label>
+        <div class="page-heading__actions" style="margin-top: 1rem;">
+            <button class="btn btn--primary" type="submit">{{ _("Confirm close") }}</button>
+        </div>
+    </form>
+</section>
+{% endif %}
+{% endblock %}

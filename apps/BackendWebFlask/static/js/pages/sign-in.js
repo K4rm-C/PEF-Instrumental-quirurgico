@@ -3,11 +3,12 @@ const signInForm = document.querySelector('#sign-in-form');
 if (signInForm) {
     const errorMessage = document.querySelector('#sign-in-error');
     const homeByRole = {
-        operator_cde: {
-            url: signInForm.dataset.operatorHome,
+        // RF: station operator lands on session list, not metrics dashboard.
+        station_operator: {
+            url: signInForm.dataset.operatorHome || '/operator/sessions',
             prefix: '/operator/',
         },
-        supervisor_quality: {
+        spd_supervisor: {
             url: signInForm.dataset.supervisorHome,
             prefix: '/supervisor/',
         },
@@ -54,6 +55,12 @@ if (signInForm) {
             const role = payload.user?.roles?.map(({ code }) => homeByRole[code]).find(Boolean);
             if (!role) {
                 throw new Error('Your account has no application role.');
+            }
+
+            // Persist locale preference for guest→auth handoff (Flask-Babel arrives in later i18n phase).
+            const locale = payload.user?.ui_preferences?.locale;
+            if (locale === 'en' || locale === 'es-MX') {
+                document.cookie = `pef_locale=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
             }
 
             const requestedNext = formData.get('next');

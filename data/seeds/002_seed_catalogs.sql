@@ -74,19 +74,17 @@ INSERT INTO cat_operation_status (code, name) VALUES
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------
--- Estado de la sesion de conteo (maquina de estados)
---   open -> counting -> validating -> closed
---   cualquier estado -> cancelled
--- `blocked` representa la sesion con discrepancias sin resolver que no puede
--- cerrarse; es el estado donde la regla de negocio detiene el flujo.
+-- Estado de la sesion de conteo (maquina de estados RF)
+--   scheduled -> in_progress -> awaiting_spd_review|correction_required -> closed
+--   cualquier estado elegible -> aborted
 -- -----------------------------------------------------------------------------
 INSERT INTO cat_session_status (code, name) VALUES
-  ('open',       'Abierta'),
-  ('counting',   'En conteo'),
-  ('validating', 'En validacion'),
-  ('blocked',    'Bloqueada por discrepancia'),
-  ('closed',     'Cerrada'),
-  ('cancelled',  'Cancelada')
+  ('scheduled',           'Programada'),
+  ('in_progress',         'En progreso'),
+  ('awaiting_spd_review', 'En espera de revision SPD'),
+  ('correction_required', 'Correccion requerida'),
+  ('closed',              'Cerrada'),
+  ('aborted',             'Abortada')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------
@@ -98,7 +96,8 @@ INSERT INTO cat_instrument_cycle_status (code, name) VALUES
   ('in_use',        'En uso'),
   ('sterilization', 'En esterilizacion'),
   ('maintenance',   'En mantenimiento'),
-  ('retired',       'Retirada')
+  ('retired',       'Retirada'),
+  ('lost',          'Perdida / no recuperada')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------
@@ -175,6 +174,7 @@ INSERT INTO cat_event_type (code, name) VALUES
   ('session_open',       'Apertura de sesion'),
   ('auto_count',         'Conteo sugerido por el modelo'),
   ('manual_count',       'Conteo capturado manualmente'),
+  ('manual_close',       'Cierre con reporte manual de cantidades'),
   ('phase_change',       'Cambio de fase quirurgica'),
   ('discrepancy_raised', 'Discrepancia detectada'),
   ('correction_applied', 'Correccion humana aplicada'),
@@ -195,17 +195,17 @@ INSERT INTO cat_processing_purpose (code, name, active) VALUES
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------
--- Version inicial del aviso de privacidad
+-- Version inicial del aviso de privacidad (PLACEHOLDER demo)
 --
--- PENDIENTE: sustituir document_uri y content_sha256 por los valores reales
--- del aviso aprobado por la institucion antes de cualquier despliegue con
--- datos de personas reales. El hash debe corresponder al documento publicado.
+-- document_uri / content_sha256 NO son un PDF legal real. Sirven para ejercitar
+-- la usabilidad RF (confirmar aviso, finalidades quality_ops / model_improvement,
+-- o sesion sin aviso → manual_no_privacy). Sustituir antes de datos reales.
 -- -----------------------------------------------------------------------------
 INSERT INTO privacy_notice_version (version, effective_at, document_uri, content_sha256, active)
 VALUES (
   'v1.0',
   '2026-09-01T00:00:00Z',
-  'https://pef.udem/conteo-cenital/aviso-privacidad/v1.0',
+  'placeholder://privacy-notice/v1.0',
   repeat('0', 64),
   TRUE
 )

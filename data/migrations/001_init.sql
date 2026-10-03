@@ -604,7 +604,8 @@ CREATE TABLE model_class (
 
 CREATE TABLE work_session (
   id                 UUID        NOT NULL DEFAULT gen_random_uuid(),
-  started_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- NULL while status = scheduled; set on Start Session (RF-OP-03).
+  started_at         TIMESTAMPTZ,
   ended_at           TIMESTAMPTZ,
   status_id          UUID        NOT NULL,
   user_id            UUID        NOT NULL,
@@ -614,6 +615,8 @@ CREATE TABLE work_session (
   kit_id             UUID,
   current_phase_id   UUID,
   phase_changed_at   TIMESTAMPTZ,
+  -- Frozen at Start: vision | manual_no_privacy (RF capture_mode).
+  capture_mode       VARCHAR(32),
   atypical_session   BOOLEAN     NOT NULL DEFAULT FALSE,
   extended_retention BOOLEAN     NOT NULL DEFAULT FALSE,
   retention_until    TIMESTAMPTZ,
@@ -634,7 +637,10 @@ CREATE TABLE work_session (
   CONSTRAINT fk_work_session_current_phase
     FOREIGN KEY (current_phase_id) REFERENCES cat_operation_phase (id) ON DELETE SET NULL,
   CONSTRAINT chk_work_session_ended CHECK (
-    ended_at IS NULL OR ended_at >= started_at
+    ended_at IS NULL OR (started_at IS NOT NULL AND ended_at >= started_at)
+  ),
+  CONSTRAINT chk_work_session_capture_mode CHECK (
+    capture_mode IS NULL OR capture_mode IN ('vision', 'manual_no_privacy')
   )
 );
 

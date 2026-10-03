@@ -37,6 +37,9 @@ from controllers.view_data import (
     kits_data,
     operating_room_form_data,
     operating_rooms_data,
+    operator_my_sessions,
+    operator_session_detail,
+    supervisor_session_detail,
     procedure_form_data,
     procedures_data,
     role_form_data,
@@ -55,8 +58,8 @@ from controllers.view_data import (
 web_bp = Blueprint('web', __name__)
 
 ROLE_LABELS = {
-    'operator_cde': 'Operator',
-    'supervisor_quality': 'Supervisor',
+    'station_operator': 'Station Operator',
+    'spd_supervisor': 'SPD Supervisor',
     'it_admin': 'Administrator',
 }
 
@@ -68,10 +71,27 @@ EMPTY_STATS = {
 }
 
 
+def _normalize_locale(value):
+    locale = (value or '').strip()
+    if locale == 'es':
+        locale = 'es-MX'
+    if locale not in {'en', 'es-MX'}:
+        return 'en'
+    return locale
+
+
+def _resolve_locale(user):
+    prefs = (user or {}).get('ui_preferences') or {}
+    from_prefs = prefs.get('locale') or prefs.get('language')
+    if from_prefs:
+        return _normalize_locale(from_prefs)
+    return _normalize_locale(request.cookies.get('pef_locale') or 'en')
+
+
 def _context(**values):
     current_user = _current_user()
     context = {
-        'current_locale': 'en',
+        'current_locale': _resolve_locale(current_user),
         'current_user': current_user,
         'nav_urls': _nav_urls(current_user),
         'dashboard_stats': EMPTY_STATS,
@@ -157,6 +177,7 @@ def _current_user():
         'name': user_data.get('name', ''),
         'email': user_data.get('email', ''),
         'institution_id': user_data.get('institution_id'),
+        'ui_preferences': user_data.get('ui_preferences') or {},
         'roles': roles,
         'role_code': role['code'],
         'role_label': ROLE_LABELS[role['code']],
@@ -183,10 +204,28 @@ def _auth_request(method, path, token=None, **kwargs):
 
 
 def _upstream_set_cookies(upstream_response):
+    cookies = []
     headers = getattr(getattr(upstream_response, 'raw', None), 'headers', None)
-    if headers is None:
-        return []
-    return headers.getlist('Set-Cookie')
+    if headers is not None and hasattr(headers, 'getlist'):
+        cookies.extend(headers.getlist('Set-Cookie'))
+    if cookies:
+        return cookies
+
+    # Fallback when urllib3 collapses Set-Cookie: rebuild from cookie jar.
+    for cookie in upstream_response.cookies:
+        parts = [f'{cookie.name}={cookie.value}', 'Path=/', 'HttpOnly']
+        if cookie.secure:
+            parts.append('Secure')
+        if cookie.get_nonstandard_attr('samesite'):
+            parts.append(f"SameSite={cookie.get_nonstandard_attr('samesite')}")
+        cookies.append('; '.join(parts))
+    return cookies
+
+
+def _clear_auth_cookies(response):
+    for name in ('access_token', 'refresh_token'):
+        response.delete_cookie(name, path='/')
+    return response
 
 
 def require_role(*role_codes):
@@ -211,27 +250,31 @@ def _nav_urls(user):
         return {'sign_in': url_for('web.sign_in')}
 
     profile_endpoints = {
-        'operator_cde': 'web.operator_profile',
-        'supervisor_quality': 'web.supervisor_profile',
+        'station_operator': 'web.operator_profile',
+        'spd_supervisor': 'web.supervisor_profile',
         'it_admin': 'web.admin_profile',
     }
     common = {
         'profile': url_for(profile_endpoints[user['role_code']]),
         'sign_out': url_for('web.sign_out'),
     }
-    if user['role_code'] == 'operator_cde':
+    if user['role_code'] == 'station_operator':
         return {
             **common,
-            'dashboard': url_for('web.operator_dashboard'),
+            # RF-OP-01: home is session list (no metrics dashboard).
+            'dashboard': url_for('web.operator_sessions'),
             'counting_sessions': url_for('web.operator_sessions'),
-            'new_session': url_for('web.operator_session_new'),
             'session_history': url_for('web.operator_session_history'),
+            # Pre-RF UI kept under /legacy (see apps/BackendWebFlask/legacy/README.md).
+            'legacy_dashboard': url_for('web.legacy_operator_dashboard'),
+            'legacy_new_session': url_for('web.legacy_operator_session_new'),
         }
-    if user['role_code'] == 'supervisor_quality':
+    if user['role_code'] == 'spd_supervisor':
         return {
             **common,
             'dashboard': url_for('web.supervisor_dashboard'),
             'sessions': url_for('web.supervisor_sessions'),
+            'new_session': url_for('web.supervisor_session_new'),
             'discrepancies': url_for('web.supervisor_discrepancies'),
             'session_history': url_for('web.supervisor_session_history'),
             'reports': url_for('web.supervisor_reports'),
@@ -277,27 +320,34 @@ def sign_in():
 
 @web_bp.route('/sign-out', methods=['POST', 'GET'])
 def sign_out():
+    access_token = request.cookies.get('access_token')
+    refresh_token = request.cookies.get('refresh_token')
+    token = access_token or refresh_token
+    if token:
+        _auth_request('post', '/logout', token=token)
     session.clear()
-    return redirect(url_for('web.sign_in'))
+    response = redirect(url_for('web.sign_in'))
+    return _clear_auth_cookies(response)
 
 
 @web_bp.route('/operator/profile')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_profile():
     return _page('shared/profile.html', profile_role='operator')
 
 
 @web_bp.route('/operator/dashboard')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_dashboard():
-    stats, sessions, _ = dashboard_data('operator')
-    return _page('operator/dashboard.html', dashboard_stats=stats, recent_sessions=sessions[:5])
+    # Pre-RF metrics dashboard kept reachable via redirect to legacy.
+    return redirect(url_for('web.legacy_operator_dashboard'))
 
 
 @web_bp.route('/operator/sessions')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_sessions():
-    sessions = sessions_data()
+    user = _current_user()
+    sessions = operator_my_sessions(user['id'])
     return _page(
         'operator/sessions/list.html',
         sessions=sessions,
@@ -307,26 +357,197 @@ def operator_sessions():
 
 
 @web_bp.route('/operator/sessions/new', methods=['GET', 'POST'])
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_new():
-    if request.method == 'POST':
-        # Integration point: no WorkSession is created yet (see V2_IMPLEMENTATION_NOTES.md).
-        # Redirects straight into the approved WS-026 reference-case Capture screen so the
-        # rest of the V2 Operator workflow can be clicked through end to end.
-        return redirect(url_for('web.operator_session_capture', session_id='WS-026'))
-    return _page('operator/sessions/new.html')
+    # RF-SP-02: only SPD schedules sessions. Operator create UI → legacy.
+    return redirect(url_for('web.legacy_operator_session_new'))
 
 
 @web_bp.route('/operator/sessions/history')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_history():
-    sessions = sessions_data()
+    user = _current_user()
+    sessions = operator_my_sessions(user['id'])
     return _page(
         'operator/sessions/history.html',
         session_history=sessions,
         sessions_shown_count=len(sessions),
         sessions_total_count=len(sessions),
     )
+
+
+@web_bp.route('/operator/sessions/<session_id>')
+@require_role('station_operator')
+def operator_session_details(session_id):
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    return _page('operator/sessions/details.html', session=detail, session_id=session_id)
+
+
+@web_bp.route('/operator/sessions/<session_id>/begin', methods=['GET', 'POST'])
+@require_role('station_operator')
+def operator_session_begin(session_id):
+    """RF-OP-03 Start Session."""
+    from services.rf_session import RfSessionError, start_session
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'scheduled':
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+    if request.method == 'POST':
+        if request.form.get('instruments_ready') != '1':
+            return _page(
+                'operator/sessions/begin.html',
+                session=detail,
+                session_id=session_id,
+                form_error='Confirm the physical instrument set before starting.',
+            ), 400
+        try:
+            result = start_session(
+                session_id=UUID(session_id),
+                operator_user_id=UUID(user['id']),
+                institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
+                ip=request.remote_addr,
+            )
+        except RfSessionError as exc:
+            return _page(
+                'operator/sessions/begin.html',
+                session=detail,
+                session_id=session_id,
+                form_error=exc.message,
+            ), exc.status_code
+        if result['capture_mode'] == 'manual_no_privacy':
+            return redirect(url_for('web.operator_session_manual', session_id=session_id))
+        return redirect(url_for('web.operator_session_capture', session_id=session_id))
+    return _page('operator/sessions/begin.html', session=detail, session_id=session_id)
+
+
+@web_bp.route('/operator/sessions/<session_id>/manual')
+@require_role('station_operator')
+def operator_session_manual(session_id):
+    """RF-OP-04M progress without live capture."""
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'manual_no_privacy':
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+    return _page(
+        'operator/sessions/manual_progress.html',
+        session=detail,
+        session_id=session_id,
+    )
+
+
+@web_bp.route('/operator/sessions/<session_id>/manual-report', methods=['GET', 'POST'])
+@require_role('station_operator')
+def operator_session_manual_report(session_id):
+    """RF-OP-06M quantity report and close."""
+    from services.rf_session import RfSessionError, submit_manual_close
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'manual_no_privacy':
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+
+    if request.method == 'POST':
+        reports = []
+        for item in detail.get('expected_items') or []:
+            family_id = item['family_id']
+            try:
+                reported = int(request.form.get(f"reported_{family_id}", ""))
+            except ValueError:
+                return _page(
+                    'operator/sessions/manual_report.html',
+                    session=detail,
+                    session_id=session_id,
+                    form_error='Enter a whole number for every reported quantity.',
+                    reason_options=_manual_reason_options(),
+                ), 400
+            reports.append({
+                'family_id': family_id,
+                'reported_quantity': reported,
+                'reason_code': request.form.get(f"reason_{family_id}", "").strip(),
+                'notes': request.form.get(f"notes_{family_id}", "").strip(),
+            })
+        try:
+            result = submit_manual_close(
+                session_id=UUID(session_id),
+                operator_user_id=UUID(user['id']),
+                institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
+                reports=reports,
+                ip=request.remote_addr,
+            )
+        except RfSessionError as exc:
+            return _page(
+                'operator/sessions/manual_report.html',
+                session=detail,
+                session_id=session_id,
+                form_error=exc.message,
+                reason_options=_manual_reason_options(),
+            ), exc.status_code
+        return redirect(url_for(
+            'web.operator_session_manual_report_done',
+            session_id=session_id,
+            status=result['status_code'],
+        ))
+
+    return _page(
+        'operator/sessions/manual_report.html',
+        session=detail,
+        session_id=session_id,
+        reason_options=_manual_reason_options(),
+    )
+
+
+@web_bp.route('/operator/sessions/<session_id>/manual-report/done')
+@require_role('station_operator')
+def operator_session_manual_report_done(session_id):
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    return _page(
+        'operator/sessions/manual_report_done.html',
+        session=detail,
+        session_id=session_id,
+        result_status=request.args.get('status') or detail.get('status_code'),
+    )
+
+
+def _manual_reason_options():
+    return [
+        {'code': 'shortage', 'label': 'Shortage / missing piece'},
+        {'code': 'surplus', 'label': 'Extra / surplus'},
+        {'code': 'operator_error', 'label': 'Operator counting error'},
+        {'code': 'other', 'label': 'Other'},
+    ]
+
+
+# ----------------------------------------------------------------------------------------
+# Legacy operator UI (pre-RF). Reachable under /legacy/... so it does not collide with
+# RF-OP-01 / RF-SP-02. Templates stay in operator/; see legacy/README.md.
+# ----------------------------------------------------------------------------------------
+
+@web_bp.route('/legacy/operator/dashboard')
+@require_role('station_operator')
+def legacy_operator_dashboard():
+    stats, sessions, _ = dashboard_data('operator')
+    return _page('operator/dashboard.html', dashboard_stats=stats, recent_sessions=sessions[:5])
+
+
+@web_bp.route('/legacy/operator/sessions/new', methods=['GET', 'POST'])
+@require_role('station_operator')
+def legacy_operator_session_new():
+    if request.method == 'POST':
+        return redirect(url_for('web.operator_session_capture', session_id='WS-026'))
+    return _page('operator/sessions/new.html')
 
 
 # ----------------------------------------------------------------------------------------
@@ -345,55 +566,55 @@ def operator_session_history():
 # ----------------------------------------------------------------------------------------
 
 @web_bp.route('/operator/sessions/<session_id>/capture')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_capture(session_id):
     return _page('operator/sessions/capture.html', session_id=session_id)
 
 
 @web_bp.route('/operator/sessions/<session_id>/ai-detection')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_ai_detection(session_id):
     return _page('operator/sessions/ai_detection.html', session_id=session_id)
 
 
 @web_bp.route('/operator/sessions/<session_id>/validation')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_validation(session_id):
     return _page('operator/sessions/validation.html', session_id=session_id)
 
 
 @web_bp.route('/operator/sessions/<session_id>/validation-summary')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_validation_summary(session_id):
     return _page('operator/sessions/validation_summary.html', session_id=session_id)
 
 
 @web_bp.route('/operator/sessions/<session_id>/discrepancy')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_discrepancy(session_id):
     return _page('operator/sessions/discrepancy.html', session_id=session_id)
 
 
 @web_bp.route('/operator/sessions/<session_id>/awaiting-review')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_awaiting_review(session_id):
     return _page('operator/sessions/awaiting_review.html', session_id=session_id)
 
 
 @web_bp.route('/operator/sessions/<session_id>/correction')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_correction(session_id):
     return _page('operator/sessions/correction_requested.html', session_id=session_id)
 
 
 @web_bp.route('/operator/sessions/<session_id>/ready-to-close')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_ready_to_close(session_id):
     return _page('operator/sessions/ready_to_close.html', session_id=session_id)
 
 
 @web_bp.route('/operator/sessions/closed/<session_id>')
-@require_role('operator_cde')
+@require_role('station_operator')
 def operator_session_closed(session_id):
     session_data = next((item for item in sessions_data() if item['id'] == session_id), None)
     if session_data is None:
@@ -415,13 +636,13 @@ def operator_session_closed(session_id):
 
 
 @web_bp.route('/supervisor/profile')
-@require_role('supervisor_quality')
+@require_role('spd_supervisor')
 def supervisor_profile():
     return _page('shared/profile.html', profile_role='supervisor')
 
 
 @web_bp.route('/supervisor/dashboard')
-@require_role('supervisor_quality')
+@require_role('spd_supervisor')
 def supervisor_dashboard():
     stats, sessions, discrepancies = dashboard_data('supervisor')
     return _page(
@@ -433,7 +654,7 @@ def supervisor_dashboard():
 
 
 @web_bp.route('/supervisor/sessions')
-@require_role('supervisor_quality')
+@require_role('spd_supervisor')
 def supervisor_sessions():
     sessions = sessions_data()
     return _page(
@@ -444,8 +665,124 @@ def supervisor_sessions():
     )
 
 
+@web_bp.route('/supervisor/sessions/new', methods=['GET', 'POST'])
+@require_role('spd_supervisor')
+def supervisor_session_new():
+    """RF-SP-02 schedule session + optional Via A privacy confirm."""
+    from datetime import datetime as dt
+
+    from services.rf_session import (
+        RfSessionError,
+        confirm_privacy_via_a,
+        kit_expected_lines,
+        schedule_form_options,
+        schedule_session,
+    )
+
+    user = _current_user()
+    try:
+        institution_id = UUID(user['institution_id'])
+    except (TypeError, ValueError, KeyError):
+        abort(400)
+    options = schedule_form_options(institution_id)
+    selected_kit = request.values.get('kit_id') or (options['kits'][0]['id'] if options['kits'] else '')
+    expected_lines = kit_expected_lines(UUID(selected_kit)) if selected_kit else []
+
+    if request.method == 'POST':
+        action = request.form.get('action') or 'schedule'
+        try:
+            if action == 'confirm_privacy':
+                session_id = request.form.get('session_id', '').strip()
+                confirm_privacy_via_a(
+                    session_id=UUID(session_id),
+                    supervisor_user_id=UUID(user['id']),
+                    institution_id=institution_id,
+                    privacy_notice_version_id=UUID(request.form.get('privacy_notice_version_id')),
+                    purpose_model_improvement=request.form.get('purpose_model_improvement') == '1',
+                    ip=request.remote_addr,
+                )
+                return redirect(url_for('web.supervisor_session_details', session_id=session_id))
+
+            scheduled_raw = request.form.get('scheduled_at', '').strip()
+            scheduled_at = dt.fromisoformat(scheduled_raw)
+            if scheduled_at.tzinfo is None:
+                scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+
+            family_ids = request.form.getlist('family_id[]')
+            quantities = request.form.getlist('expected_quantity[]')
+            lines = []
+            for family_id, qty in zip(family_ids, quantities):
+                lines.append({'family_id': family_id, 'expected_quantity': int(qty)})
+
+            result = schedule_session(
+                supervisor_user_id=UUID(user['id']),
+                institution_id=institution_id,
+                operator_user_id=UUID(request.form.get('operator_user_id')),
+                procedure_type_id=UUID(request.form.get('procedure_type_id')),
+                room_id=UUID(request.form.get('room_id')),
+                station_id=UUID(request.form.get('station_id')),
+                kit_id=UUID(request.form.get('kit_id')),
+                patient_id=UUID(request.form.get('patient_id')) if request.form.get('patient_id') else None,
+                physician_id=UUID(request.form.get('physician_id')) if request.form.get('physician_id') else None,
+                scheduled_at=scheduled_at,
+                phase_code=request.form.get('phase_code') or 'setup',
+                expected_lines=lines,
+                ip=request.remote_addr,
+            )
+            if request.form.get('confirm_privacy') == '1' and request.form.get('privacy_notice_version_id'):
+                if request.form.get('privacy_confirm_checkbox') == '1':
+                    confirm_privacy_via_a(
+                        session_id=UUID(result['session_id']),
+                        supervisor_user_id=UUID(user['id']),
+                        institution_id=institution_id,
+                        privacy_notice_version_id=UUID(request.form.get('privacy_notice_version_id')),
+                        purpose_model_improvement=request.form.get('purpose_model_improvement') == '1',
+                        ip=request.remote_addr,
+                    )
+            return redirect(url_for('web.supervisor_session_details', session_id=result['session_id']))
+        except (RfSessionError, ValueError, TypeError) as exc:
+            message = exc.message if isinstance(exc, RfSessionError) else str(exc)
+            status = exc.status_code if isinstance(exc, RfSessionError) else 400
+            return _page(
+                'supervisor/sessions/schedule.html',
+                **options,
+                expected_lines=expected_lines,
+                selected_kit=selected_kit,
+                form_error=message,
+            ), status
+
+    return _page(
+        'supervisor/sessions/schedule.html',
+        **options,
+        expected_lines=expected_lines,
+        selected_kit=selected_kit,
+    )
+
+
+@web_bp.route('/supervisor/sessions/<session_id>/privacy', methods=['POST'])
+@require_role('spd_supervisor')
+def supervisor_session_privacy(session_id):
+    from services.rf_session import RfSessionError, confirm_privacy_via_a
+
+    user = _current_user()
+    if request.form.get('privacy_confirm_checkbox') != '1':
+        return redirect(url_for('web.supervisor_session_details', session_id=session_id))
+    try:
+        confirm_privacy_via_a(
+            session_id=UUID(session_id),
+            supervisor_user_id=UUID(user['id']),
+            institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
+            privacy_notice_version_id=UUID(request.form.get('privacy_notice_version_id')),
+            purpose_model_improvement=request.form.get('purpose_model_improvement') == '1',
+            ip=request.remote_addr,
+        )
+    except RfSessionError:
+        pass
+    return redirect(url_for('web.supervisor_session_details', session_id=session_id))
+
+
 @web_bp.route('/supervisor/sessions/history')
-@require_role('supervisor_quality')
+@require_role('spd_supervisor')
 def supervisor_session_history():
     sessions = sessions_data()
     return _page(
@@ -457,14 +794,43 @@ def supervisor_session_history():
 
 
 @web_bp.route('/supervisor/sessions/<session_id>')
-@require_role('supervisor_quality')
+@require_role('spd_supervisor')
 def supervisor_session_details(session_id):
-    session_data = next((item for item in sessions_data() if item['id'] == session_id), None)
-    return _page('supervisor/sessions/details.html', session=session_data, session_id=session_id)
+    detail = supervisor_session_detail(session_id)
+    if detail is None:
+        # Keep legacy WS-026 click-through for non-UUID demo ids.
+        session_data = next((item for item in sessions_data() if item['id'] == session_id), None)
+        return _page('supervisor/sessions/details.html', session=session_data, session_id=session_id)
+    return _page('supervisor/sessions/rf_details.html', session=detail, session_id=session_id)
+
+
+@web_bp.route('/supervisor/sessions/<session_id>/close', methods=['POST'])
+@require_role('spd_supervisor')
+def supervisor_session_close(session_id):
+    from services.rf_session import RfSessionError, confirm_spd_close
+
+    user = _current_user()
+    try:
+        confirm_spd_close(
+            session_id=UUID(session_id),
+            supervisor_user_id=UUID(user['id']),
+            institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
+            material_recovered=request.form.get('material_recovered') == '1',
+            ip=request.remote_addr,
+        )
+    except RfSessionError as exc:
+        detail = supervisor_session_detail(session_id)
+        return _page(
+            'supervisor/sessions/rf_details.html',
+            session=detail,
+            session_id=session_id,
+            form_error=exc.message,
+        ), exc.status_code
+    return redirect(url_for('web.supervisor_session_details', session_id=session_id))
 
 
 @web_bp.route('/supervisor/discrepancies')
-@require_role('supervisor_quality')
+@require_role('spd_supervisor')
 def supervisor_discrepancies():
     discrepancies = discrepancies_data()
     return _page(
@@ -474,21 +840,49 @@ def supervisor_discrepancies():
     )
 
 
-@web_bp.route('/supervisor/discrepancies/<session_id>/review')
-@require_role('supervisor_quality')
+@web_bp.route('/supervisor/discrepancies/<session_id>/review', methods=['GET', 'POST'])
+@require_role('spd_supervisor')
 def supervisor_discrepancy_review(session_id):
-    session_data = next((item for item in sessions_data() if item['id'] == session_id), None)
-    return _page('supervisor/discrepancies/review.html', session=session_data, session_id=session_id)
+    from services.rf_session import RfSessionError, resolve_discrepancy
+
+    detail = supervisor_session_detail(session_id)
+    if detail is None:
+        session_data = next((item for item in sessions_data() if item['id'] == session_id), None)
+        return _page('supervisor/discrepancies/review.html', session=session_data, session_id=session_id)
+
+    if request.method == 'POST':
+        user = _current_user()
+        try:
+            resolve_discrepancy(
+                discrepancy_id=UUID(request.form.get('discrepancy_id')),
+                supervisor_user_id=UUID(user['id']),
+                institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
+                notes=request.form.get('notes') or '',
+                mark_lost=request.form.get('mark_lost') == '1',
+                ip=request.remote_addr,
+            )
+        except (RfSessionError, ValueError, TypeError) as exc:
+            message = exc.message if isinstance(exc, RfSessionError) else str(exc)
+            detail = supervisor_session_detail(session_id)
+            return _page(
+                'supervisor/sessions/rf_review.html',
+                session=detail,
+                session_id=session_id,
+                form_error=message,
+            ), 400
+        return redirect(url_for('web.supervisor_discrepancy_review', session_id=session_id))
+
+    return _page('supervisor/sessions/rf_review.html', session=detail, session_id=session_id)
 
 
 @web_bp.route('/supervisor/reports')
-@require_role('supervisor_quality')
+@require_role('spd_supervisor')
 def supervisor_reports():
     return _page('supervisor/reports.html')
 
 
 @web_bp.route('/supervisor/indicators')
-@require_role('supervisor_quality')
+@require_role('spd_supervisor')
 def supervisor_indicators():
     # indicator_stats/sessions_by_day/discrepancies_by_* have no backing analytics query yet
     # (no AI-vs-human agreement, resolution-time, or per-instrument/family/type discrepancy
@@ -498,7 +892,7 @@ def supervisor_indicators():
 
 
 @web_bp.route('/supervisor/audit-log')
-@require_role('supervisor_quality')
+@require_role('spd_supervisor')
 def supervisor_audit_log():
     # AccessAudit has no query wired up yet (no code/entity/record/result shape to match the
     # approved V2 reference) — the template supplies the approved WS-026-consistent

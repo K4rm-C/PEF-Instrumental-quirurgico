@@ -262,6 +262,10 @@ docker-data/
 postgres-data/
 redis-data/
 
+# --- PEF: herramientas locales ---
+.qodo/
+_demo_hashes.txt
+
 # --- PEF: OS / OneDrive / editores ---
 .DS_Store
 Thumbs.db

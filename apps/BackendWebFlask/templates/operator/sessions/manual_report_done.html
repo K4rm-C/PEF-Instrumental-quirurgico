@@ -1,0 +1,26 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Report submitted") }} · {{ session.session_id }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Session report submitted") }}</h1>
+        <p class="page-heading__subtitle">{{ session.session_id }}</p>
+    </div>
+    <a class="btn btn--primary" href="{{ url_for('web.operator_sessions') }}">{{ _("Back to sessions") }}</a>
+</div>
+
+<section class="card">
+    <p>{{ macros.status_badge(session.status_label, session.status_variant) }}</p>
+    <p>{{ _("Result status code:") }} <code>{{ result_status }}</code></p>
+    <p>{{ _("Open discrepancies:") }} {{ session.discrepancy_count }}</p>
+    <p class="text-muted">{{ _("No camera or AI evidence was captured for this session. SPD will complete administrative close.") }}</p>
+</section>
+{% endblock %}

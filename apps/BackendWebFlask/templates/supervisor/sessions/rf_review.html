@@ -1,0 +1,83 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Discrepancy review") }} · {{ session.session_id }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'discrepancies' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item"><a href="{{ url_for('web.supervisor_sessions') }}">{{ _("Sessions") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item"><a href="{{ url_for('web.supervisor_session_details', session_id=session.id) }}">{{ session.session_id }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Review") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Discrepancy review (SP-06)") }}</h1>
+        <p class="page-heading__subtitle">{{ session.session_id }} · {{ session.procedure_name }}</p>
+    </div>
+    <a class="btn btn--secondary" href="{{ url_for('web.supervisor_session_details', session_id=session.id) }}">{{ _("Session details") }}</a>
+</div>
+
+{% if form_error %}
+<div class="alert alert--danger" role="alert">{{ form_error }}</div>
+{% endif %}
+
+<p>{{ macros.status_badge(session.status_label, session.status_variant) }}
+   · {{ _("Open discrepancies:") }} {{ session.discrepancy_count }}</p>
+
+{% for disc in session.discrepancies|default([]) %}
+<section class="card">
+    <h2 class="card__title">{{ disc.family_name }}</h2>
+    <dl class="detail-list">
+        <div><dt>{{ _("Expected") }}</dt><dd>{{ disc.expected_quantity if disc.expected_quantity is not none else '—' }}</dd></div>
+        <div><dt>{{ _("Detected") }}</dt><dd>{{ disc.detected_quantity if disc.detected_quantity is not none else '—' }}</dd></div>
+        <div><dt>{{ _("Description") }}</dt><dd>{{ disc.description }}</dd></div>
+        <div><dt>{{ _("Resolved") }}</dt>
+            <dd>
+                {% if disc.resolved %}
+                {{ macros.status_badge(_("Resolved"), "success") }} {{ disc.resolved_at or '' }}
+                {% else %}
+                {{ macros.status_badge(_("Open"), "danger") }}
+                {% endif %}
+            </dd>
+        </div>
+    </dl>
+    {% if not disc.resolved %}
+    <form method="post" action="{{ url_for('web.supervisor_discrepancy_review', session_id=session.id) }}">
+        <input type="hidden" name="discrepancy_id" value="{{ disc.id }}">
+        <div class="form-field">
+            <label class="form-field__label" for="notes-{{ disc.id }}">{{ _("Resolution notes") }}</label>
+            <textarea class="form-field__input" id="notes-{{ disc.id }}" name="notes" rows="2" required></textarea>
+        </div>
+        <label class="form-field__checkbox">
+            <input type="checkbox" name="mark_lost" value="1">
+            <span>{{ _("Mark one active piece of this family as lost") }}</span>
+        </label>
+        <div class="page-heading__actions" style="margin-top: 1rem;">
+            <button class="btn btn--primary" type="submit">{{ _("Resolve") }}</button>
+        </div>
+    </form>
+    {% endif %}
+</section>
+{% else %}
+<section class="card">
+    <p>{{ _("No discrepancies on this session.") }}</p>
+</section>
+{% endfor %}
+
+{% if session.status_code == 'awaiting_spd_review' and (session.discrepancy_count|default(0)) == 0 %}
+<section class="card">
+    <p>{{ _("All discrepancies resolved. You can confirm administrative close.") }}</p>
+    <a class="btn btn--primary" href="{{ url_for('web.supervisor_session_details', session_id=session.id) }}">{{ _("Go to Confirm close") }}</a>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,7 +1,7 @@
 from extensions import db
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ForeignKey, SmallInteger
+from sqlalchemy import ForeignKey, SmallInteger, String
 import uuid
 
 class ExpectedInventory(db.Model):
@@ -10,7 +10,8 @@ class ExpectedInventory(db.Model):
     # Attributes
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     expected_quantity: Mapped[int] = mapped_column(SmallInteger, nullable=False)  # smallint
-    
+    source: Mapped[str] = mapped_column(String(32), nullable=False, default='kit_snapshot')
+
     # FKs
     family_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('instrument_family.id'), nullable=False)
     session_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('work_session.id'), nullable=False)

@@ -23,7 +23,7 @@
     </div>
 
     <form class="form" id="sign-in-form" method="post" novalidate
-          data-operator-home="{{ url_for('web.operator_dashboard') }}"
+          data-operator-home="{{ url_for('web.operator_sessions') }}"
           data-supervisor-home="{{ url_for('web.supervisor_dashboard') }}"
           data-admin-home="{{ url_for('web.admin_dashboard') }}">
         {% if redirect_target %}

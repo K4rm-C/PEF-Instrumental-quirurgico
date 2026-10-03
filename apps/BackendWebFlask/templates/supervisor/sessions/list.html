@@ -64,6 +64,10 @@
         <h1 class="page-heading__title">{{ _("Sessions") }}</h1>
         <p class="page-heading__subtitle">{{ _("Monitor current and recent instrument counting sessions.") }}</p>
     </div>
+    <a class="btn btn--primary" href="{{ url_for('web.supervisor_session_new') }}">
+        {{ macros.icon_plus() }}
+        <span>{{ _("New session") }}</span>
+    </a>
 </div>
 
 <section class="card">

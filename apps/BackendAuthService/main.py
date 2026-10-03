@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -10,10 +9,13 @@ from typing import Any, Callable
 import jwt
 from dotenv import load_dotenv
 from flask import Flask, g, jsonify, request
+from redis.exceptions import RedisError
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.engine import Engine
 from werkzeug.security import check_password_hash, generate_password_hash
+
+from token_store import RedisTokenStore, build_token_store
 
 
 load_dotenv()
@@ -65,8 +67,7 @@ if app.config["JWT_SECRET_KEY"] == "change-this-secret" and not app.debug:
 	raise RuntimeError("JWT_SECRET_KEY must be configured outside debug mode")
 
 engine: Engine = create_engine(build_database_url(), pool_pre_ping=True, future=True)
-token_store: dict[str, dict[str, Any]] = {}
-token_store_lock = threading.Lock()
+token_store: RedisTokenStore = build_token_store()
 
 
 def token_from_request(token_type: str | None) -> str | None:
@@ -86,8 +87,18 @@ def set_auth_cookies(response, access_token: str, refresh_token: str):
 		"samesite": app.config["COOKIE_SAMESITE"],
 		"path": "/",
 	}
-	response.set_cookie("access_token", access_token, **common)
-	response.set_cookie("refresh_token", refresh_token, **common)
+	response.set_cookie(
+		"access_token",
+		access_token,
+		max_age=app.config["ACCESS_TOKEN_MINUTES"] * 60,
+		**common,
+	)
+	response.set_cookie(
+		"refresh_token",
+		refresh_token,
+		max_age=app.config["REFRESH_TOKEN_DAYS"] * 86400,
+		**common,
+	)
 	return response
 
 
@@ -125,7 +136,25 @@ def request_json() -> dict[str, Any]:
 	return payload if isinstance(payload, dict) else {}
 
 
-def issue_token(user_id: str, token_type: str, lifetime: timedelta) -> str:
+def normalize_ui_preferences(raw: Any) -> dict[str, Any]:
+	prefs = dict(raw) if isinstance(raw, dict) else {}
+	locale = prefs.get("locale") or prefs.get("language") or "en"
+	if locale == "es":
+		locale = "es-MX"
+	if locale not in {"en", "es-MX"}:
+		locale = "en"
+	theme = prefs.get("theme") or "light"
+	if theme not in {"light", "dark", "system"}:
+		theme = "light"
+	return {"locale": locale, "theme": theme}
+
+
+def issue_token(
+	user_id: str,
+	token_type: str,
+	lifetime: timedelta,
+	institution_id: str | None = None,
+) -> str:
 	issued_at = utc_now()
 	token_id = str(uuid.uuid4())
 	expires_at = issued_at + lifetime
@@ -140,24 +169,18 @@ def issue_token(user_id: str, token_type: str, lifetime: timedelta) -> str:
 		app.config["JWT_SECRET_KEY"],
 		algorithm=app.config["JWT_ALGORITHM"],
 	)
-	with token_store_lock:
-		for stored_jti, stored_token in list(token_store.items()):
-			if stored_token["expires_at"] <= issued_at:
-				del token_store[stored_jti]
-		token_store[token_id] = {
-			"user_id": user_id,
-			"token_type": token_type,
-			"expires_at": expires_at,
-			"revoked": False,
-		}
+	token_store.store_token(
+		jti=token_id,
+		user_id=user_id,
+		institution_id=institution_id,
+		token_type=token_type,
+		expires_at=expires_at,
+	)
 	return token
 
 
 def revoke_token(jti: str) -> None:
-	with token_store_lock:
-		stored_token = token_store.get(jti)
-		if stored_token:
-			stored_token["revoked"] = True
+	token_store.revoke_token(jti)
 
 
 def token_required(token_type: str | None = "access"):
@@ -175,21 +198,23 @@ def token_required(token_type: str | None = "access"):
 				)
 				if token_type and claims.get("type") != token_type:
 					return error("Invalid token type", 401)
-				with token_store_lock:
-					token = token_store.get(claims["jti"])
-				if not token or token["revoked"] or token["expires_at"] <= utc_now():
+				stored = token_store.get_token(claims["jti"])
+				if not stored or stored.get("revoked"):
 					return error("Token is revoked or user is inactive", 401)
-				if token["token_type"] != claims.get("type"):
+				if stored.get("token_type") != claims.get("type"):
 					return error("Invalid token type", 401)
 				with engine.connect() as connection:
 					user = connection.execute(
 						text("SELECT active FROM \"user\" WHERE id = :id"),
-						{"id": token["user_id"]},
+						{"id": stored["user_id"]},
 					).first()
 				if not user or not user[0]:
 					return error("Token is revoked or user is inactive", 401)
 				g.auth_claims = claims
-				g.auth_user_id = token["user_id"]
+				g.auth_user_id = stored["user_id"]
+				g.auth_institution_id = stored.get("institution_id")
+			except RedisError:
+				return error("Session store unavailable", 503)
 			except (jwt.InvalidTokenError, KeyError, SQLAlchemyError):
 				return error("Invalid or expired token", 401)
 			return function(*args, **kwargs)
@@ -203,6 +228,46 @@ def token_required(token_type: str | None = "access"):
 def database_error(exception):
 	app.logger.exception("Database error", exc_info=exception)
 	return error("Database unavailable", 503)
+
+
+@app.errorhandler(RedisError)
+def redis_error(exception):
+	app.logger.exception("Redis error", exc_info=exception)
+	return error("Session store unavailable", 503)
+
+
+@app.get("/health")
+def health():
+	checks = {"postgres": False, "redis": False}
+	try:
+		with engine.connect() as connection:
+			connection.execute(text("SELECT 1"))
+		checks["postgres"] = True
+	except SQLAlchemyError:
+		pass
+	try:
+		checks["redis"] = token_store.ping()
+	except RedisError:
+		pass
+	status = 200 if all(checks.values()) else 503
+	return jsonify({"ok": status == 200, "checks": checks}), status
+
+
+@app.get("/health/redis")
+def health_redis():
+	try:
+		ok = token_store.ping()
+	except RedisError:
+		ok = False
+	return jsonify({"ok": ok}), 200 if ok else 503
+
+
+@app.route("/login", methods=["OPTIONS"])
+@app.route("/logout", methods=["OPTIONS"])
+@app.route("/refresh", methods=["OPTIONS"])
+@app.route("/verify", methods=["OPTIONS"])
+def cors_preflight():
+	return ("", 204)
 
 
 @app.post("/register")
@@ -237,13 +302,48 @@ def login():
 	payload = request_json()
 	email = str(payload.get("email", "")).strip().lower()
 	password = str(payload.get("password", ""))
+	client_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "unknown").split(",")[0].strip()
+	fail_identity = email or client_ip
+
+	try:
+		if token_store.is_login_blocked(fail_identity) or token_store.is_login_blocked(client_ip):
+			return error("Too many failed login attempts. Try again later.", 429)
+	except RedisError:
+		return error("Session store unavailable", 503)
+
 	with engine.connect() as connection:
 		user = connection.execute(
-			text("SELECT id, name, email, password_hash, active FROM \"user\" WHERE email = :email"),
+			text(
+				"""
+				SELECT u.id, u.name, u.email, u.password_hash, u.active, u.ui_preferences,
+				       u.institution_id, i.active AS institution_active
+				FROM "user" u
+				JOIN institution i ON i.id = u.institution_id
+				WHERE u.email = :email
+				"""
+			),
 			{"email": email},
 		).mappings().first()
-	if not user or not user["active"] or not check_password_hash(user["password_hash"], password):
+
+	if (
+		not user
+		or not user["active"]
+		or not user["institution_active"]
+		or not check_password_hash(user["password_hash"], password)
+	):
+		try:
+			token_store.register_login_failure(fail_identity)
+			token_store.register_login_failure(client_ip)
+		except RedisError:
+			return error("Session store unavailable", 503)
 		return error("Invalid credentials", 401)
+
+	try:
+		token_store.clear_login_failures(fail_identity)
+		token_store.clear_login_failures(client_ip)
+	except RedisError:
+		return error("Session store unavailable", 503)
+
 	with engine.begin() as connection:
 		connection.execute(text("UPDATE \"user\" SET last_login_at = now() WHERE id = :id"), {"id": user["id"]})
 	with engine.connect() as connection:
@@ -254,20 +354,37 @@ def login():
 				FROM user_role ur
 				JOIN role r ON r.id = ur.role_id
 				WHERE ur.user_id = :id
-			ORDER BY r.code
+				ORDER BY r.code
 				"""
 			),
 			{"id": user["id"]},
 		).mappings().all()
-	access = issue_token(str(user["id"]), "access", timedelta(minutes=app.config["ACCESS_TOKEN_MINUTES"]))
-	refresh = issue_token(str(user["id"]), "refresh", timedelta(days=app.config["REFRESH_TOKEN_DAYS"]))
-	response = jsonify({"token_type": "Bearer",
-					"user": {
-						"id": str(user["id"]),
-						"name": user["name"],
-						"email": user["email"],
-						"roles": [dict(role) for role in role_rows],
-					}})
+
+	institution_id = str(user["institution_id"])
+	ui_preferences = normalize_ui_preferences(user["ui_preferences"])
+	access = issue_token(
+		str(user["id"]),
+		"access",
+		timedelta(minutes=app.config["ACCESS_TOKEN_MINUTES"]),
+		institution_id=institution_id,
+	)
+	refresh = issue_token(
+		str(user["id"]),
+		"refresh",
+		timedelta(days=app.config["REFRESH_TOKEN_DAYS"]),
+		institution_id=institution_id,
+	)
+	response = jsonify({
+		"token_type": "Bearer",
+		"user": {
+			"id": str(user["id"]),
+			"name": user["name"],
+			"email": user["email"],
+			"institution_id": institution_id,
+			"ui_preferences": ui_preferences,
+			"roles": [dict(role) for role in role_rows],
+		},
+	})
 	return set_auth_cookies(response, access, refresh)
 
 
@@ -275,8 +392,18 @@ def login():
 @token_required("refresh")
 def refresh():
 	revoke_token(g.auth_claims["jti"])
-	access = issue_token(g.auth_user_id, "access", timedelta(minutes=app.config["ACCESS_TOKEN_MINUTES"]))
-	new_refresh = issue_token(g.auth_user_id, "refresh", timedelta(days=app.config["REFRESH_TOKEN_DAYS"]))
+	access = issue_token(
+		g.auth_user_id,
+		"access",
+		timedelta(minutes=app.config["ACCESS_TOKEN_MINUTES"]),
+		institution_id=g.auth_institution_id,
+	)
+	new_refresh = issue_token(
+		g.auth_user_id,
+		"refresh",
+		timedelta(days=app.config["REFRESH_TOKEN_DAYS"]),
+		institution_id=g.auth_institution_id,
+	)
 	return set_auth_cookies(jsonify({"token_type": "Bearer"}), access, new_refresh)
 
 
@@ -284,6 +411,21 @@ def refresh():
 @token_required(None)
 def logout():
 	revoke_token(g.auth_claims["jti"])
+	# Also revoke the sibling cookie when both are present.
+	for cookie_name in ("access_token", "refresh_token"):
+		raw = request.cookies.get(cookie_name)
+		if not raw:
+			continue
+		try:
+			claims = jwt.decode(
+				raw,
+				app.config["JWT_SECRET_KEY"],
+				algorithms=[app.config["JWT_ALGORITHM"]],
+			)
+			if claims.get("jti") and claims["jti"] != g.auth_claims["jti"]:
+				revoke_token(claims["jti"])
+		except jwt.InvalidTokenError:
+			continue
 	return clear_auth_cookies(jsonify({"message": "Logged out"}))
 
 
@@ -294,7 +436,7 @@ def verify():
 		user = connection.execute(
 			text(
 				"""
-				SELECT u.id, u.name, u.email, u.institution_id,
+				SELECT u.id, u.name, u.email, u.institution_id, u.ui_preferences,
 				       r.code AS role_code, r.description AS role_description
 				FROM "user" u
 				LEFT JOIN user_role ur ON ur.user_id = u.id
@@ -320,6 +462,7 @@ def verify():
 			"name": first_user["name"],
 			"email": first_user["email"],
 			"institution_id": str(first_user["institution_id"]),
+			"ui_preferences": normalize_ui_preferences(first_user["ui_preferences"]),
 			"roles": roles,
 		},
 	})
@@ -329,10 +472,24 @@ def verify():
 def password_forgot():
 	email = str(request_json().get("email", "")).strip().lower()
 	with engine.connect() as connection:
-		user = connection.execute(text("SELECT id FROM \"user\" WHERE email = :email AND active = true"), {"email": email}).first()
+		user = connection.execute(
+			text(
+				"""
+				SELECT u.id, u.institution_id
+				FROM "user" u
+				WHERE u.email = :email AND u.active = true
+				"""
+			),
+			{"email": email},
+		).mappings().first()
 	response: dict[str, Any] = {"message": "If the account exists, password reset instructions were created"}
 	if user:
-		reset_token = issue_token(str(user[0]), "password_reset", timedelta(minutes=app.config["RESET_TOKEN_MINUTES"]))
+		reset_token = issue_token(
+			str(user["id"]),
+			"password_reset",
+			timedelta(minutes=app.config["RESET_TOKEN_MINUTES"]),
+			institution_id=str(user["institution_id"]),
+		)
 		if app.config["RETURN_RESET_TOKEN"]:
 			response["reset_token"] = reset_token
 	return jsonify(response)
