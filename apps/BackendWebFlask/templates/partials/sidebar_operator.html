@@ -2,6 +2,12 @@
 {% set active_nav_item = active_nav_item|default('counting_sessions') %}
 {% set nav_urls = nav_urls|default({}) %}
 
+{#
+    Operator sidebar (V3 — ui_reference_v3/operator). Only Assigned Sessions + Account.
+    The previous Dashboard / New Session / Session History entries are no longer linked here;
+    their routes and templates still exist (see legacy/README.md) until the cleanup task.
+#}
+
 <div class="sidebar__brand">
     <p class="sidebar__brand-name">{{ _("Surgical Instrument") }}</p>
     <p class="sidebar__brand-subtitle">{{ _("Traceability System") }}</p>
@@ -9,22 +15,14 @@
 
 <nav class="sidebar__nav" aria-label="{{ _('Operator navigation') }}">
     <div class="sidebar__section">
-        <p class="sidebar__section-label">{{ _("Operations") }}</p>
+        <p class="sidebar__section-label">{{ _("Work") }}</p>
         <ul class="sidebar__nav-list">
             <li>
                 <a class="sidebar__nav-link{% if active_nav_item == 'counting_sessions' %} sidebar__nav-link--active{% endif %}"
                    href="{{ nav_urls.counting_sessions|default('#') }}"
                    {% if active_nav_item == 'counting_sessions' %}aria-current="page"{% endif %}>
                     {{ macros.icon_clipboard() }}
-                    <span>{{ _("My Sessions") }}</span>
-                </a>
-            </li>
-            <li>
-                <a class="sidebar__nav-link{% if active_nav_item == 'session_history' %} sidebar__nav-link--active{% endif %}"
-                   href="{{ nav_urls.session_history|default('#') }}"
-                   {% if active_nav_item == 'session_history' %}aria-current="page"{% endif %}>
-                    {{ macros.icon_history() }}
-                    <span>{{ _("Session History") }}</span>
+                    <span>{{ _("Assigned Sessions") }}</span>
                 </a>
             </li>
         </ul>
@@ -45,26 +43,6 @@
                 <a class="sidebar__nav-link" href="{{ nav_urls.sign_out|default('#') }}" data-auth-logout>
                     {{ macros.icon_sign_out() }}
                     <span>{{ _("Sign Out") }}</span>
-                </a>
-            </li>
-        </ul>
-    </div>
-
-    <div class="sidebar__section">
-        <p class="sidebar__section-label">{{ _("Legacy") }}</p>
-        <ul class="sidebar__nav-list">
-            <li>
-                <a class="sidebar__nav-link{% if active_nav_item == 'dashboard' %} sidebar__nav-link--active{% endif %}"
-                   href="{{ nav_urls.legacy_dashboard|default('/legacy/operator/dashboard') }}">
-                    {{ macros.icon_grid() }}
-                    <span>{{ _("Dashboard (legacy)") }}</span>
-                </a>
-            </li>
-            <li>
-                <a class="sidebar__nav-link{% if active_nav_item == 'new_session' %} sidebar__nav-link--active{% endif %}"
-                   href="{{ nav_urls.legacy_new_session|default('/legacy/operator/sessions/new') }}">
-                    {{ macros.icon_plus_circle() }}
-                    <span>{{ _("New Session (legacy)") }}</span>
                 </a>
             </li>
         </ul>

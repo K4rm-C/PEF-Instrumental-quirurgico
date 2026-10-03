@@ -1,0 +1,490 @@
+/*
+  V3 page styles shared by the Supervisor and Operator V3 templates (ui_reference_v3/), loaded
+  via {% block page_styles %}: layout primitives (.v3-page, .v3-columns, .v3-kv-list,
+  .v3-metric-tiles, .v3-form-footer, .v3-panel ...) plus the Supervisor-only rules (review
+  queue, wizard, indicators). Operator-only rules live in pages/operator-v3.css. Every rule is
+  scoped under .v3-page or uses a v3-prefixed class, so Administrator / Shared pages and
+  existing global classes are unaffected. (Renamed from supervisor-v3.css; rules unchanged.)
+*/
+
+.v3-page {
+    /* position: relative makes .v3-page the containing block for absolutely positioned
+       helpers (e.g. .visually-hidden labels). Without it they are placed relative to the
+       document root and, deep inside the scrolled .page-content, stretch the document past
+       the viewport -> a second (document) vertical scrollbar. */
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+/* Compact V3 table rows (V3 pages only; global .data-table is unchanged). */
+.v3-page .data-table th,
+.v3-page .data-table td {
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+}
+
+/* Tables placed in a narrow column wrap their cells instead of overflowing horizontally. */
+.v3-page .v3-wrap-table th,
+.v3-page .v3-wrap-table td {
+    white-space: normal;
+}
+
+/* Compact status sub-panels inside V3 pages (global .sub-panel is unchanged). */
+.v3-page .sub-panel {
+    padding: var(--space-3);
+    gap: var(--space-1);
+}
+
+.v3-page .btn:disabled,
+.v3-page .btn[aria-disabled="true"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Two-column layouts used by Session Details / Review Detail. */
+.v3-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-4);
+    align-items: start;
+}
+
+.v3-columns--narrow-wide {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+}
+
+.v3-columns--wide-narrow {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
+.v3-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+    min-width: 0;
+}
+
+.v3-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+}
+
+.v3-card-header .card__title {
+    margin-bottom: 0;
+}
+
+/* Vertical label/value list (Session Summary). */
+.v3-summary-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+}
+
+/* Multi-column variant: same label/value items, laid out in a responsive grid. */
+.v3-summary-list--grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: var(--space-3) var(--space-6);
+}
+
+.v3-summary-list--grid > .v3-summary-list__wide {
+    grid-column: 1 / -1;
+}
+
+/* Two-column key/value variant (metadata blocks). */
+.v3-kv-list--grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-6);
+}
+
+.v3-kv-list--grid > div:nth-last-child(2):nth-child(odd) {
+    border-bottom: none;
+}
+
+.v3-summary-list dt {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.v3-summary-list dd {
+    margin: 2px 0 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+/* Horizontal label ... value rows (comparison, metadata, review summaries). */
+.v3-kv-list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+}
+
+.v3-kv-list > div {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.v3-kv-list > div:last-child {
+    border-bottom: none;
+}
+
+.v3-kv-list dt {
+    color: var(--color-text-secondary);
+}
+
+.v3-kv-list dd {
+    margin: 0;
+    font-weight: var(--font-weight-semibold);
+    text-align: right;
+}
+
+/* Header card shown at the top of every Review Detail tab and on Review & Activity. */
+.v3-case-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.v3-case-header__title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-case-header__subtitle {
+    color: var(--color-text-secondary);
+}
+
+.v3-case-header__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+/* Pre/Post tiles. */
+.v3-metric-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--space-3);
+}
+
+.v3-metric-tile {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-secondary);
+    min-height: 72px;
+}
+
+.v3-metric-tile__label {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+}
+
+.v3-metric-tile__value {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+}
+
+.v3-metric-tile__note {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-metric-tile--warning {
+    border-color: var(--color-warning);
+    background-color: var(--color-warning-surface);
+    color: var(--color-warning);
+}
+
+.v3-metric-tile--danger {
+    border-color: var(--color-danger);
+    background-color: var(--color-danger-surface);
+    color: var(--color-danger);
+}
+
+/* Review Queue summary cards (badge + count + description). */
+.v3-queue-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+}
+
+.v3-queue-card__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-2);
+}
+
+.v3-queue-card__value {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+}
+
+/* Compact numeric pill (Difference column, "-1"). */
+.v3-diff-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--color-border-strong);
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-diff-pill--danger {
+    border-color: var(--color-danger);
+    background-color: var(--color-danger-surface);
+    color: var(--color-danger);
+}
+
+.v3-count-triplet {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+/* Review case callouts (Session Details -> Review & Activity). */
+.v3-callout {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background-color: var(--color-warning-surface);
+    color: var(--color-warning);
+}
+
+.v3-callout + .v3-callout {
+    margin-top: var(--space-3);
+}
+
+.v3-callout__body {
+    flex: 1;
+    min-width: 0;
+}
+
+.v3-callout__title {
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-callout__detail {
+    font-size: var(--font-size-sm);
+}
+
+/* Selectable case cards (Review Detail -> Resolution). */
+.v3-case-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.v3-case-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: inherit;
+    text-decoration: none;
+}
+
+.v3-case-card:hover {
+    border-color: var(--color-border-strong);
+}
+
+.v3-case-card--selected,
+.v3-case-card--selected:hover {
+    border: 2px solid var(--color-primary);
+}
+
+.v3-case-card__title {
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-case-card__meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.v3-panel {
+    padding: var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-secondary);
+}
+
+.v3-panel__title {
+    margin-bottom: var(--space-3);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+}
+
+/* In-content footer with actions split left/right (Resolution, Final Validation, wizard). */
+.v3-form-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.v3-form-footer__group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+/* Labelled filter row (Reports, Audit Log). */
+.v3-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-3);
+    align-items: end;
+}
+
+.v3-filter-grid--search {
+    grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(140px, 1fr));
+}
+
+/* Inline period selector placed in the Indicators page heading (not the shared header). */
+.v3-period-select {
+    min-width: 180px;
+}
+
+/* Wizard. */
+.v3-wizard-panel[hidden] {
+    display: none;
+}
+
+.v3-wizard-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.v3-wizard-panel h2:focus {
+    outline: none;
+}
+
+/* Stepper marker: number while pending/current, check icon once complete. */
+.v3-page .v3-stepper__marker-check {
+    display: none;
+}
+
+.v3-page .v3-stepper__step--complete .v3-stepper__marker-number {
+    display: none;
+}
+
+.v3-page .v3-stepper__step--complete .v3-stepper__marker-check {
+    display: inline-block;
+}
+
+.v3-team-table .form-field__input {
+    min-width: 0;
+}
+
+.v3-add-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-top: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+    background-color: var(--color-surface-secondary);
+    color: var(--color-primary);
+    font: inherit;
+    font-weight: var(--font-weight-semibold);
+    cursor: pointer;
+}
+
+.v3-add-row:hover {
+    background-color: var(--color-primary-surface);
+}
+
+.v3-muted-note {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.v3-empty-state {
+    padding: var(--space-6);
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+
+.v3-total-row th,
+.v3-total-row td {
+    font-weight: var(--font-weight-bold);
+    background-color: var(--color-surface-secondary);
+}
+
+/* Indicators shows five KPI tiles (shared .stat-card-grid is four columns). */
+.v3-page .v3-kpi-grid--five {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+    .v3-page .v3-kpi-grid--five {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .v3-filter-grid--search {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .v3-kv-list--grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .v3-page .v3-kpi-grid--five {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .v3-queue-summary,
+    .v3-columns,
+    .v3-columns--narrow-wide,
+    .v3-columns--wide-narrow {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .v3-case-header {
+        flex-direction: column;
+    }
+}

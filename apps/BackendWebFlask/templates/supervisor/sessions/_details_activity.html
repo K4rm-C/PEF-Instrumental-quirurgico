@@ -1,0 +1,95 @@
+{# Session Details -> Review & Activity (supervisor-session-details-review-activity.png). #}
+{% set s = v3.session %}
+<section class="card">
+    <div class="v3-case-header">
+        <div class="v3-case-header__badges">
+            {{ macros.status_badge(s.operator_name, 'neutral') }}
+            <div>
+                <p class="v3-case-header__title">{{ _("Session %(session)s", session=s.session_id) }}</p>
+                <p class="v3-case-header__subtitle">{{ s.procedure_label|default(s.procedure_name ~ ' - ' ~ s.operating_room) }}</p>
+            </div>
+        </div>
+        <div class="v3-case-header__badges">
+            {{ macros.status_badge(_(s.session_status.label), s.session_status.variant) }}
+            {{ macros.status_badge(_(s.review_status.label), s.review_status.variant) }}
+        </div>
+    </div>
+</section>
+
+<div class="v3-columns v3-columns--wide-narrow">
+    <div class="v3-stack">
+        <section class="card">
+            <h2 class="card__title">{{ _("Discrepancy Details") }}</h2>
+            {% for case in v3.review_cases %}
+            <div class="v3-callout">
+                {{ macros.icon_alert_triangle() }}
+                <div class="v3-callout__body">
+                    <p class="v3-callout__title">{{ case.instrument_name }}</p>
+                    <p class="v3-callout__detail">
+                        {{ _("Expected %(expected)s, Counted %(counted)s", expected=case.expected_quantity, counted=case.validated) }}
+                        | {{ _("Reason: %(reason)s", reason=_(case.type_label)) }}
+                    </p>
+                </div>
+                <a class="btn btn--primary btn--small"
+                   href="{{ url_for('web.supervisor_discrepancy_review', session_id=s.session_id, tab='overview', case=case.case_key) if case.case_key else url_for('web.supervisor_discrepancy_review', session_id=s.session_id, tab='overview') }}">{{ _("Open Review") }}</a>
+            </div>
+            {% else %}
+            <p class="v3-muted-note">{{ _("No review cases were escalated for this session.") }}</p>
+            {% endfor %}
+        </section>
+
+        {% if v3.review_cases %}
+        <section class="card">
+            <h2 class="card__title">{{ _("Review Queue") }}</h2>
+            <div class="table-wrapper">
+                <table class="data-table v3-wrap-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ _("Time") }}</th>
+                            <th scope="col">{{ _("Instrument") }}</th>
+                            <th scope="col">{{ _("Diff") }}</th>
+                            <th scope="col">{{ _("Status") }}</th>
+                            <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for case in v3.review_cases %}
+                        <tr>
+                            <td>{{ case.escalated_time or '—' }}</td>
+                            <th scope="row">{{ case.instrument_name }}</th>
+                            <td class="{{ 'text-danger' if case.difference else 'text-success' }}"><strong>{{ case.difference }}</strong></td>
+                            <td>{{ macros.status_badge(_(case.review_status.label), case.review_status.variant) }}</td>
+                            <td class="data-table__action-column">
+                                <a class="btn btn--primary btn--small"
+                                   href="{{ url_for('web.supervisor_discrepancy_review', session_id=s.session_id, tab='overview', case=case.case_key) if case.case_key else url_for('web.supervisor_discrepancy_review', session_id=s.session_id, tab='overview') }}">{{ _("Open Review") }}</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+    </div>
+
+    <section class="card">
+        <h2 class="card__title">{{ _("Session Activity") }}</h2>
+        {% if v3.timeline %}
+        <ol class="v3-timeline">
+            {% for event in v3.timeline %}
+            <li class="v3-timeline__item">
+                <span class="v3-timeline__time">{{ event.time }}</span>
+                <div class="v3-timeline__body">
+                    <p class="v3-timeline__title">
+                        {{ _(event.label) }}{% if event.actor %} <span class="v3-muted-note">{{ _("by %(actor)s", actor=event.actor) }}</span>{% endif %}
+                    </p>
+                    <p class="v3-timeline__detail">{{ _(event.detail) }}</p>
+                </div>
+            </li>
+            {% endfor %}
+        </ol>
+        {% else %}
+        <p class="v3-muted-note">{{ _("No activity has been recorded for this session yet.") }}</p>
+        {% endif %}
+    </section>
+</div>

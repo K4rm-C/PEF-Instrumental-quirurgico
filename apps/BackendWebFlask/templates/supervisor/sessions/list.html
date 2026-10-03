@@ -1,6 +1,14 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
+{#
+    Supervisor Sessions (V3 — ui_reference_v3/supervisor/supervisor-sessions.png).
+    session_rows: view_data.supervisor_v3_sessions() (demo) or supervisor_v3_rows_from_rf().
+    Session Status and Review Status are separate dimensions and separate columns.
+    The success banner (?created=WS-027) arrives as feedback_banner via the layout.
+    Filters are presentation-only, like the previous list filters.
+#}
+
 {% block title %}{{ _("Sessions") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
 {% block sidebar %}
@@ -16,156 +24,119 @@
 </ol>
 {% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+{% endblock %}
+
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    sessions, sessions_shown_count, sessions_total_count, current_page, total_pages,
-    previous_url, and next_url below are placeholder values used only so this page is
-    visually reviewable before the backend supplies real data. This is a read-only
-    monitoring view: no "New Session" action and no Operator-only row actions (Continue,
-    Edit Count, Validate Count). Expected shapes are documented in FRONTEND_INTEGRATION.md.
-#}
-{% set sessions = sessions|default([
-    {
-        'session_id': 'WS-026', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
-        'kit_name': 'Delivery Kit', 'operator_name': 'Alex Morgan', 'capture_station_name': 'Station CDE-01',
-        'started_at': '15:20', 'status_label': _('Awaiting Review'), 'status_variant': 'pending',
-        'action_label': _('Review'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-026')
-    },
-    {
-        'session_id': 'WS-025', 'procedure_name': 'Cholecystectomy', 'operating_room': 'OR-1',
-        'kit_name': 'Suture Kit', 'operator_name': 'Jordan Brooks', 'capture_station_name': 'Station CDE-02',
-        'started_at': '14:10', 'status_label': _('In Progress'), 'status_variant': 'info',
-        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-025')
-    },
-    {
-        'session_id': 'WS-024', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
-        'kit_name': 'General Surgery Kit', 'operator_name': 'Priya Nair', 'capture_station_name': 'Station CDE-01',
-        'started_at': '11:30', 'status_label': _('Correction Required'), 'status_variant': 'danger',
-        'action_label': _('Review'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-024')
-    },
-    {
-        'session_id': 'WS-023', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-1',
-        'kit_name': 'Delivery Kit', 'operator_name': 'Olivia Chen', 'capture_station_name': 'Station CDE-03',
-        'started_at': '09:45', 'status_label': _('Ready to Close'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-023')
-    }
-], true) %}
-{% set sessions_shown_count = sessions_shown_count|default(sessions|length, true) %}
-{% set sessions_total_count = sessions_total_count|default(24, true) %}
-{% set current_page = current_page|default(1, true) %}
-{% set total_pages = total_pages|default(6, true) %}
-{% set previous_url = previous_url|default('#', true) %}
-{% set next_url = next_url|default('#', true) %}
-
-<div class="page-heading">
-    <div>
-        <h1 class="page-heading__title">{{ _("Sessions") }}</h1>
-        <p class="page-heading__subtitle">{{ _("Monitor current and recent instrument counting sessions.") }}</p>
+<div class="v3-page">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-heading__title">{{ _("Sessions") }}</h1>
+            <p class="page-heading__subtitle">{{ _("Monitor current and recent instrument counting sessions.") }}</p>
+        </div>
+        <a class="btn btn--primary" href="{{ url_for('web.supervisor_session_new') }}">
+            {{ macros.icon_plus() }}
+            <span>{{ _("New Session") }}</span>
+        </a>
     </div>
-    <a class="btn btn--primary" href="{{ url_for('web.supervisor_session_new') }}">
-        {{ macros.icon_plus() }}
-        <span>{{ _("New session") }}</span>
-    </a>
-</div>
 
-<section class="card">
-    {# Filters are presentation-only in this iteration: no client-side or server-side
-       filtering is wired up yet. #}
-    <form class="filter-bar" action="#" method="get" role="search">
-        <div class="filter-bar__search">
-            <label class="visually-hidden" for="supervisor-sessions-search">{{ _("Search Sessions") }}</label>
-            <div class="form-field__input-wrapper">
-                <span class="form-field__icon">{{ macros.icon_search() }}</span>
-                <input class="form-field__input" type="search" id="supervisor-sessions-search" name="search"
-                       placeholder="{{ _('Search sessions...') }}">
+    <section class="card">
+        <form class="filter-bar" action="{{ url_for('web.supervisor_sessions') }}" method="get" role="search">
+            <div class="filter-bar__search">
+                <label class="visually-hidden" for="supervisor-sessions-search">{{ _("Search Sessions") }}</label>
+                <div class="form-field__input-wrapper">
+                    <span class="form-field__icon">{{ macros.icon_search() }}</span>
+                    <input class="form-field__input" type="search" id="supervisor-sessions-search" name="search"
+                           placeholder="{{ _('Search sessions...') }}">
+                </div>
             </div>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="supervisor-sessions-status">{{ _("Status") }}</label>
-            <select class="form-field__input form-field__input--plain" id="supervisor-sessions-status" name="status">
-                <option value="">{{ _("All Statuses") }}</option>
-                <option value="in_progress">{{ _("In Progress") }}</option>
-                <option value="awaiting_review">{{ _("Awaiting Review") }}</option>
-                <option value="correction_required">{{ _("Correction Required") }}</option>
-                <option value="ready_to_close">{{ _("Ready to Close") }}</option>
-                <option value="closed">{{ _("Closed") }}</option>
-            </select>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="supervisor-sessions-kit">{{ _("Kit") }}</label>
-            <select class="form-field__input form-field__input--plain" id="supervisor-sessions-kit" name="kit">
-                <option value="">{{ _("All Kits") }}</option>
-                <option value="delivery-kit">{{ _("Delivery Kit") }}</option>
-                <option value="suture-kit">{{ _("Suture Kit") }}</option>
-                <option value="general-surgery-kit">{{ _("General Surgery Kit") }}</option>
-            </select>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="supervisor-sessions-operator">{{ _("Operator") }}</label>
-            <select class="form-field__input form-field__input--plain" id="supervisor-sessions-operator" name="operator">
-                <option value="">{{ _("All Operators") }}</option>
-                <option value="alex-morgan">{{ _("Alex Morgan") }}</option>
-                <option value="emily-carter">{{ _("Emily Carter") }}</option>
-                <option value="daniel-lee">{{ _("Daniel Lee") }}</option>
-            </select>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="supervisor-sessions-date">{{ _("Date") }}</label>
-            <select class="form-field__input form-field__input--plain" id="supervisor-sessions-date" name="date">
-                <option value="">{{ _("All Dates") }}</option>
-                <option value="today">{{ _("Today") }}</option>
-                <option value="last-7-days">{{ _("Last 7 Days") }}</option>
-                <option value="last-30-days">{{ _("Last 30 Days") }}</option>
-            </select>
-        </div>
-    </form>
-</section>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="supervisor-sessions-status">{{ _("Session Status") }}</label>
+                <select class="form-field__input form-field__input--plain" id="supervisor-sessions-status" name="session_status">
+                    <option value="">{{ _("All Session Statuses") }}</option>
+                    {% for status in filter_options.session_statuses %}
+                    <option value="{{ status.code }}">{{ _(status.label) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="supervisor-sessions-review">{{ _("Review Status") }}</label>
+                <select class="form-field__input form-field__input--plain" id="supervisor-sessions-review" name="review_status">
+                    <option value="">{{ _("All Review Statuses") }}</option>
+                    {% for status in filter_options.review_statuses %}
+                    <option value="{{ status.code }}">{{ _(status.label) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="supervisor-sessions-kit">{{ _("Kit") }}</label>
+                <select class="form-field__input form-field__input--plain" id="supervisor-sessions-kit" name="kit">
+                    <option value="">{{ _("All Kits") }}</option>
+                    {% for kit in filter_options.kits %}
+                    <option value="{{ kit }}">{{ _(kit) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="supervisor-sessions-date">{{ _("Date") }}</label>
+                <select class="form-field__input form-field__input--plain" id="supervisor-sessions-date" name="date">
+                    <option value="">{{ _("All Dates") }}</option>
+                    {% for date in filter_options.dates %}
+                    <option value="{{ date }}">{{ _(date) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </section>
 
-<section class="card">
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th scope="col">{{ _("Session / Procedure") }}</th>
-                    <th scope="col">{{ _("Kit") }}</th>
-                    <th scope="col">{{ _("Operator") }}</th>
-                    <th scope="col">{{ _("Capture Station") }}</th>
-                    <th scope="col">{{ _("Started") }}</th>
-                    <th scope="col">{{ _("Status") }}</th>
-                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for session in sessions %}
-                <tr>
-                    <th scope="row">
-                        <span class="data-table__primary">{{ session.session_id }}</span>
-                        <span class="data-table__secondary">{{ session.procedure_name }} - {{ session.operating_room }}</span>
-                    </th>
-                    <td>{{ session.kit_name }}</td>
-                    <td>{{ session.operator_name }}</td>
-                    <td>{{ session.capture_station_name }}</td>
-                    <td>{{ session.started_at }}</td>
-                    <td>{{ macros.status_badge(session.status_label, session.status_variant) }}</td>
-                    <td class="data-table__action-column">
-                        <a class="btn btn--small {{ 'btn--accent' if session.action_label == _('Review') else 'btn--secondary' }}"
-                           href="{{ session.action_url }}">{{ session.action_label }}</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <nav class="pagination" aria-label="{{ _('Pagination') }}">
-        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s sessions", shown=sessions_shown_count, total=sessions_total_count) }}</p>
-        <div class="pagination__controls">
-            <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
-            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
-            <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
+    <section class="card">
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Session / Procedure") }}</th>
+                        <th scope="col">{{ _("Kit") }}</th>
+                        <th scope="col">{{ _("Operator") }}</th>
+                        <th scope="col">{{ _("Station") }}</th>
+                        <th scope="col">{{ _("Started") }}</th>
+                        <th scope="col">{{ _("Session Status") }}</th>
+                        <th scope="col">{{ _("Review Status") }}</th>
+                        <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in session_rows %}
+                    <tr>
+                        <th scope="row">
+                            <span class="data-table__primary">{{ row.session_id }}</span>
+                            <span class="data-table__secondary">{{ row.procedure_label }}</span>
+                        </th>
+                        <td>{{ row.kit_name }}</td>
+                        <td>{{ row.operator_name }}</td>
+                        <td>{{ row.capture_station }}</td>
+                        <td>{{ row.started_time or '—' }}</td>
+                        <td>{{ macros.status_badge(_(row.session_status.label), row.session_status.variant) }}</td>
+                        <td>{{ macros.status_badge(_(row.review_status.label), row.review_status.variant) }}</td>
+                        <td class="data-table__action-column">
+                            <a class="btn btn--small btn--{{ row.action.style }}" href="{{ row.action.url }}">{{ _(row.action.label) }}</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8">{{ _("No sessions found.") }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-    </nav>
-</section>
+
+        <nav class="pagination" aria-label="{{ _('Pagination') }}">
+            <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s sessions", shown=session_rows|length, total=list_meta.total) }}</p>
+            <div class="pagination__controls">
+                <a class="btn btn--secondary btn--small" href="#" aria-disabled="true">{{ _("Previous") }}</a>
+                <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=1, total=list_meta.pages) }}</span>
+                <a class="btn btn--secondary btn--small" href="#">{{ _("Next") }}</a>
+            </div>
+        </nav>
+    </section>
+</div>
 {% endblock %}

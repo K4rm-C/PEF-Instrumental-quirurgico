@@ -1,0 +1,42 @@
+{% import "components/macros.html" as macros %}
+{#
+    V3 "Mark as Reviewed – Unresolved" modal (ui_reference_v3/supervisor/supervisor-mark-unresolved.png).
+    Used only by the V3 Review Detail Resolution tab; replaces the V2 Request Correction /
+    Reject actions in V3 (those legacy modals are untouched and no longer included by V3).
+
+    Expected context: selected_case (V3 review case), form_action, state_fields.
+    Review notes are required (HTML validation, re-checked by the route). Demo only: the
+    route redirects to the projected state and does not persist anything.
+#}
+<div class="modal-overlay" id="mark-unresolved-modal" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true"
+         aria-labelledby="mark-unresolved-modal-title" aria-describedby="mark-unresolved-modal-description">
+        <h2 class="modal-dialog__title" id="mark-unresolved-modal-title">{{ _("Mark as Reviewed – Unresolved") }}</h2>
+        <p class="modal-dialog__description" id="mark-unresolved-modal-description">
+            {{ _("Record the unresolved review outcome and reason for keeping this case open.") }}
+        </p>
+        <form method="post" action="{{ form_action }}">
+            <input type="hidden" name="v3_action" value="mark_unresolved">
+            <input type="hidden" name="case" value="{{ selected_case.case_key }}">
+            <input type="hidden" name="resolved" value="{{ state_fields.resolved }}">
+            <input type="hidden" name="unresolved" value="{{ state_fields.unresolved }}">
+            <dl class="modal-dialog__info-box">
+                <div class="modal-dialog__info-row"><dt>{{ _("Instrument") }}</dt><dd>{{ selected_case.instrument_name }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Expected") }}</dt><dd>{{ selected_case.expected_quantity }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("AI") }}</dt><dd>{{ selected_case.ai_detected }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Operator Validated") }}</dt><dd>{{ selected_case.validated }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Difference") }}</dt><dd class="{{ 'text-danger' if selected_case.difference else 'text-success' }}">{{ selected_case.difference }}</dd></div>
+            </dl>
+            <div class="form-field">
+                <label class="form-field__label" for="mark-unresolved-notes">{{ _("Reason / Review Notes") }} *</label>
+                <textarea class="form-field__textarea" id="mark-unresolved-notes" name="review_notes" rows="3" required
+                          placeholder="{{ _('Available evidence is insufficient to approve the current resolution.') }}"></textarea>
+            </div>
+            <p class="v3-muted-note">{{ _("Marking this case as Reviewed – Unresolved keeps it open in the Supervisor queue.") }}</p>
+            <div class="modal-dialog__actions">
+                <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
+                <button type="submit" class="btn btn--primary">{{ _("Mark as Unresolved") }}</button>
+            </div>
+        </form>
+    </div>
+</div>

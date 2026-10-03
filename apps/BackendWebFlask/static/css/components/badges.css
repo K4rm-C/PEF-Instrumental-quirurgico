@@ -53,6 +53,16 @@
     color: var(--color-neutral);
 }
 
+/* V3 outlined pill (severity "Critical" / "Info", AI result "Missing"). Combine with a
+   color variant: class="status-badge status-badge--danger status-badge--outline". Declared
+   after the variants so its transparent background wins at equal specificity; it changes
+   nothing for badges that don't opt in. */
+.status-badge--outline {
+    background-color: transparent;
+    border: 1px solid currentColor;
+    border-radius: var(--radius-sm);
+}
+
 /* Semantic text-color utilities for values that convey match/discrepancy status without a
    full badge (e.g. the Difference column in a count comparison table). */
 .text-success {

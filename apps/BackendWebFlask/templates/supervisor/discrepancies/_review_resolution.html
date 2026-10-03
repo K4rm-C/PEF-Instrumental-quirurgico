@@ -1,0 +1,105 @@
+{#
+    Review Detail -> Resolution (supervisor-review-detail-resolution.png).
+    Demo only: Resolve / Mark as Reviewed – Unresolved / Save Draft POST back to the review
+    route, which redirects with the updated projection (resolved=/unresolved=) — nothing is
+    persisted. "Validation History" is the Operator/AI activity, not Supervisor history.
+#}
+{% if v3.is_full_case and selected_case %}
+{% set case = selected_case %}
+{% set history = v3.validation_history_event %}
+{% set current_resolution = case.applied_resolution or case.resolution %}
+{% set all_reviewed = v3.final_validation.reviewed == v3.review_cases|length %}
+
+{% if all_reviewed %}
+<div class="alert alert--success" role="status">
+    {{ macros.icon_check_circle() }}
+    <div class="alert__content">
+        <p class="alert__title">{{ _("All review cases have a Supervisor decision.") }}</p>
+        <p class="alert__description"><a href="{{ final_url }}">{{ _("Continue to Final Validation") }}</a></p>
+    </div>
+</div>
+{% endif %}
+
+<section class="card">
+    <h2 class="card__title">{{ _("Resolution") }}</h2>
+    <div class="v3-columns v3-columns--narrow-wide">
+        <div class="v3-panel">
+            <div class="v3-card-header">
+                <p class="v3-panel__title">{{ _("Open Discrepancies") }}</p>
+                <span class="status-badge status-badge--danger status-badge--outline">{{ _("%(count)s Open", count=v3.open_review_cases) }}</span>
+            </div>
+            <ul class="v3-case-list">
+                {% for item in v3.review_cases %}
+                <li>
+                    <a class="v3-case-card{% if item.case_key == case.case_key %} v3-case-card--selected{% endif %}"
+                       href="{{ case_urls[item.case_key] }}"{% if item.case_key == case.case_key %} aria-current="true"{% endif %}>
+                        <span>
+                            <span class="v3-case-card__title">{{ item.instrument_name }}</span><br>
+                            <span class="v3-case-card__meta">{{ item.kit_label }}</span>
+                        </span>
+                        <span class="v3-case-header__badges">
+                            {{ macros.status_badge(_(item.type_short), 'danger' if item.difference else 'warning') }}
+                            {{ macros.status_badge(_(item.review_status.label), item.review_status.variant) }}
+                        </span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <form class="v3-panel" id="v3-resolution-form" method="post" action="{{ form_action }}">
+            <input type="hidden" name="case" value="{{ case.case_key }}">
+            <input type="hidden" name="resolved" value="{{ state_fields.resolved }}">
+            <input type="hidden" name="unresolved" value="{{ state_fields.unresolved }}">
+            <div class="v3-card-header">
+                <p class="v3-panel__title">{{ _("Supervisor Resolution") }} · {{ case.instrument_name }}</p>
+                {{ macros.status_badge(_(case.review_status.label), case.review_status.variant) }}
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="v3-resolution-type">{{ _("Resolution Type") }}</label>
+                <div class="form-field__input-wrapper">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="v3-resolution-type" name="resolution_type" required>
+                        {% for option in v3.resolution_types %}
+                        <option value="{{ option }}" {% if option == current_resolution.resolution_type %}selected{% endif %}>{{ _(option) }}</option>
+                        {% endfor %}
+                    </select>
+                    <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+                </div>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="v3-resolution-notes">{{ _("Resolution Notes") }}</label>
+                <textarea class="form-field__textarea" id="v3-resolution-notes" name="resolution_notes" rows="3">{{ _(current_resolution.notes) }}</textarea>
+            </div>
+        </form>
+    </div>
+
+    <div class="v3-panel" style="margin-top: var(--space-4);">
+        <p class="v3-panel__title">{{ _("Validation History") }}</p>
+        <dl class="v3-kv-list v3-kv-list--grid">
+            <div><dt>{{ _("Instrument") }}</dt><dd>{{ case.instrument_name }}</dd></div>
+            <div><dt>{{ _("Expected") }}</dt><dd>{{ case.expected_quantity }}</dd></div>
+            <div><dt>{{ _("AI") }}</dt><dd>{{ case.ai_detected }}</dd></div>
+            <div><dt>{{ _("Operator Validated") }}</dt><dd>{{ case.validated }}</dd></div>
+            <div><dt>{{ _("Event") }}</dt><dd>{{ _(history.event) }}</dd></div>
+            <div><dt>{{ _("Notes") }}</dt><dd>{{ _(case.operator_validation.notes) }}</dd></div>
+            <div><dt>{{ _("Actor") }}</dt><dd>{{ history.actor }} · {{ _("Role: %(role)s", role=_(history.actor_role)) }}</dd></div>
+            <div><dt>{{ _("Timestamp") }}</dt><dd>{{ history.timestamp }}</dd></div>
+        </dl>
+        <p class="v3-muted-note">{{ _(history.description) }}</p>
+    </div>
+</section>
+
+<div class="v3-form-footer">
+    <button type="button" class="btn btn--danger" data-modal-open="mark-unresolved-modal">{{ _("Mark as Reviewed – Unresolved") }}</button>
+    <div class="v3-form-footer__group">
+        <button type="submit" class="btn btn--secondary" form="v3-resolution-form" name="v3_action" value="save_draft">{{ _("Save Draft") }}</button>
+        <button type="submit" class="btn btn--primary" form="v3-resolution-form" name="v3_action" value="resolve">{{ _("Resolve Discrepancy") }}</button>
+    </div>
+</div>
+
+{% include "components/modals/mark_unresolved.html" %}
+{% else %}
+<section class="card">
+    <p class="v3-empty-state">{{ _("Supervisor resolution is demonstrated for WS-026 in this demo.") }}</p>
+</section>
+{% endif %}

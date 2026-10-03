@@ -1,0 +1,264 @@
+/*
+  Operator V3 page styles (ui_reference_v3/operator). Loaded only by the Operator V3
+  templates via {% block page_styles %}, after pages/v3-pages.css, whose scoped V3
+  layout primitives (.v3-page, .v3-columns, .v3-kv-list, .v3-metric-tiles, .v3-form-footer,
+  .v3-panel, .v3-total-row ...) are reused as-is and not modified. Every rule below is new
+  and v3-op-prefixed, so no existing global class or other role's page changes.
+*/
+
+/* Read-only field grid (Assigned Session Confirmation). */
+.v3-op-readonly-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.v3-op-readonly-grid .form-field__input {
+    width: 100%;
+}
+
+/* Large tinted action callout ("Confirm Procedure End & Verify Tray", failed verification). */
+.v3-op-callout {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border: 1px solid var(--color-danger);
+    border-radius: var(--radius-lg);
+    background-color: var(--color-danger-surface);
+    color: var(--color-danger);
+}
+
+.v3-op-callout__title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+}
+
+/* Scrollable instrument event log. */
+/* Instrument event log: part of the normal page flow (no nested scroll container). */
+.v3-op-event-log {
+    overflow-y: visible;
+}
+
+.v3-op-event-log th,
+.v3-op-event-log td,
+.v3-op-wrap-table th,
+.v3-op-wrap-table td {
+    white-space: normal;
+}
+
+/* AI Suggested Count per-instance confidence rows. */
+.v3-op-instances td {
+    padding-top: 0;
+    background-color: var(--color-surface-secondary);
+}
+
+.v3-op-instances summary {
+    cursor: pointer;
+    padding: var(--space-2) 0;
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+}
+
+.v3-op-instance-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: var(--space-1) var(--space-4);
+    margin: 0 0 var(--space-2);
+    padding: 0;
+    list-style: none;
+    font-size: var(--font-size-xs);
+}
+
+.v3-op-instance-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+/* Count cell emphasised like the reference's boxed AI count. */
+.v3-op-count-box {
+    display: inline-flex;
+    justify-content: center;
+    min-width: 48px;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-surface-secondary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-op-count-box--danger {
+    color: var(--color-danger);
+}
+
+/* Tray verification. */
+.v3-op-progress {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.v3-op-progress__header {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-op-progress .status-progress-item__fill {
+    transition: width 2s ease-in-out;
+}
+
+.v3-op-info-box {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-secondary);
+}
+
+.v3-op-info-box .icon {
+    color: var(--color-info);
+    flex-shrink: 0;
+}
+
+.v3-op-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3) var(--space-6);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.v3-op-hero-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+}
+
+/* Escalation evidence panels (AI Detection | Operator Validation | Supervisor Review). */
+.v3-op-evidence-panels {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-3);
+}
+
+.v3-op-evidence-panels + .v3-op-evidence-panels {
+    margin-top: var(--space-4);
+}
+
+.v3-op-case-heading {
+    margin: var(--space-3) 0 var(--space-2);
+    font-weight: var(--font-weight-semibold);
+}
+
+/* Escalated discrepancy summary cards (Escalation Success). */
+.v3-op-case-card {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+}
+
+.v3-op-case-card + .v3-op-case-card {
+    margin-top: var(--space-3);
+}
+
+.v3-op-case-card__grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--space-3);
+    margin: var(--space-2) 0;
+}
+
+.v3-op-case-card__grid dt {
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+}
+
+.v3-op-case-card__grid dd {
+    margin: 0;
+    font-weight: var(--font-weight-semibold);
+}
+
+@media (max-width: 900px) {
+    .v3-op-readonly-grid,
+    .v3-op-evidence-panels,
+    .v3-op-case-card__grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* Human Validation: compact editable controls inside the count table. */
+.v3-op-hv-table td,
+.v3-op-hv-table th {
+    vertical-align: middle;
+}
+
+.v3-op-hv-table .form-field__input {
+    min-height: 32px;
+    padding-top: var(--space-1);
+    padding-bottom: var(--space-1);
+    font-size: var(--font-size-sm);
+}
+
+.v3-op-hv-count {
+    width: 4rem;
+    padding-right: var(--space-1);
+    text-align: right;
+}
+
+.v3-op-hv-count[aria-invalid="true"] {
+    border-color: var(--color-danger);
+}
+
+.v3-op-hv-select {
+    min-width: 8.5rem;
+    padding-right: var(--space-2);
+}
+
+.v3-op-hv-notes {
+    min-width: 7rem;
+}
+
+/* Tighter cell padding so the editable table fits 1280px without horizontal scroll. */
+.v3-op-hv-table th,
+.v3-op-hv-table td {
+    padding-left: var(--space-2);
+    padding-right: var(--space-2);
+}
+
+/* Evidence verification detail row (Suture Needle Set). */
+.v3-op-hv-evidence-row td {
+    padding-top: 0;
+    background-color: var(--color-surface-secondary);
+}
+
+.v3-op-hv-evidence {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    color: var(--color-text-primary);
+}
+
+.v3-op-hv-evidence > svg {
+    flex-shrink: 0;
+    color: var(--color-warning);
+}
+
+.v3-op-hv-evidence .form-checkbox {
+    margin-top: var(--space-2);
+    font-size: var(--font-size-sm);
+}
+
+/* Operator note echoed on Escalation Success (keeps the Operator's line breaks). */
+.v3-op-escalation-notes {
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}
