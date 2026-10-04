@@ -305,3 +305,55 @@
     </div>
 </div>
 {% endmacro %}
+
+{#
+    V3 evidence figure (static/css/components/evidence.css): captured tray image with an
+    optional YOLO overlay, shared by Operator (AI Detection, Human Validation, Escalation) and
+    Supervisor (Counts & Evidence, Evidence & Traceability). Typically fed from
+    view_data.v3_evidence().
+
+    - image_url / image_available: when the asset is missing (image_available false or no
+      URL), a styled placeholder renders instead of a broken <img>.
+    - overlay_boxes: list of {label, confidence_label, x, y, width, height}; coordinates are
+      percentages of the frame, supplied by data (never hardcoded in templates). Boxes are
+      drawn only over a real image; without one, the placeholder shows fallback_label.
+    - Visible text (title, tag_label, caption_left/right, fallback_label) is passed in already
+      translated by the caller: imported macros have no access to the `_` context helper.
+#}
+{% macro evidence_figure(image_url=none, alt='', title='', tag_label='', tag_variant='info', caption_left='', caption_right='', overlay_boxes=none, image_available=true, fallback_label='Evidence image not available', size='') %}
+{% set has_image = image_available and image_url %}
+<figure class="v3-evidence{% if size %} v3-evidence--{{ size }}{% endif %}">
+    {% if title or tag_label %}
+    <div class="v3-evidence__header">
+        {% if title %}<span class="v3-evidence__title">{{ title }}</span>{% endif %}
+        {% if tag_label %}<span class="v3-evidence__tag v3-evidence__tag--{{ tag_variant }}">{{ tag_label }}</span>{% endif %}
+    </div>
+    {% endif %}
+    <div class="v3-evidence__frame{% if not has_image %} v3-evidence__frame--placeholder{% endif %}">
+        {% if has_image %}
+        <img class="v3-evidence__image" src="{{ image_url }}" alt="{{ alt }}" loading="lazy">
+        {% else %}
+        <div class="v3-evidence__placeholder" role="img" aria-label="{{ alt or fallback_label }}">
+            {{ icon_camera() }}
+            <span class="v3-evidence__placeholder-label">{{ fallback_label }}</span>
+        </div>
+        {% endif %}
+        {% if overlay_boxes and has_image %}
+        <div class="v3-evidence__overlay" aria-hidden="true">
+            {% for box in overlay_boxes %}
+            <span class="v3-evidence__box"
+                  style="--v3-box-x: {{ box.x|float }}%; --v3-box-y: {{ box.y|float }}%; --v3-box-w: {{ box.width|float }}%; --v3-box-h: {{ box.height|float }}%;">
+                <span class="v3-evidence__box-label">{{ box.label }}{% if box.confidence_label %} {{ box.confidence_label }}{% endif %}</span>
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% if caption_left or caption_right %}
+    <figcaption class="v3-evidence__meta">
+        <span>{{ caption_left }}</span>
+        <span>{{ caption_right }}</span>
+    </figcaption>
+    {% endif %}
+</figure>
+{% endmacro %}

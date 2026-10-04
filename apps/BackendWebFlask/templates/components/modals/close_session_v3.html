@@ -1,0 +1,50 @@
+{% import "components/macros.html" as macros %}
+{#
+    V3 Operator "Close Counting Session?" modal (ui_reference_v3/operator/
+    close-session-confirmation-clean.png / -escalated.png). Separate from the legacy
+    components/modals/close_session.html (still used, unchanged, by the V2 Ready to Close
+    page) so the legacy output stays identical.
+
+    Expected context: close_variant ('clean' | 'escalated'), v3 (view_data.operator_v3_view),
+    flow.close_action. "Close Session" POSTs to the V3 demo close endpoint, which writes
+    nothing and redirects to Assigned Sessions. Closing never resolves escalated cases:
+    Supervisor review continues independently.
+#}
+{% set escalated = close_variant == 'escalated' %}
+<div class="modal-overlay" id="close-session-modal" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true"
+         aria-labelledby="close-session-modal-title" aria-describedby="close-session-modal-description">
+        <span class="modal-dialog__icon modal-dialog__icon--warning" aria-hidden="true">{{ macros.icon_alert_triangle() }}</span>
+        <h2 class="modal-dialog__title" id="close-session-modal-title">{{ _("Close Counting Session?") }}</h2>
+        <p class="modal-dialog__description" id="close-session-modal-description">
+            {% if escalated %}
+            {{ _("Closing the operational session does not resolve the escalated discrepancies. Supervisor review will continue independently.") }}
+            {% else %}
+            {{ _("Confirm that the counting session has completed successfully.") }}
+            {% endif %}
+        </p>
+        <form method="post" action="{{ flow.close_action }}">
+            {% if v3.base_scenario == 'clean' %}<input type="hidden" name="scenario" value="clean">{% endif %}
+            <dl class="modal-dialog__info-box">
+                <div class="modal-dialog__info-title">{{ _("Session Audit Review") }}</div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Session ID") }}</dt><dd>{{ v3.session.session_id }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Procedure") }}</dt><dd>{{ v3.session.procedure_name }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Operator") }}</dt><dd>{{ v3.session.operator_name }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Expected Instruments") }}</dt><dd>{{ v3.totals.expected }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Validated Instruments") }}</dt><dd>{{ v3.totals.validated }}</dd></div>
+                <div class="modal-dialog__info-row">
+                    <dt>{{ _("Unresolved Review Cases") if escalated else _("Unresolved Discrepancies") }}</dt>
+                    <dd class="{{ 'text-warning' if escalated else 'text-success' }}">{{ v3.unresolved_review_cases }}</dd>
+                </div>
+                <div class="modal-dialog__info-row">
+                    <dt>{{ _("Review Status") }}</dt>
+                    <dd class="{{ 'text-warning' if escalated else 'text-success' }}">{{ _(v3.review_status.label) }}</dd>
+                </div>
+            </dl>
+            <div class="modal-dialog__actions">
+                <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
+                <button type="submit" class="btn btn--primary">{{ _("Close Session") }}</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,100 @@
+{# Review Detail -> Overview (supervisor-review-detail-overview.png). Read-only. #}
+{% set s = v3.session %}
+<div class="v3-columns v3-columns--narrow-wide">
+    <div class="v3-stack">
+        <section class="card">
+            <h2 class="card__title">{{ _("Session Summary") }}</h2>
+            <dl class="v3-summary-list v3-summary-list--grid">
+                <div><dt>{{ _("Session ID") }}</dt><dd>{{ s.session_id }}</dd></div>
+                <div><dt>{{ _("Procedure") }}</dt><dd>{{ s.procedure_name }}</dd></div>
+                <div><dt>{{ _("Patient") }}</dt><dd>{{ s.patient_name or '—' }}</dd></div>
+                <div><dt>{{ _("Operating Room") }}</dt><dd>{{ s.operating_room }}</dd></div>
+                <div><dt>{{ _("Kit") }}</dt><dd>{{ s.kit_name }}</dd></div>
+                <div><dt>{{ _("Capture Station") }}</dt><dd>{{ s.capture_station }}</dd></div>
+                <div><dt>{{ _("Assigned Operator") }}</dt><dd>{{ s.operator_name }}</dd></div>
+                <div><dt>{{ _("Session Status") }}</dt><dd>{{ _(s.session_status.label) }}</dd></div>
+                <div><dt>{{ _("Review Status") }}</dt><dd>{{ _(s.review_status.label) }}</dd></div>
+            </dl>
+        </section>
+
+    </div>
+
+    <div class="v3-stack">
+        <section class="card">
+            <h2 class="card__title">{{ _("Pre/Post Procedure Comparison") }}</h2>
+            {% if v3.totals %}
+            <dl class="v3-kv-list">
+                <div><dt>{{ _("Expected") }}</dt><dd>{{ v3.totals.expected }}</dd></div>
+                <div><dt>{{ _("Validated") }}</dt><dd>{{ v3.totals.validated }}</dd></div>
+                <div>
+                    <dt>{{ _("Net Difference") }}</dt>
+                    <dd><span class="v3-diff-pill{{ ' v3-diff-pill--danger' if v3.totals.difference }}">{{ v3.totals.difference }}</span></dd>
+                </div>
+            </dl>
+            {% else %}
+            <p class="v3-muted-note">{{ _("No pre/post count data is available for this session in the demo.") }}</p>
+            {% endif %}
+        </section>
+
+        <section class="card">
+            {% set team = s.surgical_team|default([]) %}
+            <details>
+                <summary class="v3-card-header">
+                    <span class="card__title">{{ _("Surgical Team") }}</span>
+                    <span class="btn btn--accent btn--small">{{ _("View Team") }}</span>
+                </summary>
+                <dl class="v3-kv-list">
+                    {% for member in team %}
+                    <div><dt>{{ member.name }}</dt><dd>{{ _(member.role) }}</dd></div>
+                    {% endfor %}
+                </dl>
+            </details>
+            <p class="v3-muted-note">{{ _("Surgical Team — %(count)s clinical members", count=team|length) }}</p>
+        </section>
+    </div>
+</div>
+
+<section class="card">
+    <div class="v3-card-header">
+        <h2 class="card__title">{{ _("Discrepancies") }}</h2>
+        <span class="status-badge status-badge--danger status-badge--outline">{{ _("%(count)s Open", count=v3.open_review_cases) }}</span>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table v3-wrap-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Instrument") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("AI") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Operator Validated") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Difference") }}</th>
+                    <th scope="col">{{ _("Type") }}</th>
+                    <th scope="col">{{ _("Review State") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for case in v3.review_cases %}
+                <tr>
+                    <th scope="row">
+                        <span class="data-table__primary">{{ case.instrument_name }}</span>
+                        <span class="data-table__secondary">{{ case.kit_label }}</span>
+                    </th>
+                    <td class="data-table__numeric-column">{{ case.expected_quantity }}</td>
+                    <td class="data-table__numeric-column">{{ case.ai_detected }}</td>
+                    <td class="data-table__numeric-column">{{ case.validated }}</td>
+                    <td class="data-table__numeric-column {{ 'text-danger' if case.difference else 'text-success' }}"><strong>{{ case.difference }}</strong></td>
+                    <td>{{ _(case.type_short) }}</td>
+                    <td>{{ macros.status_badge(_(case.review_status.label), case.review_status.variant) }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7">{{ _("No review cases for this session.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<div class="v3-form-footer">
+    <a class="btn btn--secondary" href="{{ url_for('web.supervisor_discrepancies') }}">{{ _("Back to Discrepancies") }}</a>
+    <a class="btn btn--primary" href="{{ tab_urls.evidence }}">{{ _("Continue to Evidence & Traceability") }}</a>
+</div>

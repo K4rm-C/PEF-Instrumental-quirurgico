@@ -1,21 +1,22 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{% set session_id = session_id|default('') %}
-{% set session = session|default({
-    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
-    'patient_name': '', 'physician_name': '',
-    'kit_name': '', 'capture_station_name': '',
-    'status_label': '', 'status_variant': 'neutral'
-}, true) %}
-{% set has_discrepancy = has_discrepancy|default(false) %}
-{% set edit_count_url = edit_count_url|default(url_for('web.operator_session_validation', session_id=session.session_id)) %}
-{% set primary_action_url = primary_action_url|default(
-    url_for('web.operator_session_discrepancy', session_id=session.session_id) if has_discrepancy
-    else url_for('web.operator_session_ready_to_close', session_id=session.session_id)
-) %}
+{#
+    Operator Validation Summary (V3 — ui_reference_v3/operator/operator-validation-summary-
+    clear.png / -discrepancy.png), for V3 demo session ids only. Other ids render
+    operator/sessions/v2/validation_summary.html.
 
-{% block title %}{{ _("Validation Summary") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+    The branch follows v3.has_discrepancy. After an interactive Human Validation submit it is
+    derived from the Operator's values (hv=1 query state); otherwise from the
+    presentation-only scenario projection:
+      clean      -> 11 / 11 / 0, No Review Needed, Proceed to Close (Ready to Close)
+      escalated  -> 11 / 10 / -1, two review cases, Escalate to Supervisor
+    Any remaining review case (e.g. evidence verification with net difference 0) escalates.
+    Edit Count returns to Human Validation with the submitted values (flow.validation).
+    The Operator validates, adds context and escalates only: no Supervisor review actions.
+#}
+
+{% block title %}{{ _("Validation Summary") }} · {{ v3.session.session_id }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
 {% block sidebar %}
 {% set active_nav_item = 'counting_sessions' %}
@@ -24,130 +25,160 @@
 
 {% block breadcrumb %}
 <ol class="breadcrumb-list">
-    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-item"><a href="{{ flow.sessions }}">{{ _("Operations") }}</a></li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
-    <li class="breadcrumb-item">{{ _("Counting Session") }} {{ session.session_id }}</li>
+    <li class="breadcrumb-item">{{ _("Counting Session %(session)s", session=v3.session.session_id) }}</li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
     <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Validation Summary") }}</li>
 </ol>
 {% endblock %}
 
-{% block page_content %}
-{% set count_comparison = count_comparison|default([]) %}
-{% set expected_total = expected_total|default(count_comparison|sum(attribute='expected_quantity') if count_comparison else 0) %}
-{% set validated_total = validated_total|default(count_comparison|sum(attribute='validated_quantity') if count_comparison else 0) %}
-{% set correction_audit = correction_audit|default({
-    'instrument_name': '', 'expected_quantity': 0, 'ai_detected': 0, 'validated_quantity': 0,
-    'reason_label': '',
-    'notes': '',
-    'corrected_by': '', 'timestamp': ''
-}) %}
-{% set discrepancy_summary = discrepancy_summary|default({
-    'severity_label': '', 'title': '',
-    'description': '',
-    'notice': ''
-}) %}
-
-<section class="card">
-    <div class="session-context-bar">
-        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Station") }}:</strong> {{ session.capture_station_name }}</span>
-        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
-    </div>
-</section>
-
-<section class="card">
-    <h2 class="card__title">{{ _("PRE vs POST Comparison") }}</h2>
-    <div class="stat-card-grid stat-card-grid--three">
-        {{ macros.stat_card(_("Pre-Procedure Expected"), _("Expected %(count)s", count=expected_total), 'neutral') }}
-        {{ macros.stat_card(_("Post-Procedure Validated"), _("Validated %(count)s", count=validated_total), 'neutral') }}
-        {{ macros.stat_card(_("Difference"), _("Difference %(diff)s Instrument", diff=(validated_total - expected_total)), 'danger' if validated_total != expected_total else 'success') }}
-    </div>
-    {% if has_discrepancy %}
-    <div class="alert alert--warning" role="status">
-        {{ macros.icon_alert_triangle() }}
-        <span class="alert__message">{{ _("Instrument discrepancy detected — Supervisor review will be required before completing validation.") }}</span>
-    </div>
-    {% else %}
-    <div class="alert alert--success" role="status">
-        {{ macros.icon_check_circle() }}
-        <span class="alert__message">{{ _("All instruments accounted for. This session is ready to close.") }}</span>
-    </div>
-    {% endif %}
-</section>
-
-<section class="card">
-    <h2 class="card__title">{{ _("Count Comparison") }}</h2>
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th scope="col">{{ _("Instrument") }}</th>
-                    <th scope="col">{{ _("Expected") }}</th>
-                    <th scope="col">{{ _("AI Detected") }}</th>
-                    <th scope="col">{{ _("Validated") }}</th>
-                    <th scope="col">{{ _("Difference") }}</th>
-                    <th scope="col">{{ _("Status") }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in count_comparison %}
-                <tr class="{{ 'data-table__row--highlight-danger' if item.unresolved else '' }}">
-                    <th scope="row">{{ item.instrument_name }}</th>
-                    <td>{{ item.expected_quantity }}</td>
-                    <td>{{ item.ai_detected }}</td>
-                    <td>{{ item.validated_quantity }}</td>
-                    <td class="{{ 'text-danger' if item.validated_quantity != item.expected_quantity else 'text-success' }}">{{ item.validated_quantity - item.expected_quantity }}</td>
-                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
-
-<section class="panel-grid--two">
-    <div class="card">
-        <h2 class="card__title">{{ _("Correction Audit Trail") }}</h2>
-        <dl class="detail-list">
-            <div class="detail-list__row"><dt>{{ _("Instrument") }}</dt><dd>{{ correction_audit.instrument_name }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Expected") }}</dt><dd>{{ correction_audit.expected_quantity }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("AI Detected") }}</dt><dd>{{ correction_audit.ai_detected }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Validated") }}</dt><dd>{{ correction_audit.validated_quantity }}</dd></div>
-            <div class="detail-list__row"><dt>{{ _("Reason") }}</dt><dd>{{ correction_audit.reason_label }}</dd></div>
-        </dl>
-        <p class="form-field__helper">{{ _("Notes:") }} {{ correction_audit.notes }}</p>
-        <p class="form-field__helper">
-            {{ _("Corrected by:") }} <strong>{{ correction_audit.corrected_by }}</strong>
-            &nbsp;&nbsp;{{ _("Timestamp:") }} <strong>{{ correction_audit.timestamp }}</strong>
-        </p>
-    </div>
-
-    {% if has_discrepancy %}
-    <div class="card">
-        <h2 class="card__title">{{ _("Discrepancy Summary") }}</h2>
-        <p>{{ macros.status_badge(discrepancy_summary.severity_label, 'danger') }} <strong>{{ discrepancy_summary.title }}</strong></p>
-        <p class="card__subtitle">{{ discrepancy_summary.description }}</p>
-        <div class="alert alert--warning" role="status">
-            {{ macros.icon_alert_triangle() }}
-            <span class="alert__message">{{ discrepancy_summary.notice }}</span>
-        </div>
-    </div>
-    {% endif %}
-</section>
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operator-v3.css') }}">
 {% endblock %}
 
-{% block page_action_bar %}
-<div class="page-action-bar">
-    <a class="btn btn--secondary" href="{{ edit_count_url }}">{{ _("Edit Count") }}</a>
-    <a class="btn btn--primary" href="{{ primary_action_url }}">
-        {{ macros.icon_check_square() }}
-        <span>{{ _("Submit for Supervisor Review") if has_discrepancy else _("Proceed to Close") }}</span>
-    </a>
+{% block page_content %}
+{% set t = v3.totals %}
+<div class="v3-page">
+    {% include "operator/sessions/_context_bar.html" %}
+
+    <section class="card v3-stack">
+        <h2 class="card__title">{{ _("PRE vs POST Comparison") }}</h2>
+        <div class="v3-metric-tiles">
+            <div class="v3-metric-tile">
+                <p class="v3-metric-tile__label">{{ _("Pre-Procedure Expected") }}</p>
+                <p class="v3-metric-tile__value">{{ _("Expected %(count)s", count=t.expected) }}</p>
+            </div>
+            <div class="v3-metric-tile">
+                <p class="v3-metric-tile__label">{{ _("Post-Procedure Validated") }}</p>
+                <p class="v3-metric-tile__value">{{ _("Validated %(count)s", count=t.validated) }}</p>
+            </div>
+            {% if v3.has_discrepancy %}
+            {% set diff_label = ('+' ~ t.difference) if t.difference > 0 else t.difference %}
+            <div class="v3-metric-tile{{ ' v3-metric-tile--danger' if t.difference }}">
+                <p class="v3-metric-tile__label">{{ _("Net Difference") }}</p>
+                <p class="v3-metric-tile__value">{{ _("Difference %(diff)s Instrument", diff=diff_label) if t.difference in (1, -1) else _("Difference %(diff)s Instruments", diff=diff_label) }}</p>
+                <p class="v3-metric-tile__note">{{ _("Review Cases: %(count)s", count=v3.unresolved_review_cases) }}</p>
+            </div>
+            {% else %}
+            <div class="v3-metric-tile">
+                <p class="v3-metric-tile__label">{{ _("Unresolved Discrepancies") }}</p>
+                <p class="v3-metric-tile__value text-success">{{ v3.unresolved_review_cases }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% if v3.has_discrepancy %}
+        <div class="alert alert--warning" role="status">
+            {{ macros.icon_alert_triangle() }}
+            <span class="alert__message">{{ _("Unresolved discrepancies detected. Escalate them for Supervisor review before closing the operational session.") }}</span>
+        </div>
+        {% else %}
+        <div class="alert alert--success" role="status">
+            {{ macros.icon_check_circle() }}
+            <span class="alert__message">{{ _("All instrument counts are reconciled.") }}</span>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2 class="card__title">{{ _("Count Comparison") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Instrument") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("AI Detected") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Validated") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Difference") }}</th>
+                        <th scope="col">{{ _("Status") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in v3.counts %}
+                    <tr class="{{ 'data-table__row--highlight-danger' if row.difference else '' }}">
+                        <th scope="row">{{ row.instrument_name }}</th>
+                        <td class="data-table__numeric-column">{{ row.expected_quantity }}</td>
+                        <td class="data-table__numeric-column">{{ row.ai_detected }}</td>
+                        <td class="data-table__numeric-column"><strong>{{ row.validated }}</strong></td>
+                        <td class="data-table__numeric-column {{ 'text-danger' if row.difference else 'text-success' }}"><strong>{{ ('+' ~ row.difference) if row.difference > 0 else row.difference }}</strong></td>
+                        <td class="{{ 'text-danger' if row.needs_review else 'text-success' }}"><strong>{% if row.needs_review %}{{ _("Discrepancy") }}{% elif row.validation_status.code == 'evidence_verified' %}{{ _("Evidence Verified") }}{% else %}{{ _("Matched") }}{% endif %}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    {% if v3.has_discrepancy %}
+    <div class="v3-columns">
+        <section class="card">
+            <h2 class="card__title">{{ _("Review Queue") }}</h2>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ _("Time") }}</th>
+                            <th scope="col">{{ _("Instrument") }}</th>
+                            <th scope="col">{{ _("Diff") }}</th>
+                            <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for case in v3.review_cases %}
+                        <tr>
+                            <td>{{ case.escalated_time }}</td>
+                            <th scope="row">{{ case.instrument_name }}</th>
+                            <td class="{{ 'text-danger' if case.difference else 'text-success' }}"><strong>{{ ('+' ~ case.difference) if case.difference > 0 else case.difference }}</strong></td>
+                            <td class="data-table__action-column">
+                                <a class="btn btn--secondary btn--small" href="{{ flow.escalation }}#case-{{ case.case_key }}">{{ _("View Details") }}</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card v3-stack">
+            <h2 class="card__title">{{ _("Discrepancy Summary") }}</h2>
+            {% for case in v3.review_cases %}
+            <div>
+                <p>
+                    <span class="status-badge status-badge--{{ case.severity.variant }} status-badge--outline">{{ _(case.severity.label) }}</span>
+                    <strong>{{ case.instrument_name }}</strong> · {{ _(case.type_label) }}
+                </p>
+                <p class="v3-muted-note">{{ _(case.summary_description) }}</p>
+            </div>
+            {% endfor %}
+            <div class="alert alert--warning" role="status">
+                {{ macros.icon_alert_triangle() }}
+                <span class="alert__message">{{ _("Supervisor review will continue independently after the operational session is closed.") }}</span>
+            </div>
+        </section>
+    </div>
+    {% else %}
+    <section class="card">
+        <h2 class="card__title">{{ _("Closure Summary") }}</h2>
+        <dl class="v3-kv-list">
+            <div><dt>{{ _("Unresolved") }}</dt><dd class="text-success">{{ v3.unresolved_review_cases }}</dd></div>
+            <div><dt>{{ _("Review Status") }}</dt><dd class="text-success">{{ _(v3.review_status.label) }}</dd></div>
+            <div><dt>{{ _("Ready to Close") }}</dt><dd class="text-success">{{ _("Yes") }}</dd></div>
+        </dl>
+        <div class="alert alert--success" role="status">
+            <span class="alert__message">{{ _("All instrument counts are reconciled and ready for session closure.") }}</span>
+        </div>
+    </section>
+    {% endif %}
+
+    <div class="v3-form-footer">
+        <a class="btn btn--secondary" href="{{ flow.validation }}">{{ _("Edit Count") }}</a>
+        {% if v3.has_discrepancy %}
+        <a class="btn btn--primary" href="{{ flow.escalation }}">{{ macros.icon_check_circle() }}<span>{{ _("Escalate to Supervisor") }}</span></a>
+        {% else %}
+        <a class="btn btn--primary" href="{{ flow.ready_to_close }}">{{ macros.icon_check_circle() }}<span>{{ _("Proceed to Close") }}</span></a>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

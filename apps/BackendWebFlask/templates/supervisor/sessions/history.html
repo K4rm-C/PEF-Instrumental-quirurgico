@@ -1,6 +1,12 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
+{#
+    Supervisor Session History (V3 — ui_reference_v3/supervisor/supervisor-session-history.png).
+    session_rows: view_data.supervisor_v3_session_history() (demo) or supervisor_v3_rows_from_rf().
+    Filters are presentation-only.
+#}
+
 {% block title %}{{ _("Session History") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
 {% block sidebar %}
@@ -16,151 +22,113 @@
 </ol>
 {% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+{% endblock %}
+
 {% block page_content %}
-{#
-    TEMPORARY DEMO DATA
-    --------------------
-    session_history, sessions_shown_count, sessions_total_count, current_page, total_pages,
-    previous_url, and next_url below are placeholder values used only so this page is
-    visually reviewable before the backend supplies real data. Read-only: every row only
-    exposes "View Details". Expected shapes are documented in FRONTEND_INTEGRATION.md.
-#}
-{% set session_history = session_history|default([
-    {
-        'session_id': 'WS-023', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-1',
-        'kit_name': 'Suture Kit', 'operator_name': 'Emily Carter',
-        'started_at': '13:18', 'closed_at': '13:42',
-        'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-023')
-    },
-    {
-        'session_id': 'WS-021', 'procedure_name': 'Cholecystectomy', 'operating_room': 'OR-3',
-        'kit_name': 'General Surgery Kit', 'operator_name': 'Sophia Turner',
-        'started_at': '11:57', 'closed_at': '12:30',
-        'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-021')
-    },
-    {
-        'session_id': 'WS-019', 'procedure_name': 'Hernia Repair', 'operating_room': 'OR-2',
-        'kit_name': 'Delivery Kit', 'operator_name': 'Daniel Lee',
-        'started_at': '09:15', 'closed_at': '09:48',
-        'status_label': _('Closed'), 'status_variant': 'success',
-        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-019')
-    },
-    {
-        'session_id': 'WS-018', 'procedure_name': 'Appendectomy', 'operating_room': 'OR-1',
-        'kit_name': 'Suture Kit', 'operator_name': 'Alex Morgan',
-        'started_at': '08:30', 'closed_at': None,
-        'status_label': _('Cancelled'), 'status_variant': 'neutral',
-        'action_label': _('View Details'), 'action_url': url_for('web.supervisor_session_details', session_id='WS-018')
-    }
-], true) %}
-{% set sessions_shown_count = sessions_shown_count|default(session_history|length, true) %}
-{% set sessions_total_count = sessions_total_count|default(124, true) %}
-{% set current_page = current_page|default(1, true) %}
-{% set total_pages = total_pages|default(31, true) %}
-{% set previous_url = previous_url|default('#', true) %}
-{% set next_url = next_url|default('#', true) %}
-
-<div class="page-heading">
-    <div>
-        <h1 class="page-heading__title">{{ _("Session History") }}</h1>
-        <p class="page-heading__subtitle">{{ _("Completed and cancelled counting sessions.") }}</p>
+<div class="v3-page">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-heading__title">{{ _("Session History") }}</h1>
+            <p class="page-heading__subtitle">{{ _("Completed counting sessions") }}</p>
+        </div>
     </div>
-</div>
 
-<section class="card">
-    {# Filters are presentation-only in this iteration: no client-side or server-side
-       filtering is wired up yet. #}
-    <form class="filter-bar" action="#" method="get" role="search">
-        <div class="filter-bar__search">
-            <label class="visually-hidden" for="supervisor-session-history-search">{{ _("Search Sessions") }}</label>
-            <div class="form-field__input-wrapper">
-                <span class="form-field__icon">{{ macros.icon_search() }}</span>
-                <input class="form-field__input" type="search" id="supervisor-session-history-search" name="search"
-                       placeholder="{{ _('Search sessions...') }}">
+    <section class="card">
+        <form class="filter-bar" action="{{ url_for('web.supervisor_session_history') }}" method="get" role="search">
+            <div class="filter-bar__search">
+                <label class="visually-hidden" for="session-history-search">{{ _("Search Sessions") }}</label>
+                <div class="form-field__input-wrapper">
+                    <span class="form-field__icon">{{ macros.icon_search() }}</span>
+                    <input class="form-field__input" type="search" id="session-history-search" name="search"
+                           placeholder="{{ _('Search sessions...') }}">
+                </div>
             </div>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="supervisor-session-history-status">{{ _("Status") }}</label>
-            <select class="form-field__input form-field__input--plain" id="supervisor-session-history-status" name="status">
-                <option value="">{{ _("All Statuses") }}</option>
-                <option value="closed">{{ _("Closed") }}</option>
-                <option value="cancelled">{{ _("Cancelled") }}</option>
-            </select>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="supervisor-session-history-kit">{{ _("Kit") }}</label>
-            <select class="form-field__input form-field__input--plain" id="supervisor-session-history-kit" name="kit">
-                <option value="">{{ _("All Kits") }}</option>
-                <option value="delivery-kit">{{ _("Delivery Kit") }}</option>
-                <option value="suture-kit">{{ _("Suture Kit") }}</option>
-                <option value="general-surgery-kit">{{ _("General Surgery Kit") }}</option>
-            </select>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="supervisor-session-history-operator">{{ _("Operator") }}</label>
-            <select class="form-field__input form-field__input--plain" id="supervisor-session-history-operator" name="operator">
-                <option value="">{{ _("All Operators") }}</option>
-                <option value="alex-morgan">{{ _("Alex Morgan") }}</option>
-                <option value="emily-carter">{{ _("Emily Carter") }}</option>
-                <option value="daniel-lee">{{ _("Daniel Lee") }}</option>
-            </select>
-        </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="supervisor-session-history-date">{{ _("Date") }}</label>
-            <select class="form-field__input form-field__input--plain" id="supervisor-session-history-date" name="date">
-                <option value="">{{ _("All Dates") }}</option>
-                <option value="today">{{ _("Today") }}</option>
-                <option value="last-7-days">{{ _("Last 7 Days") }}</option>
-                <option value="last-30-days">{{ _("Last 30 Days") }}</option>
-            </select>
-        </div>
-    </form>
-</section>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="session-history-review">{{ _("Review Status") }}</label>
+                <select class="form-field__input form-field__input--plain" id="session-history-review" name="review_status">
+                    <option value="">{{ _("All Review Statuses") }}</option>
+                    {% for status in filter_options.review_statuses %}
+                    <option value="{{ status.code }}">{{ _(status.label) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="session-history-kit">{{ _("Kit") }}</label>
+                <select class="form-field__input form-field__input--plain" id="session-history-kit" name="kit">
+                    <option value="">{{ _("All Kits") }}</option>
+                    {% for kit in filter_options.kits %}
+                    <option value="{{ kit }}">{{ _(kit) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="session-history-operator">{{ _("Operator") }}</label>
+                <select class="form-field__input form-field__input--plain" id="session-history-operator" name="operator">
+                    <option value="">{{ _("All Operators") }}</option>
+                    {% for operator in filter_options.operators %}
+                    <option value="{{ operator }}">{{ operator }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="session-history-date">{{ _("Date") }}</label>
+                <select class="form-field__input form-field__input--plain" id="session-history-date" name="date">
+                    <option value="">{{ _("All Dates") }}</option>
+                    {% for date in filter_options.dates %}
+                    <option value="{{ date }}">{{ _(date) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </form>
+    </section>
 
-<section class="card">
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th scope="col">{{ _("Session / Procedure") }}</th>
-                    <th scope="col">{{ _("Kit") }}</th>
-                    <th scope="col">{{ _("Operator") }}</th>
-                    <th scope="col">{{ _("Started") }}</th>
-                    <th scope="col">{{ _("Closed / Cancelled") }}</th>
-                    <th scope="col">{{ _("Status") }}</th>
-                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for session in session_history %}
-                <tr>
-                    <th scope="row">
-                        <span class="data-table__primary">{{ session.session_id }}</span>
-                        <span class="data-table__secondary">{{ session.procedure_name }} - {{ session.operating_room }}</span>
-                    </th>
-                    <td>{{ session.kit_name }}</td>
-                    <td>{{ session.operator_name }}</td>
-                    <td>{{ session.started_at }}</td>
-                    <td>{{ session.closed_at or "—" }}</td>
-                    <td>{{ macros.status_badge(session.status_label, session.status_variant) }}</td>
-                    <td class="data-table__action-column">
-                        <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ session.action_label }}</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <nav class="pagination" aria-label="{{ _('Pagination') }}">
-        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s sessions", shown=sessions_shown_count, total=sessions_total_count) }}</p>
-        <div class="pagination__controls">
-            <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
-            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
-            <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
+    <section class="card">
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Session / Procedure") }}</th>
+                        <th scope="col">{{ _("Kit") }}</th>
+                        <th scope="col">{{ _("Operator") }}</th>
+                        <th scope="col">{{ _("Started") }}</th>
+                        <th scope="col">{{ _("Closed At") }}</th>
+                        <th scope="col">{{ _("Review Status") }}</th>
+                        <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in session_rows %}
+                    <tr>
+                        <th scope="row">
+                            <span class="data-table__primary">{{ row.session_id }}</span>
+                            <span class="data-table__secondary">{{ row.procedure_label }}</span>
+                        </th>
+                        <td>{{ row.kit_name }}</td>
+                        <td>{{ row.operator_name }}</td>
+                        <td>{{ row.started_time or '—' }}</td>
+                        <td>{{ row.closed_time or '—' }}</td>
+                        <td>{{ macros.status_badge(_(row.review_status.label), row.review_status.variant) }}</td>
+                        <td class="data-table__action-column">
+                            <a class="btn btn--small btn--secondary" href="{{ row.details_url }}">{{ _("View Details") }}</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7">{{ _("No completed sessions found.") }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-    </nav>
-</section>
+
+        <nav class="pagination" aria-label="{{ _('Pagination') }}">
+            <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s sessions", shown=session_rows|length, total=list_meta.total) }}</p>
+            <div class="pagination__controls">
+                <a class="btn btn--secondary btn--small" href="#" aria-disabled="true">{{ _("Previous") }}</a>
+                <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=1, total=list_meta.pages) }}</span>
+                <a class="btn btn--secondary btn--small" href="#">{{ _("Next") }}</a>
+            </div>
+        </nav>
+    </section>
+</div>
 {% endblock %}

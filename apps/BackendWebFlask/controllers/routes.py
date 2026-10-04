@@ -53,6 +53,41 @@ from controllers.view_data import (
     vision_model_form_data,
     vision_models_data,
 )
+from controllers.view_data import (
+    operator_v3_assigned_session_rows,
+    operator_v3_confirmation,
+    operator_v3_demo_date,
+    operator_v3_escalation_notes,
+    operator_v3_is_assigned_demo_id,
+    operator_v3_list_banner,
+    operator_v3_parse_validation,
+    operator_v3_rows_from_rf,
+    operator_v3_scenario,
+    operator_v3_validation_query,
+    operator_v3_view,
+    v3_operator_display_user,
+    v3_session_status,
+    supervisor_v3_audit_log,
+    supervisor_v3_created_banner,
+    supervisor_v3_dashboard,
+    supervisor_v3_dashboard_from_rf,
+    supervisor_v3_filter_options,
+    supervisor_v3_indicators,
+    supervisor_v3_list_meta,
+    supervisor_v3_new_session,
+    supervisor_v3_queue_from_rf,
+    supervisor_v3_reports,
+    supervisor_v3_review_case_keys,
+    supervisor_v3_review_queue,
+    supervisor_v3_review_summary,
+    supervisor_v3_rows_from_rf,
+    supervisor_v3_session_history,
+    supervisor_v3_sessions,
+    supervisor_v3_validated_banner,
+    supervisor_v3_view,
+    use_v3_fixture,
+    v3_supervisor_display_user,
+)
 
 
 web_bp = Blueprint('web', __name__)
@@ -330,6 +365,112 @@ def sign_out():
     return _clear_auth_cookies(response)
 
 
+# ----------------------------------------------------------------------------------------
+# Operator V3 (ui_reference_v3/operator). V3 branches run only when use_v3_fixture() allows
+# (demo mode for the list; explicit WS-0xx demo ids for session pages). UUID sessions keep
+# the RF/V2 templates and RF POST behavior unchanged. The `scenario` query parameter
+# (escalated | clean) is presentation-only and is carried in URLs, never persisted.
+# A submitted Human Validation (hv=1 + vc_/vr_/vn_/ev_ parameters, see
+# view_data.operator_v3_parse_validation) is carried the same way and, when present,
+# decides the clean / escalated outcome from what the Operator entered.
+# ----------------------------------------------------------------------------------------
+
+V3_TRAY_STATES = ('verifying', 'failed', 'success')
+
+
+def _v3_operator_page(template, *, demo, **values):
+    """Render an Operator V3 template; demo pages show the presentation identity only."""
+    if demo:
+        values.setdefault('current_user', v3_operator_display_user(_current_user()))
+    return _page(template, v3_demo=demo, **values)
+
+
+def _v3_op_url(endpoint, session_id, scenario, validation=None, **params):
+    if operator_v3_scenario(scenario) == 'clean':
+        params['scenario'] = 'clean'
+    for key, value in operator_v3_validation_query(validation).items():
+        params.setdefault(key, value)
+    return url_for(endpoint, session_id=session_id, **params)
+
+
+def _v3_operator_flow(session_id, scenario, validation=None):
+    def link(endpoint, **params):
+        return _v3_op_url(endpoint, session_id, scenario, validation, **params)
+    return {
+        'sessions': url_for('web.operator_sessions'),
+        'begin': link('web.operator_session_begin'),
+        'capture': link('web.operator_session_capture'),
+        'tray_start': link('web.operator_session_tray_verification', state='verifying', attempt=1),
+        'tray_retry': link('web.operator_session_tray_verification', state='verifying', attempt=2),
+        'tray_failed': link('web.operator_session_tray_verification', state='failed'),
+        'tray_success': link('web.operator_session_tray_verification', state='success'),
+        'ai_detection': link('web.operator_session_ai_detection'),
+        'validation': link('web.operator_session_validation'),
+        'validation_summary': link('web.operator_session_validation_summary'),
+        'escalation': link('web.operator_session_discrepancy', state='prepared'),
+        'escalation_action': link('web.operator_session_discrepancy'),
+        'escalated': link('web.operator_session_discrepancy', state='escalated'),
+        'ready_to_close': link('web.operator_session_ready_to_close'),
+        'close_action': link('web.operator_session_v3_close'),
+    }
+
+
+def _v3_flow_for(view):
+    """Flow links for a V3 view, carrying its base scenario and submitted validation state."""
+    return _v3_operator_flow(view['session']['session_id'], view['base_scenario'], view['validation_state'])
+
+
+def _v3_request_validation():
+    """Submitted Human Validation demo state carried in the query string (or None)."""
+    state, _errors = operator_v3_parse_validation(request.args, request.values.get('scenario'))
+    return state
+
+
+def _v3_operator_view_or_redirect(session_id, validation=None):
+    """WS-026 walkthrough view, or a redirect for other assigned demo sessions, or 404."""
+    if validation is None:
+        validation = _v3_request_validation()
+    view = operator_v3_view(session_id, request.values.get('scenario'), validation)
+    if view is not None:
+        return view, None
+    if operator_v3_is_assigned_demo_id(session_id):
+        return None, redirect(url_for('web.operator_sessions', notice='walkthrough', session=session_id.upper()))
+    abort(404)
+
+
+def _v3_operator_flow_page(template, session_id, status_code, validation=None, **values):
+    view, response = _v3_operator_view_or_redirect(session_id, validation)
+    if response is not None:
+        return response
+    sid = view['session']['session_id']
+    return _v3_operator_page(
+        template, demo=True, v3=view, session_id=sid,
+        flow=_v3_flow_for(view),
+        context_status=v3_session_status(status_code), **values,
+    )
+
+
+def _v3_operator_begin(session_id):
+    """V3 Assigned Session Confirmation (read-only). Demo only: no DB write on Start."""
+    confirmation = operator_v3_confirmation(session_id)
+    if confirmation is None:
+        abort(404)
+    sid = confirmation['session']['session_id']
+    scenario = operator_v3_scenario(request.values.get('scenario'))
+    values = {'confirmation': confirmation, 'session_id': sid,
+              'begin_action': _v3_op_url('web.operator_session_begin', sid, scenario)}
+    if request.method == 'POST':
+        if request.form.get('instruments_ready') != '1':
+            return _v3_operator_page(
+                'operator/sessions/begin.html', demo=True,
+                form_error='Confirm the physical instrument set before starting.', **values,
+            ), 400
+        if not confirmation['is_full_case']:
+            return redirect(url_for('web.operator_sessions', notice='walkthrough', session=sid))
+        return redirect(_v3_op_url('web.operator_session_capture', sid, scenario))
+    return _v3_operator_page('operator/sessions/begin.html', demo=True, **values)
+
+
 @web_bp.route('/operator/profile')
 @require_role('station_operator')
 def operator_profile():
@@ -346,14 +487,23 @@ def operator_dashboard():
 @web_bp.route('/operator/sessions')
 @require_role('station_operator')
 def operator_sessions():
-    user = _current_user()
-    sessions = operator_my_sessions(user['id'])
-    return _page(
-        'operator/sessions/list.html',
-        sessions=sessions,
-        sessions_shown_count=len(sessions),
-        sessions_total_count=len(sessions),
+    """Operator landing page (Assigned Sessions, V3). Demo mode lists the V3 fixture rows."""
+    banner = operator_v3_list_banner(
+        closed=request.args.get('closed'), outcome=request.args.get('outcome'),
+        notice=request.args.get('notice'), session_id=request.args.get('session'),
     )
+    if use_v3_fixture():
+        # Right after a demo close (?closed=WS-026 with a valid banner) the closed session is
+        # left out of this response's active list. Stateless: a plain reload resets it.
+        closed = request.args.get('closed') if banner and request.args.get('closed') else None
+        return _v3_operator_page(
+            'operator/sessions/list.html', demo=True,
+            session_rows=operator_v3_assigned_session_rows(exclude_session_id=closed), feedback_banner=banner,
+            filter_today=operator_v3_demo_date(),
+        )
+    user = _current_user()
+    rows = operator_v3_rows_from_rf(operator_my_sessions(user['id']))
+    return _v3_operator_page('operator/sessions/list.html', demo=False, session_rows=rows, feedback_banner=banner)
 
 
 @web_bp.route('/operator/sessions/new', methods=['GET', 'POST'])
@@ -389,8 +539,11 @@ def operator_session_details(session_id):
 @web_bp.route('/operator/sessions/<session_id>/begin', methods=['GET', 'POST'])
 @require_role('station_operator')
 def operator_session_begin(session_id):
-    """RF-OP-03 Start Session."""
+    """V3 demo Assigned Session Confirmation, or RF-OP-03 Start Session for RF sessions."""
     from services.rf_session import RfSessionError, start_session
+
+    if use_v3_fixture(session_id):
+        return _v3_operator_begin(session_id)
 
     user = _current_user()
     detail = operator_session_detail(session_id, user['id'])
@@ -401,7 +554,7 @@ def operator_session_begin(session_id):
     if request.method == 'POST':
         if request.form.get('instruments_ready') != '1':
             return _page(
-                'operator/sessions/begin.html',
+                'operator/sessions/rf_begin.html',
                 session=detail,
                 session_id=session_id,
                 form_error='Confirm the physical instrument set before starting.',
@@ -415,7 +568,7 @@ def operator_session_begin(session_id):
             )
         except RfSessionError as exc:
             return _page(
-                'operator/sessions/begin.html',
+                'operator/sessions/rf_begin.html',
                 session=detail,
                 session_id=session_id,
                 form_error=exc.message,
@@ -423,7 +576,7 @@ def operator_session_begin(session_id):
         if result['capture_mode'] == 'manual_no_privacy':
             return redirect(url_for('web.operator_session_manual', session_id=session_id))
         return redirect(url_for('web.operator_session_capture', session_id=session_id))
-    return _page('operator/sessions/begin.html', session=detail, session_id=session_id)
+    return _page('operator/sessions/rf_begin.html', session=detail, session_id=session_id)
 
 
 @web_bp.route('/operator/sessions/<session_id>/manual')
@@ -568,31 +721,101 @@ def legacy_operator_session_new():
 @web_bp.route('/operator/sessions/<session_id>/capture')
 @require_role('station_operator')
 def operator_session_capture(session_id):
-    return _page('operator/sessions/capture.html', session_id=session_id)
+    if use_v3_fixture(session_id):
+        return _v3_operator_flow_page('operator/sessions/capture.html', session_id, 'in_progress')
+    return _page('operator/sessions/v2/capture.html', session_id=session_id)
+
+
+@web_bp.route('/operator/sessions/<session_id>/tray-verification')
+@require_role('station_operator')
+def operator_session_tray_verification(session_id):
+    """V3 demo Final Tray Verification (?state=verifying|failed|success). Demo ids only."""
+    if not use_v3_fixture(session_id):
+        abort(404)
+    state = request.args.get('state') if request.args.get('state') in V3_TRAY_STATES else V3_TRAY_STATES[0]
+    return _v3_operator_flow_page(
+        'operator/sessions/tray_verification.html', session_id,
+        'verifying' if state == 'verifying' else 'in_progress',
+        tray_state=state, tray_attempt=request.args.get('attempt'),
+    )
 
 
 @web_bp.route('/operator/sessions/<session_id>/ai-detection')
 @require_role('station_operator')
 def operator_session_ai_detection(session_id):
-    return _page('operator/sessions/ai_detection.html', session_id=session_id)
+    if use_v3_fixture(session_id):
+        return _v3_operator_flow_page('operator/sessions/ai_detection.html', session_id, 'in_progress')
+    return _page('operator/sessions/v2/ai_detection.html', session_id=session_id)
 
 
-@web_bp.route('/operator/sessions/<session_id>/validation')
+@web_bp.route('/operator/sessions/<session_id>/validation', methods=['GET', 'POST'])
 @require_role('station_operator')
 def operator_session_validation(session_id):
-    return _page('operator/sessions/validation.html', session_id=session_id)
+    """
+    V3 demo Human Validation (editable counts). POST validates the Operator's values and
+    redirects to the Validation Summary with them in the query string; nothing is written
+    (no DB, cookie or session). Other ids keep the V2 page, GET only.
+    """
+    if not use_v3_fixture(session_id):
+        if request.method == 'POST':
+            abort(405)
+        return _page('operator/sessions/v2/validation.html', session_id=session_id)
+    if request.method == 'POST':
+        scenario = request.values.get('scenario')
+        state, errors = operator_v3_parse_validation(request.form, scenario, strict=True)
+        if state is None:
+            state, errors = None, ['Submit the Human Validation form to continue.']
+        if errors:
+            response = _v3_operator_flow_page(
+                'operator/sessions/validation.html', session_id, 'in_progress',
+                validation=state, form_errors=errors,
+            )
+            return response if not isinstance(response, str) else (response, 400)
+        view, response = _v3_operator_view_or_redirect(session_id, state)
+        if response is not None:
+            return response
+        return redirect(_v3_flow_for(view)['validation_summary'])
+    return _v3_operator_flow_page('operator/sessions/validation.html', session_id, 'in_progress')
 
 
 @web_bp.route('/operator/sessions/<session_id>/validation-summary')
 @require_role('station_operator')
 def operator_session_validation_summary(session_id):
-    return _page('operator/sessions/validation_summary.html', session_id=session_id)
+    if use_v3_fixture(session_id):
+        return _v3_operator_flow_page('operator/sessions/validation_summary.html', session_id, 'in_progress')
+    return _page('operator/sessions/v2/validation_summary.html', session_id=session_id)
 
 
-@web_bp.route('/operator/sessions/<session_id>/discrepancy')
+@web_bp.route('/operator/sessions/<session_id>/discrepancy', methods=['GET', 'POST'])
 @require_role('station_operator')
 def operator_session_discrepancy(session_id):
-    return _page('operator/sessions/discrepancy.html', session_id=session_id)
+    """V3 demo Discrepancy Escalation (?state=prepared|escalated); V2 page for other ids."""
+    if not use_v3_fixture(session_id):
+        if request.method == 'POST':
+            abort(405)
+        return _page('operator/sessions/v2/discrepancy.html', session_id=session_id)
+    view, response = _v3_operator_view_or_redirect(session_id)
+    if response is not None:
+        return response
+    flow = _v3_flow_for(view)
+    if view['is_clean']:
+        # The clean projection has nothing to escalate.
+        return redirect(flow['validation_summary'])
+    if request.method == 'POST':
+        # Demo escalation: the Operator note is only carried to the success page in the URL;
+        # it is not persisted and nothing is written to the DB.
+        notes = operator_v3_escalation_notes(request.form.get('operator_notes'))
+        return redirect(_v3_op_url(
+            'web.operator_session_discrepancy', view['session']['session_id'], view['base_scenario'],
+            view['validation_state'], state='escalated', **({'on': notes} if notes else {}),
+        ))
+    state = 'escalated' if request.args.get('state') == 'escalated' else 'prepared'
+    return _v3_operator_flow_page(
+        'operator/sessions/discrepancy.html', session_id,
+        'escalated' if state == 'escalated' else 'escalation_prepared',
+        validation=view['validation_state'], escalation_state=state,
+        escalation_notes=operator_v3_escalation_notes(request.args.get('on')) if state == 'escalated' else '',
+    )
 
 
 @web_bp.route('/operator/sessions/<session_id>/awaiting-review')
@@ -610,7 +833,34 @@ def operator_session_correction(session_id):
 @web_bp.route('/operator/sessions/<session_id>/ready-to-close')
 @require_role('station_operator')
 def operator_session_ready_to_close(session_id):
-    return _page('operator/sessions/ready_to_close.html', session_id=session_id)
+    if not use_v3_fixture(session_id):
+        return _page('operator/sessions/v2/ready_to_close.html', session_id=session_id)
+    view, response = _v3_operator_view_or_redirect(session_id)
+    if response is not None:
+        return response
+    if not view['is_clean']:
+        # Ready to Close is the clean path only; escalated sessions close from Escalation.
+        return redirect(_v3_flow_for(view)['validation_summary'])
+    return _v3_operator_flow_page('operator/sessions/ready_to_close.html', session_id, 'ready_to_close',
+                                  validation=view['validation_state'])
+
+
+@web_bp.route('/operator/sessions/<session_id>/close', methods=['POST'])
+@require_role('station_operator')
+def operator_session_v3_close(session_id):
+    """
+    V3 demo Operator close. Demo fixture sessions only: no DB mutation, no RF state change
+    (RF closing remains confirm_spd_close on the Supervisor RF path). Redirects to the
+    Assigned Sessions landing page with a closure banner.
+    """
+    if not use_v3_fixture(session_id):
+        abort(404)
+    view, response = _v3_operator_view_or_redirect(session_id)
+    if response is not None:
+        return response
+    return redirect(url_for(
+        'web.operator_sessions', closed=view['session']['session_id'], outcome=view['scenario'],
+    ))
 
 
 @web_bp.route('/operator/sessions/closed/<session_id>')
@@ -641,34 +891,101 @@ def supervisor_profile():
     return _page('shared/profile.html', profile_role='supervisor')
 
 
+# ----------------------------------------------------------------------------------------
+# Supervisor V3 (ui_reference_v3/supervisor). Each route below takes the V3 fixture branch
+# only when use_v3_fixture() allows it (demo mode for lists; explicit WS-0xx demo ids for
+# details). UUID-backed sessions with demo mode off keep the RF branch unchanged
+# (rf_details.html / rf_review.html / RF POSTs / services.rf_session). V3 demo actions are
+# navigation-only: they never write RF state.
+# ----------------------------------------------------------------------------------------
+
+V3_SESSION_DETAIL_TABS = ('overview', 'counts', 'activity')
+V3_REVIEW_TABS = ('overview', 'evidence', 'resolution', 'final')
+
+
+def _v3_supervisor_page(template, *, demo, **values):
+    """Render a Supervisor V3 template; demo pages show the presentation identity only."""
+    if demo:
+        values.setdefault('current_user', v3_supervisor_display_user(_current_user()))
+    return _page(template, v3_demo=demo, **values)
+
+
+def _v3_tab(value, tabs):
+    return value if value in tabs else tabs[0]
+
+
+def _v3_case_keys(source, name):
+    allowed = set(supervisor_v3_review_case_keys())
+    return [key for key in (source.get(name) or '').split(',') if key in allowed]
+
+
+def _v3_review_url(session_id, tab, states, case=None, **extra):
+    resolved = [key for key, code in states.items() if code == 'resolved']
+    unresolved = [key for key, code in states.items() if code == 'reviewed_unresolved']
+    params = {'tab': tab}
+    if case:
+        params['case'] = case
+    if resolved:
+        params['resolved'] = ','.join(resolved)
+    if unresolved:
+        params['unresolved'] = ','.join(unresolved)
+    params.update(extra)
+    return url_for('web.supervisor_discrepancy_review', session_id=session_id, **params)
+
+
 @web_bp.route('/supervisor/dashboard')
 @require_role('spd_supervisor')
 def supervisor_dashboard():
-    stats, sessions, discrepancies = dashboard_data('supervisor')
-    return _page(
-        'supervisor/dashboard.html',
-        dashboard_stats=stats,
-        sessions_requiring_attention=discrepancies,
-        recent_sessions=sessions[:5],
+    if use_v3_fixture():
+        return _v3_supervisor_page('supervisor/dashboard.html', demo=True, dashboard=supervisor_v3_dashboard())
+    stats, sessions, _ = dashboard_data('supervisor')
+    return _v3_supervisor_page(
+        'supervisor/dashboard.html', demo=False,
+        dashboard=supervisor_v3_dashboard_from_rf(stats, sessions),
     )
 
 
 @web_bp.route('/supervisor/sessions')
 @require_role('spd_supervisor')
 def supervisor_sessions():
-    sessions = sessions_data()
-    return _page(
-        'supervisor/sessions/list.html',
-        sessions=sessions,
-        sessions_shown_count=len(sessions),
-        sessions_total_count=len(sessions),
+    if use_v3_fixture():
+        created = request.args.get('created')
+        rows = supervisor_v3_sessions(created)
+        return _v3_supervisor_page(
+            'supervisor/sessions/list.html', demo=True,
+            session_rows=rows,
+            list_meta=supervisor_v3_list_meta('sessions'),
+            filter_options=supervisor_v3_filter_options(),
+            feedback_banner=supervisor_v3_created_banner(created),
+        )
+    rows = supervisor_v3_rows_from_rf(sessions_data())
+    return _v3_supervisor_page(
+        'supervisor/sessions/list.html', demo=False,
+        session_rows=rows,
+        list_meta={'total': len(rows), 'pages': 1},
+        filter_options=supervisor_v3_filter_options(),
     )
 
 
 @web_bp.route('/supervisor/sessions/new', methods=['GET', 'POST'])
 @require_role('spd_supervisor')
 def supervisor_session_new():
-    """RF-SP-02 schedule session + optional Via A privacy confirm."""
+    """V3 demo wizard (demo mode) or RF-SP-02 schedule session + optional Via A privacy confirm."""
+    if use_v3_fixture():
+        # V3 demo wizard: navigation only, no DB write. Any other POST (e.g. a direct RF
+        # schedule form submission) still falls through to the unchanged RF branch below.
+        if request.method == 'GET':
+            try:
+                step = int(request.args.get('step', 1))
+            except ValueError:
+                step = 1
+            return _v3_supervisor_page(
+                'supervisor/sessions/new.html', demo=True,
+                wizard=supervisor_v3_new_session(), step=step if step in (1, 2, 3) else 1,
+            )
+        if request.form.get('v3_action') == 'create_demo_session':
+            return redirect(url_for('web.supervisor_sessions', created=supervisor_v3_new_session()['session_id']))
+
     from datetime import datetime as dt
 
     from services.rf_session import (
@@ -784,23 +1101,39 @@ def supervisor_session_privacy(session_id):
 @web_bp.route('/supervisor/sessions/history')
 @require_role('spd_supervisor')
 def supervisor_session_history():
-    sessions = sessions_data()
-    return _page(
-        'supervisor/sessions/history.html',
-        session_history=sessions,
-        sessions_shown_count=len(sessions),
-        sessions_total_count=len(sessions),
+    if use_v3_fixture():
+        return _v3_supervisor_page(
+            'supervisor/sessions/history.html', demo=True,
+            session_rows=supervisor_v3_session_history(),
+            list_meta=supervisor_v3_list_meta('history'),
+            filter_options=supervisor_v3_filter_options(),
+        )
+    rows = supervisor_v3_rows_from_rf(sessions_data())
+    return _v3_supervisor_page(
+        'supervisor/sessions/history.html', demo=False,
+        session_rows=rows,
+        list_meta={'total': len(rows), 'pages': 1},
+        filter_options=supervisor_v3_filter_options(),
     )
 
 
 @web_bp.route('/supervisor/sessions/<session_id>')
 @require_role('spd_supervisor')
 def supervisor_session_details(session_id):
+    if use_v3_fixture(session_id):
+        view = supervisor_v3_view(session_id)
+        if view is None:
+            abort(404)
+        tab = _v3_tab(request.args.get('tab'), V3_SESSION_DETAIL_TABS)
+        return _v3_supervisor_page(
+            'supervisor/sessions/details.html', demo=True,
+            v3=view, tab=tab, session_id=view['session']['session_id'],
+            tab_urls={name: url_for('web.supervisor_session_details', session_id=view['session']['session_id'], tab=name)
+                      for name in V3_SESSION_DETAIL_TABS},
+        )
     detail = supervisor_session_detail(session_id)
     if detail is None:
-        # Keep legacy WS-026 click-through for non-UUID demo ids.
-        session_data = next((item for item in sessions_data() if item['id'] == session_id), None)
-        return _page('supervisor/sessions/details.html', session=session_data, session_id=session_id)
+        abort(404)
     return _page('supervisor/sessions/rf_details.html', session=detail, session_id=session_id)
 
 
@@ -832,11 +1165,94 @@ def supervisor_session_close(session_id):
 @web_bp.route('/supervisor/discrepancies')
 @require_role('spd_supervisor')
 def supervisor_discrepancies():
+    if use_v3_fixture():
+        return _v3_supervisor_page(
+            'supervisor/discrepancies/list.html', demo=True,
+            queue_rows=supervisor_v3_review_queue(),
+            queue_summary=supervisor_v3_review_summary(),
+            filter_options=supervisor_v3_filter_options(),
+            feedback_banner=supervisor_v3_validated_banner(request.args.get('validated')),
+        )
     discrepancies = discrepancies_data()
-    return _page(
-        'supervisor/discrepancies/list.html',
-        discrepancies=discrepancies,
-        discrepancies_summary=discrepancies_summary_data(discrepancies),
+    summary = discrepancies_summary_data(discrepancies)
+    return _v3_supervisor_page(
+        'supervisor/discrepancies/list.html', demo=False,
+        queue_rows=supervisor_v3_queue_from_rf(discrepancies),
+        queue_summary={
+            'review_required': summary.get('pending_reviews', 0),
+            'reviewed_unresolved': 0,
+            'resolved_today': summary.get('reviewed_today', 0),
+        },
+        filter_options=supervisor_v3_filter_options(),
+    )
+
+
+V3_REVIEW_BANNERS = {
+    'draft': {'variant': 'info', 'title': 'Draft saved.',
+              'description': 'Demo only: the resolution draft is not persisted.'},
+    'notes_required': {'variant': 'warning',
+                       'title': 'Review notes are required to mark a case as Reviewed – Unresolved.',
+                       'description': ''},
+}
+
+
+def _v3_supervisor_review(session_id):
+    """V3 Review Detail (demo). POST actions only change the projection carried in the URL."""
+    source = request.form if request.method == 'POST' else request.args
+    outcome = request.args.get('outcome') if request.method == 'GET' else None
+    view = supervisor_v3_view(
+        session_id, outcome,
+        resolved=_v3_case_keys(source, 'resolved'),
+        unresolved=_v3_case_keys(source, 'unresolved'),
+    )
+    if view is None:
+        abort(404)
+    sid = view['session']['session_id']
+    states = dict(view['case_states'])
+    case_keys = [case['case_key'] for case in view['review_cases'] if case['case_key']]
+
+    if request.method == 'POST':
+        if not view['is_full_case']:
+            return redirect(url_for('web.supervisor_discrepancy_review', session_id=sid))
+        action = request.form.get('v3_action')
+        case = request.form.get('case') if request.form.get('case') in case_keys else None
+        if action in ('resolve', 'mark_unresolved') and case:
+            if action == 'mark_unresolved' and not (request.form.get('review_notes') or '').strip():
+                return redirect(_v3_review_url(sid, 'resolution', states, case=case, notice='notes_required'))
+            states[case] = 'resolved' if action == 'resolve' else 'reviewed_unresolved'
+            pending = [key for key in case_keys if key not in states]
+            if pending:
+                return redirect(_v3_review_url(sid, 'resolution', states, case=pending[0]))
+            return redirect(_v3_review_url(sid, 'final', states))
+        if action == 'save_draft':
+            return redirect(_v3_review_url(sid, 'resolution', states, case=case, notice='draft'))
+        if action == 'confirm_resolution':
+            acknowledged = all(request.form.get(f'ack_{index}') == '1' for index in (1, 2, 3))
+            if view['final_validation']['ready'] and acknowledged:
+                return redirect(url_for('web.supervisor_discrepancies', validated=sid))
+            return redirect(_v3_review_url(sid, 'final', states))
+        return redirect(_v3_review_url(sid, 'overview', states))
+
+    tab = _v3_tab(request.args.get('tab'), V3_REVIEW_TABS)
+    selected_key = request.args.get('case')
+    if selected_key not in case_keys:
+        pending = [key for key in case_keys if key not in states]
+        selected_key = pending[0] if pending else (case_keys[0] if case_keys else None)
+    selected_case = next((case for case in view['review_cases'] if case['case_key'] == selected_key),
+                         view['review_cases'][0] if view['review_cases'] else None)
+    return _v3_supervisor_page(
+        'supervisor/discrepancies/review.html', demo=True,
+        v3=view, tab=tab, session_id=sid,
+        selected_case=selected_case,
+        tab_urls={name: _v3_review_url(sid, name, states, case=selected_key) for name in V3_REVIEW_TABS},
+        case_urls={key: _v3_review_url(sid, 'resolution', states, case=key) for key in case_keys},
+        final_url=_v3_review_url(sid, 'final', states),
+        form_action=url_for('web.supervisor_discrepancy_review', session_id=sid),
+        state_fields={
+            'resolved': ','.join(key for key, code in states.items() if code == 'resolved'),
+            'unresolved': ','.join(key for key, code in states.items() if code == 'reviewed_unresolved'),
+        },
+        feedback_banner=V3_REVIEW_BANNERS.get(request.args.get('notice')),
     )
 
 
@@ -845,10 +1261,12 @@ def supervisor_discrepancies():
 def supervisor_discrepancy_review(session_id):
     from services.rf_session import RfSessionError, resolve_discrepancy
 
+    if use_v3_fixture(session_id):
+        return _v3_supervisor_review(session_id)
+
     detail = supervisor_session_detail(session_id)
     if detail is None:
-        session_data = next((item for item in sessions_data() if item['id'] == session_id), None)
-        return _page('supervisor/discrepancies/review.html', session=session_data, session_id=session_id)
+        abort(404)
 
     if request.method == 'POST':
         user = _current_user()
@@ -878,26 +1296,37 @@ def supervisor_discrepancy_review(session_id):
 @web_bp.route('/supervisor/reports')
 @require_role('spd_supervisor')
 def supervisor_reports():
-    return _page('supervisor/reports.html')
+    # No report generation backend exists yet: both modes render the centralized V3
+    # presentation data (previously the same role was played by template-local fallbacks).
+    return _v3_supervisor_page(
+        'supervisor/reports.html', demo=use_v3_fixture(),
+        reports=supervisor_v3_reports(), filter_options=supervisor_v3_filter_options(),
+    )
 
 
 @web_bp.route('/supervisor/indicators')
 @require_role('spd_supervisor')
 def supervisor_indicators():
-    # indicator_stats/sessions_by_day/discrepancies_by_* have no backing analytics query yet
-    # (no AI-vs-human agreement, resolution-time, or per-instrument/family/type discrepancy
-    # aggregation exists on any model) — the template supplies the approved WS-026-consistent
-    # presentation fallback. See V2_IMPLEMENTATION_NOTES.md.
-    return _page('supervisor/indicators.html')
+    # No analytics query exists for these indicators yet (AI-human agreement, resolution
+    # time, per-instrument/family/type aggregation): both modes render the centralized V3
+    # presentation data. See V2_IMPLEMENTATION_NOTES.md.
+    return _v3_supervisor_page(
+        'supervisor/indicators.html', demo=use_v3_fixture(),
+        indicators=supervisor_v3_indicators(),
+    )
 
 
 @web_bp.route('/supervisor/audit-log')
 @require_role('spd_supervisor')
 def supervisor_audit_log():
-    # AccessAudit has no query wired up yet (no code/entity/record/result shape to match the
-    # approved V2 reference) — the template supplies the approved WS-026-consistent
-    # presentation fallback. See V2_IMPLEMENTATION_NOTES.md.
-    return _page('supervisor/audit_log.html')
+    # AccessAudit has no query in the V3 shape yet: both modes render rows built from the
+    # centralized WS-026 timeline. See V2_IMPLEMENTATION_NOTES.md.
+    return _v3_supervisor_page(
+        'supervisor/audit_log.html', demo=use_v3_fixture(),
+        audit_rows=supervisor_v3_audit_log(),
+        list_meta=supervisor_v3_list_meta('audit_log'),
+        filter_options=supervisor_v3_filter_options(),
+    )
 
 
 @web_bp.route('/admin/profile')

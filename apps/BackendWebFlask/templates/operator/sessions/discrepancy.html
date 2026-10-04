@@ -1,14 +1,20 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{% set session_id = session_id|default('') %}
-{% set session = session|default({
-    'session_id': session_id, 'procedure_name': '', 'operating_room': '',
-    'patient_name': '', 'physician_name': '',
-    'kit_name': '', 'status_label': '', 'status_variant': 'neutral'
-}, true) %}
+{#
+    Operator Discrepancy Escalation (V3 — ui_reference_v3/operator/operator-discrepancy-
+    escalation.png / -escalation-success.png), for V3 demo session ids only. Other ids render
+    operator/sessions/v2/discrepancy.html.
 
-{% block title %}{{ _("Discrepancy Escalation") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+    escalation_state: 'prepared' | 'escalated'. Escalate to Supervisor POSTs to this URL and
+    the route redirects to ?state=escalated, carrying the Operator note (escalation_notes) in
+    the URL only (demo: not persisted, no DB mutation). Review cases come from v3.review_cases
+    (the submitted Human Validation when present). The Operator is never blocked and never
+    navigates into Supervisor Review: review status is shown as non-interactive information,
+    and the next action is Close Session (escalated close modal).
+#}
+
+{% block title %}{{ _("Operator Discrepancy Escalation") }} · {{ v3.session.session_id }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
 {% block sidebar %}
 {% set active_nav_item = 'counting_sessions' %}
@@ -17,115 +23,198 @@
 
 {% block breadcrumb %}
 <ol class="breadcrumb-list">
-    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-item"><a href="{{ flow.sessions }}">{{ _("Operations") }}</a></li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
-    <li class="breadcrumb-item">{{ _("Counting Session") }} {{ session.session_id }}</li>
+    <li class="breadcrumb-item">{{ _("Counting Session %(session)s", session=v3.session.session_id) }}</li>
     <li class="breadcrumb-separator" aria-hidden="true">/</li>
-    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Discrepancy Escalation") }}</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Operator Discrepancy Escalation") }}</li>
 </ol>
 {% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operator-v3.css') }}">
+{% endblock %}
+
 {% block page_content %}
-{% set discrepancy_details = discrepancy_details|default({
-    'instrument_name': '', 'expected_quantity': 0, 'ai_detected': 0,
-    'validated_quantity': 0, 'difference': 0, 'severity_label': '',
-    'discrepancy_type': ''
-}) %}
-{% set ai_detection_evidence = ai_detection_evidence|default({
-    'detected_count': 0, 'confidence': 0, 'timestamp': ''
-}) %}
-{% set operator_validation_evidence = operator_validation_evidence|default({
-    'validated_count': 0, 'operator_name': '',
-    'reason': '', 'timestamp': ''
-}) %}
-{% set supervisor_review_evidence = supervisor_review_evidence|default({
-    'status_label': '', 'assigned_supervisor': '', 'escalated_at': ''
-}) %}
-{% set back_to_session_url = back_to_session_url|default(url_for('web.operator_sessions')) %}
-
-<div class="page-heading">
-    <div>
-        <h1 class="page-heading__title">{{ _("Discrepancy Escalation") }}</h1>
-        <p class="page-heading__subtitle">{{ _("This counting session cannot be closed while unresolved discrepancies exist.") }}</p>
-    </div>
-</div>
-
-<section class="card">
-    <div class="session-context-bar">
-        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
-        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
-        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
-    </div>
-</section>
-
-<section class="card">
-    <h2 class="card__title">{{ _("Discrepancy Details") }}</h2>
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th scope="col">{{ _("Instrument") }}</th>
-                    <th scope="col">{{ _("Expected") }}</th>
-                    <th scope="col">{{ _("AI Detected") }}</th>
-                    <th scope="col">{{ _("Validated") }}</th>
-                    <th scope="col">{{ _("Difference") }}</th>
-                    <th scope="col">{{ _("Severity") }}</th>
-                    <th scope="col">{{ _("Discrepancy Type") }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr class="data-table__row--highlight-danger">
-                    <th scope="row">{{ discrepancy_details.instrument_name }}</th>
-                    <td>{{ discrepancy_details.expected_quantity }}</td>
-                    <td>{{ discrepancy_details.ai_detected }}</td>
-                    <td>{{ discrepancy_details.validated_quantity }}</td>
-                    <td class="text-danger">{{ discrepancy_details.difference }}</td>
-                    <td>{{ macros.status_badge(discrepancy_details.severity_label, 'danger') }}</td>
-                    <td class="text-danger">{{ discrepancy_details.discrepancy_type }}</td>
-                </tr>
-            </tbody>
-        </table>
-    </div>
-</section>
-
-<section class="card">
-    <h2 class="card__title">{{ _("Evidence & Audit Trail") }}</h2>
-    <div class="panel-grid--three">
-        <div class="sub-panel">
-            <span class="sub-panel__label">{{ _("AI Detection") }}</span>
-            <span class="sub-panel__value">{{ _("Detected Count:") }} {{ ai_detection_evidence.detected_count }}</span>
-            <span class="sub-panel__value">{{ _("Confidence Level:") }} <span class="text-warning">{{ ai_detection_evidence.confidence }}%</span></span>
-            <span class="form-field__helper">{{ _("Timestamp:") }} {{ ai_detection_evidence.timestamp }}</span>
-        </div>
-        <div class="sub-panel">
-            <span class="sub-panel__label">{{ _("Operator Validation") }}</span>
-            <span class="sub-panel__value">{{ _("Validated Count:") }} {{ operator_validation_evidence.validated_count }}</span>
-            <span class="sub-panel__value">{{ _("Operator:") }} <strong>{{ operator_validation_evidence.operator_name }}</strong></span>
-            <span class="sub-panel__value">{{ _("Reason:") }} {{ operator_validation_evidence.reason }}</span>
-            <span class="form-field__helper">{{ _("Timestamp:") }} {{ operator_validation_evidence.timestamp }}</span>
-        </div>
-        <div class="sub-panel sub-panel--warning">
-            <span class="sub-panel__label">{{ _("Supervisor Review") }}</span>
-            <span class="sub-panel__value">{{ macros.status_badge(supervisor_review_evidence.status_label, 'warning') }}</span>
-            <span class="sub-panel__value">{{ _("Assigned:") }} <strong>{{ supervisor_review_evidence.assigned_supervisor }}</strong></span>
-            <span class="form-field__helper">{{ _("Escalated:") }} {{ supervisor_review_evidence.escalated_at }}</span>
+{% set s = v3.session %}
+{% set ev = v3.evidence %}
+<div class="v3-page">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-heading__title">{{ _("Operator Discrepancy Escalation") }}</h1>
+            <p class="page-heading__subtitle">
+                {% if escalation_state == 'escalated' %}{{ _("Supervisor review will continue independently. You may close this operational session.") }}
+                {% else %}{{ _("Document unresolved discrepancies, provide context, and send the case to Supervisor review.") }}{% endif %}
+            </p>
         </div>
     </div>
-</section>
 
-<div class="alert alert--warning" role="status">
-    {{ macros.icon_alert_triangle() }}
-    <span class="alert__message">{{ _("This counting session cannot be closed while unresolved discrepancies exist.") }}</span>
-</div>
+    {% with context_meta=[s.escalated_at_display, _("Operator: %(name)s", name=s.operator_name)] %}
+    {% include "operator/sessions/_context_bar.html" %}
+    {% endwith %}
 
-{# .page-content is a flex column with the default stretch cross-axis alignment, so a lone
-   .btn placed directly inside it would stretch full-width; a plain wrapping div keeps the
-   button at its natural content width, matching every approved reference. #}
-<div>
-    <a class="btn btn--secondary" href="{{ back_to_session_url }}">{{ _("Back to Session") }}</a>
+    {% if escalation_state == 'escalated' %}
+    <section class="card v3-stack">
+        <div>
+            <h2 class="card__title">{{ _("Discrepancy successfully escalated") }}</h2>
+            <p class="card__subtitle">{{ _("Supervisor review will continue independently. You may close this operational session.") }}</p>
+            {{ macros.status_badge(_("Escalation Complete"), 'success') }}
+        </div>
+
+        <div class="v3-panel">
+            <div class="v3-card-header">
+                <div>
+                    <p class="v3-panel__title">{{ _("Review Status") }}</p>
+                    <p><strong>{{ _(v3.review_status.label) }}</strong></p>
+                </div>
+                {{ macros.status_badge(_("Supervisor Review Pending"), 'warning') }}
+            </div>
+            <p class="v3-muted-note">
+                {{ _("Supervisor review will continue independently.") }}
+                {% if v3.unresolved_review_cases == 1 %}{{ _("The escalated discrepancy remains active for independent review and resolution.") }}
+                {% elif v3.unresolved_review_cases == 2 %}{{ _("Both escalated discrepancies remain active for independent review and resolution.") }}
+                {% else %}{{ _("All %(count)s escalated discrepancies remain active for independent review and resolution.", count=v3.unresolved_review_cases) }}{% endif %}
+            </p>
+        </div>
+
+        {% if escalation_notes %}
+        <div class="v3-panel">
+            <p class="v3-panel__title">{{ _("Operator Notes") }}</p>
+            <p class="v3-op-escalation-notes">{{ escalation_notes }}</p>
+            <p class="v3-muted-note">{{ _("Shared as context for Supervisor review (demo: not stored).") }}</p>
+        </div>
+        {% endif %}
+
+        <div class="v3-panel">
+            <p class="v3-panel__title">{{ _("Escalated Discrepancies") }}</p>
+            {% for case in v3.review_cases %}
+            <div class="v3-op-case-card">
+                <div class="v3-card-header">
+                    <strong>{{ case.instrument_name }}</strong>
+                    <span class="status-badge status-badge--{{ case.severity.variant }} status-badge--outline">{{ _(case.severity.label) }}</span>
+                </div>
+                <dl class="v3-op-case-card__grid">
+                    <div><dt>{{ _("Expected") }}</dt><dd>{{ case.expected_quantity }}</dd></div>
+                    <div><dt>{{ _("AI Detected") }}</dt><dd>{{ case.ai_detected }}</dd></div>
+                    <div><dt>{{ _("Operator Validated") }}</dt><dd>{{ case.validated }}</dd></div>
+                    <div><dt>{{ _("Difference") }}</dt><dd class="{{ 'text-danger' if case.difference else 'text-success' }}">{{ ('+' ~ case.difference) if case.difference > 0 else case.difference }}</dd></div>
+                </dl>
+                <p class="text-{{ case.severity.variant }}"><strong>{{ _(case.type_label) }}</strong></p>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="v3-panel">
+            <div class="v3-card-header">
+                <div>
+                    <p class="v3-panel__title">{{ _("Operator Status") }}</p>
+                    <p><strong>{{ _("Operator is not blocked") }}</strong></p>
+                </div>
+                {{ macros.status_badge(_("Ready to Close"), 'success') }}
+            </div>
+            <p class="v3-muted-note">{{ _("You can close this session without waiting for a correction request or return-to-validation action.") }}</p>
+        </div>
+
+        <div>
+            <button type="button" class="btn btn--primary" data-modal-open="close-session-modal">{{ _("Close Session") }}</button>
+        </div>
+    </section>
+
+    {% with close_variant='escalated' %}
+    {% include "components/modals/close_session_v3.html" %}
+    {% endwith %}
+
+    {% else %}
+    <section class="card">
+        <h2 class="card__title">{{ _("Unresolved Discrepancies") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Instrument") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("AI Detected") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Operator Validated") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Difference") }}</th>
+                        <th scope="col">{{ _("Severity") }}</th>
+                        <th scope="col">{{ _("Discrepancy Type") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for case in v3.review_cases %}
+                    <tr id="case-{{ case.case_key }}" class="{{ 'data-table__row--highlight-danger' if case.difference else '' }}">
+                        <th scope="row">{{ case.instrument_name }}</th>
+                        <td class="data-table__numeric-column">{{ case.expected_quantity }}</td>
+                        <td class="data-table__numeric-column">{{ case.ai_detected }}</td>
+                        <td class="data-table__numeric-column">{{ case.validated }}</td>
+                        <td class="data-table__numeric-column {{ 'text-danger' if case.difference else 'text-success' }}"><strong>{{ ('+' ~ case.difference) if case.difference > 0 else case.difference }}</strong></td>
+                        <td><span class="status-badge status-badge--{{ case.severity.variant }} status-badge--outline">{{ _(case.severity.label) }}</span></td>
+                        <td class="text-{{ case.severity.variant }}"><strong>{{ _(case.type_label) }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2 class="card__title">{{ _("Evidence & Audit Trail") }}</h2>
+        {% for case in v3.review_cases %}
+        <p class="v3-op-case-heading">{{ case.instrument_name }} · {{ _(case.type_label) }}</p>
+        <div class="v3-op-evidence-panels">
+            <div class="sub-panel">
+                <span class="sub-panel__label">{{ _("AI Detection") }}</span>
+                <span class="sub-panel__value">{{ _("Detected Count:") }} <strong>{{ case.ai_evidence.detected_count }}</strong></span>
+                <span class="sub-panel__value">{{ _("Average Confidence:") }} {{ case.ai_evidence.avg_confidence_label }}</span>
+                <span class="form-field__helper">{{ _("Timestamp:") }} {{ case.ai_evidence.timestamp }}</span>
+            </div>
+            <div class="sub-panel">
+                <span class="sub-panel__label">{{ _("Operator Validation") }}</span>
+                <span class="sub-panel__value">{{ _("Validated Count:") }} <strong>{{ case.operator_validation.validated_count }}</strong></span>
+                <span class="sub-panel__value">{{ _("Operator:") }} <strong>{{ case.operator_validation.operator_name }}</strong></span>
+                <span class="sub-panel__value">{{ _("Reason:") }} {{ _(case.operator_validation.reason) }}</span>
+                <span class="form-field__helper">{{ _("Timestamp:") }} {{ case.operator_validation.timestamp }}</span>
+            </div>
+            <div class="sub-panel sub-panel--warning">
+                <span class="sub-panel__label">{{ _("Supervisor Review") }}</span>
+                <span class="sub-panel__value"><strong>{{ _("Ready for Supervisor") }}</strong></span>
+                <span class="sub-panel__value">{{ _("Assigned:") }} <strong>{{ s.supervisor_name }}</strong></span>
+                <span class="form-field__helper">{{ _("Escalated:") }} {{ case.escalated_time }}</span>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+
+    <div class="v3-columns">
+    <section class="card">
+        <h2 class="card__title">{{ _("Final Evidence Reference") }}</h2>
+        {{ macros.evidence_figure(
+            image_url=ev.image_url, image_available=ev.image_available, alt=_(ev.alt),
+            title=_("YOLO Detection Overlay"), tag_label=_("AI Output"), tag_variant='info',
+            caption_left=ev.capture_timestamp_display, caption_right=_("Capture Station") ~ ': ' ~ ev.station,
+            overlay_boxes=ev.overlay_boxes,
+            fallback_label=_("YOLO overlay will appear once the final tray image is available")
+        ) }}
+    </section>
+
+    <form class="v3-stack" method="post" action="{{ flow.escalation_action }}" id="v3-escalation-form">
+        {% if v3.base_scenario == 'clean' %}<input type="hidden" name="scenario" value="clean">{% endif %}
+        <section class="card">
+            <h2 class="card__title">{{ _("Escalation Notes / Operator Notes") }}</h2>
+            <div class="form-field">
+                <label class="visually-hidden" for="escalation-notes">{{ _("Escalation Notes / Operator Notes") }}</label>
+                <textarea class="form-field__textarea" id="escalation-notes" name="operator_notes" rows="4" maxlength="500"
+                          placeholder="{{ _('Add any visual observations, camera issues, or context that may help the Supervisor resolve the discrepancy.') }}"></textarea>
+                <p class="form-field__helper">{{ _("This note provides context for Supervisor review and does not request an immediate response.") }}</p>
+            </div>
+        </section>
+    </form>
+    </div>
+    <div class="v3-form-footer">
+        <a class="btn btn--secondary" href="{{ flow.validation_summary }}">{{ _("Back to Session") }}</a>
+        <button type="submit" class="btn btn--primary" form="v3-escalation-form">{{ _("Escalate to Supervisor") }}</button>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
