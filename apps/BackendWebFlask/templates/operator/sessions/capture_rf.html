@@ -1,0 +1,221 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ session.session_id }} · {{ _("Capture") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operator-v3.css') }}">
+<style>
+.capture-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1.25rem; }
+@media (max-width: 960px) { .capture-layout { grid-template-columns: 1fr; } }
+.capture-stage {
+  background: #0b1220; color: #e2e8f0; border-radius: .75rem; min-height: 280px;
+  display: flex; flex-direction: column; align-items: stretch; justify-content: center;
+  overflow: hidden; border: 1px solid #334155;
+}
+.capture-stage img { width: 100%; max-height: 420px; object-fit: contain; background: #000; display: block; }
+.capture-stage__placeholder { padding: 2rem 1rem; text-align: center; color: #94a3b8; }
+.capture-meta { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .75rem; font-size: .9rem; color: #64748b; }
+.capture-upload { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-top: 1rem; }
+</style>
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Active capture") }}</h1>
+        <p class="page-heading__subtitle">{{ session.session_id }} · {{ session.procedure_name }}</p>
+    </div>
+    <a class="btn btn--secondary" href="{{ url_for('web.operator_sessions') }}">{{ _("Back") }}</a>
+</div>
+
+<p>
+    {{ macros.status_badge(session.status_label, session.status_variant) }}
+    {{ macros.status_badge(session.privacy_label, session.privacy_variant) }}
+    {% if session.phase_label %}<span class="text-muted">· {{ _("Phase") }}: {{ session.phase_label }}</span>{% endif %}
+</p>
+
+{% if bind_error or not (worker_health.ok if worker_health is defined else False) %}
+<div class="alert alert--warning" role="alert">
+    <strong>{{ _("Vision worker") }}:</strong>
+    {{ bind_error or (worker_health.error if worker_health is defined else _("Unavailable")) }}
+    — {{ _("You can retry after starting VisionWorker, or use the quantity report fallback.") }}
+</div>
+{% endif %}
+
+<div class="capture-layout">
+    <section class="card">
+        <h2 class="card__title">{{ _("Overhead capture") }}</h2>
+        <p class="card__subtitle">{{ _("Upload a tray video. Frames are sent to YOLO; boxes update here. Low-confidence labels show instrument type instead of family.") }}</p>
+        <div class="capture-stage" id="capture-stage">
+            <div class="capture-stage__placeholder" id="capture-placeholder">{{ _("Waiting for video…") }}</div>
+            <img id="capture-frame" alt="{{ _('Annotated frame') }}" hidden>
+        </div>
+        <div class="capture-meta">
+            <span id="capture-status">{{ _("Status") }}: idle</span>
+            <span id="capture-progress"></span>
+            <span id="capture-model"></span>
+        </div>
+        <form class="capture-upload" id="capture-upload-form" enctype="multipart/form-data">
+            <input class="form-field__input" type="file" name="video" id="capture-video"
+                   accept="video/mp4,video/x-matroska,video/quicktime,video/webm,video/x-msvideo,.mp4,.mkv,.mov,.webm,.avi,.m4v" required>
+            <button type="submit" class="btn btn--primary" id="capture-upload-btn">{{ _("Upload & run YOLO") }}</button>
+        </form>
+        <p class="text-muted" style="margin-top:.75rem;">{{ _("Formats: .mp4, .mkv, .mov, .webm, .avi. Processing uses every Nth frame (worker stride).") }}</p>
+        <div class="page-heading__actions" style="margin-top:1rem;">
+            <form method="post" action="{{ finish_url }}">
+                <button type="submit" class="btn btn--primary">{{ _("Finish counting") }}</button>
+            </form>
+            <a class="btn btn--secondary" href="{{ report_url }}">{{ _("Quantity report fallback") }}</a>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2 class="card__title">{{ _("Expected vs detected") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table" id="capture-counts-table">
+                <thead>
+                    <tr>
+                        <th>{{ _("Instrument") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Expected") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Detected") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Diff") }}</th>
+                        <th>{{ _("Conf") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in session.expected_items|default([]) %}
+                    <tr data-family-code="{{ item.family_code }}">
+                        <td>{{ item.family_name }}</td>
+                        <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                        <td class="data-table__numeric-column" data-detected>—</td>
+                        <td class="data-table__numeric-column" data-diff>—</td>
+                        <td data-conf>—</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5">{{ _("No expected inventory rows.") }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <h3 class="card__title" style="margin-top:1.25rem;font-size:1rem;">{{ _("Change phase (stub)") }}</h3>
+        <p class="text-muted">{{ _("Writes a real phase_change event; no Mongo/Garage evidence in this cycle.") }}</p>
+        <form id="capture-phase-form" class="capture-upload">
+            <select class="form-field__input" name="phase_code" required>
+                <option value="">{{ _("Select phase") }}</option>
+                {% for phase in phases|default([]) %}
+                <option value="{{ phase.code }}" {% if session.phase_code == phase.code %}selected{% endif %}>{{ phase.name }} ({{ phase.code }})</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn--secondary">{{ _("Apply phase") }}</button>
+        </form>
+        <p id="capture-phase-msg" class="text-muted" style="margin-top:.5rem;"></p>
+    </section>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+    var stateUrl = {{ state_url|tojson }};
+    var uploadUrl = {{ upload_url|tojson }};
+    var phaseUrl = {{ phase_url|tojson }};
+    var img = document.getElementById("capture-frame");
+    var placeholder = document.getElementById("capture-placeholder");
+    var statusEl = document.getElementById("capture-status");
+    var progressEl = document.getElementById("capture-progress");
+    var modelEl = document.getElementById("capture-model");
+    var table = document.getElementById("capture-counts-table");
+    var uploadForm = document.getElementById("capture-upload-form");
+    var uploadBtn = document.getElementById("capture-upload-btn");
+    var phaseForm = document.getElementById("capture-phase-form");
+    var phaseMsg = document.getElementById("capture-phase-msg");
+    var timer = null;
+
+    function applyState(session) {
+        if (!session) return;
+        statusEl.textContent = "Status: " + (session.status || "—") + (session.message ? " · " + session.message : "");
+        if (typeof session.progress === "number") {
+            progressEl.textContent = "Progress: " + Math.round(session.progress * 100) + "%";
+        }
+        if (session.model_version) {
+            modelEl.textContent = "Model: " + session.model_version;
+        }
+        if (session.frame_jpeg_b64) {
+            img.src = "data:image/jpeg;base64," + session.frame_jpeg_b64;
+            img.hidden = false;
+            placeholder.hidden = true;
+        }
+        var counts = session.counts || {};
+        table.querySelectorAll("tr[data-family-code]").forEach(function (row) {
+            var code = row.getAttribute("data-family-code");
+            var meta = counts[code];
+            var det = row.querySelector("[data-detected]");
+            var diff = row.querySelector("[data-diff]");
+            var conf = row.querySelector("[data-conf]");
+            if (!meta) return;
+            det.textContent = meta.detected_quantity;
+            diff.textContent = meta.difference;
+            conf.textContent = meta.avg_confidence == null ? "—" : Number(meta.avg_confidence).toFixed(2);
+        });
+    }
+
+    function poll() {
+        fetch(stateUrl, { credentials: "same-origin" })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                if (data && data.session) applyState(data.session);
+            })
+            .catch(function () { /* keep polling */ });
+    }
+
+    uploadForm.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var fileInput = document.getElementById("capture-video");
+        if (!fileInput.files || !fileInput.files[0]) return;
+        var fd = new FormData();
+        fd.append("video", fileInput.files[0]);
+        uploadBtn.disabled = true;
+        statusEl.textContent = "Status: uploading…";
+        fetch(uploadUrl, { method: "POST", body: fd, credentials: "same-origin" })
+            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+            .then(function (res) {
+                if (!res.ok) {
+                    statusEl.textContent = "Status: error · " + (res.j.error || "upload failed");
+                    return;
+                }
+                statusEl.textContent = "Status: processing";
+                if (res.j.session) applyState(res.j.session);
+            })
+            .catch(function (err) {
+                statusEl.textContent = "Status: error · " + err;
+            })
+            .finally(function () { uploadBtn.disabled = false; });
+    });
+
+    phaseForm.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var fd = new FormData(phaseForm);
+        fetch(phaseUrl, { method: "POST", body: fd, credentials: "same-origin" })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                phaseMsg.textContent = data.ok
+                    ? ("Phase → " + data.phase_code + " (logged; stub side-effects)")
+                    : (data.error || "Phase change failed");
+            })
+            .catch(function (err) { phaseMsg.textContent = String(err); });
+    });
+
+    poll();
+    timer = setInterval(poll, 1500);
+    window.addEventListener("beforeunload", function () { if (timer) clearInterval(timer); });
+})();
+</script>
+{% endblock %}

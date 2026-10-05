@@ -1,12 +1,6 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{#
-    Supervisor Session History (V3 — ui_reference_v3/supervisor/supervisor-session-history.png).
-    session_rows: view_data.supervisor_v3_session_history() (demo) or supervisor_v3_rows_from_rf().
-    Filters are presentation-only.
-#}
-
 {% block title %}{{ _("Session History") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
 {% block sidebar %}
@@ -27,6 +21,9 @@
 {% endblock %}
 
 {% block page_content %}
+{% set list_filters = list_filters|default({}) %}
+{% set filter_options = filter_options|default({}) %}
+{% set list_meta = list_meta|default({'total': session_rows|length, 'pages': 1, 'page': 1}) %}
 <div class="v3-page">
     <div class="page-heading">
         <div>
@@ -42,6 +39,7 @@
                 <div class="form-field__input-wrapper">
                     <span class="form-field__icon">{{ macros.icon_search() }}</span>
                     <input class="form-field__input" type="search" id="session-history-search" name="search"
+                           value="{{ list_filters.search or '' }}"
                            placeholder="{{ _('Search sessions...') }}">
                 </div>
             </div>
@@ -49,8 +47,8 @@
                 <label class="visually-hidden" for="session-history-review">{{ _("Review Status") }}</label>
                 <select class="form-field__input form-field__input--plain" id="session-history-review" name="review_status">
                     <option value="">{{ _("All Review Statuses") }}</option>
-                    {% for status in filter_options.review_statuses %}
-                    <option value="{{ status.code }}">{{ _(status.label) }}</option>
+                    {% for status in filter_options.review_statuses|default([]) %}
+                    <option value="{{ status.code }}" {% if list_filters.review_status == status.code %}selected{% endif %}>{{ _(status.label) }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -58,8 +56,8 @@
                 <label class="visually-hidden" for="session-history-kit">{{ _("Kit") }}</label>
                 <select class="form-field__input form-field__input--plain" id="session-history-kit" name="kit">
                     <option value="">{{ _("All Kits") }}</option>
-                    {% for kit in filter_options.kits %}
-                    <option value="{{ kit }}">{{ _(kit) }}</option>
+                    {% for kit in filter_options.kits|default([]) %}
+                    <option value="{{ kit }}" {% if list_filters.kit == kit %}selected{% endif %}>{{ _(kit) }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -67,8 +65,8 @@
                 <label class="visually-hidden" for="session-history-operator">{{ _("Operator") }}</label>
                 <select class="form-field__input form-field__input--plain" id="session-history-operator" name="operator">
                     <option value="">{{ _("All Operators") }}</option>
-                    {% for operator in filter_options.operators %}
-                    <option value="{{ operator }}">{{ operator }}</option>
+                    {% for operator in filter_options.operators|default([]) %}
+                    <option value="{{ operator }}" {% if list_filters.operator == operator %}selected{% endif %}>{{ operator }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -76,11 +74,15 @@
                 <label class="visually-hidden" for="session-history-date">{{ _("Date") }}</label>
                 <select class="form-field__input form-field__input--plain" id="session-history-date" name="date">
                     <option value="">{{ _("All Dates") }}</option>
-                    {% for date in filter_options.dates %}
-                    <option value="{{ date }}">{{ _(date) }}</option>
+                    {% for date_opt in filter_options.dates|default([]) %}
+                    <option value="{{ date_opt }}" {% if list_filters.date == date_opt %}selected{% endif %}>{{ _(date_opt) }}</option>
                     {% endfor %}
                 </select>
             </div>
+            <button type="submit" class="btn btn--primary btn--small btn--search-submit" aria-label="{{ _('Search') }}">
+                {{ macros.icon_search() }}
+                <span>{{ _("Search") }}</span>
+            </button>
         </form>
     </section>
 
@@ -121,14 +123,8 @@
             </table>
         </div>
 
-        <nav class="pagination" aria-label="{{ _('Pagination') }}">
-            <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s sessions", shown=session_rows|length, total=list_meta.total) }}</p>
-            <div class="pagination__controls">
-                <a class="btn btn--secondary btn--small" href="#" aria-disabled="true">{{ _("Previous") }}</a>
-                <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=1, total=list_meta.pages) }}</span>
-                <a class="btn btn--secondary btn--small" href="#">{{ _("Next") }}</a>
-            </div>
-        </nav>
+        {% set pagination_info = _("Showing %(shown)s of %(total)s sessions", shown=session_rows|length, total=list_meta.total) %}
+        {% include "components/pagination.html" %}
     </section>
 </div>
 {% endblock %}

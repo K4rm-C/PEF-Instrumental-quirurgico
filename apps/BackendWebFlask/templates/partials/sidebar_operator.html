@@ -3,9 +3,8 @@
 {% set nav_urls = nav_urls|default({}) %}
 
 {#
-    Operator sidebar (V3 — ui_reference_v3/operator). Only Assigned Sessions + Account.
-    The previous Dashboard / New Session / Session History entries are no longer linked here;
-    their routes and templates still exist (see legacy/README.md) until the cleanup task.
+    Operator sidebar — ordered by use frequency (RF):
+    Assigned Sessions → Session History → Account.
 #}
 
 <div class="sidebar__brand">
@@ -23,6 +22,14 @@
                    {% if active_nav_item == 'counting_sessions' %}aria-current="page"{% endif %}>
                     {{ macros.icon_clipboard() }}
                     <span>{{ _("Assigned Sessions") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'session_history' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.session_history|default('#') }}"
+                   {% if active_nav_item == 'session_history' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_history() }}
+                    <span>{{ _("Session History") }}</span>
                 </a>
             </li>
         </ul>

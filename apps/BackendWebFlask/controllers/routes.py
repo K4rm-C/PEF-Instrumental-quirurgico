@@ -1,19 +1,21 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from uuid import UUID
 
 import requests
-from flask import Blueprint, abort, current_app, g, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from werkzeug.security import generate_password_hash
 
 from extensions import db
+from models.AccessAudit import AccessAudit
 from models.CatInstrumentCycleStatus import CatInstrumentCycleStatus
 from models.CatOperationPhase import CatOperationPhase
 from models.CatProcedureType import CatProcedureType
 from models.Institution import Institution
 from models.Instrument import Instrument
+from models.InstrumentCycleEvent import InstrumentCycleEvent
 from models.Kit import Kit
 from models.KitItem import KitItem
 from models.InstrumentFamily import InstrumentFamily
@@ -24,6 +26,7 @@ from models.User import User
 from models.UserRole import UserRole
 
 from controllers.view_data import (
+    PAST_OPERATOR_STATUS_CODES,
     admin_dashboard_overview,
     dashboard_data,
     discrepancies_data,
@@ -32,13 +35,14 @@ from controllers.view_data import (
     families_data,
     institution_form_data,
     instrument_form_data,
-    instruments_data,
+    instruments_query_page,
     kit_form_data,
-    kits_data,
+    kits_query_page,
     operating_room_form_data,
     operating_rooms_data,
     operator_my_sessions,
     operator_session_detail,
+    paginate_list,
     supervisor_session_detail,
     procedure_form_data,
     procedures_data,
@@ -70,6 +74,8 @@ from controllers.view_data import (
     supervisor_v3_audit_log,
     supervisor_v3_created_banner,
     supervisor_v3_dashboard,
+    supervisor_indicators_from_rf,
+    supervisor_rf_filter_options,
     supervisor_v3_dashboard_from_rf,
     supervisor_v3_filter_options,
     supervisor_v3_indicators,
@@ -179,20 +185,24 @@ def _current_user():
         return g.verified_user
 
     access_token = request.cookies.get('access_token')
-    if not access_token:
-        g.verified_user = None
-        return None
+    refresh_token = request.cookies.get('refresh_token')
 
-    response = _auth_request('get', '/verify', token=access_token)
-    if response is not None and response.status_code == 401:
-        refresh_token = request.cookies.get('refresh_token')
-        if refresh_token:
-            refreshed = _auth_request('post', '/refresh', token=refresh_token)
-            if refreshed is not None and refreshed.ok:
-                g.auth_set_cookies = _upstream_set_cookies(refreshed)
-                access_token = refreshed.cookies.get('access_token')
-                if access_token:
-                    response = _auth_request('get', '/verify', token=access_token)
+    # Transparent renewal: refresh even when the access cookie already expired/missing
+    # (OP/SPD must not be kicked mid-flow solely because access max-age elapsed).
+    response = None
+    if access_token:
+        response = _auth_request('get', '/verify', token=access_token)
+    need_refresh = (
+        not access_token
+        or (response is not None and response.status_code == 401)
+    )
+    if need_refresh and refresh_token:
+        refreshed = _auth_request('post', '/refresh', token=refresh_token)
+        if refreshed is not None and refreshed.ok:
+            g.auth_set_cookies = _upstream_set_cookies(refreshed)
+            access_token = refreshed.cookies.get('access_token')
+            if access_token:
+                response = _auth_request('get', '/verify', token=access_token)
 
     if response is None or not response.ok:
         session.clear()
@@ -312,9 +322,12 @@ def _nav_urls(user):
             'new_session': url_for('web.supervisor_session_new'),
             'discrepancies': url_for('web.supervisor_discrepancies'),
             'session_history': url_for('web.supervisor_session_history'),
+            'kits': url_for('web.admin_kits'),
+            'instruments': url_for('web.admin_instruments'),
             'reports': url_for('web.supervisor_reports'),
             'indicators': url_for('web.supervisor_indicators'),
             'audit_log': url_for('web.supervisor_audit_log'),
+            'services_health': url_for('web.supervisor_services_health'),
         }
     return {
         **common,
@@ -487,23 +500,81 @@ def operator_dashboard():
 @web_bp.route('/operator/sessions')
 @require_role('station_operator')
 def operator_sessions():
-    """Operator landing page (Assigned Sessions, V3). Demo mode lists the V3 fixture rows."""
-    banner = operator_v3_list_banner(
-        closed=request.args.get('closed'), outcome=request.args.get('outcome'),
-        notice=request.args.get('notice'), session_id=request.args.get('session'),
-    )
-    if use_v3_fixture():
-        # Right after a demo close (?closed=WS-026 with a valid banner) the closed session is
-        # left out of this response's active list. Stateless: a plain reload resets it.
-        closed = request.args.get('closed') if banner and request.args.get('closed') else None
-        return _v3_operator_page(
-            'operator/sessions/list.html', demo=True,
-            session_rows=operator_v3_assigned_session_rows(exclude_session_id=closed), feedback_banner=banner,
-            filter_today=operator_v3_demo_date(),
-        )
+    """Operator landing page — RF sessions only (assigned / in progress)."""
+    from controllers.rf_ui import active_session_rows
+
     user = _current_user()
-    rows = operator_v3_rows_from_rf(operator_my_sessions(user['id']))
-    return _v3_operator_page('operator/sessions/list.html', demo=False, session_rows=rows, feedback_banner=banner)
+    rf_rows = active_session_rows(operator_my_sessions(user['id']))
+    rows = operator_v3_rows_from_rf(rf_rows)
+
+    search = (request.args.get('search') or '').strip().lower()
+    status = (request.args.get('status') or '').strip()
+    room = (request.args.get('room') or '').strip()
+    date_filter = (request.args.get('date') or '').strip()
+    today = date.today().isoformat()
+
+    filtered = []
+    for row in rows:
+        if search:
+            hay = ' '.join([
+                str(row.get('session_id') or ''),
+                str(row.get('procedure_name') or ''),
+                str(row.get('kit_name') or ''),
+            ]).lower()
+            if search not in hay:
+                continue
+        code = (row.get('session_status') or {}).get('code') or ''
+        if status and code != status:
+            continue
+        if room and row.get('operating_room') != room:
+            continue
+        scheduled = str(row.get('scheduled_time') or '')
+        if date_filter == 'today' and not scheduled.startswith(today):
+            continue
+        if date_filter in {'next-7-days', 'upcoming'} and scheduled:
+            # Keep rows whose scheduled date is today or later (best-effort on display string).
+            day = scheduled[:10]
+            if len(day) == 10 and day < today:
+                continue
+        filtered.append(row)
+
+    per_page = 20
+    page = max(1, int(request.args.get('page') or 1))
+    total = len(filtered)
+    pages = max(1, (total + per_page - 1) // per_page)
+    if page > pages:
+        page = pages
+    start = (page - 1) * per_page
+    page_rows = filtered[start:start + per_page]
+    list_filters = {
+        'search': request.args.get('search', ''),
+        'status': status,
+        'room': room,
+        'date': date_filter,
+    }
+    previous_url = (
+        url_for('web.operator_sessions', page=page - 1, **list_filters)
+        if page > 1 else None
+    )
+    next_url = (
+        url_for('web.operator_sessions', page=page + 1, **list_filters)
+        if page < pages else None
+    )
+    return _v3_operator_page(
+        'operator/sessions/list.html',
+        demo=False,
+        session_rows=page_rows,
+        feedback_banner=None,
+        list_filters=list_filters,
+        filter_source_rows=rows,
+        list_meta={'total': total, 'pages': pages, 'page': page},
+        current_page=page,
+        total_pages=pages,
+        previous_url=previous_url,
+        next_url=next_url,
+        go_to_action=url_for('web.operator_sessions'),
+        pagination_query=list_filters,
+    )
 
 
 @web_bp.route('/operator/sessions/new', methods=['GET', 'POST'])
@@ -516,34 +587,86 @@ def operator_session_new():
 @web_bp.route('/operator/sessions/history')
 @require_role('station_operator')
 def operator_session_history():
+    from controllers.rf_ui import (
+        apply_history_filters,
+        history_filter_options,
+        past_session_rows,
+    )
+
     user = _current_user()
-    sessions = operator_my_sessions(user['id'])
+    all_past = past_session_rows(operator_my_sessions(user['id']))
+    filters = {
+        'search': request.args.get('search', ''),
+        'session_id': request.args.get('session_id', ''),
+        'procedure': request.args.get('procedure', ''),
+        'kit': request.args.get('kit', ''),
+        'operating_room': request.args.get('operating_room', ''),
+        'station': request.args.get('station', ''),
+        'privacy': request.args.get('privacy', ''),
+        'closed_date': request.args.get('closed_date', ''),
+        'status': request.args.get('status', ''),
+    }
+    sessions = apply_history_filters(all_past, filters)
+    per_page = 20
+    page = max(1, int(request.args.get('page') or 1))
+    total = len(sessions)
+    pages = max(1, (total + per_page - 1) // per_page)
+    if page > pages:
+        page = pages
+    start = (page - 1) * per_page
+    page_sessions = sessions[start:start + per_page]
+    previous_url = (
+        url_for('web.operator_session_history', page=page - 1, **filters)
+        if page > 1 else None
+    )
+    next_url = (
+        url_for('web.operator_session_history', page=page + 1, **filters)
+        if page < pages else None
+    )
     return _page(
         'operator/sessions/history.html',
-        session_history=sessions,
-        sessions_shown_count=len(sessions),
-        sessions_total_count=len(sessions),
+        session_history=page_sessions,
+        sessions_shown_count=len(page_sessions),
+        sessions_total_count=total,
+        history_filters=filters,
+        history_filter_options=history_filter_options(all_past),
+        current_page=page,
+        total_pages=pages,
+        has_previous=page > 1,
+        has_next=page < pages,
+        previous_url=previous_url,
+        next_url=next_url,
+        go_to_action=url_for('web.operator_session_history'),
+        pagination_query=filters,
     )
 
 
 @web_bp.route('/operator/sessions/<session_id>')
 @require_role('station_operator')
 def operator_session_details(session_id):
+    from controllers.rf_ui import past_session_rows
+
     user = _current_user()
     detail = operator_session_detail(session_id, user['id'])
     if detail is None:
         abort(404)
-    return _page('operator/sessions/details.html', session=detail, session_id=session_id)
+    nav = 'session_history' if detail.get('status_code') in {
+        'closed', 'aborted', 'awaiting_spd_review', 'correction_required',
+    } else 'counting_sessions'
+    return _page(
+        'operator/sessions/details.html',
+        session=detail,
+        session_id=session_id,
+        active_nav_item=nav,
+    )
 
 
 @web_bp.route('/operator/sessions/<session_id>/begin', methods=['GET', 'POST'])
 @require_role('station_operator')
 def operator_session_begin(session_id):
-    """V3 demo Assigned Session Confirmation, or RF-OP-03 Start Session for RF sessions."""
+    """RF-OP-03 Start Session — V3 confirmation UI wired to start_session."""
+    from controllers.rf_ui import confirmation_from_rf_detail
     from services.rf_session import RfSessionError, start_session
-
-    if use_v3_fixture(session_id):
-        return _v3_operator_begin(session_id)
 
     user = _current_user()
     detail = operator_session_detail(session_id, user['id'])
@@ -551,13 +674,22 @@ def operator_session_begin(session_id):
         abort(404)
     if detail.get('status_code') != 'scheduled':
         return redirect(url_for('web.operator_session_details', session_id=session_id))
+
+    confirmation = confirmation_from_rf_detail(detail)
+    begin_action = url_for('web.operator_session_begin', session_id=session_id)
+    values = {
+        'confirmation': confirmation,
+        'session_id': session_id,
+        'begin_action': begin_action,
+        'session': detail,
+    }
+
     if request.method == 'POST':
         if request.form.get('instruments_ready') != '1':
-            return _page(
-                'operator/sessions/rf_begin.html',
-                session=detail,
-                session_id=session_id,
+            return _v3_operator_page(
+                'operator/sessions/begin.html', demo=False,
                 form_error='Confirm the physical instrument set before starting.',
+                **values,
             ), 400
         try:
             result = start_session(
@@ -567,16 +699,14 @@ def operator_session_begin(session_id):
                 ip=request.remote_addr,
             )
         except RfSessionError as exc:
-            return _page(
-                'operator/sessions/rf_begin.html',
-                session=detail,
-                session_id=session_id,
-                form_error=exc.message,
+            return _v3_operator_page(
+                'operator/sessions/begin.html', demo=False,
+                form_error=exc.message, **values,
             ), exc.status_code
         if result['capture_mode'] == 'manual_no_privacy':
             return redirect(url_for('web.operator_session_manual', session_id=session_id))
         return redirect(url_for('web.operator_session_capture', session_id=session_id))
-    return _page('operator/sessions/rf_begin.html', session=detail, session_id=session_id)
+    return _v3_operator_page('operator/sessions/begin.html', demo=False, **values)
 
 
 @web_bp.route('/operator/sessions/<session_id>/manual')
@@ -587,7 +717,11 @@ def operator_session_manual(session_id):
     detail = operator_session_detail(session_id, user['id'])
     if detail is None:
         abort(404)
-    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'manual_no_privacy':
+    if detail.get('status_code') != 'in_progress':
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+    if detail.get('capture_mode') == 'vision':
+        return redirect(url_for('web.operator_session_capture', session_id=session_id))
+    if detail.get('capture_mode') != 'manual_no_privacy':
         return redirect(url_for('web.operator_session_details', session_id=session_id))
     return _page(
         'operator/sessions/manual_progress.html',
@@ -606,11 +740,30 @@ def operator_session_manual_report(session_id):
     detail = operator_session_detail(session_id, user['id'])
     if detail is None:
         abort(404)
-    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'manual_no_privacy':
+    if detail.get('status_code') != 'in_progress':
         return redirect(url_for('web.operator_session_details', session_id=session_id))
+    if detail.get('capture_mode') not in {'manual_no_privacy', 'vision'}:
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+
+    def _report_values_from_form():
+        values = {}
+        for item in detail.get('expected_items') or []:
+            family_id = item['family_id']
+            raw = request.form.get(f"reported_{family_id}", "")
+            try:
+                reported = int(raw)
+            except ValueError:
+                reported = raw
+            values[family_id] = {
+                'reported': reported,
+                'reason': request.form.get(f"reason_{family_id}", "").strip(),
+                'notes': request.form.get(f"notes_{family_id}", "").strip(),
+            }
+        return values
 
     if request.method == 'POST':
         reports = []
+        report_values = _report_values_from_form()
         for item in detail.get('expected_items') or []:
             family_id = item['family_id']
             try:
@@ -622,6 +775,7 @@ def operator_session_manual_report(session_id):
                     session_id=session_id,
                     form_error='Enter a whole number for every reported quantity.',
                     reason_options=_manual_reason_options(),
+                    report_values=report_values,
                 ), 400
             reports.append({
                 'family_id': family_id,
@@ -644,6 +798,7 @@ def operator_session_manual_report(session_id):
                 session_id=session_id,
                 form_error=exc.message,
                 reason_options=_manual_reason_options(),
+                report_values=report_values,
             ), exc.status_code
         return redirect(url_for(
             'web.operator_session_manual_report_done',
@@ -721,31 +876,324 @@ def legacy_operator_session_new():
 @web_bp.route('/operator/sessions/<session_id>/capture')
 @require_role('station_operator')
 def operator_session_capture(session_id):
-    if use_v3_fixture(session_id):
-        return _v3_operator_flow_page('operator/sessions/capture.html', session_id, 'in_progress')
-    return _page('operator/sessions/v2/capture.html', session_id=session_id)
+    """RF-OP-04 vision capture: upload video → YOLO worker → boxes + count logs."""
+    from services.rf_session import schedule_form_options
+    from services.vision_bridge import VisionBridgeError, bind_session, worker_health
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+    health = worker_health()
+    bind_error = None
+    if health.get('ok') or health.get('weights_present') is not None:
+        try:
+            bind_session(UUID(session_id))
+        except VisionBridgeError as exc:
+            bind_error = exc.message
+        except Exception as exc:  # noqa: BLE001
+            bind_error = str(exc)
+    phases = []
+    try:
+        opts = schedule_form_options(UUID(user['institution_id'])) if user.get('institution_id') else None
+        phases = (opts or {}).get('phases') or []
+    except Exception:
+        phases = []
+    return _page(
+        'operator/sessions/capture_rf.html',
+        session=detail,
+        session_id=session_id,
+        worker_health=health,
+        bind_error=bind_error,
+        phases=phases,
+        state_url=url_for('web.operator_session_capture_state', session_id=session_id),
+        upload_url=url_for('web.operator_session_capture_upload', session_id=session_id),
+        finish_url=url_for('web.operator_session_capture_finish', session_id=session_id),
+        phase_url=url_for('web.operator_session_capture_phase', session_id=session_id),
+        report_url=url_for('web.operator_session_manual_report', session_id=session_id),
+    )
+
+
+@web_bp.route('/operator/sessions/<session_id>/capture/state')
+@require_role('station_operator')
+def operator_session_capture_state(session_id):
+    from services.rf_session import persist_auto_counts_from_worker
+    from services.vision_bridge import VisionBridgeError, fetch_state
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
+        return jsonify({'ok': False, 'error': 'Session not in vision capture'}), 409
+    try:
+        data = fetch_state(UUID(session_id))
+    except VisionBridgeError as exc:
+        return jsonify({'ok': False, 'error': exc.message}), exc.status_code
+    session_state = data.get('session') or {}
+    # Persist count_event rows when a processing run completes (once per ready flash).
+    if session_state.get('status') == 'ready' and session_state.get('counts'):
+        try:
+            persist_auto_counts_from_worker(
+                session_id=UUID(session_id),
+                operator_user_id=UUID(user['id']),
+                counts=session_state.get('counts') or {},
+                model_version=session_state.get('model_version'),
+                reason='video_ready',
+                once_key=f"{session_id}:video_ready:{session_state.get('frames_processed')}",
+            )
+        except Exception:
+            pass
+    return jsonify(data)
+
+
+@web_bp.route('/operator/sessions/<session_id>/capture/upload', methods=['POST'])
+@require_role('station_operator')
+def operator_session_capture_upload(session_id):
+    from services.vision_bridge import VisionBridgeError, bind_session, upload_video
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
+        return jsonify({'ok': False, 'error': 'Session not in vision capture'}), 409
+    video = request.files.get('video')
+    if video is None or not video.filename:
+        return jsonify({'ok': False, 'error': 'Choose a video file (.mp4, .mkv, …).'}), 400
+    try:
+        bind_session(UUID(session_id))
+        result = upload_video(UUID(session_id), video)
+    except VisionBridgeError as exc:
+        return jsonify({'ok': False, 'error': exc.message}), exc.status_code
+    return jsonify(result), 202
+
+
+@web_bp.route('/operator/sessions/<session_id>/capture/finish', methods=['POST'])
+@require_role('station_operator')
+def operator_session_capture_finish(session_id):
+    from services.rf_session import RfSessionError, finish_vision_counting
+    from services.vision_bridge import VisionBridgeError, fetch_state
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+    try:
+        data = fetch_state(UUID(session_id))
+        finish_vision_counting(
+            session_id=UUID(session_id),
+            operator_user_id=UUID(user['id']),
+            worker_session=data.get('session') or {},
+        )
+    except (VisionBridgeError, RfSessionError) as exc:
+        flash(getattr(exc, 'message', str(exc)), 'warning')
+        return redirect(url_for('web.operator_session_capture', session_id=session_id))
+    return redirect(url_for('web.operator_session_detection_summary', session_id=session_id))
+
+
+@web_bp.route('/operator/sessions/<session_id>/capture/phase', methods=['POST'])
+@require_role('station_operator')
+def operator_session_capture_phase(session_id):
+    from services.rf_session import RfSessionError, change_phase_stub
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress':
+        return jsonify({'ok': False, 'error': 'Session not in progress'}), 409
+    to_phase = (request.form.get('phase_code') or (request.get_json(silent=True) or {}).get('phase_code') or '').strip()
+    if not to_phase:
+        return jsonify({'ok': False, 'error': 'phase_code required'}), 400
+    try:
+        result = change_phase_stub(
+            session_id=UUID(session_id),
+            operator_user_id=UUID(user['id']),
+            institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
+            to_phase_code=to_phase,
+            ip=request.remote_addr,
+        )
+    except RfSessionError as exc:
+        return jsonify({'ok': False, 'error': exc.message}), exc.status_code
+    return jsonify({'ok': True, **result})
+
+
+@web_bp.route('/operator/sessions/<session_id>/detection-summary')
+@require_role('station_operator')
+def operator_session_detection_summary(session_id):
+    """RF-OP-05 AI detection summary (demo: last annotated frame from worker, no Mongo)."""
+    from services.rf_session import get_vision_snapshot
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+    snapshot = get_vision_snapshot(session_id)
+    if snapshot is None:
+        return redirect(url_for('web.operator_session_capture', session_id=session_id))
+    counts_by_family = {}
+    for code, meta in (snapshot.get('counts') or {}).items():
+        fid = str(meta.get('family_id') or '')
+        if fid:
+            counts_by_family[fid] = meta
+    rows = []
+    for item in detail.get('expected_items') or []:
+        meta = counts_by_family.get(item['family_id'], {})
+        detected = int(meta.get('detected_quantity') or 0)
+        expected = int(item['expected_quantity'] or 0)
+        diff = detected - expected
+        if diff == 0:
+            result_label, result_variant = 'Match', 'success'
+        elif diff < 0:
+            result_label, result_variant = 'Missing', 'danger'
+        else:
+            result_label, result_variant = 'Extra', 'warning'
+        rows.append({
+            **item,
+            'ai_detected_quantity': detected,
+            'difference': diff,
+            'avg_confidence': meta.get('avg_confidence'),
+            'result_label': result_label,
+            'result_variant': result_variant,
+        })
+    return _page(
+        'operator/sessions/detection_summary_rf.html',
+        session=detail,
+        session_id=session_id,
+        snapshot=snapshot,
+        detection_rows=rows,
+        validation_url=url_for('web.operator_session_vision_validation', session_id=session_id),
+        capture_url=url_for('web.operator_session_capture', session_id=session_id),
+    )
+
+
+@web_bp.route('/operator/sessions/<session_id>/vision-validation', methods=['GET', 'POST'])
+@require_role('station_operator')
+def operator_session_vision_validation(session_id):
+    """RF-OP-06 validation UI fed by YOLO snapshot; close path = manual_count (no auto disc from video)."""
+    from services.rf_session import RfSessionError, get_vision_snapshot, submit_manual_close
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+    snapshot = get_vision_snapshot(session_id)
+    if snapshot is None:
+        return redirect(url_for('web.operator_session_capture', session_id=session_id))
+
+    counts_by_family = {}
+    for _code, meta in (snapshot.get('counts') or {}).items():
+        fid = str(meta.get('family_id') or '')
+        if fid:
+            counts_by_family[fid] = meta
+
+    def _default_values():
+        values = {}
+        for item in detail.get('expected_items') or []:
+            meta = counts_by_family.get(item['family_id'], {})
+            ai_detected = int(meta.get('detected_quantity') or 0)
+            values[item['family_id']] = {
+                'ai_detected': ai_detected,
+                'validated': ai_detected,
+                'reason': '',
+                'notes': '',
+            }
+        return values
+
+    if request.method == 'POST':
+        reports = []
+        report_values = {}
+        for item in detail.get('expected_items') or []:
+            family_id = item['family_id']
+            meta = counts_by_family.get(family_id, {})
+            ai_detected = int(meta.get('detected_quantity') or 0)
+            try:
+                validated = int(request.form.get(f'validated_{family_id}', ''))
+            except ValueError:
+                return _page(
+                    'operator/sessions/vision_validation_rf.html',
+                    session=detail,
+                    session_id=session_id,
+                    snapshot=snapshot,
+                    form_error='Enter a whole number for every validated count.',
+                    reason_options=_manual_reason_options(),
+                    report_values=_default_values(),
+                    summary_url=url_for('web.operator_session_detection_summary', session_id=session_id),
+                ), 400
+            reason = request.form.get(f'reason_{family_id}', '').strip()
+            notes = request.form.get(f'notes_{family_id}', '').strip()
+            report_values[family_id] = {
+                'ai_detected': ai_detected,
+                'validated': validated,
+                'reason': reason,
+                'notes': notes,
+            }
+            reports.append({
+                'family_id': family_id,
+                'reported_quantity': validated,
+                'reason_code': reason,
+                'notes': notes,
+            })
+        try:
+            result = submit_manual_close(
+                session_id=UUID(session_id),
+                operator_user_id=UUID(user['id']),
+                institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
+                reports=reports,
+                ip=request.remote_addr,
+            )
+        except RfSessionError as exc:
+            return _page(
+                'operator/sessions/vision_validation_rf.html',
+                session=detail,
+                session_id=session_id,
+                snapshot=snapshot,
+                form_error=exc.message,
+                reason_options=_manual_reason_options(),
+                report_values=report_values,
+                summary_url=url_for('web.operator_session_detection_summary', session_id=session_id),
+            ), exc.status_code
+        return redirect(url_for(
+            'web.operator_session_manual_report_done',
+            session_id=session_id,
+            status=result['status_code'],
+        ))
+
+    return _page(
+        'operator/sessions/vision_validation_rf.html',
+        session=detail,
+        session_id=session_id,
+        snapshot=snapshot,
+        reason_options=_manual_reason_options(),
+        report_values=_default_values(),
+        summary_url=url_for('web.operator_session_detection_summary', session_id=session_id),
+    )
 
 
 @web_bp.route('/operator/sessions/<session_id>/tray-verification')
 @require_role('station_operator')
 def operator_session_tray_verification(session_id):
-    """V3 demo Final Tray Verification (?state=verifying|failed|success). Demo ids only."""
-    if not use_v3_fixture(session_id):
-        abort(404)
-    state = request.args.get('state') if request.args.get('state') in V3_TRAY_STATES else V3_TRAY_STATES[0]
-    return _v3_operator_flow_page(
-        'operator/sessions/tray_verification.html', session_id,
-        'verifying' if state == 'verifying' else 'in_progress',
-        tray_state=state, tray_attempt=request.args.get('attempt'),
-    )
+    """Removed from RF path — tray×2 was V3-only. Send vision sessions to capture."""
+    return redirect(url_for('web.operator_session_capture', session_id=session_id))
 
 
 @web_bp.route('/operator/sessions/<session_id>/ai-detection')
 @require_role('station_operator')
 def operator_session_ai_detection(session_id):
-    if use_v3_fixture(session_id):
-        return _v3_operator_flow_page('operator/sessions/ai_detection.html', session_id, 'in_progress')
-    return _page('operator/sessions/v2/ai_detection.html', session_id=session_id)
+    """Legacy V3 path → RF detection summary when a vision snapshot exists."""
+    from services.rf_session import get_vision_snapshot
+    if get_vision_snapshot(session_id):
+        return redirect(url_for('web.operator_session_detection_summary', session_id=session_id))
+    return redirect(url_for('web.operator_session_capture', session_id=session_id))
 
 
 @web_bp.route('/operator/sessions/<session_id>/validation', methods=['GET', 'POST'])
@@ -754,12 +1202,13 @@ def operator_session_validation(session_id):
     """
     V3 demo Human Validation (editable counts). POST validates the Operator's values and
     redirects to the Validation Summary with them in the query string; nothing is written
-    (no DB, cookie or session). Other ids keep the V2 page, GET only.
+    (no DB, cookie or session). RF/UUID vision sessions with a snapshot use vision-validation.
     """
+    from services.rf_session import get_vision_snapshot
     if not use_v3_fixture(session_id):
-        if request.method == 'POST':
-            abort(405)
-        return _page('operator/sessions/v2/validation.html', session_id=session_id)
+        if get_vision_snapshot(session_id):
+            return redirect(url_for('web.operator_session_vision_validation', session_id=session_id))
+        return redirect(url_for('web.operator_session_capture', session_id=session_id))
     if request.method == 'POST':
         scenario = request.values.get('scenario')
         state, errors = operator_v3_parse_validation(request.form, scenario, strict=True)
@@ -783,17 +1232,15 @@ def operator_session_validation(session_id):
 def operator_session_validation_summary(session_id):
     if use_v3_fixture(session_id):
         return _v3_operator_flow_page('operator/sessions/validation_summary.html', session_id, 'in_progress')
-    return _page('operator/sessions/v2/validation_summary.html', session_id=session_id)
+    return redirect(url_for('web.operator_session_details', session_id=session_id))
 
 
 @web_bp.route('/operator/sessions/<session_id>/discrepancy', methods=['GET', 'POST'])
 @require_role('station_operator')
 def operator_session_discrepancy(session_id):
-    """V3 demo Discrepancy Escalation (?state=prepared|escalated); V2 page for other ids."""
+    """V3 demo Discrepancy Escalation (?state=prepared|escalated); RF → session details."""
     if not use_v3_fixture(session_id):
-        if request.method == 'POST':
-            abort(405)
-        return _page('operator/sessions/v2/discrepancy.html', session_id=session_id)
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
     view, response = _v3_operator_view_or_redirect(session_id)
     if response is not None:
         return response
@@ -833,8 +1280,9 @@ def operator_session_correction(session_id):
 @web_bp.route('/operator/sessions/<session_id>/ready-to-close')
 @require_role('station_operator')
 def operator_session_ready_to_close(session_id):
+    # RF: Operator does not close — SPD confirms. V2 ready_to_close lives under Legacy/.
     if not use_v3_fixture(session_id):
-        return _page('operator/sessions/v2/ready_to_close.html', session_id=session_id)
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
     view, response = _v3_operator_view_or_redirect(session_id)
     if response is not None:
         return response
@@ -849,9 +1297,8 @@ def operator_session_ready_to_close(session_id):
 @require_role('station_operator')
 def operator_session_v3_close(session_id):
     """
-    V3 demo Operator close. Demo fixture sessions only: no DB mutation, no RF state change
-    (RF closing remains confirm_spd_close on the Supervisor RF path). Redirects to the
-    Assigned Sessions landing page with a closure banner.
+    V3 demo Operator close only. RF sessions never close from Operator UI
+    (confirm_spd_close on the Supervisor RF path). Non-fixture ids → 404.
     """
     if not use_v3_fixture(session_id):
         abort(404)
@@ -866,9 +1313,22 @@ def operator_session_v3_close(session_id):
 @web_bp.route('/operator/sessions/closed/<session_id>')
 @require_role('station_operator')
 def operator_session_closed(session_id):
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is not None:
+        return _page(
+            'operator/sessions/details.html',
+            session=detail,
+            session_id=session_id,
+            active_nav_item='session_history',
+        )
     session_data = next((item for item in sessions_data() if item['id'] == session_id), None)
     if session_data is None:
-        return _page('operator/sessions/closed_details.html', session_id=session_id)
+        return _page(
+            'operator/sessions/closed_details.html',
+            session_id=session_id,
+            active_nav_item='session_history',
+        )
     discrepancies = session_discrepancies(session_id)
     closure_summary = {
         'variant': 'warning',
@@ -882,6 +1342,7 @@ def operator_session_closed(session_id):
         session=session_data,
         session_id=session_id,
         closure_summary=closure_summary,
+        active_nav_item='session_history',
     )
 
 
@@ -936,8 +1397,6 @@ def _v3_review_url(session_id, tab, states, case=None, **extra):
 @web_bp.route('/supervisor/dashboard')
 @require_role('spd_supervisor')
 def supervisor_dashboard():
-    if use_v3_fixture():
-        return _v3_supervisor_page('supervisor/dashboard.html', demo=True, dashboard=supervisor_v3_dashboard())
     stats, sessions, _ = dashboard_data('supervisor')
     return _v3_supervisor_page(
         'supervisor/dashboard.html', demo=False,
@@ -948,46 +1407,72 @@ def supervisor_dashboard():
 @web_bp.route('/supervisor/sessions')
 @require_role('spd_supervisor')
 def supervisor_sessions():
-    if use_v3_fixture():
-        created = request.args.get('created')
-        rows = supervisor_v3_sessions(created)
-        return _v3_supervisor_page(
-            'supervisor/sessions/list.html', demo=True,
-            session_rows=rows,
-            list_meta=supervisor_v3_list_meta('sessions'),
-            filter_options=supervisor_v3_filter_options(),
-            feedback_banner=supervisor_v3_created_banner(created),
-        )
-    rows = supervisor_v3_rows_from_rf(sessions_data())
+    from controllers.rf_ui import active_session_rows
+
+    rf_rows = active_session_rows(sessions_data())
+    rows = supervisor_v3_rows_from_rf(rf_rows)
+    page_data = paginate_list(rows, page=request.args.get('page', 1), per_page=request.args.get('per_page', 20))
     return _v3_supervisor_page(
         'supervisor/sessions/list.html', demo=False,
-        session_rows=rows,
-        list_meta={'total': len(rows), 'pages': 1},
-        filter_options=supervisor_v3_filter_options(),
+        session_rows=page_data['rows'],
+        list_meta={
+            'total': page_data['total'],
+            'pages': page_data['total_pages'],
+            'page': page_data['page'],
+            'has_previous': page_data['has_previous'],
+            'has_next': page_data['has_next'],
+            'previous_url': url_for('web.supervisor_sessions', page=page_data['page'] - 1) if page_data['has_previous'] else None,
+            'next_url': url_for('web.supervisor_sessions', page=page_data['page'] + 1) if page_data['has_next'] else None,
+        },
+        filter_options=supervisor_rf_filter_options(sessions_data()),
+        current_page=page_data['page'],
+        total_pages=page_data['total_pages'],
+        previous_url=url_for('web.supervisor_sessions', page=page_data['page'] - 1) if page_data['has_previous'] else None,
+        next_url=url_for('web.supervisor_sessions', page=page_data['page'] + 1) if page_data['has_next'] else None,
+        go_to_action=url_for('web.supervisor_sessions'),
+        pagination_query={},
+    )
+
+
+def _vision_health_row():
+    from services.vision_bridge import worker_health
+    health = worker_health()
+    if health.get('ok'):
+        weights = 'weights OK' if health.get('weights_present') else 'weights MISSING'
+        return {
+            'name': 'Vision worker',
+            'status': 'up',
+            'detail': f"Local :5002 · {weights} · bound={health.get('bound_sessions', 0)}",
+        }
+    return {
+        'name': 'Vision worker',
+        'status': 'down',
+        'detail': health.get('error') or 'Unreachable — start apps/VisionWorker',
+    }
+
+
+@web_bp.route('/supervisor/services-health')
+@require_role('spd_supervisor')
+def supervisor_services_health():
+    """Future microservices health — stub for sidebar placement only."""
+    return _page(
+        'supervisor/services_health.html',
+        services=[
+            {'name': 'Auth', 'status': 'direct', 'detail': 'Local Auth service (no MS mesh yet)'},
+            {'name': 'Web / Session', 'status': 'direct', 'detail': 'Monolith BackendWebFlask'},
+            _vision_health_row(),
+            {'name': 'Evidence worker', 'status': 'pending', 'detail': 'Mongo/Garage evidence cycle — deferred'},
+        ],
     )
 
 
 @web_bp.route('/supervisor/sessions/new', methods=['GET', 'POST'])
 @require_role('spd_supervisor')
 def supervisor_session_new():
-    """V3 demo wizard (demo mode) or RF-SP-02 schedule session + optional Via A privacy confirm."""
-    if use_v3_fixture():
-        # V3 demo wizard: navigation only, no DB write. Any other POST (e.g. a direct RF
-        # schedule form submission) still falls through to the unchanged RF branch below.
-        if request.method == 'GET':
-            try:
-                step = int(request.args.get('step', 1))
-            except ValueError:
-                step = 1
-            return _v3_supervisor_page(
-                'supervisor/sessions/new.html', demo=True,
-                wizard=supervisor_v3_new_session(), step=step if step in (1, 2, 3) else 1,
-            )
-        if request.form.get('v3_action') == 'create_demo_session':
-            return redirect(url_for('web.supervisor_sessions', created=supervisor_v3_new_session()['session_id']))
-
+    """RF-SP-02 schedule session + optional Via A privacy confirm (no V3 demo wizard)."""
     from datetime import datetime as dt
 
+    from controllers.rf_ui import initial_phase_code_for_procedure
     from services.rf_session import (
         RfSessionError,
         confirm_privacy_via_a,
@@ -1002,8 +1487,24 @@ def supervisor_session_new():
     except (TypeError, ValueError, KeyError):
         abort(400)
     options = schedule_form_options(institution_id)
-    selected_kit = request.values.get('kit_id') or (options['kits'][0]['id'] if options['kits'] else '')
-    expected_lines = kit_expected_lines(UUID(selected_kit)) if selected_kit else []
+    selected_kit = (request.values.get('kit_id') or '').strip()
+    expected_lines = []
+    if selected_kit:
+        try:
+            expected_lines = kit_expected_lines(UUID(selected_kit))
+        except (TypeError, ValueError):
+            selected_kit = ''
+            expected_lines = []
+
+    def _schedule_form_values():
+        return {
+            'operator_user_id': request.form.get('operator_user_id', ''),
+            'procedure_type_id': request.form.get('procedure_type_id', ''),
+            'room_id': request.form.get('room_id', ''),
+            'station_id': request.form.get('station_id', ''),
+            'patient_id': request.form.get('patient_id', ''),
+            'scheduled_at': request.form.get('scheduled_at', ''),
+        }
 
     if request.method == 'POST':
         action = request.form.get('action') or 'schedule'
@@ -1031,18 +1532,36 @@ def supervisor_session_new():
             for family_id, qty in zip(family_ids, quantities):
                 lines.append({'family_id': family_id, 'expected_quantity': int(qty)})
 
+            physician_ids = request.form.getlist('physician_id[]')
+            role_codes = request.form.getlist('surgical_role_code[]')
+            physicians = []
+            for pid, role_code in zip(physician_ids, role_codes):
+                if not pid:
+                    continue
+                physicians.append({
+                    'physician_id': pid,
+                    'surgical_role_code': role_code or 'surgeon',
+                })
+            legacy_physician = request.form.get('physician_id')
+            if not physicians and legacy_physician:
+                physicians = [{
+                    'physician_id': legacy_physician,
+                    'surgical_role_code': 'surgeon',
+                }]
+
+            procedure_type_id = UUID(request.form.get('procedure_type_id'))
             result = schedule_session(
                 supervisor_user_id=UUID(user['id']),
                 institution_id=institution_id,
                 operator_user_id=UUID(request.form.get('operator_user_id')),
-                procedure_type_id=UUID(request.form.get('procedure_type_id')),
+                procedure_type_id=procedure_type_id,
                 room_id=UUID(request.form.get('room_id')),
                 station_id=UUID(request.form.get('station_id')),
                 kit_id=UUID(request.form.get('kit_id')),
                 patient_id=UUID(request.form.get('patient_id')) if request.form.get('patient_id') else None,
-                physician_id=UUID(request.form.get('physician_id')) if request.form.get('physician_id') else None,
+                physicians=physicians,
                 scheduled_at=scheduled_at,
-                phase_code=request.form.get('phase_code') or 'setup',
+                phase_code=initial_phase_code_for_procedure(procedure_type_id),
                 expected_lines=lines,
                 ip=request.remote_addr,
             )
@@ -1060,11 +1579,20 @@ def supervisor_session_new():
         except (RfSessionError, ValueError, TypeError) as exc:
             message = exc.message if isinstance(exc, RfSessionError) else str(exc)
             status = exc.status_code if isinstance(exc, RfSessionError) else 400
+            post_kit = (request.form.get('kit_id') or '').strip()
+            post_lines = expected_lines
+            if post_kit:
+                try:
+                    post_lines = kit_expected_lines(UUID(post_kit))
+                except (TypeError, ValueError):
+                    post_kit = selected_kit
+                    post_lines = expected_lines
             return _page(
                 'supervisor/sessions/schedule.html',
                 **options,
-                expected_lines=expected_lines,
-                selected_kit=selected_kit,
+                expected_lines=post_lines,
+                selected_kit=post_kit,
+                form_values=_schedule_form_values(),
                 form_error=message,
             ), status
 
@@ -1073,7 +1601,40 @@ def supervisor_session_new():
         **options,
         expected_lines=expected_lines,
         selected_kit=selected_kit,
+        form_values={},
     )
+
+
+@web_bp.route('/supervisor/sessions/stock-recheck', methods=['POST'])
+@require_role('spd_supervisor')
+def supervisor_session_stock_recheck():
+    """Stock semaphore recheck for schedule qty edits (JSON or form-urlencoded)."""
+    from services.rf_session import RfSessionError, stock_recheck_lines
+
+    lines = []
+    try:
+        payload = request.get_json(silent=True) or {}
+        raw_lines = payload.get('lines') or []
+        if raw_lines:
+            for item in raw_lines:
+                lines.append({
+                    'family_id': item['family_id'],
+                    'expected_quantity': int(item.get('expected_quantity') or 0),
+                })
+        else:
+            family_ids = request.form.getlist('family_id[]')
+            quantities = request.form.getlist('expected_quantity[]')
+            for family_id, qty in zip(family_ids, quantities):
+                if not family_id:
+                    continue
+                lines.append({
+                    'family_id': family_id,
+                    'expected_quantity': int(qty or 0),
+                })
+        return jsonify({'lines': stock_recheck_lines(lines)})
+    except (RfSessionError, KeyError, TypeError, ValueError) as exc:
+        message = exc.message if isinstance(exc, RfSessionError) else 'Invalid stock recheck payload.'
+        return jsonify({'error': message}), 400
 
 
 @web_bp.route('/supervisor/sessions/<session_id>/privacy', methods=['POST'])
@@ -1101,19 +1662,85 @@ def supervisor_session_privacy(session_id):
 @web_bp.route('/supervisor/sessions/history')
 @require_role('spd_supervisor')
 def supervisor_session_history():
-    if use_v3_fixture():
-        return _v3_supervisor_page(
-            'supervisor/sessions/history.html', demo=True,
-            session_rows=supervisor_v3_session_history(),
-            list_meta=supervisor_v3_list_meta('history'),
-            filter_options=supervisor_v3_filter_options(),
-        )
-    rows = supervisor_v3_rows_from_rf(sessions_data())
+    from controllers.rf_ui import past_session_rows
+
+    source = past_session_rows(sessions_data(), for_role='supervisor')
+    all_rows = supervisor_v3_rows_from_rf(source)
+    search = (request.args.get('search') or '').strip().lower()
+    review_status = (request.args.get('review_status') or '').strip()
+    kit = (request.args.get('kit') or '').strip()
+    operator = (request.args.get('operator') or '').strip()
+    date_filter = (request.args.get('date') or '').strip()
+    today = date.today().isoformat()
+
+    filtered = []
+    for row in all_rows:
+        if search:
+            hay = ' '.join([
+                str(row.get('session_id') or ''),
+                str(row.get('procedure_label') or ''),
+                str(row.get('kit_name') or ''),
+                str(row.get('operator_name') or ''),
+            ]).lower()
+            if search not in hay:
+                continue
+        review_code = (row.get('review_status') or {}).get('code') or ''
+        if review_status and review_code != review_status:
+            continue
+        if kit and row.get('kit_name') != kit:
+            continue
+        if operator and row.get('operator_name') != operator:
+            continue
+        closed = str(row.get('closed_time') or '')
+        started = str(row.get('started_time') or '')
+        day = (closed or started)[:10]
+        if date_filter == 'Today' and day != today:
+            continue
+        if date_filter == 'Last 7 Days' and day and len(day) == 10:
+            cutoff = (date.today() - timedelta(days=7)).isoformat()
+            if day < cutoff:
+                continue
+        if date_filter == 'Last 30 Days' and day and len(day) == 10:
+            cutoff = (date.today() - timedelta(days=30)).isoformat()
+            if day < cutoff:
+                continue
+        filtered.append(row)
+
+    per_page = 20
+    page = max(1, int(request.args.get('page') or 1))
+    total = len(filtered)
+    pages = max(1, (total + per_page - 1) // per_page)
+    if page > pages:
+        page = pages
+    start = (page - 1) * per_page
+    page_rows = filtered[start:start + per_page]
+    query_args = {
+        'search': request.args.get('search', ''),
+        'review_status': review_status,
+        'kit': kit,
+        'operator': operator,
+        'date': date_filter,
+    }
+    previous_url = (
+        url_for('web.supervisor_session_history', page=page - 1, **query_args)
+        if page > 1 else None
+    )
+    next_url = (
+        url_for('web.supervisor_session_history', page=page + 1, **query_args)
+        if page < pages else None
+    )
     return _v3_supervisor_page(
         'supervisor/sessions/history.html', demo=False,
-        session_rows=rows,
-        list_meta={'total': len(rows), 'pages': 1},
-        filter_options=supervisor_v3_filter_options(),
+        session_rows=page_rows,
+        list_meta={'total': total, 'pages': pages, 'page': page},
+        filter_options=supervisor_rf_filter_options(source),
+        list_filters=query_args,
+        previous_url=previous_url,
+        next_url=next_url,
+        current_page=page,
+        total_pages=pages,
+        go_to_action=url_for('web.supervisor_session_history'),
+        pagination_query=query_args,
     )
 
 
@@ -1134,7 +1761,119 @@ def supervisor_session_details(session_id):
     detail = supervisor_session_detail(session_id)
     if detail is None:
         abort(404)
-    return _page('supervisor/sessions/rf_details.html', session=detail, session_id=session_id)
+    from services.rf_session import schedule_form_options
+
+    user = _current_user()
+    families = []
+    try:
+        families = schedule_form_options(UUID(user['institution_id'])).get('families', [])
+    except (TypeError, ValueError, KeyError):
+        families = []
+    return _page(
+        'supervisor/sessions/rf_details.html',
+        session=detail,
+        session_id=session_id,
+        inventory_families=families,
+        inventory_view=request.args.get('inventory_view', 'table'),
+        form_error=request.args.get('error'),
+    )
+
+
+@web_bp.route('/supervisor/sessions/<session_id>/inventory', methods=['GET', 'POST'])
+@require_role('spd_supervisor')
+def supervisor_session_inventory(session_id):
+    from datetime import datetime as dt
+
+    from services.rf_session import (
+        RfSessionError,
+        schedule_form_options,
+        update_scheduled_session,
+        update_session_inventory,
+    )
+
+    user = _current_user()
+    detail = supervisor_session_detail(session_id)
+    if detail is None:
+        abort(404)
+    if not detail.get('can_edit_inventory'):
+        return redirect(url_for('web.supervisor_session_details', session_id=session_id))
+
+    try:
+        institution_id = UUID(user['institution_id']) if user.get('institution_id') else None
+        options = schedule_form_options(institution_id) if institution_id else {}
+    except (TypeError, ValueError, KeyError):
+        options = {}
+
+    def _render_edit(form_error=None, status=200):
+        return _page(
+            'supervisor/sessions/inventory_edit.html',
+            session=detail,
+            session_id=session_id,
+            families=options.get('families', []),
+            operators=options.get('operators', []),
+            procedures=options.get('procedures', []),
+            rooms=options.get('rooms', []),
+            stations=options.get('stations', []),
+            kits=options.get('kits', []),
+            patients=options.get('patients', []),
+            physicians=options.get('physicians', []),
+            surgical_roles=options.get('surgical_roles', []),
+            form_error=form_error,
+        ), status
+
+    if request.method == 'POST':
+        family_ids = request.form.getlist('family_id[]')
+        quantities = request.form.getlist('expected_quantity[]')
+        lines = []
+        for family_id, qty in zip(family_ids, quantities):
+            if not family_id:
+                continue
+            lines.append({'family_id': family_id, 'expected_quantity': int(qty)})
+        try:
+            if detail.get('can_edit_session_fields') and request.form.get('edit_mode') == 'full':
+                physician_ids = request.form.getlist('physician_id[]')
+                role_codes = request.form.getlist('surgical_role_code[]')
+                physicians = []
+                for pid, role_code in zip(physician_ids, role_codes):
+                    if not pid:
+                        continue
+                    physicians.append({
+                        'physician_id': pid,
+                        'surgical_role_code': role_code or 'surgeon',
+                    })
+                scheduled_raw = request.form.get('scheduled_at', '').strip()
+                scheduled_at = dt.fromisoformat(scheduled_raw)
+                if scheduled_at.tzinfo is None:
+                    scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
+                update_scheduled_session(
+                    session_id=UUID(session_id),
+                    supervisor_user_id=UUID(user['id']),
+                    institution_id=institution_id,
+                    operator_user_id=UUID(request.form.get('operator_user_id')),
+                    procedure_type_id=UUID(request.form.get('procedure_type_id')),
+                    room_id=UUID(request.form.get('room_id')),
+                    station_id=UUID(request.form.get('station_id')),
+                    kit_id=UUID(request.form.get('kit_id')),
+                    patient_id=UUID(request.form.get('patient_id')) if request.form.get('patient_id') else None,
+                    physicians=physicians,
+                    scheduled_at=scheduled_at,
+                    expected_lines=lines,
+                    ip=request.remote_addr,
+                )
+            else:
+                update_session_inventory(
+                    session_id=UUID(session_id),
+                    supervisor_user_id=UUID(user['id']),
+                    institution_id=institution_id,
+                    lines=lines,
+                    ip=request.remote_addr,
+                )
+        except (RfSessionError, ValueError, TypeError) as exc:
+            message = exc.message if isinstance(exc, RfSessionError) else str(exc)
+            return _render_edit(form_error=message, status=400)
+        return redirect(url_for('web.supervisor_session_details', session_id=session_id))
+
+    return _render_edit()[0]
 
 
 @web_bp.route('/supervisor/sessions/<session_id>/close', methods=['POST'])
@@ -1172,9 +1911,19 @@ def supervisor_discrepancies():
             queue_summary=supervisor_v3_review_summary(),
             filter_options=supervisor_v3_filter_options(),
             feedback_banner=supervisor_v3_validated_banner(request.args.get('validated')),
+            discrepancy_filters={'search': '', 'instrument': '', 'status': ''},
         )
-    discrepancies = discrepancies_data()
-    summary = discrepancies_summary_data(discrepancies)
+    filters = {
+        'search': request.args.get('search', ''),
+        'instrument': request.args.get('instrument', ''),
+        'status': request.args.get('status', ''),
+    }
+    discrepancies = discrepancies_data(
+        search=filters['search'],
+        instrument=filters['instrument'],
+        status=filters['status'],
+    )
+    summary = discrepancies_summary_data(discrepancies_data())
     return _v3_supervisor_page(
         'supervisor/discrepancies/list.html', demo=False,
         queue_rows=supervisor_v3_queue_from_rf(discrepancies),
@@ -1184,6 +1933,7 @@ def supervisor_discrepancies():
             'resolved_today': summary.get('reviewed_today', 0),
         },
         filter_options=supervisor_v3_filter_options(),
+        discrepancy_filters=filters,
     )
 
 
@@ -1270,13 +2020,17 @@ def supervisor_discrepancy_review(session_id):
 
     if request.method == 'POST':
         user = _current_user()
+        resolution = (request.form.get('resolution_outcome') or '').strip().lower()
+        mark_lost = resolution == 'lost' or request.form.get('mark_lost') == '1'
+        mark_recovered = resolution == 'recovered' or request.form.get('mark_recovered') == '1'
         try:
             resolve_discrepancy(
                 discrepancy_id=UUID(request.form.get('discrepancy_id')),
                 supervisor_user_id=UUID(user['id']),
                 institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
                 notes=request.form.get('notes') or '',
-                mark_lost=request.form.get('mark_lost') == '1',
+                mark_lost=mark_lost,
+                mark_recovered=mark_recovered,
                 ip=request.remote_addr,
             )
         except (RfSessionError, ValueError, TypeError) as exc:
@@ -1307,12 +2061,10 @@ def supervisor_reports():
 @web_bp.route('/supervisor/indicators')
 @require_role('spd_supervisor')
 def supervisor_indicators():
-    # No analytics query exists for these indicators yet (AI-human agreement, resolution
-    # time, per-instrument/family/type aggregation): both modes render the centralized V3
-    # presentation data. See V2_IMPLEMENTATION_NOTES.md.
+    # Minimal PG aggregates for MVP; AI-agreement / resolution-time remain n/a stubs.
     return _v3_supervisor_page(
-        'supervisor/indicators.html', demo=use_v3_fixture(),
-        indicators=supervisor_v3_indicators(),
+        'supervisor/indicators.html', demo=False,
+        indicators=supervisor_indicators_from_rf(sessions_data(), discrepancies_data()),
     )
 
 
@@ -1360,24 +2112,241 @@ def admin_instrument_families():
 @web_bp.route('/admin/instrument-families/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_instrument_family_new():
-    return _page('admin/instrument_families/form.html', **family_form_data(), page_title='New Instrument Family', is_edit=False, form_mode='create')
+    from models.CatInstrumentCategory import CatInstrumentCategory
+
+    if request.method == 'GET':
+        ctx = family_form_data()
+        ctx.update({
+            'form_mode': 'create',
+            'is_edit': False,
+            'page_title': 'New Instrument Family',
+            'save_url': url_for('web.admin_instrument_family_new'),
+            'cancel_url': url_for('web.admin_instrument_families'),
+        })
+        return _page('admin/instrument_families/form.html', **ctx)
+
+    values = {
+        'code': request.form.get('code', '').strip(),
+        'name': request.form.get('name', '').strip(),
+        'category': request.form.get('category', '').strip(),
+        'how_to_identify': request.form.get('how_to_identify', '').strip(),
+        'classification_characteristics': request.form.get('classification_characteristics', '').strip(),
+        'function': request.form.get('function', '').strip(),
+        'status': request.form.get('status', 'active'),
+    }
+    if not values['code'] or not values['name'] or not values['category']:
+        ctx = family_form_data()
+        ctx['instrument_family'] = values
+        ctx.update({
+            'form_mode': 'create', 'is_edit': False,
+            'save_url': url_for('web.admin_instrument_family_new'),
+            'cancel_url': url_for('web.admin_instrument_families'),
+            'form_error': 'Code, name and category are required.',
+        })
+        return _page('admin/instrument_families/form.html', **ctx), 400
+    try:
+        category_id = UUID(values['category'])
+    except ValueError:
+        ctx = family_form_data()
+        ctx['instrument_family'] = values
+        ctx.update({
+            'form_mode': 'create', 'is_edit': False,
+            'save_url': url_for('web.admin_instrument_family_new'),
+            'cancel_url': url_for('web.admin_instrument_families'),
+            'form_error': 'Choose a valid category.',
+        })
+        return _page('admin/instrument_families/form.html', **ctx), 400
+    if db.session.get(CatInstrumentCategory, category_id) is None:
+        abort(400)
+    try:
+        family = InstrumentFamily(
+            code=values['code'],
+            name=values['name'],
+            category_id=category_id,
+            identify_text=values['how_to_identify'] or None,
+            classify_text=values['classification_characteristics'] or None,
+            function_text=values['function'] or None,
+            active=values['status'] == 'active',
+        )
+        db.session.add(family)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        ctx = family_form_data()
+        ctx['instrument_family'] = values
+        ctx.update({
+            'form_mode': 'create', 'is_edit': False,
+            'save_url': url_for('web.admin_instrument_family_new'),
+            'cancel_url': url_for('web.admin_instrument_families'),
+            'form_error': 'That family code already exists.',
+        })
+        return _page('admin/instrument_families/form.html', **ctx), 409
+    except SQLAlchemyError:
+        db.session.rollback()
+        abort(503)
+    return redirect(url_for('web.admin_instrument_families'))
 
 
 @web_bp.route('/admin/instrument-families/<family_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_instrument_family_edit(family_id):
-    return _page('admin/instrument_families/form.html', **family_form_data(family_id), page_title='Edit Instrument Family', is_edit=True, form_mode='edit', family_id=family_id)
+    from models.CatInstrumentCategory import CatInstrumentCategory
+
+    try:
+        parsed_id = UUID(family_id)
+    except ValueError:
+        abort(404)
+    family = db.session.get(InstrumentFamily, parsed_id)
+    if family is None:
+        abort(404)
+
+    if request.method == 'GET':
+        ctx = family_form_data(parsed_id)
+        ctx.update({
+            'form_mode': 'edit',
+            'is_edit': True,
+            'page_title': 'Edit Instrument Family',
+            'family_id': parsed_id,
+            'save_url': url_for('web.admin_instrument_family_edit', family_id=parsed_id),
+            'cancel_url': url_for('web.admin_instrument_families'),
+        })
+        return _page('admin/instrument_families/form.html', **ctx)
+
+    values = {
+        'code': family.code,
+        'name': request.form.get('name', '').strip(),
+        'category': request.form.get('category', '').strip(),
+        'how_to_identify': request.form.get('how_to_identify', '').strip(),
+        'classification_characteristics': request.form.get('classification_characteristics', '').strip(),
+        'function': request.form.get('function', '').strip(),
+        'status': request.form.get('status', 'active'),
+    }
+    if not values['name'] or not values['category']:
+        ctx = family_form_data(parsed_id)
+        ctx['instrument_family'] = values
+        ctx.update({
+            'form_mode': 'edit', 'is_edit': True, 'family_id': parsed_id,
+            'save_url': url_for('web.admin_instrument_family_edit', family_id=parsed_id),
+            'cancel_url': url_for('web.admin_instrument_families'),
+            'form_error': 'Name and category are required.',
+        })
+        return _page('admin/instrument_families/form.html', **ctx), 400
+    try:
+        category_id = UUID(values['category'])
+    except ValueError:
+        abort(400)
+    if db.session.get(CatInstrumentCategory, category_id) is None:
+        abort(400)
+    try:
+        family.name = values['name']
+        family.category_id = category_id
+        family.identify_text = values['how_to_identify'] or None
+        family.classify_text = values['classification_characteristics'] or None
+        family.function_text = values['function'] or None
+        family.active = values['status'] == 'active'
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        abort(503)
+    return redirect(url_for('web.admin_instrument_families'))
+
+
+def _list_query_args(filters, *, page=None, per_page=None):
+    args = {}
+    for key, value in (filters or {}).items():
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text == '':
+            continue
+        args[key] = text
+    if page is not None:
+        args['page'] = page
+    if per_page is not None:
+        args['per_page'] = per_page
+    return args
+
+
+def _pagination_urls(endpoint, filters, current_page, total_pages, per_page):
+    previous_url = None
+    next_url = None
+    if current_page > 1:
+        previous_url = url_for(
+            endpoint,
+            **_list_query_args(filters, page=current_page - 1, per_page=per_page),
+        )
+    if current_page < total_pages:
+        next_url = url_for(
+            endpoint,
+            **_list_query_args(filters, page=current_page + 1, per_page=per_page),
+        )
+    return previous_url, next_url
+
+
+def _access_audit(*, user_id, action, resource_type, resource_id, institution_id=None):
+    try:
+        actor_user_id = UUID(str(user_id)) if user_id else None
+    except (TypeError, ValueError):
+        actor_user_id = None
+    if actor_user_id is None:
+        return
+    try:
+        institution_uuid = UUID(str(institution_id)) if institution_id else None
+    except (TypeError, ValueError):
+        institution_uuid = None
+    db.session.add(AccessAudit(
+        occurred_at=datetime.now(timezone.utc),
+        actor_type='user',
+        actor_user_id=actor_user_id,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        institution_id=institution_uuid,
+        outcome='success',
+        ip=(request.headers.get('X-Forwarded-For') or request.remote_addr or '').split(',')[0].strip() or None,
+    ))
 
 
 @web_bp.route('/admin/instruments')
-@require_role('it_admin')
+@require_role('spd_supervisor', 'it_admin')
 def admin_instruments():
-    instruments = instruments_data()
-    return _page('admin/instruments/list.html', instruments=instruments, instruments_shown_count=len(instruments), instruments_total_count=len(instruments))
+    payload = instruments_query_page(
+        search=request.args.get('search', ''),
+        type_code=request.args.get('type', ''),
+        cycle_status=request.args.get('cycle_status', ''),
+        status=request.args.get('status', 'active'),
+        page=request.args.get('page', 1),
+        per_page=request.args.get('per_page', 20),
+    )
+    filters = payload.get('filters', {})
+    previous_url, next_url = _pagination_urls(
+        'web.admin_instruments',
+        filters,
+        payload.get('current_page', 1),
+        payload.get('total_pages', 1),
+        payload.get('per_page', 20),
+    )
+    return _page(
+        'admin/instruments/list.html',
+        instruments=payload.get('instruments', []),
+        instruments_shown_count=payload.get('instruments_shown_count', 0),
+        instruments_total_count=payload.get('instruments_total_count', 0),
+        current_page=payload.get('current_page', 1),
+        total_pages=payload.get('total_pages', 1),
+        per_page=payload.get('per_page', 20),
+        filters=filters,
+        instrument_type_filter=payload.get('instrument_type_filter', []),
+        cycle_status_filter=payload.get('cycle_status_filter', []),
+        previous_url=previous_url,
+        next_url=next_url,
+        go_to_action=url_for('web.admin_instruments'),
+        pagination_query=_list_query_args(filters, per_page=payload.get('per_page', 20)),
+        new_instrument_url=url_for('web.admin_instrument_new'),
+    )
 
 
 @web_bp.route('/admin/instruments/new', methods=['GET', 'POST'])
-@require_role('it_admin')
+@require_role('spd_supervisor', 'it_admin')
 def admin_instrument_new():
     if request.method == 'GET':
         return _render_instrument_form('create')
@@ -1437,7 +2406,7 @@ def admin_instrument_new():
 
 
 @web_bp.route('/admin/instruments/<instrument_id>/edit', methods=['GET', 'POST'])
-@require_role('it_admin')
+@require_role('spd_supervisor', 'it_admin')
 def admin_instrument_edit(instrument_id):
     try:
         parsed_instrument_id = UUID(instrument_id)
@@ -1466,9 +2435,57 @@ def admin_instrument_edit(instrument_id):
                 form_error='Choose a valid instrument family and cycle status.', status=400,
             )
 
+        prior_cycle = db.session.get(CatInstrumentCycleStatus, instrument.cycle_status_id)
+        prior_cycle_code = prior_cycle.code if prior_cycle else ''
+        prior_active = bool(instrument.active)
+        new_active = values['active_status'] == 'active'
+        cycle_changed = instrument.cycle_status_id != cycle_status.id
+        active_changed = prior_active != new_active
+
+        if (cycle_changed or active_changed) and not values['change_reason']:
+            return _render_instrument_form(
+                'edit', instrument_id=parsed_instrument_id, values=values,
+                form_error='A change reason is required when cycle status or active status changes.',
+                status=400,
+            )
+
         instrument.family_id = family.id
         instrument.cycle_status_id = cycle_status.id
-        instrument.active = values['active_status'] == 'active'
+        instrument.active = new_active
+
+        if cycle_changed or active_changed:
+            note_parts = []
+            if cycle_changed:
+                note_parts.append(f'cycle: {prior_cycle_code or "unknown"}→{cycle_status.code}')
+            if active_changed:
+                prior_label = 'active' if prior_active else 'inactive'
+                new_label = 'active' if new_active else 'inactive'
+                note_parts.append(f'active: {prior_label}→{new_label}')
+            note_parts.append(f'reason: {values["change_reason"]}')
+            db.session.add(InstrumentCycleEvent(
+                instrument_id=instrument.id,
+                cycle_status_id=cycle_status.id,
+                occurred_at=datetime.now(timezone.utc),
+                notes='; '.join(note_parts),
+            ))
+            user = _current_user() or {}
+            if cycle_changed:
+                _access_audit(
+                    user_id=user.get('id'),
+                    action='instrument.cycle_change',
+                    resource_type='instrument',
+                    resource_id=instrument.id,
+                    institution_id=user.get('institution_id') or instrument.institution_id,
+                )
+            if active_changed:
+                _access_audit(
+                    user_id=user.get('id'),
+                    action='instrument.active_change',
+                    resource_type='instrument',
+                    resource_id=instrument.id,
+                    institution_id=user.get('institution_id') or instrument.institution_id,
+                )
+
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
@@ -1493,6 +2510,7 @@ def _submitted_instrument_values():
         'instrument_family': request.form.get('instrument_family', '').strip(),
         'cycle_status': request.form.get('cycle_status', '').strip(),
         'active_status': request.form.get('active_status', 'active'),
+        'change_reason': request.form.get('change_reason', '').strip(),
     }
 
 
@@ -1543,14 +2561,47 @@ def _render_instrument_form(form_mode, instrument_id=None, values=None, form_err
 
 
 @web_bp.route('/admin/kits')
-@require_role('it_admin')
+@require_role('spd_supervisor', 'it_admin')
 def admin_kits():
-    kits = kits_data()
-    return _page('admin/kits/list.html', kits=kits, kits_shown_count=len(kits), kits_total_count=len(kits))
+    user = _current_user() or {}
+    active_only = user.get('role_code') == 'spd_supervisor'
+    payload = kits_query_page(
+        search=request.args.get('search', ''),
+        procedure_type=request.args.get('procedure_type', ''),
+        status=request.args.get('status', 'active'),
+        page=request.args.get('page', 1),
+        per_page=request.args.get('per_page', 20),
+        active_only=active_only,
+    )
+    filters = payload.get('filters', {})
+    previous_url, next_url = _pagination_urls(
+        'web.admin_kits',
+        filters,
+        payload.get('current_page', 1),
+        payload.get('total_pages', 1),
+        payload.get('per_page', 20),
+    )
+    return _page(
+        'admin/kits/list.html',
+        kits=payload.get('kits', []),
+        kits_shown_count=payload.get('kits_shown_count', 0),
+        kits_total_count=payload.get('kits_total_count', 0),
+        current_page=payload.get('current_page', 1),
+        total_pages=payload.get('total_pages', 1),
+        per_page=payload.get('per_page', 20),
+        filters=filters,
+        procedure_type_filter=payload.get('procedure_type_filter', []),
+        active_only=active_only,
+        previous_url=previous_url,
+        next_url=next_url,
+        go_to_action=url_for('web.admin_kits'),
+        pagination_query=_list_query_args(filters, per_page=payload.get('per_page', 20)),
+        new_kit_url=url_for('web.admin_kit_new'),
+    )
 
 
 @web_bp.route('/admin/kits/new', methods=['GET', 'POST'])
-@require_role('it_admin')
+@require_role('spd_supervisor', 'it_admin')
 def admin_kit_new():
     if request.method == 'GET':
         return _render_kit_form('create')
@@ -1607,7 +2658,7 @@ def admin_kit_new():
 
 
 @web_bp.route('/admin/kits/<kit_id>/edit', methods=['GET', 'POST'])
-@require_role('it_admin')
+@require_role('spd_supervisor', 'it_admin')
 def admin_kit_edit(kit_id):
     try:
         parsed_kit_id = UUID(kit_id)
@@ -1633,9 +2684,34 @@ def admin_kit_edit(kit_id):
                 'edit', kit_id=parsed_kit_id, values=values, form_error=error, status=400,
             )
 
-        kit.name = values['kit']['name']
-        kit.active = values['kit']['status'] == 'active'
-        _sync_kit_composition(kit, values['kit_composition'])
+        now = datetime.now(timezone.utc)
+        new_kit = Kit(
+            name=values['kit']['name'],
+            version=int(kit.version or 1) + 1,
+            active=values['kit']['status'] == 'active',
+            institution_id=kit.institution_id,
+            created_at=now,
+        )
+        db.session.add(new_kit)
+        db.session.flush()
+        _sync_kit_composition(new_kit, values['kit_composition'])
+        kit.active = False
+
+        linked_procedures = db.session.execute(
+            select(ProcedureKit).where(ProcedureKit.kit_id == kit.id)
+        ).scalars().all()
+        for procedure_kit in linked_procedures:
+            procedure_kit.kit_id = new_kit.id
+            procedure_kit.updated_at = now
+
+        user = _current_user() or {}
+        _access_audit(
+            user_id=user.get('id'),
+            action='kit.version_bump',
+            resource_type='kit',
+            resource_id=new_kit.id,
+            institution_id=user.get('institution_id') or kit.institution_id,
+        )
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
@@ -1731,9 +2807,25 @@ def _render_kit_form(form_mode, kit_id=None, values=None, form_error=None, statu
     if values:
         kit_values = dict(context.get('kit', {}))
         kit_values.update(values.get('kit', {}))
+        family_lookup = {
+            item['value']: item for item in context.get('instrument_families', [])
+        }
+        composition = []
+        for row in values.get('kit_composition', []):
+            family = family_lookup.get(str(row.get('instrument_family_value')))
+            composition.append({
+                'instrument_family_value': str(row.get('instrument_family_value')),
+                'instrument_family_label': family['label'] if family else '',
+                'expected_quantity': row.get('expected_quantity'),
+                'category_code': family.get('category_code', '') if family else '',
+                'category_label': family.get('category_label', '') if family else '',
+                'category_rank': family.get('category_rank', 999) if family else 999,
+                'active_available_count': family.get('active_available_count', 0) if family else 0,
+            })
+        composition.sort(key=lambda row: (row.get('category_rank', 999), row.get('instrument_family_label', '')))
         context.update({
             'kit': kit_values,
-            'kit_composition': values.get('kit_composition', context.get('kit_composition', [])),
+            'kit_composition': composition,
         })
     context.update({
         'form_mode': form_mode,

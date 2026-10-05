@@ -1,18 +1,14 @@
 {% import "components/macros.html" as macros %}
 {% set active_nav_item = active_nav_item|default('dashboard') %}
+{% set nav_urls = nav_urls|default({}) %}
 
 {#
-    Integration point: nav_urls is an optional dict of {nav-key: url} used to resolve each
-    link's href, following the exact same pattern as partials/sidebar_operator.html. When not
-    provided, every link safely falls back to "#" via the |default('#') filter below.
-    Recognized keys: dashboard, sessions, discrepancies, session_history, reports,
-    indicators, audit_log, profile, sign_out.
-    Intended production endpoints (documented in FRONTEND_INTEGRATION.md):
-    supervisor.dashboard, supervisor.sessions, supervisor.discrepancies,
-    supervisor.session_history, supervisor.reports, supervisor.indicators,
-    supervisor.audit_log, supervisor.profile, auth.sign_out
+    SPD sidebar — ordered by use frequency (RF):
+    Dashboard → Sessions (+ New) → Discrepancies → History →
+    Kits → Instruments → Indicators → Reports (stub) → Audit →
+    Services health (future stub) → Account.
+    Privacy notice catalog is admin-only; SPD confirms Via A on schedule/detail only.
 #}
-{% set nav_urls = nav_urls|default({}) %}
 
 <div class="sidebar__brand">
     <p class="sidebar__brand-name">{{ _("Surgical Instrument") }}</p>
@@ -35,7 +31,7 @@
     </div>
 
     <div class="sidebar__section">
-        <p class="sidebar__section-label">{{ _("Monitoring") }}</p>
+        <p class="sidebar__section-label">{{ _("Sessions") }}</p>
         <ul class="sidebar__nav-list">
             <li>
                 <a class="sidebar__nav-link{% if active_nav_item == 'sessions' %} sidebar__nav-link--active{% endif %}"
@@ -43,6 +39,14 @@
                    {% if active_nav_item == 'sessions' %}aria-current="page"{% endif %}>
                     {{ macros.icon_clipboard() }}
                     <span>{{ _("Sessions") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'new_session' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.new_session|default('#') }}"
+                   {% if active_nav_item == 'new_session' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_plus() }}
+                    <span>{{ _("New session") }}</span>
                 </a>
             </li>
             <li>
@@ -65,8 +69,38 @@
     </div>
 
     <div class="sidebar__section">
-        <p class="sidebar__section-label">{{ _("Reports") }}</p>
+        <p class="sidebar__section-label">{{ _("Catalog") }}</p>
         <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'kits' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.kits|default('#') }}"
+                   {% if active_nav_item == 'kits' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_document() }}
+                    <span>{{ _("Kits") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'instruments' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.instruments|default('#') }}"
+                   {% if active_nav_item == 'instruments' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_clipboard() }}
+                    <span>{{ _("Instruments") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Insights") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'indicators' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.indicators|default('#') }}"
+                   {% if active_nav_item == 'indicators' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_chart_bar() }}
+                    <span>{{ _("Indicators") }}</span>
+                </a>
+            </li>
             <li>
                 <a class="sidebar__nav-link{% if active_nav_item == 'reports' %} sidebar__nav-link--active{% endif %}"
                    href="{{ nav_urls.reports|default('#') }}"
@@ -76,25 +110,25 @@
                 </a>
             </li>
             <li>
-                <a class="sidebar__nav-link{% if active_nav_item == 'indicators' %} sidebar__nav-link--active{% endif %}"
-                   href="{{ nav_urls.indicators|default('#') }}"
-                   {% if active_nav_item == 'indicators' %}aria-current="page"{% endif %}>
-                    {{ macros.icon_chart_bar() }}
-                    <span>{{ _("Indicators") }}</span>
+                <a class="sidebar__nav-link{% if active_nav_item == 'audit_log' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.audit_log|default('#') }}"
+                   {% if active_nav_item == 'audit_log' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_shield_check() }}
+                    <span>{{ _("Audit Log") }}</span>
                 </a>
             </li>
         </ul>
     </div>
 
     <div class="sidebar__section">
-        <p class="sidebar__section-label">{{ _("Traceability") }}</p>
+        <p class="sidebar__section-label">{{ _("Platform") }}</p>
         <ul class="sidebar__nav-list">
             <li>
-                <a class="sidebar__nav-link{% if active_nav_item == 'audit_log' %} sidebar__nav-link--active{% endif %}"
-                   href="{{ nav_urls.audit_log|default('#') }}"
-                   {% if active_nav_item == 'audit_log' %}aria-current="page"{% endif %}>
-                    {{ macros.icon_shield_check() }}
-                    <span>{{ _("Audit Log") }}</span>
+                <a class="sidebar__nav-link{% if active_nav_item == 'services_health' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.services_health|default('#') }}"
+                   {% if active_nav_item == 'services_health' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_grid() }}
+                    <span>{{ _("Services health") }}</span>
                 </a>
             </li>
         </ul>

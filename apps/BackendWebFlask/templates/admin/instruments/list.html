@@ -5,7 +5,11 @@
 
 {% block sidebar %}
 {% set active_nav_item = 'instruments' %}
+{% if current_user and current_user.role_code == 'spd_supervisor' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% else %}
 {% include "partials/sidebar_admin.html" %}
+{% endif %}
 {% endblock %}
 
 {% block breadcrumb %}
@@ -17,17 +21,20 @@
 {% endblock %}
 
 {% block page_content %}
-{% set instrument_families_filter = instrument_families_filter|default([
-    {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
-    {'value': 'foerster-sponge-forceps', 'label': _('Foerster Sponge Forceps')},
-    {'value': 'mayo-hegar-needle-holder', 'label': _('Mayo-Hegar Needle Holder')}
+{% set filters = filters|default({'search': '', 'type': '', 'cycle_status': '', 'status': 'active'}, true) %}
+{% set instrument_type_filter = instrument_type_filter|default([], true) %}
+{% set cycle_status_filter = cycle_status_filter|default([
+    {'value': 'available', 'label': _('Available')},
+    {'value': 'in_use', 'label': _('In Use')},
+    {'value': 'sterilization', 'label': _('Sterilization')},
+    {'value': 'unavailable', 'label': _('Unavailable')}
 ], true) %}
 {% set instruments_shown_count = instruments_shown_count|default(instruments|length, true) %}
-{% set instruments_total_count = instruments_total_count|default(96, true) %}
+{% set instruments_total_count = instruments_total_count|default(instruments|length, true) %}
 {% set current_page = current_page|default(1, true) %}
-{% set total_pages = total_pages|default(24, true) %}
-{% set previous_url = previous_url|default('#', true) %}
-{% set next_url = next_url|default('#', true) %}
+{% set total_pages = total_pages|default(1, true) %}
+{% set per_page = per_page|default(20, true) %}
+{% set pagination_query = pagination_query|default({}, true) %}
 
 <div class="page-heading">
     <div>
@@ -41,23 +48,22 @@
 </div>
 
 <section class="card">
-    {# Filters are presentation-only in this iteration: no client-side or server-side
-       filtering is wired up yet. #}
-    <form class="filter-bar" action="#" method="get" role="search">
+    <form class="filter-bar" action="{{ url_for('web.admin_instruments') }}" method="get" role="search">
+        <input type="hidden" name="per_page" value="{{ per_page }}">
         <div class="filter-bar__search">
             <label class="visually-hidden" for="instruments-search">{{ _("Search Instruments") }}</label>
             <div class="form-field__input-wrapper">
                 <span class="form-field__icon">{{ macros.icon_search() }}</span>
                 <input class="form-field__input" type="search" id="instruments-search" name="search"
-                       placeholder="{{ _('Search instruments...') }}">
+                       value="{{ filters.search }}" placeholder="{{ _('Search instruments...') }}">
             </div>
         </div>
         <div class="filter-bar__select">
-            <label class="visually-hidden" for="instruments-family">{{ _("Instrument Family") }}</label>
-            <select class="form-field__input form-field__input--plain" id="instruments-family" name="family">
-                <option value="">{{ _("Family: All") }}</option>
-                {% for family in instrument_families_filter %}
-                <option value="{{ family.value }}">{{ family.label }}</option>
+            <label class="visually-hidden" for="instruments-type">{{ _("Type") }}</label>
+            <select class="form-field__input form-field__input--plain" id="instruments-type" name="type">
+                <option value="">{{ _("Type: All") }}</option>
+                {% for item in instrument_type_filter %}
+                <option value="{{ item.value }}" {% if filters.type == item.value %}selected{% endif %}>{{ item.label }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -65,29 +71,48 @@
             <label class="visually-hidden" for="instruments-cycle">{{ _("Cycle Status") }}</label>
             <select class="form-field__input form-field__input--plain" id="instruments-cycle" name="cycle_status">
                 <option value="">{{ _("Cycle: All") }}</option>
-                <option value="available">{{ _("Available") }}</option>
-                <option value="in_use">{{ _("In Use") }}</option>
-                <option value="sterilization">{{ _("Sterilization") }}</option>
-                <option value="unavailable">{{ _("Unavailable") }}</option>
+                {% for item in cycle_status_filter %}
+                <option value="{{ item.value }}" {% if filters.cycle_status == item.value %}selected{% endif %}>{{ item.label }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="filter-bar__select">
             <label class="visually-hidden" for="instruments-status">{{ _("Active Status") }}</label>
             <select class="form-field__input form-field__input--plain" id="instruments-status" name="status">
-                <option value="active" selected>{{ _("Status: Active") }}</option>
-                <option value="inactive">{{ _("Status: Inactive") }}</option>
-                <option value="">{{ _("Status: All") }}</option>
+                <option value="active" {% if filters.status == 'active' %}selected{% endif %}>{{ _("Status: Active") }}</option>
+                <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>{{ _("Status: Inactive") }}</option>
+                <option value="all" {% if filters.status == 'all' %}selected{% endif %}>{{ _("Status: All") }}</option>
             </select>
         </div>
+        <button type="submit" class="btn btn--success filter-bar__search-btn" aria-label="{{ _('Search') }}" title="{{ _('Search') }}">
+            {{ macros.icon_search() }}
+        </button>
     </form>
 </section>
 
 <section class="card">
+    <div class="list-meta">
+        <p class="list-meta__viewing">{{ _("Viewing %(shown)s out of %(total)s instruments", shown=instruments_shown_count, total=instruments_total_count) }}</p>
+        <form class="list-meta__per-page" action="{{ url_for('web.admin_instruments') }}" method="get">
+            {% if filters.search %}<input type="hidden" name="search" value="{{ filters.search }}">{% endif %}
+            {% if filters.type %}<input type="hidden" name="type" value="{{ filters.type }}">{% endif %}
+            {% if filters.cycle_status %}<input type="hidden" name="cycle_status" value="{{ filters.cycle_status }}">{% endif %}
+            <input type="hidden" name="status" value="{{ filters.status }}">
+            <label class="list-meta__per-page-label" for="instruments-per-page">{{ _("Per page") }}</label>
+            <select class="form-field__input form-field__input--plain list-meta__per-page-select" id="instruments-per-page" name="per_page" onchange="this.form.submit()">
+                {% for size in [10, 20, 50] %}
+                <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
                 <tr>
                     <th scope="col">{{ _("Internal Code") }}</th>
+                    <th scope="col">{{ _("Type") }}</th>
                     <th scope="col">{{ _("Instrument Family") }}</th>
                     <th scope="col">{{ _("Cycle Status") }}</th>
                     <th scope="col">{{ _("Active Status") }}</th>
@@ -98,6 +123,7 @@
                 {% for instrument in instruments %}
                 <tr>
                     <th scope="row">{{ instrument.internal_code }}</th>
+                    <td>{{ instrument.instrument_type_label|default('—') }}</td>
                     <td>{{ instrument.instrument_family_name }}</td>
                     <td>{{ macros.status_badge(instrument.cycle_status_label, instrument.cycle_status_variant) }}</td>
                     <td>{{ macros.status_badge(instrument.active_status_label, instrument.active_status_variant) }}</td>
@@ -105,18 +131,16 @@
                         <a class="btn btn--secondary btn--small" href="{{ instrument.edit_url }}">{{ _("Edit") }}</a>
                     </td>
                 </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">{{ _("No instruments match the current filters.") }}</td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
-    <nav class="pagination" aria-label="{{ _('Pagination') }}">
-        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s instruments", shown=instruments_shown_count, total=instruments_total_count) }}</p>
-        <div class="pagination__controls">
-            <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
-            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
-            <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
-        </div>
-    </nav>
+    {% set pagination_info = None %}
+    {% include "components/pagination.html" %}
 </section>
 {% endblock %}

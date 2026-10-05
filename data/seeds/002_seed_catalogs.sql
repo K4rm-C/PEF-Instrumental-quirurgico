@@ -91,26 +91,28 @@ ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 -- Ciclo de vida de la pieza de instrumental
 -- -----------------------------------------------------------------------------
 INSERT INTO cat_instrument_cycle_status (code, name) VALUES
-  ('available',     'Disponible'),
-  ('reserved',      'Reservada'),
-  ('in_use',        'En uso'),
-  ('sterilization', 'En esterilizacion'),
-  ('maintenance',   'En mantenimiento'),
-  ('retired',       'Retirada'),
-  ('lost',          'Perdida / no recuperada')
+  ('available',     'Available'),
+  ('reserved',      'Reserved'),
+  ('in_use',        'In use'),
+  ('sterilization', 'Sterilization'),
+  ('maintenance',   'Maintenance'),
+  ('retired',       'Retired'),
+  ('lost',          'Lost / not recovered')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------
--- Categoria funcional de la familia de instrumental
+-- Categoria funcional de la familia de instrumental (UI Type filter / kit blocks)
+-- Order used in composition: Cutting → Dissection → Grasping → Hemostasis →
+-- Retraction → Suction → Suturing
 -- -----------------------------------------------------------------------------
 INSERT INTO cat_instrument_category (code, name) VALUES
-  ('hemostasis', 'Hemostasia'),
-  ('cutting',    'Corte'),
-  ('dissection', 'Diseccion'),
-  ('retraction', 'Separacion'),
-  ('grasping',   'Prension'),
-  ('suturing',   'Sutura'),
-  ('suction',    'Aspiracion')
+  ('cutting',    'Cutting'),
+  ('dissection', 'Dissection'),
+  ('grasping',   'Grasping'),
+  ('hemostasis', 'Hemostasis'),
+  ('retraction', 'Retraction'),
+  ('suction',    'Suction'),
+  ('suturing',   'Suturing')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------
@@ -157,13 +159,11 @@ ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 -- no aqui: este catalogo solo declara que fases existen.
 -- -----------------------------------------------------------------------------
 INSERT INTO cat_operation_phase (code, name, active) VALUES
-  ('setup',        'Preparacion de mesa',              TRUE),
-  ('pre_incision', 'Conteo inicial previo a incision', TRUE),
-  ('intraop',      'Transoperatorio',                  TRUE),
-  ('pre_closure',  'Conteo previo a cierre de cavidad', TRUE),
-  ('closure',      'Cierre',                           TRUE),
-  ('final_count',  'Conteo final',                     TRUE),
-  ('handover',     'Entrega y retiro de charola',      TRUE)
+  ('start',        'Start / initial stage', TRUE),
+  ('demo_phase_1', 'Demo phase one',        TRUE),
+  ('demo_phase_2', 'Demo phase two',        TRUE),
+  ('demo_phase_3', 'Demo phase three',      TRUE),
+  ('final_count',  'Final count',           TRUE)
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------

@@ -17,6 +17,7 @@
 {% endblock %}
 
 {% block page_content %}
+{% set inventory_view = inventory_view|default('table') %}
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ session.session_id }}</h1>
@@ -24,6 +25,11 @@
     </div>
     <div class="page-heading__actions">
         <a class="btn btn--secondary" href="{{ url_for('web.supervisor_sessions') }}">{{ _("Back") }}</a>
+        {% if session.can_edit_inventory %}
+        <a class="btn btn--secondary" href="{{ url_for('web.supervisor_session_inventory', session_id=session.id) }}">
+            {{ _("Modify session") if session.can_edit_session_fields else _("Modify expected inventory") }}
+        </a>
+        {% endif %}
         {% if session.discrepancy_count and session.discrepancy_count > 0 %}
         <a class="btn btn--primary" href="{{ url_for('web.supervisor_discrepancy_review', session_id=session.id) }}">{{ _("Review discrepancies") }}</a>
         {% endif %}
@@ -38,18 +44,74 @@
     <h2 class="card__title">{{ _("Session") }}</h2>
     <dl class="detail-list">
         <div><dt>{{ _("Status") }}</dt><dd>{{ macros.status_badge(session.status_label, session.status_variant) }}</dd></div>
+        <div><dt>{{ _("Scheduled start") }}</dt><dd>{{ session.scheduled_at or '—' }}</dd></div>
         <div><dt>{{ _("Operator") }}</dt><dd>{{ session.operator_name }}</dd></div>
+        <div><dt>{{ _("Patient") }}</dt><dd>{{ session.patient_name or '—' }}</dd></div>
         <div><dt>{{ _("Kit") }}</dt><dd>{{ session.kit_name }}</dd></div>
         <div><dt>{{ _("Capture station") }}</dt><dd>{{ session.capture_station_name }}</dd></div>
         <div><dt>{{ _("Started") }}</dt><dd>{{ session.started_at or '—' }}</dd></div>
         <div><dt>{{ _("Ended") }}</dt><dd>{{ session.closed_at or '—' }}</dd></div>
         <div><dt>{{ _("Capture mode") }}</dt><dd>{{ session.capture_mode or '—' }}</dd></div>
+        <div><dt>{{ _("Privacy") }}</dt><dd>{{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</dd></div>
         <div><dt>{{ _("Open discrepancies") }}</dt><dd>{{ session.discrepancy_count }}</dd></div>
     </dl>
+    {% if session.surgical_team %}
+    <h3 class="form-field__label">{{ _("Surgical team") }}</h3>
+    <ul>
+        {% for member in session.surgical_team %}
+        <li>{{ member.name }} — {{ member.role }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% if session.privacy and session.privacy.has_agreement %}
+    <p class="text-muted">{{ _("Notice") }} {{ session.privacy.version }} · {{ session.privacy.agreed_at or '—' }}</p>
+    {% elif session.privacy %}
+    <p class="text-muted">{{ session.privacy.message }}</p>
+    {% endif %}
 </section>
 
 <section class="card">
-    <h2 class="card__title">{{ _("Expected vs reported") }}</h2>
+    <div class="page-heading" style="margin-bottom: 1rem;">
+        <h2 class="card__title">{{ _("Expected vs reported") }}</h2>
+        <div class="page-heading__actions">
+            <a class="btn btn--secondary btn--small{% if inventory_view != 'by_type' %} btn--primary{% endif %}"
+               href="{{ url_for('web.supervisor_session_details', session_id=session.id, inventory_view='table') }}">{{ _("Table") }}</a>
+            <a class="btn btn--secondary btn--small{% if inventory_view == 'by_type' %} btn--primary{% endif %}"
+               href="{{ url_for('web.supervisor_session_details', session_id=session.id, inventory_view='by_type') }}">{{ _("By type") }}</a>
+        </div>
+    </div>
+
+    {% if inventory_view == 'by_type' %}
+        {% for group in session.expected_groups|default([]) %}
+        <h3 class="form-field__label">{{ _(group.label) }}</h3>
+        <div class="table-wrapper" style="margin-bottom: 1rem;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Family") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
+                        <th scope="col">{{ _("Source") }}</th>
+                        <th scope="col">{{ _("Status") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in group.lines %}
+                    <tr>
+                        <td>{{ item.family_name }}</td>
+                        <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                        <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
+                        <td><span class="status-badge status-badge--neutral">{{ _(item.source_label) }}</span></td>
+                        <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p>{{ _("No expected inventory rows.") }}</p>
+        {% endfor %}
+    {% else %}
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -58,6 +120,7 @@
                     <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
                     <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
                     <th scope="col" class="data-table__numeric-column">{{ _("Diff") }}</th>
+                    <th scope="col">{{ _("Source") }}</th>
                     <th scope="col">{{ _("Status") }}</th>
                 </tr>
             </thead>
@@ -68,14 +131,16 @@
                     <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
                     <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
                     <td class="data-table__numeric-column">{{ item.difference if item.difference is not none else '—' }}</td>
+                    <td><span class="status-badge status-badge--neutral">{{ _(item.source_label) }}</span></td>
                     <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5">{{ _("No expected inventory rows.") }}</td></tr>
+                <tr><td colspan="6">{{ _("No expected inventory rows.") }}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% endif %}
 </section>
 
 <section class="card">
@@ -110,9 +175,12 @@
 <section class="card">
     <h2 class="card__title">{{ _("Confirm close (SP-05)") }}</h2>
     <p>{{ _("Confirm that material was recovered and reprocessing can start. This closes the session administratively.") }}</p>
-    <form method="post" action="{{ url_for('web.supervisor_session_close', session_id=session.id) }}">
+    <form method="post" action="{{ url_for('web.supervisor_session_close', session_id=session.id) }}"
+          data-session-close-form
+          data-session-label="{{ session.session_id }}"
+          data-procedure="{{ session.procedure_name }}">
         <label class="form-field__checkbox">
-            <input type="checkbox" name="material_recovered" value="1" required>
+            <input type="checkbox" name="material_recovered" value="1" required data-material-recovered>
             <span>{{ _("Material recovered / reprocessing started") }}</span>
         </label>
         <div class="page-heading__actions" style="margin-top: 1rem;">
@@ -121,4 +189,37 @@
     </form>
 </section>
 {% endif %}
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+    var form = document.querySelector("[data-session-close-form]");
+    if (!form) return;
+    form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var recovered = !!form.querySelector("[data-material-recovered]:checked");
+        var html =
+            "<p>Confirm administrative close for <strong>" +
+            (form.getAttribute("data-session-label") || "session") +
+            "</strong>?</p>" +
+            '<div class="app-modal__audit"><dl class="app-modal__kv">' +
+            "<dt>Procedure</dt><dd>" + (form.getAttribute("data-procedure") || "—") + "</dd>" +
+            "<dt>Material recovered</dt><dd>" + (recovered ? "Yes" : "No") + "</dd>" +
+            "</dl></div>";
+        if (window.appConfirm) {
+            window.appConfirm({
+                title: "Close Counting Session?",
+                html: html,
+                okLabel: "Close Session",
+                cancelLabel: "Cancel",
+            }).then(function (ok) {
+                if (ok && window.appConfirmProceed) window.appConfirmProceed(form);
+            });
+            return;
+        }
+        if (window.appConfirmProceed) window.appConfirmProceed(form);
+    });
+})();
+</script>
 {% endblock %}

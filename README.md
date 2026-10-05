@@ -21,7 +21,7 @@ Equipo de apoyo: Luis Carlos Rodriguez Medrano, Carlos Ignacio Huerta Carrizales
 - Docker Desktop en ejecucion
 - Python 3.11+ en PATH
 - Git
-- Puertos libres: `5433`, `6379`, `27017`, `3900`, `3901`, `3903`, `5000`, `5001`
+- Puertos libres: `5433`, `6379`, `27017`, `3900`, `3901`, `3903`, `5000`, `5001`, `5002`
 
 ```powershell
 docker --version
@@ -87,7 +87,7 @@ docker exec pef_garage /garage key list
 
 El bucket `evidence` y la key `MedAdmin3` se crean solos con `--default-bucket` si `S3_SECRET_KEY` es valida.
 
-### 3) Auth y Web (dos terminales)
+### 3) Auth, Web y VisionWorker (tres terminales)
 
 **Terminal A — Auth**
 
@@ -109,7 +109,23 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Opcional Windows: `.\start-services.ps1` (compose + abre las dos terminales).
+**Terminal C — VisionWorker (YOLO)**
+
+Coloca los pesos **antes** del primer arranque (archivo grande, **no** va a GitHub; `*.pt` esta en `.gitignore`):
+
+```powershell
+# Ruta esperada (desde la raiz del repo):
+# apps\VisionWorker\weights\best.pt
+cd apps\VisionWorker
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python main.py
+```
+
+Comprueba: [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) debe reportar `"weights_present": true`.
+
+Opcional Windows: `.\start-services.ps1` (compose + abre Auth, Web y VisionWorker).
 
 ### 4) URLs y puertos
 
@@ -118,6 +134,7 @@ Opcional Windows: `.\start-services.ps1` (compose + abre las dos terminales).
 | ------------- | ---------------------------------------------- |
 | Portal web    | [http://127.0.0.1:5000](http://127.0.0.1:5000) |
 | Auth          | [http://127.0.0.1:5001](http://127.0.0.1:5001) |
+| VisionWorker  | [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) |
 | Garage S3 API | [http://127.0.0.1:3900](http://127.0.0.1:3900) |
 | PostgreSQL    | `localhost:5433` / db `InstruMed`              |
 | Redis         | `localhost:6379`                               |
@@ -135,6 +152,7 @@ Opcional Windows: `.\start-services.ps1` (compose + abre las dos terminales).
 | 3903   | Garage admin API |
 | 5000   | Backend Web      |
 | 5001   | Auth             |
+| 5002   | VisionWorker     |
 
 
 
@@ -168,11 +186,13 @@ aws --endpoint-url http://127.0.0.1:3900 s3 ls s3://evidence
 Códigos de rol RF: `station_operator`, `spd_supervisor`, `it_admin`.
 
 
-| Rol (RF)         | Email                      | Password        |
-| ---------------- | -------------------------- | --------------- |
-| station_operator | `operator@instrumed.com`   | `DemopwdOP78!`  |
-| spd_supervisor   | `supervisor@instrumed.com` | `DemopwdSPD78!` |
-| it_admin         | `admin@instrumed.com`      | `DemopwdADM78!` |
+| Rol (RF)         | Email                        | Password         |
+| ---------------- | ---------------------------- | ---------------- |
+| station_operator | `operator@instrumed.com`     | `DemopwdOP78!`   |
+| station_operator | `operador2@instrumed.com`    | `DemopwdOP278!`  |
+| spd_supervisor   | `supervisor@instrumed.com`   | `DemopwdSPD78!`  |
+| spd_supervisor   | `supervisor2@instrumed.com`  | `DemopwdSPD278!` |
+| it_admin         | `admin@instrumed.com`        | `DemopwdADM78!`  |
 
 
 ```powershell
@@ -199,7 +219,9 @@ PEF-Instrumental-quirurgico/
 ├── data/
 └── apps/
     ├── BackendAuthService/
-    └── BackendWebFlask/
+    ├── BackendWebFlask/
+    └── VisionWorker/
+        └── weights/best.pt   # local only (gitignored)
 ```
 
 
@@ -241,12 +263,13 @@ Auth debe tener `Werkzeug==3.1.8` y el seed actual
 | 3.1  | Contrato RF: estados, `capture_mode`, roles RF, seeds ± aviso, OP-01/OP-02 lectura | Listo     |
 | 3.2  | SP-02 programar + privacy Via A, OP-03 Start, OP-04M/06M manual                    | Listo     |
 | 3.3  | Seeds D/E + SP-05/06 cierre + detalle RF supervisor                                | Listo     |
-| 4    | Cablear resto de plantillas a logica real                                          | Pendiente |
-| 5    | Checklist demo LAN (dos laptops)                                                   | Pendiente |
+| 4    | UI RF OP/SPD (sidebars, listas, schedule, kits SPD, stubs reports/profile/health) | Listo |
+| 5a   | Vision upload + VisionWorker + YOLO (`best.pt`) + count_event + validacion UI     | Listo (demo) |
+| 5b   | Electron WSS camara live + Mongo/Garage evidence-worker                            | Pendiente |
 | 6    | i18n real (Flask-Babel)                                                            | Diferido  |
 
 
-Idioma: **ingles** como fuente; Babel = Fase 6. UI pre-RF del operador (dashboard / New Session) vive en `/legacy/...` (ver `apps/BackendWebFlask/legacy/README.md`).
+Idioma: **ingles** como fuente; Babel = Fase 6. Rutas pre-RF del operador viven en `/legacy/...` (ver `apps/BackendWebFlask/legacy/README.md`). Plantillas V2/mocks retiradas estan en `Legacy/` (raiz del repo).
 
 ### Pruebas (usabilidad y debugging)
 
@@ -259,30 +282,41 @@ docker compose ps
 .\scripts\smoke_auth.ps1
 docker exec -i pef_postgres psql -U MedAdmin -d InstruMed -c "SELECT code FROM role ORDER BY 1;"
 docker exec -i pef_postgres psql -U MedAdmin -d InstruMed -c "SELECT LEFT(id::text,8) AS sid, (SELECT code FROM cat_session_status s WHERE s.id=w.status_id) AS status, capture_mode FROM work_session w ORDER BY id;"
-docker exec -i pef_postgres psql -U MedAdmin -d InstruMed -c "SELECT f.code, COUNT(*) FILTER (WHERE c.code='available') AS available FROM kit_item ki JOIN instrument_family f ON f.id=ki.family_id JOIN instrument i ON i.family_id=f.id JOIN cat_instrument_cycle_status c ON c.id=i.cycle_status_id WHERE ki.kit_id='51515151-0000-4000-8000-000000000001' GROUP BY f.code ORDER BY 1;"
+docker exec -i pef_postgres psql -U MedAdmin -d InstruMed -c "SELECT name FROM kit WHERE id='51515151-0000-4000-8000-000000000001';"
+docker exec -i pef_postgres psql -U MedAdmin -d InstruMed -c "SELECT f.code, ki.quantity FROM kit_item ki JOIN instrument_family f ON f.id=ki.family_id WHERE ki.kit_id='51515151-0000-4000-8000-000000000001' ORDER BY 1;"
+docker exec -i pef_postgres psql -U MedAdmin -d InstruMed -c "SELECT code FROM cat_operation_phase WHERE code LIKE 'demo_phase%' OR code IN ('start','final_count') ORDER BY 1;"
 ```
 
-Esperado con semilla limpia: roles RF (`station_operator`, `spd_supervisor`, `it_admin`); sesiones demo en estados variados (`closed`, `scheduled`, `awaiting_spd_review`, `correction_required`); ≥5 `available` por familia del kit demo.
+Esperado con semilla limpia: roles RF; kit **Video Demo Kit 1** (13 familias, FARABEUF×2); fases `start`, `demo_phase_1..3`, `final_count`; sesiones demo en estados variados; ≥5 `available` por familia del kit.
 
-**2) Login UI**
+**2) Login UI y sidebars**
 
 1. [http://127.0.0.1:5000/sign-in](http://127.0.0.1:5000/sign-in) con cada rol demo.
-2. Operador → `/operator/sessions` (lista propia). Supervisor → sesiones + New session. Admin → panel admin.
+2. **OP** sidebar: Assigned Sessions → Session History → Profile. Home = `/operator/sessions`.
+3. **SPD** sidebar: Dashboard → Sessions / New session / Discrepancies / History → Kits / Instruments → Indicators / Reports (stub) / Audit → Services health (stub) → Profile. Privacy catalog = admin only.
+4. **Admin** → panel admin (privacy notices, users, etc.).
 
-**3) Ciclo SPD → OP → SPD (ruta manual)**
+**3) Ciclo SPD → OP → SPD (ruta manual — utilizable sin YOLO)**
 
-1. Supervisor: Sessions → **New session** (si el kit pide mas FARABEUF de los disponibles, baja la cantidad o fallara stock BLOCK). Sin privacy → OP vera Manual; con privacy Via A → Vision.
-2. Operador: sesion **No notice · Manual** → Begin → Start → reporte de cantidades.
+1. SPD: **New session** (`/supervisor/sessions/new`). Sin phase dropdown (fase inicial del procedimiento). Sin privacy → OP vera Manual; con privacy Via A → Vision.
+2. OP: sesion **No notice · Manual** → Review & Start → Start → Continue → reporte de cantidades.
    - Match → `awaiting_spd_review`.
    - Baja una cantidad + reason → `correction_required` + discrepancia.
-3. Supervisor:
-   - **Correction Required** → Review → resolve (notes; opcional mark lost) → `awaiting_spd_review`.
-   - **Awaiting Review** → Confirm close (material recovered) → `closed`.
-4. Operador/Supervisor: View details muestra expected vs reported, privacy y timeline cuando aplica.
+3. SPD:
+   - **Correction Required** → Review → resolve → `awaiting_spd_review`.
+   - **Awaiting Review** → Confirm close → `closed`.
+4. Detalles OP/SPD: expected vs reported, privacy badge, timeline cuando aplica. OP no cierra sesiones.
 
-**4) Rama vision (parcial)**
+**4) Rama vision (upload video + YOLO + worker)**
 
-Sesion con Notice OK → Start congela `capture_mode=vision` y abre Capture. Subida/inferencia con modelo aun no es el camino completo de demo.
+Prerrequisitos: VisionWorker en `:5002` y pesos en `apps/VisionWorker/weights/best.pt` (no estan en GitHub). Seed incluye `yolo_model` activo `yolo26l-demo` + `model_class` (17 etiquetas).
+
+1. SPD: **New session** con privacy Via A (aviso placeholder) → OP ve **Notice OK · Vision**.
+2. OP (`operator@…` u `operador2@…`): Review & Start → Capture.
+3. En Capture: subir video `.mp4` / `.mkv` / etc. El worker procesa frames (stride), filtra a `expected_inventory`, dibuja cajas (baja confianza → label = tipo/categoria) y el panel muestra conteos. Se persisten `count_event` `auto_count` al terminar el video.
+4. **Finish counting** → resumen AI → **Human validation** (AI locked; validated editable). El cierre usa la ruta de conteo manual (discrepancias solo si validated ≠ expected). El worker se desliga al cerrar.
+5. Cambio de fase en Capture es real en PG (`phase_change`) pero stub respecto a Mongo/Garage.
+6. Fuera de alcance en este ciclo: Electron/camara live, evidencia Mongo/Garage, disc. automaticas por ausencia temporal.
 
 **5) Smokes CLI (opcionales; ensucian seed)**
 

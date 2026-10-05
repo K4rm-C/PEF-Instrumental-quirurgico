@@ -9,6 +9,7 @@
 {% endblock %}
 
 {% block page_content %}
+{% set report_values = report_values|default({}, true) %}
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ _("Manual quantity report") }}</h1>
@@ -17,14 +18,14 @@
 </div>
 
 {% if form_error %}
-<div class="alert alert--warning" role="alert">{{ form_error }}</div>
+<div class="alert alert--warning" role="alert" data-report-warn>{{ form_error }}</div>
 {% endif %}
 
 <p class="text-muted">
     {{ _("If you report less than expected, the system opens a discrepancy and moves the session to Correction Required. Matching rows go to Awaiting Review.") }}
 </p>
 
-<form method="post" class="card">
+<form method="post" class="card" id="quantity-report-form" data-quantity-report-form>
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -38,25 +39,31 @@
             </thead>
             <tbody>
                 {% for item in session.expected_items|default([]) %}
-                <tr>
+                {% set prev = report_values.get(item.family_id, {}) %}
+                {% set reported_val = prev.reported if prev.reported is defined else item.expected_quantity %}
+                <tr data-report-row
+                    data-family-name="{{ item.family_name }}"
+                    data-expected="{{ item.expected_quantity }}">
                     <td>{{ item.family_name }}</td>
                     <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
                     <td class="data-table__numeric-column">
                         <input class="form-field__input form-field__input--plain" type="number" min="0"
                                name="reported_{{ item.family_id }}"
-                               value="{{ item.expected_quantity }}" required>
+                               value="{{ reported_val }}"
+                               required data-reported-input>
                     </td>
                     <td>
-                        <select class="form-field__input form-field__input--plain" name="reason_{{ item.family_id }}">
+                        <select class="form-field__input form-field__input--plain" name="reason_{{ item.family_id }}" data-reason-select>
                             <option value="">{{ _("—") }}</option>
                             {% for opt in reason_options|default([]) %}
-                            <option value="{{ opt.code }}">{{ opt.label }}</option>
+                            <option value="{{ opt.code }}" {% if prev.reason == opt.code %}selected{% endif %}>{{ opt.label }}</option>
                             {% endfor %}
                         </select>
                     </td>
                     <td>
                         <input class="form-field__input form-field__input--plain" type="text"
-                               name="notes_{{ item.family_id }}" placeholder="{{ _('Required if Other') }}">
+                               name="notes_{{ item.family_id }}" value="{{ prev.notes|default('', true) }}"
+                               placeholder="{{ _('Required if Other') }}" data-notes-input>
                     </td>
                 </tr>
                 {% endfor %}
@@ -64,8 +71,132 @@
         </table>
     </div>
     <div class="form-actions">
-        <a class="btn btn--secondary" href="{{ url_for('web.operator_session_manual', session_id=session.id) }}">{{ _("Back") }}</a>
+        <a class="btn btn--secondary" href="{{ url_for('web.operator_session_manual', session_id=session.id) if session.capture_mode == 'manual_no_privacy' else url_for('web.operator_session_capture', session_id=session.id) }}">{{ _("Back") }}</a>
         <button type="submit" class="btn btn--primary">{{ _("Submit report and close counting") }}</button>
     </div>
 </form>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+    var form = document.getElementById("quantity-report-form");
+    if (!form) return;
+
+    function clearWarnHighlights() {
+        form.querySelectorAll("[data-report-row]").forEach(function (row) {
+            row.classList.remove("data-table__row--outline-warning");
+        });
+    }
+
+    function validateReasons() {
+        clearWarnHighlights();
+        var missing = [];
+        form.querySelectorAll("[data-report-row]").forEach(function (row) {
+            var expected = parseInt(row.getAttribute("data-expected"), 10) || 0;
+            var input = row.querySelector("[data-reported-input]");
+            var reason = row.querySelector("[data-reason-select]");
+            var reported = parseInt(input && input.value, 10);
+            if (isNaN(reported)) reported = expected;
+            if (reported !== expected && !(reason && reason.value)) {
+                row.classList.add("data-table__row--outline-warning");
+                missing.push(row.getAttribute("data-family-name") || "Instrument");
+            }
+        });
+        return missing;
+    }
+
+    form.addEventListener("submit", function (event) {
+        event.preventDefault();
+
+        var missing = validateReasons();
+        if (missing.length) {
+            var warnHtml =
+                "<p>Reason is required when reported quantity differs from expected.</p>" +
+                '<div class="app-modal__audit"><p class="app-modal__audit-title">Missing reason</p><ul>';
+            missing.forEach(function (name) {
+                warnHtml += "<li>" + name + "</li>";
+            });
+            warnHtml += "</ul></div>";
+            if (window.appConfirm) {
+                window.appConfirm({
+                    title: "Incomplete report",
+                    html: warnHtml,
+                    okLabel: "OK",
+                    cancelLabel: "Close",
+                });
+            }
+            return;
+        }
+
+        var diffs = [];
+        form.querySelectorAll("[data-report-row]").forEach(function (row) {
+            var expected = parseInt(row.getAttribute("data-expected"), 10) || 0;
+            var input = row.querySelector("[data-reported-input]");
+            var reason = row.querySelector("[data-reason-select]");
+            var reported = parseInt(input && input.value, 10);
+            if (isNaN(reported)) reported = expected;
+            if (reported !== expected) {
+                diffs.push({
+                    name: row.getAttribute("data-family-name") || "Instrument",
+                    expected: expected,
+                    reported: reported,
+                    reason: reason && reason.selectedOptions[0]
+                        ? reason.selectedOptions[0].textContent
+                        : "",
+                });
+            }
+        });
+
+        var html = diffs.length
+            ? "<p>Close counting with discrepancies? A discrepancy case will open for shortfalls / extras.</p>"
+            : "<p>Close counting session? All reported quantities match expected inventory.</p>";
+        if (diffs.length) {
+            html += '<div class="app-modal__audit"><p class="app-modal__audit-title">Differences</p><dl class="app-modal__kv">';
+            diffs.forEach(function (d) {
+                html +=
+                    "<dt>" +
+                    d.name +
+                    "</dt><dd>expected " +
+                    d.expected +
+                    " → reported " +
+                    d.reported +
+                    (d.reason ? " (" + d.reason + ")" : "") +
+                    "</dd>";
+            });
+            html += "</dl></div>";
+        } else {
+            html += "<p>Session will move to awaiting SPD review / close path.</p>";
+        }
+
+        if (window.appConfirm) {
+            window
+                .appConfirm({
+                    title: diffs.length ? "Close with discrepancies?" : "Close counting session?",
+                    html: html,
+                    okLabel: "Submit and close",
+                    cancelLabel: "Cancel",
+                })
+                .then(function (ok) {
+                    if (ok && window.appConfirmProceed) window.appConfirmProceed(form);
+                });
+            return;
+        }
+        if (window.appConfirmProceed) window.appConfirmProceed(form);
+    });
+
+    form.querySelectorAll("[data-reported-input], [data-reason-select]").forEach(function (el) {
+        el.addEventListener("change", function () {
+            validateReasons();
+        });
+        el.addEventListener("input", function () {
+            validateReasons();
+        });
+    });
+
+    if (document.querySelector("[data-report-warn]")) {
+        validateReasons();
+    }
+})();
+</script>
 {% endblock %}

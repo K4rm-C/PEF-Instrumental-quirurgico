@@ -42,6 +42,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/session-details.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/tabs.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/evidence.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/app-modal.css') }}">
     {% block page_styles %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}" data-auth-service-url="{{ config.AUTH_BROWSER_URL }}">
@@ -51,6 +52,8 @@
     <script src="{{ url_for('static', filename='js/dropdown.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/auth-client.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/auth-heartbeat.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/pages/app-confirm.js') }}" defer></script>
     {% block page_scripts %}{% endblock %}
 </body>
 </html>

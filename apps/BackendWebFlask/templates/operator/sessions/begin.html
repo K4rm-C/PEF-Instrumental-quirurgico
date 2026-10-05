@@ -2,18 +2,13 @@
 {% import "components/macros.html" as macros %}
 
 {#
-    Operator Assigned Session Confirmation (V3 — ui_reference_v3/operator/
-    operator-session-confirmation.png), for V3 demo session ids only. RF/UUID sessions keep
-    the RF-OP-03 Start Session page in operator/sessions/rf_begin.html (unchanged).
+    Operator Assigned Session Confirmation (RF-OP-03 Start Session).
+    Uses the V3 confirmation layout; RF routes pass confirmation_from_rf_detail().
 
-    Three client-side steps in ONE form on the same route (operator-session-confirmation.js):
+    Three client-side steps in ONE form (operator-session-confirmation.js):
       1 Session Information · 2 Patient & Surgical Team · 3 Inventory & Readiness
-    Uses the shared V3 stepper (components/tabs.css + pages/v3-pages.css). A reload returns to
-    step 1; a server-side readiness error re-opens step 3.
-
-    Context: confirmation (view_data.operator_v3_confirmation), begin_action, form_error.
-    Everything is read-only. Start Session stays disabled until Instrument Readiness is
-    checked; the route re-validates it. Demo only: Start Session writes nothing.
+    Start Session stays disabled until Instrument Readiness is checked; the route
+    re-validates and calls start_session (freeze capture_mode).
 #}
 
 {% block title %}{{ _("Assigned Session Confirmation") }} · {{ confirmation.session.session_id }}{% endblock %}
@@ -71,7 +66,11 @@
         {% endfor %}
     </ol>
 
-    <form method="post" action="{{ begin_action }}" data-v3-readiness-form data-v3-confirm-wizard>
+    <form method="post" action="{{ begin_action }}" data-v3-readiness-form data-v3-confirm-wizard
+          data-app-confirm="{{ _('Start this counting session now?') }}"
+          data-app-confirm-title="{{ _('Start session') }}"
+          data-app-confirm-ok="{{ _('Start') }}"
+          data-app-confirm-cancel="{{ _('Cancel') }}">
         {# ------------------------------------------------------------ Step 1 #}
         <section class="card v3-wizard-panel" data-confirm-step="1" {% if step != 1 %}hidden{% endif %} aria-labelledby="confirm-step-1-title">
             <div>
@@ -124,7 +123,7 @@
                                 {% for member in s.surgical_team %}
                                 <tr><td>{{ member.name }}</td><td>{{ _(member.role) }}</td></tr>
                                 {% else %}
-                                <tr><td colspan="2">{{ _("No surgical team is recorded for this demo session.") }}</td></tr>
+                                <tr><td colspan="2">{{ _("No surgical team is recorded for this session.") }}</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -144,7 +143,30 @@
                 <div>
                     <h3 class="form-field__label">{{ _("Expected Inventory") }}</h3>
                     <p class="card__subtitle">{{ _("Read-only quantities for the assigned kit.") }}</p>
-                    {% if confirmation.inventory %}
+                    {% if confirmation.inventory and confirmation.inventory.groups %}
+                        {% for group in confirmation.inventory.groups %}
+                        <h4 class="form-field__label">{{ _(group.label) }}</h4>
+                        <div class="table-wrapper" style="margin-bottom: .75rem;">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">{{ _("Instrument") }}</th>
+                                        <th scope="col" class="data-table__numeric-column">{{ _("Expected Quantity") }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in group.lines %}
+                                    <tr>
+                                        <th scope="row">{{ item.instrument_name }}</th>
+                                        <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endfor %}
+                        <p class="v3-muted-note">{{ _("Total Expected") }}: {{ confirmation.inventory.total_expected }}</p>
+                    {% elif confirmation.inventory %}
                     <div class="table-wrapper">
                         <table class="data-table">
                             <thead>

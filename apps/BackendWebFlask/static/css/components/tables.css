@@ -62,6 +62,71 @@
     background-color: var(--color-warning-surface);
 }
 
+/* Added / modified composition rows (kits + session inventory). */
+.data-table__row--highlight-success td,
+.data-table__row--highlight-success th {
+    background-color: var(--color-success-surface);
+}
+
+tr.data-table__row--outline-success {
+    outline: 2px solid var(--color-success);
+    outline-offset: -2px;
+}
+
+tr.data-table__row--outline-success > td,
+tr.data-table__row--outline-success > th {
+    background-color: var(--color-success-surface);
+}
+
+tr.data-table__row--outline-warning {
+    outline: 2px solid var(--color-warning, #ca8a04);
+    outline-offset: -2px;
+}
+
+tr.data-table__row--outline-warning > td,
+tr.data-table__row--outline-warning > th {
+    background-color: var(--color-warning-surface);
+}
+
+tr.data-table__row--outline-danger {
+    outline: 2px solid var(--color-danger, #dc2626);
+    outline-offset: -2px;
+}
+
+tr.data-table__row--outline-danger > td,
+tr.data-table__row--outline-danger > th {
+    background-color: var(--color-danger-surface);
+}
+
+.composition-add-bar {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1.6fr) minmax(7rem, 0.7fr) auto;
+    gap: 0.75rem;
+    align-items: end;
+    margin: 0.85rem 0 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px dashed var(--color-border-strong, #94a3b8);
+    border-radius: 0.65rem;
+    background: var(--color-surface-secondary);
+}
+
+.composition-removed {
+    margin-top: 1.25rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--color-border, #334155);
+}
+
+.composition-removed[hidden] {
+    display: none !important;
+}
+
+.composition-removed__title {
+    margin: 0 0 0.5rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--color-danger, #dc2626);
+}
+
 /* Truncates a long cell value with an ellipsis instead of wrapping/overflowing (IT
    Administrator Roles' Description column, per the approved reference). */
 .data-table__cell--truncate {

@@ -19,10 +19,12 @@ from models.CatOperationPhase import CatOperationPhase
 from models.CatOperationStatus import CatOperationStatus
 from models.CatProcedureType import CatProcedureType
 from models.CatSessionStatus import CatSessionStatus
+from models.CatSurgicalRole import CatSurgicalRole
 from models.CountEvent import CountEvent
 from models.Discrepancy import Discrepancy
 from models.HumanCorrection import HumanCorrection
 from models.Instrument import Instrument
+from models.InstrumentCycleEvent import InstrumentCycleEvent
 from models.InstrumentFamily import InstrumentFamily
 from models.Institution import Institution
 from models.Kit import Kit
@@ -56,9 +58,40 @@ SESSION_STATUS_UI = {
     'aborted': ('Aborted', 'neutral'),
 }
 
+EXPECTED_SOURCE_LABELS = {
+    'kit_snapshot': 'Kit',
+    'schedule_additional': 'Additional (schedule)',
+    'live_add': 'Added during session',
+    'manual': 'Manual',
+}
+
+PAST_OPERATOR_STATUS_CODES = {
+    'closed', 'aborted', 'awaiting_spd_review', 'correction_required',
+}
+
 
 def display_session_id(session_uuid):
     return f"WS-{str(session_uuid).replace('-', '')[:8].upper()}"
+
+
+def paginate_list(rows, page=1, per_page=20):
+    """Simple list pagination helper for OP/SPD session lists."""
+    per_page_value = _normalize_per_page(per_page, allowed=(10, 20, 50), default=20)
+    total = len(rows)
+    total_pages = max(1, (total + per_page_value - 1) // per_page_value) if total else 1
+    current_page = _clamp_page(page, total_pages)
+    start = (current_page - 1) * per_page_value
+    page_rows = rows[start:start + per_page_value]
+    return {
+        'rows': page_rows,
+        'page': current_page,
+        'per_page': per_page_value,
+        'total': total,
+        'total_pages': total_pages,
+        'shown': len(page_rows),
+        'has_previous': current_page > 1,
+        'has_next': current_page < total_pages,
+    }
 
 
 def _demo_mode():
@@ -169,6 +202,35 @@ def families_data():
     return _read(query, [])
 
 
+CATEGORY_PURPOSE_ORDER = (
+    'cutting',
+    'dissection',
+    'grasping',
+    'hemostasis',
+    'retraction',
+    'suction',
+    'suturing',
+)
+
+
+def _clamp_page(page, total_pages):
+    try:
+        page = int(page)
+    except (TypeError, ValueError):
+        page = 1
+    if total_pages < 1:
+        return 1
+    return max(1, min(page, total_pages))
+
+
+def _normalize_per_page(per_page, allowed=(10, 20, 50), default=20):
+    try:
+        value = int(per_page)
+    except (TypeError, ValueError):
+        return default
+    return value if value in allowed else default
+
+
 def instruments_data():
     def query():
         families = {
@@ -193,6 +255,134 @@ def instruments_data():
     return _read(query, [])
 
 
+def instruments_query_page(
+    search='',
+    type_code='',
+    cycle_status='',
+    status='active',
+    page=1,
+    per_page=20,
+):
+    """Filtered/paginated instruments list for admin/SPD catalogs."""
+
+    def query():
+        per_page_value = _normalize_per_page(per_page)
+        families = {
+            item.id: item
+            for item in db.session.execute(select(InstrumentFamily)).scalars()
+        }
+        categories = {
+            item.id: item
+            for item in db.session.execute(select(CatInstrumentCategory)).scalars()
+        }
+        statuses = {
+            item.id: item
+            for item in db.session.execute(select(CatInstrumentCycleStatus)).scalars()
+        }
+        status_by_code = {item.code: item for item in statuses.values()}
+
+        rows = db.session.execute(select(Instrument).order_by(Instrument.internal_code)).scalars().all()
+        search_term = (search or '').strip().lower()
+        type_filter = (type_code or '').strip().lower()
+        cycle_filter = (cycle_status or '').strip().lower()
+        status_filter = (status or '').strip().lower()
+        if status_filter not in {'active', 'inactive', 'all', ''}:
+            status_filter = 'active'
+
+        filtered = []
+        for item in rows:
+            family = families.get(item.family_id)
+            category = categories.get(family.category_id) if family else None
+            cycle = statuses.get(item.cycle_status_id)
+            family_name = getattr(family, 'name', '') or ''
+            internal_code = item.internal_code or ''
+
+            if search_term:
+                haystack = f'{internal_code} {family_name}'.lower()
+                if search_term not in haystack:
+                    continue
+            if type_filter and (not category or category.code.lower() != type_filter):
+                continue
+            if cycle_filter and (not cycle or cycle.code.lower() != cycle_filter):
+                continue
+            if status_filter == 'active' and not item.active:
+                continue
+            if status_filter == 'inactive' and item.active:
+                continue
+
+            filtered.append({
+                'id': str(item.id),
+                'internal_code': internal_code or str(item.id),
+                'instrument_type_label': _label(getattr(category, 'name', None) or 'Uncategorized'),
+                'instrument_type_code': getattr(category, 'code', '') or '',
+                'instrument_family_name': _label(family_name),
+                'cycle_status_label': _label(getattr(cycle, 'name', None)),
+                'cycle_status_variant': _variant(getattr(cycle, 'name', None)),
+                'active_status_label': 'Active' if item.active else 'Inactive',
+                'active_status_variant': 'success' if item.active else 'neutral',
+                'edit_url': f'/admin/instruments/{item.id}/edit',
+            })
+
+        total_count = len(filtered)
+        total_pages = max(1, (total_count + per_page_value - 1) // per_page_value) if total_count else 1
+        current_page = _clamp_page(page, total_pages)
+        start = (current_page - 1) * per_page_value
+        page_rows = filtered[start:start + per_page_value]
+
+        type_options = [
+            {'value': item.code, 'label': item.name}
+            for item in sorted(
+                categories.values(),
+                key=lambda row: (
+                    CATEGORY_PURPOSE_ORDER.index(row.code)
+                    if row.code in CATEGORY_PURPOSE_ORDER
+                    else 999,
+                    row.name,
+                ),
+            )
+        ]
+        cycle_options = [
+            {'value': item.code, 'label': item.name}
+            for item in sorted(statuses.values(), key=lambda row: row.name)
+        ]
+
+        return {
+            'instruments': page_rows,
+            'instruments_shown_count': len(page_rows),
+            'instruments_total_count': total_count,
+            'current_page': current_page,
+            'total_pages': total_pages,
+            'per_page': per_page_value,
+            'filters': {
+                'search': search or '',
+                'type': type_filter,
+                'cycle_status': cycle_filter,
+                'status': status_filter if status_filter else 'all',
+            },
+            'instrument_type_filter': type_options,
+            'cycle_status_filter': cycle_options,
+            'available_cycle_codes': set(status_by_code),
+        }
+
+    return _read(query, {
+        'instruments': [],
+        'instruments_shown_count': 0,
+        'instruments_total_count': 0,
+        'current_page': 1,
+        'total_pages': 1,
+        'per_page': _normalize_per_page(per_page),
+        'filters': {
+            'search': search or '',
+            'type': type_code or '',
+            'cycle_status': cycle_status or '',
+            'status': status or 'active',
+        },
+        'instrument_type_filter': [],
+        'cycle_status_filter': [],
+        'available_cycle_codes': set(),
+    })
+
+
 def kits_data():
     def query():
         rows = db.session.execute(select(Kit).order_by(Kit.name, Kit.version)).scalars().all()
@@ -213,6 +403,118 @@ def kits_data():
             'edit_url': f'/admin/kits/{item.id}/edit',
         } for item in rows]
     return _read(query, [])
+
+
+def kits_query_page(
+    search='',
+    procedure_type='',
+    status='active',
+    page=1,
+    per_page=20,
+    active_only=False,
+):
+    """Filtered/paginated kits list; SPD can force active_only=True."""
+
+    def query():
+        per_page_value = _normalize_per_page(per_page)
+        rows = db.session.execute(select(Kit).order_by(Kit.name, Kit.version.desc())).scalars().all()
+        item_rows = db.session.execute(select(KitItem)).scalars().all()
+        totals = Counter()
+        families = Counter()
+        for item in item_rows:
+            totals[item.kit_id] += item.quantity
+            families[item.kit_id] += 1
+
+        procedure_types = {
+            item.id: item
+            for item in db.session.execute(select(CatProcedureType)).scalars()
+        }
+        kit_procedures = {}
+        for pk in db.session.execute(select(ProcedureKit)).scalars():
+            procedure = procedure_types.get(pk.procedure_type_id)
+            if procedure is None:
+                continue
+            kit_procedures.setdefault(pk.kit_id, []).append(procedure)
+
+        search_term = (search or '').strip().lower()
+        procedure_filter = (procedure_type or '').strip().lower()
+        status_filter = 'active' if active_only else (status or '').strip().lower()
+        if status_filter not in {'active', 'inactive', 'all', ''}:
+            status_filter = 'active'
+
+        filtered = []
+        for item in rows:
+            linked = kit_procedures.get(item.id, [])
+            procedure_labels = [proc.name for proc in linked]
+            procedure_codes = {proc.code.lower() for proc in linked}
+            procedure_ids = {str(proc.id) for proc in linked}
+
+            if search_term:
+                haystack = ' '.join([item.name, *procedure_labels]).lower()
+                if search_term not in haystack:
+                    continue
+            if procedure_filter:
+                if procedure_filter not in procedure_codes and procedure_filter not in procedure_ids:
+                    continue
+            if status_filter == 'active' and not item.active:
+                continue
+            if status_filter == 'inactive' and item.active:
+                continue
+
+            filtered.append({
+                'id': str(item.id),
+                'name': item.name,
+                'version': item.version,
+                'instrument_family_count': families[item.id],
+                'total_expected_instruments': totals[item.id],
+                'procedure_types_label': ', '.join(procedure_labels) or '—',
+                'status_label': 'Active' if item.active else 'Inactive',
+                'status_variant': 'success' if item.active else 'neutral',
+                'edit_url': f'/admin/kits/{item.id}/edit',
+            })
+
+        total_count = len(filtered)
+        total_pages = max(1, (total_count + per_page_value - 1) // per_page_value) if total_count else 1
+        current_page = _clamp_page(page, total_pages)
+        start = (current_page - 1) * per_page_value
+        page_rows = filtered[start:start + per_page_value]
+
+        procedure_options = [
+            {'value': item.code, 'label': item.name}
+            for item in sorted(procedure_types.values(), key=lambda row: row.name)
+        ]
+
+        return {
+            'kits': page_rows,
+            'kits_shown_count': len(page_rows),
+            'kits_total_count': total_count,
+            'current_page': current_page,
+            'total_pages': total_pages,
+            'per_page': per_page_value,
+            'filters': {
+                'search': search or '',
+                'procedure_type': procedure_filter,
+                'status': status_filter if status_filter else 'all',
+            },
+            'procedure_type_filter': procedure_options,
+            'active_only': active_only,
+        }
+
+    return _read(query, {
+        'kits': [],
+        'kits_shown_count': 0,
+        'kits_total_count': 0,
+        'current_page': 1,
+        'total_pages': 1,
+        'per_page': _normalize_per_page(per_page),
+        'filters': {
+            'search': search or '',
+            'procedure_type': procedure_type or '',
+            'status': 'active' if active_only else (status or 'active'),
+        },
+        'procedure_type_filter': [],
+        'active_only': active_only,
+    })
 
 
 def stations_data():
@@ -263,12 +565,50 @@ def family_form_data(family_id=None):
     return _read(query, {'instrument_family': {}, 'categories': []})
 
 
+def _family_active_available_counts():
+    """Count active instruments currently in Available cycle status, per family."""
+    available = db.session.scalar(
+        select(CatInstrumentCycleStatus).where(CatInstrumentCycleStatus.code == 'available')
+    )
+    if available is None:
+        return {}
+    rows = db.session.execute(
+        select(Instrument.family_id, func.count(Instrument.id))
+        .where(Instrument.active.is_(True), Instrument.cycle_status_id == available.id)
+        .group_by(Instrument.family_id)
+    ).all()
+    return {family_id: count for family_id, count in rows}
+
+
+def _category_purpose_rank(code):
+    try:
+        return CATEGORY_PURPOSE_ORDER.index(code)
+    except ValueError:
+        return len(CATEGORY_PURPOSE_ORDER)
+
+
 def instrument_form_data(instrument_id=None):
     def query():
         instrument = db.session.get(Instrument, instrument_id) if instrument_id else None
         families = db.session.execute(select(InstrumentFamily).order_by(InstrumentFamily.name)).scalars().all()
         statuses = db.session.execute(select(CatInstrumentCycleStatus).order_by(CatInstrumentCycleStatus.name)).scalars().all()
+        status_by_id = {item.id: item for item in statuses}
         status_codes = {item.id: item.code for item in statuses}
+        cycle_events = []
+        if instrument:
+            events = db.session.execute(
+                select(InstrumentCycleEvent)
+                .where(InstrumentCycleEvent.instrument_id == instrument.id)
+                .order_by(InstrumentCycleEvent.occurred_at.desc())
+                .limit(10)
+            ).scalars().all()
+            for event in events:
+                status = status_by_id.get(event.cycle_status_id)
+                cycle_events.append({
+                    'occurred_at': event.occurred_at.strftime('%Y-%m-%d %H:%M') if event.occurred_at else '',
+                    'cycle_status_label': status.name if status else 'Unknown',
+                    'notes': event.notes or '',
+                })
         return {
             'instrument': {
                 'internal_code': instrument.internal_code if instrument else '',
@@ -278,35 +618,73 @@ def instrument_form_data(instrument_id=None):
             },
             'instrument_families': _options(families),
             'cycle_statuses': _options(statuses, value='code'),
+            'cycle_events': cycle_events,
         }
-    return _read(query, {'instrument': {}, 'instrument_families': [], 'cycle_statuses': []})
+    return _read(query, {
+        'instrument': {},
+        'instrument_families': [],
+        'cycle_statuses': [],
+        'cycle_events': [],
+    })
 
 
 def kit_form_data(kit_id=None):
     def query():
         kit = db.session.get(Kit, kit_id) if kit_id else None
         families = db.session.execute(select(InstrumentFamily).order_by(InstrumentFamily.name)).scalars().all()
+        categories = {
+            item.id: item
+            for item in db.session.execute(select(CatInstrumentCategory)).scalars()
+        }
+        active_available = _family_active_available_counts()
+        family_options = []
+        for family in families:
+            category = categories.get(family.category_id)
+            category_code = category.code if category else ''
+            family_options.append({
+                'value': str(family.id),
+                'label': family.name,
+                'category_code': category_code,
+                'category_label': category.name if category else 'Other',
+                'category_rank': _category_purpose_rank(category_code),
+                'active_available_count': active_available.get(family.id, 0),
+            })
+        family_options.sort(key=lambda item: (item['category_rank'], item['label']))
+
         composition = []
         if kit:
             items = db.session.execute(select(KitItem).where(KitItem.kit_id == kit.id)).scalars().all()
-            composition = [
-                {
+            for item in items:
+                family = db.session.get(InstrumentFamily, item.family_id)
+                category = categories.get(family.category_id) if family else None
+                category_code = category.code if category else ''
+                composition.append({
                     'instrument_family_value': str(item.family_id),
-                    'instrument_family_label': db.session.get(InstrumentFamily, item.family_id).name,
+                    'instrument_family_label': family.name if family else 'Unknown family',
                     'expected_quantity': item.quantity,
-                }
-                for item in items
-            ]
+                    'category_code': category_code,
+                    'category_label': category.name if category else 'Other',
+                    'category_rank': _category_purpose_rank(category_code),
+                    'active_available_count': active_available.get(item.family_id, 0),
+                })
+            composition.sort(key=lambda row: (row['category_rank'], row['instrument_family_label']))
+
         return {
             'kit': {
                 'name': kit.name if kit else '',
                 'version': kit.version if kit else 1,
                 'status': 'active' if not kit or kit.active else 'inactive',
             },
-            'instrument_families': _options(families),
+            'instrument_families': family_options,
             'kit_composition': composition,
+            'category_purpose_order': list(CATEGORY_PURPOSE_ORDER),
         }
-    return _read(query, {'kit': {}, 'instrument_families': [], 'kit_composition': []})
+    return _read(query, {
+        'kit': {},
+        'instrument_families': [],
+        'kit_composition': [],
+        'category_purpose_order': list(CATEGORY_PURPOSE_ORDER),
+    })
 
 
 def procedures_data():
@@ -338,7 +716,9 @@ def procedures_data():
 def procedure_form_data(procedure_id=None):
     def query():
         procedure = db.session.get(CatProcedureType, procedure_id) if procedure_id else None
-        kits = db.session.execute(select(Kit).order_by(Kit.name)).scalars().all()
+        kits = db.session.execute(
+            select(Kit).where(Kit.active.is_(True)).order_by(Kit.name)
+        ).scalars().all()
         phases = db.session.execute(select(CatOperationPhase).order_by(CatOperationPhase.name)).scalars().all()
         associated_kits = []
         counting_phases = []
@@ -683,6 +1063,12 @@ def _session_detail_payload(item, *, for_role, users):
         agreement_session_ids=agreement_session_ids,
         for_role=for_role,
     )
+    phase = db.session.get(CatOperationPhase, item.current_phase_id) if item.current_phase_id else None
+    row['phase_code'] = phase.code if phase else None
+    row['phase_label'] = phase.name if phase else None
+    categories = {
+        cat.id: cat for cat in db.session.execute(select(CatInstrumentCategory)).scalars()
+    }
     expected = db.session.execute(
         select(ExpectedInventory, InstrumentFamily)
         .join(InstrumentFamily, InstrumentFamily.id == ExpectedInventory.family_id)
@@ -715,6 +1101,9 @@ def _session_detail_payload(item, *, for_role, users):
             status_label, status_variant = 'Shortfall', 'danger'
         else:
             status_label, status_variant = 'Extra', 'warning'
+        category = categories.get(family.category_id)
+        category_code = category.code if category else ''
+        source = inv.source or 'manual'
         row['expected_items'].append({
             'family_id': str(inv.family_id),
             'family_name': family.name,
@@ -725,8 +1114,35 @@ def _session_detail_payload(item, *, for_role, users):
             'difference': diff,
             'status_label': status_label,
             'status_variant': status_variant,
-            'source': inv.source,
+            'source': source,
+            'source_label': EXPECTED_SOURCE_LABELS.get(source, source),
+            'category_code': category_code,
+            'category_label': category.name if category else 'Other',
+            'category_rank': _category_purpose_rank(category_code),
+            'is_additional': source != 'kit_snapshot',
         })
+    row['expected_items'].sort(
+        key=lambda entry: (entry['category_rank'], entry['family_name'])
+    )
+    inventory_groups = {}
+    for entry in row['expected_items']:
+        if entry['is_additional']:
+            group_key = 'additional'
+            group_label = 'Additional'
+            group_rank = 999
+        else:
+            group_key = entry['category_code'] or 'other'
+            group_label = entry['category_label']
+            group_rank = entry['category_rank']
+        # Use key "lines" (not "items") — Jinja dict.items is the builtin method.
+        bucket = inventory_groups.setdefault(group_key, {
+            'key': group_key,
+            'label': group_label,
+            'rank': group_rank,
+            'lines': [],
+        })
+        bucket['lines'].append(entry)
+    row['expected_groups'] = sorted(inventory_groups.values(), key=lambda g: (g['rank'], g['label']))
     row['timeline'] = [
         {
             'occurred_at': _fmt_dt(event.occurred_at),
@@ -778,6 +1194,56 @@ def _session_detail_payload(item, *, for_role, users):
             'has_agreement': False,
             'message': 'No privacy notice linked. Start Session will freeze capture_mode = manual_no_privacy.',
         }
+
+    operation = operations.get(item.operation_id)
+    patient_name = None
+    patient_record = None
+    op_patient = None
+    surgical_team = []
+    if operation:
+        op_patient = db.session.scalar(
+            select(OperationPatient).where(OperationPatient.operation_id == operation.id).limit(1)
+        )
+        if op_patient:
+            patient = db.session.get(Patient, op_patient.patient_id)
+            if patient:
+                patient_name = patient.display_name
+                patient_record = str(patient.id).replace('-', '')[:10].upper()
+        team_rows = db.session.execute(
+            select(OperationPhysician, Physician, CatSurgicalRole)
+            .join(Physician, Physician.id == OperationPhysician.physician_id)
+            .join(CatSurgicalRole, CatSurgicalRole.id == OperationPhysician.surgical_role_id)
+            .where(OperationPhysician.operation_id == operation.id)
+            .order_by(CatSurgicalRole.name, Physician.name)
+        ).all()
+        surgical_team = [
+            {
+                'physician_id': str(physician.id),
+                'name': physician.name,
+                'role': role.name,
+                'role_code': role.code,
+            }
+            for _, physician, role in team_rows
+        ]
+    row['patient_name'] = patient_name
+    row['patient_record'] = patient_record
+    row['patient_id'] = str(op_patient.patient_id) if op_patient else None
+    row['surgical_team'] = surgical_team
+    row['physician_name'] = surgical_team[0]['name'] if surgical_team else None
+    row['operator_user_id'] = str(item.user_id) if item.user_id else ''
+    row['procedure_type_id'] = str(operation.procedure_type_id) if operation and operation.procedure_type_id else ''
+    row['room_id'] = str(operation.room_id) if operation and operation.room_id else ''
+    row['station_id'] = str(item.station_id) if item.station_id else ''
+    row['kit_id'] = str(item.kit_id) if item.kit_id else ''
+    if operation and operation.scheduled_at:
+        scheduled = operation.scheduled_at
+        if scheduled.tzinfo is not None:
+            scheduled = scheduled.astimezone().replace(tzinfo=None)
+        row['scheduled_at_local'] = scheduled.strftime('%Y-%m-%dT%H:%M')
+    else:
+        row['scheduled_at_local'] = ''
+    row['can_edit_inventory'] = row.get('status_code') in {'scheduled', 'in_progress'}
+    row['can_edit_session_fields'] = row.get('status_code') == 'scheduled'
     return row
 
 
@@ -816,7 +1282,7 @@ def supervisor_session_detail(session_id):
     return _read(query, None)
 
 
-def discrepancies_data():
+def discrepancies_data(search='', instrument='', status=''):
     def query():
         query = select(Discrepancy)
         if hasattr(Discrepancy, 'updated_at'):
@@ -824,22 +1290,45 @@ def discrepancies_data():
         rows = db.session.execute(query).scalars().all()
         families = {item.id: item.name for item in db.session.execute(select(InstrumentFamily)).scalars()}
         sessions = {item['id']: item for item in _session_rows()}
-        reasons = {item.id: item.name for item in db.session.execute(select(db.Model.metadata.tables['cat_discrepancy_reason'])).all()} if False else {}
+        search_term = (search or '').strip().lower()
+        instrument_term = (instrument or '').strip().lower()
+        status_filter = (status or '').strip().lower()
         values = []
         for item in rows:
             session_row = sessions.get(str(item.session_id), {})
+            display_id = session_row.get('session_id', display_session_id(item.session_id))
+            instrument_name = families.get(item.family_id, 'Unspecified instrument')
+            status_label = 'Resolved' if item.resolved else 'Open'
+            status_code = 'resolved' if item.resolved else 'open'
+            if status_filter in {'open', 'resolved'} and status_code != status_filter:
+                continue
+            if instrument_term and instrument_term not in (instrument_name or '').lower():
+                continue
+            if search_term:
+                haystack = ' '.join([
+                    display_id,
+                    str(item.session_id),
+                    session_row.get('procedure_name', ''),
+                    instrument_name,
+                    status_label,
+                ]).lower()
+                if search_term not in haystack:
+                    continue
             values.append({
-                'session_id': session_row.get('session_id', str(item.session_id)[:8].upper()),
+                'id': str(item.id),
+                'session_uuid': str(item.session_id),
+                'session_id': display_id,
                 'procedure_name': session_row.get('procedure_name', 'Unspecified procedure'),
                 'operating_room': session_row.get('operating_room', 'Unspecified room'),
                 'kit_name': session_row.get('kit_name', 'Unspecified kit'),
                 'operator_name': session_row.get('operator_name', 'Unknown operator'),
-                'instrument_name': families.get(item.family_id, 'Unspecified instrument'),
+                'instrument_name': instrument_name,
                 'expected_quantity': item.expected_quantity or 0,
                 'counted_quantity': item.detected_quantity or 0,
                 'difference': (item.detected_quantity or 0) - (item.expected_quantity or 0),
                 'reason': 'Recorded discrepancy',
-                'status_label': 'Resolved' if item.resolved else 'Open',
+                'status_code': status_code,
+                'status_label': status_label,
                 'status_variant': 'success' if item.resolved else 'warning',
                 'action_label': 'Review',
                 'action_url': f'/supervisor/discrepancies/{item.session_id}/review',
@@ -872,24 +1361,44 @@ def discrepancies_summary_data(discrepancies):
 
 
 def dashboard_data(role):
+    from datetime import date as date_cls
+
     sessions = sessions_data()
     discrepancies = discrepancies_data()
+    today = date_cls.today().isoformat()
+
+    def _is_today(row):
+        for key in ('scheduled_at', 'started_at', 'created_at', 'closed_at'):
+            value = str(row.get(key) or '')
+            if value.startswith(today):
+                return True
+        return False
+
+    sessions_today = [row for row in sessions if _is_today(row)]
+    in_progress = sum(1 for row in sessions if row.get('status_code') == 'in_progress')
+    active_non_closed = sum(
+        1 for row in sessions if row.get('status_code') not in {'closed', 'aborted'}
+    )
     if _demo_mode():
         # An explicit zero-value stats dict is still "defined" to Jinja and would defeat the
         # template's `dashboard_stats|default({...}, true)` fallback, so hand back {} instead.
         return {}, sessions, discrepancies
     if role == 'operator':
         stats = {
-            'sessions_today': len(sessions),
-            'active_sessions': sum(item['status_label'].lower() != 'closed' for item in sessions),
-            'closed_sessions': sum(item['status_label'].lower() == 'closed' for item in sessions),
+            'sessions_today': len(sessions_today),
+            'active_sessions': in_progress or active_non_closed,
+            'closed_sessions': sum(1 for row in sessions if row.get('status_code') == 'closed'),
             'open_discrepancies': sum(item['status_label'] == 'Open' for item in discrepancies),
         }
     elif role == 'supervisor':
         stats = {
-            'sessions_today': len(sessions),
-            'active_sessions': sum(item['status_label'].lower() != 'closed' for item in sessions),
-            'pending_reviews': sum(item['status_label'] == 'Open' for item in discrepancies),
+            'sessions_today': len(sessions_today) or len(sessions),
+            'active_sessions': in_progress or active_non_closed,
+            'pending_reviews': sum(
+                1 for row in sessions if row.get('status_code') in {
+                    'awaiting_spd_review', 'correction_required',
+                }
+            ) or sum(item['status_label'] == 'Open' for item in discrepancies),
             'open_discrepancies': sum(item['status_label'] == 'Open' for item in discrepancies),
         }
     else:
@@ -1360,6 +1869,9 @@ def supervisor_v3_rows_from_rf(rows):
             'scheduled_time': item.get('scheduled_at') or '—',
             'started_time': item.get('started_at') or '—',
             'closed_time': item.get('closed_at') or '—',
+            'privacy_label': item.get('privacy_label') or '—',
+            'privacy_variant': item.get('privacy_variant') or 'neutral',
+            'capture_mode': item.get('capture_mode') or '—',
             'issue_label': f'{open_count} open discrepancies' if open_count else '—',
             'issue_detail': '',
             'session_status': {'code': item['status_code'], 'label': item['status_label'],
@@ -1417,6 +1929,91 @@ def supervisor_v3_dashboard_from_rf(stats, sessions):
         'sessions_by_day': [],
         'review_status_counts': _with_fill(review_counts),
         'review_rows': review_rows,
+    }
+
+
+def supervisor_rf_filter_options(sessions):
+    """Dropdown options derived from live RF session rows (not V3 fixture names)."""
+    kits = sorted({row.get('kit_name') for row in sessions if row.get('kit_name')})
+    operators = sorted({row.get('operator_name') for row in sessions if row.get('operator_name')})
+    status_codes = []
+    seen = set()
+    for row in sessions:
+        code = row.get('status_code')
+        if code and code not in seen:
+            seen.add(code)
+            status_codes.append(code)
+    return {
+        'session_statuses': [
+            {'code': code, 'label': SESSION_STATUS_UI.get(code, (code, 'neutral'))[0],
+             'variant': SESSION_STATUS_UI.get(code, (code, 'neutral'))[1]}
+            for code in status_codes
+        ],
+        'review_statuses': [demo_data.review_status(code) for code in (
+            'no_review_needed', 'review_required', 'resolved',
+        )],
+        'kits': kits or ['Video Demo Kit 1'],
+        'operators': operators,
+        'dates': ['Today', 'Last 7 Days', 'Last 30 Days'],
+        'audit_users': [],
+        'audit_sessions': [],
+    }
+
+
+def supervisor_indicators_from_rf(sessions, discrepancies):
+    """
+    Minimal indicators from PG session/discrepancy rows.
+    AI–Human agreement and average resolution time have no analytics query yet → n/a.
+    """
+    total_sessions = len(sessions)
+    total_disc = len(discrepancies)
+    open_disc = sum(1 for item in discrepancies if item.get('status_label') == 'Open')
+    resolved_disc = sum(1 for item in discrepancies if item.get('status_label') == 'Resolved')
+
+    by_instrument = {}
+    by_type = {}
+    for item in discrepancies:
+        name = item.get('instrument_name') or 'Other'
+        by_instrument[name] = by_instrument.get(name, 0) + 1
+        reason = item.get('reason') or 'Other'
+        by_type[reason] = by_type.get(reason, 0) + 1
+
+    disc_by_instrument = [
+        {'label': label, 'value': value, 'variant': 'warning'}
+        for label, value in sorted(by_instrument.items(), key=lambda kv: (-kv[1], kv[0]))[:8]
+    ]
+    disc_by_type = [
+        {'label': label, 'value': value, 'variant': 'neutral'}
+        for label, value in sorted(by_type.items(), key=lambda kv: (-kv[1], kv[0]))[:8]
+    ]
+
+    status_counts = {}
+    for row in sessions:
+        label = row.get('status_label') or row.get('status_code') or 'Unknown'
+        status_counts[label] = status_counts.get(label, 0) + 1
+    sessions_by_status = [
+        {'label': label, 'count': count, 'variant': 'info'}
+        for label, count in sorted(status_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    ]
+
+    return {
+        'period': 'Current seed / live data',
+        'periods': ['Current seed / live data'],
+        'kpis': {
+            'total_sessions': total_sessions,
+            'total_discrepancies': total_disc,
+            'ai_human_agreement': 'n/a',
+            'ai_human_agreement_target': '—',
+            'reviewed_unresolved': open_disc,
+            'average_resolution_time': 'n/a',
+        },
+        'sessions_by_day': _with_fill(sessions_by_status, key='count'),
+        'discrepancies_by_instrument': _with_fill(disc_by_instrument),
+        'discrepancies_by_family': _with_fill([
+            {'label': 'Resolved', 'value': resolved_disc, 'variant': 'success'},
+            {'label': 'Open', 'value': open_disc, 'variant': 'warning'},
+        ]),
+        'discrepancies_by_type': _with_fill(disc_by_type),
     }
 
 
@@ -1560,8 +2157,11 @@ def operator_v3_rows_from_rf(rows):
         values.append({
             'session_id': item['session_id'],
             'procedure_name': item['procedure_name'],
-            'patient_name': None,
+            'patient_name': item.get('patient_name'),
             'operating_room': item['operating_room'],
+            'kit_name': item.get('kit_name') or '—',
+            'privacy_label': item.get('privacy_label') or '—',
+            'privacy_variant': item.get('privacy_variant') or 'neutral',
             'scheduled_time': item.get('scheduled_at') or '—',
             'session_status': {'code': item['status_code'], 'label': item['status_label'],
                                'variant': item['status_variant']},

@@ -1,0 +1,241 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Modify session") if session.can_edit_session_fields else _("Modify inventory") }} · {{ session.session_id }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'sessions' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item"><a href="{{ url_for('web.supervisor_sessions') }}">{{ _("Sessions") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item"><a href="{{ url_for('web.supervisor_session_details', session_id=session.id) }}">{{ session.session_id }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Edit") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<style>
+.physician-row { display:grid; grid-template-columns:1fr 1.6fr auto; gap:.75rem; align-items:end; margin-bottom:.75rem; }
+.physician-combo { position:relative; }
+.physician-menu {
+    position:absolute; z-index:20; left:0; right:0; top:calc(100% + .2rem);
+    margin:0; padding:.25rem 0; list-style:none; max-height:12rem; overflow:auto;
+    border:1px solid var(--color-border, #334155); border-radius:.5rem;
+    background:var(--color-surface); color:var(--color-text-primary);
+    box-shadow:0 12px 28px rgba(15,23,42,.25);
+}
+.physician-menu[hidden] { display:none !important; }
+.physician-menu li { padding:.45rem .75rem; cursor:pointer; }
+.physician-menu li:hover, .physician-menu li.is-active { background:var(--color-surface-secondary); }
+.inventory-type-heading { margin:.85rem 0 .35rem; font-size:.9rem; font-weight:700; }
+</style>
+{% endblock %}
+
+{% block page_content %}
+{% set edit_fields = session.can_edit_session_fields|default(false) %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Modify scheduled session") if edit_fields else _("Modify expected inventory") }}</h1>
+        <p class="page-heading__subtitle">{{ session.session_id }} · {{ _(session.status_label) }}</p>
+    </div>
+    <a class="btn btn--secondary" href="{{ url_for('web.supervisor_session_details', session_id=session.id) }}">{{ _("Back") }}</a>
+</div>
+
+{% if form_error %}
+<div class="alert alert--danger" role="alert">{{ form_error }}</div>
+{% endif %}
+
+<form method="post" class="card"
+      data-inventory-edit-form>
+    {% if edit_fields %}
+    <input type="hidden" name="edit_mode" value="full">
+    <h2 class="card__title">{{ _("Session fields") }}</h2>
+    <div class="form-grid">
+        <label class="form-field">
+            <span>{{ _("Operator") }}</span>
+            <select class="form-field__input" name="operator_user_id" required>
+                {% for op in operators|default([]) %}
+                <option value="{{ op.id }}" {% if op.id == session.operator_user_id %}selected{% endif %}>{{ op.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="form-field">
+            <span>{{ _("Procedure") }}</span>
+            <select class="form-field__input" name="procedure_type_id" required>
+                {% for p in procedures|default([]) %}
+                <option value="{{ p.id }}" {% if p.id == session.procedure_type_id %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="form-field">
+            <span>{{ _("Operating room") }}</span>
+            <select class="form-field__input" name="room_id" required>
+                {% for r in rooms|default([]) %}
+                <option value="{{ r.id }}" {% if r.id == session.room_id %}selected{% endif %}>{{ r.code }} — {{ r.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="form-field">
+            <span>{{ _("Capture station") }}</span>
+            <select class="form-field__input" name="station_id" required>
+                {% for s in stations|default([]) %}
+                <option value="{{ s.id }}" {% if s.id == session.station_id %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="form-field">
+            <span>{{ _("Kit") }}</span>
+            <select class="form-field__input" name="kit_id" required>
+                {% for kit in kits|default([]) %}
+                <option value="{{ kit.id }}" {% if kit.id == session.kit_id %}selected{% endif %}>{{ kit.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="form-field">
+            <span>{{ _("Scheduled at") }}</span>
+            <input class="form-field__input" type="datetime-local" name="scheduled_at"
+                   value="{{ session.scheduled_at_local }}" required>
+        </label>
+        <label class="form-field">
+            <span>{{ _("Patient (optional)") }}</span>
+            <select class="form-field__input" name="patient_id">
+                <option value="">{{ _("—") }}</option>
+                {% for p in patients|default([]) %}
+                <option value="{{ p.id }}" {% if p.id == session.patient_id %}selected{% endif %}>{{ p.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+    </div>
+
+    <h2 class="card__title">{{ _("Surgical team") }}</h2>
+    <script id="physician-options-data" type="application/json">{{ physicians|default([])|tojson }}</script>
+    <div id="physician-rows" data-physician-rows>
+        {% for member in session.surgical_team|default([]) %}
+        <div class="physician-row" data-physician-row>
+            <label class="form-field">
+                <span>{{ _("Role") }}</span>
+                <select class="form-field__input" name="surgical_role_code[]" required>
+                    {% for role in surgical_roles|default([]) %}
+                    <option value="{{ role.code }}" {% if role.code == member.role_code %}selected{% endif %}>{{ role.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="form-field physician-combo">
+                <span>{{ _("Physician") }}</span>
+                <input class="form-field__input" type="search" value="{{ member.name }}"
+                       data-physician-typeahead autocomplete="off" required>
+                <input type="hidden" name="physician_id[]" value="{{ member.physician_id }}" data-physician-id required>
+                <ul class="physician-menu" data-physician-menu hidden></ul>
+            </div>
+            <button type="button" class="btn btn--secondary btn--small" data-physician-remove>{{ _("Remove") }}</button>
+        </div>
+        {% endfor %}
+    </div>
+    <button type="button" class="btn btn--secondary btn--small" data-physician-add>{{ _("Add physician") }}</button>
+    <template id="physician-row-template">
+        <div class="physician-row" data-physician-row>
+            <label class="form-field">
+                <span>{{ _("Role") }}</span>
+                <select class="form-field__input" name="surgical_role_code[]" required>
+                    {% for role in surgical_roles|default([]) %}
+                    <option value="{{ role.code }}">{{ role.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="form-field physician-combo">
+                <span>{{ _("Physician") }}</span>
+                <input class="form-field__input" type="search" data-physician-typeahead autocomplete="off" required>
+                <input type="hidden" name="physician_id[]" value="" data-physician-id required>
+                <ul class="physician-menu" data-physician-menu hidden></ul>
+            </div>
+            <button type="button" class="btn btn--secondary btn--small" data-physician-remove>{{ _("Remove") }}</button>
+        </div>
+    </template>
+    {% else %}
+    <input type="hidden" name="edit_mode" value="inventory">
+    <p class="text-muted">{{ _("Session already started: only expected inventory can be changed (tagged as Added during session).") }}</p>
+    {% endif %}
+
+    <h2 class="card__title">{{ _("Expected inventory (by type)") }}</h2>
+    <script id="inventory-family-options" type="application/json">{{ families|default([])|tojson }}</script>
+    <script id="inventory-baseline" type="application/json">{{ session.expected_items|default([])|tojson }}</script>
+    <div class="table-wrapper">
+        <table class="data-table" id="inventory-edit-table">
+            <thead>
+                <tr>
+                    <th>{{ _("Family") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Qty") }}</th>
+                    <th>{{ _("Current source") }}</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody data-inventory-rows>
+                {% for item in session.expected_items|default([]) %}
+                <tr data-inventory-row
+                    data-family-id="{{ item.family_id }}"
+                    data-family-label="{{ item.family_name }}"
+                    data-category-label="{{ item.category_label or _('Other') }}"
+                    data-category-rank="{{ item.category_rank|default(999) }}"
+                    data-baseline-qty="{{ item.expected_quantity }}"
+                    data-row-origin="baseline">
+                    <td>
+                        <strong>{{ item.family_name }}</strong>
+                        <input type="hidden" name="family_id[]" value="{{ item.family_id }}" data-family-id-input>
+                    </td>
+                    <td class="data-table__numeric-column">
+                        <input class="form-field__input form-field__input--plain" type="number" min="1"
+                               name="expected_quantity[]" value="{{ item.expected_quantity }}" required data-qty-input>
+                    </td>
+                    <td>{{ _(item.source_label) }}</td>
+                    <td><button type="button" class="btn btn--secondary btn--small" data-remove-row>{{ _("Remove") }}</button></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="composition-add-bar" data-inventory-add-bar>
+        <label class="form-field">
+            <span class="form-field__label">{{ _("Instrument Family") }}</span>
+            <select class="form-field__input" data-inventory-add-family>
+                <option value="">{{ _("Select family") }}</option>
+            </select>
+        </label>
+        <label class="form-field">
+            <span class="form-field__label">{{ _("Expected Quantity") }}</span>
+            <input class="form-field__input" type="number" min="1" value="1" data-inventory-add-qty>
+        </label>
+        <button type="button" class="btn btn--secondary" data-add-row>{{ _("Add") }}</button>
+    </div>
+
+    <div class="composition-removed" data-inventory-removed hidden>
+        <h3 class="composition-removed__title">{{ _("Removed") }}</h3>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>{{ _("Family") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Qty") }}</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody data-inventory-removed-rows></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="form-actions" style="margin-top: 1rem;">
+        <a class="btn btn--secondary" href="{{ url_for('web.supervisor_session_details', session_id=session.id) }}">{{ _("Cancel") }}</a>
+        <button type="submit" class="btn btn--primary">{{ _("Save") }}</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/inventory-edit.js') }}" defer></script>
+{% endblock %}

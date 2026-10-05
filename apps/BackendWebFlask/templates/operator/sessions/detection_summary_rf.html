@@ -1,0 +1,79 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("AI detection summary") }} · {{ session.session_id }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operator-v3.css') }}">
+<style>
+.summary-frame { background:#0b1220; border-radius:.75rem; overflow:hidden; border:1px solid #334155; }
+.summary-frame img { width:100%; max-height:360px; object-fit:contain; display:block; background:#000; }
+</style>
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("AI detection summary") }}</h1>
+        <p class="page-heading__subtitle">{{ session.session_id }} · {{ session.procedure_name }}</p>
+    </div>
+    <a class="btn btn--secondary" href="{{ capture_url }}">{{ _("Back to capture") }}</a>
+</div>
+
+<p class="text-muted">{{ _("Suggestions only — proceed to human validation. No Mongo/Garage evidence is stored in this demo cycle.") }}</p>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Last annotated frame") }}</h2>
+    <div class="summary-frame">
+        {% if snapshot.frame_jpeg_b64 %}
+        <img src="data:image/jpeg;base64,{{ snapshot.frame_jpeg_b64 }}" alt="{{ _('YOLO overlay') }}">
+        {% else %}
+        <p class="text-muted" style="padding:2rem;color:#94a3b8;">{{ _("No frame available.") }}</p>
+        {% endif %}
+    </div>
+    <p class="text-muted" style="margin-top:.75rem;">
+        {{ _("Model") }}: {{ snapshot.model_version|default('—') }}
+        · {{ _("Confidence threshold") }}: {{ snapshot.conf_threshold|default('—') }}
+        · {{ _("Finished") }}: {{ snapshot.finished_at|default('—') }}
+    </p>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("AI suggested counts") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>{{ _("Instrument") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Expected") }}</th>
+                    <th class="data-table__numeric-column">{{ _("AI detected") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Diff") }}</th>
+                    <th>{{ _("Avg conf") }}</th>
+                    <th>{{ _("Result") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in detection_rows %}
+                <tr>
+                    <td>{{ row.family_name }}</td>
+                    <td class="data-table__numeric-column">{{ row.expected_quantity }}</td>
+                    <td class="data-table__numeric-column">{{ row.ai_detected_quantity }}</td>
+                    <td class="data-table__numeric-column">{{ row.difference }}</td>
+                    <td>{% if row.avg_confidence is not none %}{{ '%.2f'|format(row.avg_confidence) }}{% else %}—{% endif %}</td>
+                    <td>{{ macros.status_badge(row.result_label, row.result_variant) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="page-heading__actions" style="margin-top:1rem;">
+        <a class="btn btn--primary" href="{{ validation_url }}">{{ _("Proceed to validation") }}</a>
+    </div>
+</section>
+{% endblock %}

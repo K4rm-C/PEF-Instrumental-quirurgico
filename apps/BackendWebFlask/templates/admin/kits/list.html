@@ -5,7 +5,11 @@
 
 {% block sidebar %}
 {% set active_nav_item = 'kits' %}
+{% if current_user and current_user.role_code == 'spd_supervisor' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% else %}
 {% include "partials/sidebar_admin.html" %}
+{% endif %}
 {% endblock %}
 
 {% block breadcrumb %}
@@ -17,12 +21,15 @@
 {% endblock %}
 
 {% block page_content %}
+{% set filters = filters|default({'search': '', 'procedure_type': '', 'status': 'active'}, true) %}
+{% set procedure_type_filter = procedure_type_filter|default([], true) %}
+{% set active_only = active_only|default(false, true) %}
 {% set kits_shown_count = kits_shown_count|default(kits|length, true) %}
-{% set kits_total_count = kits_total_count|default(8, true) %}
+{% set kits_total_count = kits_total_count|default(kits|length, true) %}
 {% set current_page = current_page|default(1, true) %}
 {% set total_pages = total_pages|default(1, true) %}
-{% set previous_url = previous_url|default('#', true) %}
-{% set next_url = next_url|default('#', true) %}
+{% set per_page = per_page|default(20, true) %}
+{% set pagination_query = pagination_query|default({}, true) %}
 
 <div class="page-heading">
     <div>
@@ -36,29 +43,59 @@
 </div>
 
 <section class="card">
-    {# Filters are presentation-only in this iteration: no client-side or server-side
-       filtering is wired up yet. #}
-    <form class="filter-bar" action="#" method="get" role="search">
+    <form class="filter-bar" action="{{ url_for('web.admin_kits') }}" method="get" role="search">
+        <input type="hidden" name="per_page" value="{{ per_page }}">
         <div class="filter-bar__search">
             <label class="visually-hidden" for="kits-search">{{ _("Search Kits") }}</label>
             <div class="form-field__input-wrapper">
                 <span class="form-field__icon">{{ macros.icon_search() }}</span>
                 <input class="form-field__input" type="search" id="kits-search" name="search"
-                       placeholder="{{ _('Search kits...') }}">
+                       value="{{ filters.search }}" placeholder="{{ _('Search kits or procedure type...') }}">
             </div>
         </div>
         <div class="filter-bar__select">
-            <label class="visually-hidden" for="kits-status">{{ _("Status") }}</label>
-            <select class="form-field__input form-field__input--plain" id="kits-status" name="status">
-                <option value="active" selected>{{ _("Status: Active") }}</option>
-                <option value="inactive">{{ _("Status: Inactive") }}</option>
-                <option value="">{{ _("Status: All") }}</option>
+            <label class="visually-hidden" for="kits-procedure-type">{{ _("Procedure Type") }}</label>
+            <select class="form-field__input form-field__input--plain" id="kits-procedure-type" name="procedure_type">
+                <option value="">{{ _("Procedure: All") }}</option>
+                {% for item in procedure_type_filter %}
+                <option value="{{ item.value }}" {% if filters.procedure_type == item.value %}selected{% endif %}>{{ item.label }}</option>
+                {% endfor %}
             </select>
         </div>
+        {% if not active_only %}
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="kits-status">{{ _("Status") }}</label>
+            <select class="form-field__input form-field__input--plain" id="kits-status" name="status">
+                <option value="active" {% if filters.status == 'active' %}selected{% endif %}>{{ _("Status: Active") }}</option>
+                <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>{{ _("Status: Inactive") }}</option>
+                <option value="all" {% if filters.status == 'all' %}selected{% endif %}>{{ _("Status: All") }}</option>
+            </select>
+        </div>
+        {% else %}
+        <input type="hidden" name="status" value="active">
+        {% endif %}
+        <button type="submit" class="btn btn--success filter-bar__search-btn" aria-label="{{ _('Search') }}" title="{{ _('Search') }}">
+            {{ macros.icon_search() }}
+        </button>
     </form>
 </section>
 
 <section class="card">
+    <div class="list-meta">
+        <p class="list-meta__viewing">{{ _("Viewing %(shown)s out of %(total)s kits", shown=kits_shown_count, total=kits_total_count) }}</p>
+        <form class="list-meta__per-page" action="{{ url_for('web.admin_kits') }}" method="get">
+            {% if filters.search %}<input type="hidden" name="search" value="{{ filters.search }}">{% endif %}
+            {% if filters.procedure_type %}<input type="hidden" name="procedure_type" value="{{ filters.procedure_type }}">{% endif %}
+            <input type="hidden" name="status" value="{{ filters.status }}">
+            <label class="list-meta__per-page-label" for="kits-per-page">{{ _("Per page") }}</label>
+            <select class="form-field__input form-field__input--plain list-meta__per-page-select" id="kits-per-page" name="per_page" onchange="this.form.submit()">
+                {% for size in [10, 20, 50] %}
+                <option value="{{ size }}" {% if per_page == size %}selected{% endif %}>{{ size }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -67,6 +104,7 @@
                     <th scope="col">{{ _("Version") }}</th>
                     <th scope="col">{{ _("Instrument Families") }}</th>
                     <th scope="col">{{ _("Total Expected Instruments") }}</th>
+                    <th scope="col">{{ _("Procedure Types") }}</th>
                     <th scope="col">{{ _("Status") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
@@ -78,23 +116,22 @@
                     <td>{{ kit.version }}</td>
                     <td>{{ kit.instrument_family_count }}</td>
                     <td>{{ kit.total_expected_instruments }}</td>
+                    <td>{{ kit.procedure_types_label|default('—', true) }}</td>
                     <td>{{ macros.status_badge(kit.status_label, kit.status_variant) }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--secondary btn--small" href="{{ kit.edit_url }}">{{ _("Edit") }}</a>
                     </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7">{{ _("No kits match the current filters.") }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
-    <nav class="pagination" aria-label="{{ _('Pagination') }}">
-        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s kits", shown=kits_shown_count, total=kits_total_count) }}</p>
-        <div class="pagination__controls">
-            <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
-            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
-            <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
-        </div>
-    </nav>
+    {% set pagination_info = None %}
+    {% include "components/pagination.html" %}
 </section>
 {% endblock %}

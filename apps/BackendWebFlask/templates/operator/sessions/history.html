@@ -17,45 +17,103 @@
 {% endblock %}
 
 {% block page_content %}
-{# final_count is a "validated/expected" string (e.g. "11/11"). #}
-
 {% set session_history = session_history|default([]) %}
 {% set sessions_shown_count = sessions_shown_count|default(session_history|length, true) %}
 {% set sessions_total_count = sessions_total_count|default(session_history|length, true) %}
-{% set current_page = current_page|default(1, true) %}
-{% set total_pages = total_pages|default(1, true) %}
-{% set previous_url = previous_url|default('#', true) %}
-{% set next_url = next_url|default('#', true) %}
+{% set history_filters = history_filters|default({}) %}
+{% set history_filter_options = history_filter_options|default({}) %}
 
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ _("Session History") }}</h1>
-        <p class="page-heading__subtitle">{{ _("Historical record of completed counting sessions.") }}</p>
+        <p class="page-heading__subtitle">{{ _("Sessions no longer in active counting (closed, awaiting SPD, or correction).") }}</p>
     </div>
 </div>
 
 <section class="card">
-    {# Filters are wired to the backend via GET params (search, status, date). #}
-    <form class="filter-bar" action="#" method="get" role="search">
+    <form class="filter-bar" action="{{ url_for('web.operator_session_history') }}" method="get" role="search">
         <div class="filter-bar__search">
             <label class="visually-hidden" for="session-history-search">{{ _("Search Sessions") }}</label>
             <div class="form-field__input-wrapper">
                 <span class="form-field__icon">{{ macros.icon_search() }}</span>
                 <input class="form-field__input" type="search" id="session-history-search" name="search"
-                       placeholder="{{ _('Search historical sessions...') }}">
+                       value="{{ history_filters.search or '' }}"
+                       placeholder="{{ _('Search session id, procedure, or kit...') }}">
             </div>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="session-history-session-id">{{ _("Session ID") }}</label>
+            <input class="form-field__input form-field__input--plain" list="history-session-ids"
+                   id="session-history-session-id" name="session_id"
+                   value="{{ history_filters.session_id or '' }}"
+                   placeholder="{{ _('Session ID') }}">
+            <datalist id="history-session-ids">
+                {% for sid in history_filter_options.session_ids|default([]) %}
+                <option value="{{ sid }}"></option>
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="session-history-procedure">{{ _("Procedure") }}</label>
+            <select class="form-field__input form-field__input--plain" id="session-history-procedure" name="procedure">
+                <option value="">{{ _("All procedures") }}</option>
+                {% for procedure in history_filter_options.procedures|default([]) %}
+                <option value="{{ procedure }}" {% if history_filters.procedure == procedure %}selected{% endif %}>{{ procedure }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="session-history-kit">{{ _("Kit") }}</label>
+            <select class="form-field__input form-field__input--plain" id="session-history-kit" name="kit">
+                <option value="">{{ _("All kits") }}</option>
+                {% for kit in history_filter_options.kits|default([]) %}
+                <option value="{{ kit }}" {% if history_filters.kit == kit %}selected{% endif %}>{{ kit }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="session-history-or">{{ _("OR") }}</label>
+            <select class="form-field__input form-field__input--plain" id="session-history-or" name="operating_room">
+                <option value="">{{ _("All ORs") }}</option>
+                {% for room in history_filter_options.operating_rooms|default([]) %}
+                <option value="{{ room }}" {% if history_filters.operating_room == room %}selected{% endif %}>{{ room }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="session-history-station">{{ _("Capture station") }}</label>
+            <select class="form-field__input form-field__input--plain" id="session-history-station" name="station">
+                <option value="">{{ _("All stations") }}</option>
+                {% for station in history_filter_options.stations|default([]) %}
+                <option value="{{ station }}" {% if history_filters.station == station %}selected{% endif %}>{{ station }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="session-history-privacy">{{ _("Privacy / Capture") }}</label>
+            <input class="form-field__input form-field__input--plain" type="search"
+                   id="session-history-privacy" name="privacy"
+                   value="{{ history_filters.privacy or '' }}"
+                   placeholder="{{ _('Privacy / capture') }}">
+        </div>
+        <div class="filter-bar__select">
+            <label class="visually-hidden" for="session-history-closed">{{ _("Closed date") }}</label>
+            <input class="form-field__input form-field__input--plain" type="search"
+                   id="session-history-closed" name="closed_date"
+                   value="{{ history_filters.closed_date or '' }}"
+                   placeholder="{{ _('Closed date contains…') }}">
         </div>
         <div class="filter-bar__select">
             <label class="visually-hidden" for="session-history-status">{{ _("Status") }}</label>
             <select class="form-field__input form-field__input--plain" id="session-history-status" name="status">
                 <option value="">{{ _("All Statuses") }}</option>
-                <option value="closed">{{ _("Closed") }}</option>
+                <option value="closed" {% if history_filters.status == 'closed' %}selected{% endif %}>{{ _("Closed") }}</option>
+                <option value="discrepancy" {% if history_filters.status == 'discrepancy' %}selected{% endif %}>{{ _("Discrepancy") }}</option>
+                <option value="pending_review" {% if history_filters.status == 'pending_review' %}selected{% endif %}>{{ _("Pending review") }}</option>
+                <option value="aborted" {% if history_filters.status == 'aborted' %}selected{% endif %}>{{ _("Aborted") }}</option>
             </select>
         </div>
-        <div class="filter-bar__select">
-            <label class="visually-hidden" for="session-history-date">{{ _("Date") }}</label>
-            <input class="form-field__input form-field__input--plain" type="date" id="session-history-date" name="date">
-        </div>
+        <button type="submit" class="btn btn--secondary btn--small">{{ _("Filter") }}</button>
     </form>
 </section>
 
@@ -68,9 +126,8 @@
                     <th scope="col">{{ _("Procedure") }}</th>
                     <th scope="col">{{ _("Kit") }}</th>
                     <th scope="col">{{ _("OR") }}</th>
-                    <th scope="col">{{ _("Final Count") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Corrections") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Resolved Discrepancies") }}</th>
+                    <th scope="col">{{ _("Privacy / Capture") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
                     <th scope="col">{{ _("Closed At") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
@@ -79,29 +136,26 @@
                 {% for session in session_history %}
                 <tr>
                     <th scope="row">{{ session.session_id }}</th>
-                    <td>{{ session.procedure_name }}-{{ session.operating_room }}</td>
+                    <td>{{ session.procedure_name }}</td>
                     <td>{{ session.kit_name }}</td>
                     <td>{{ session.operating_room }}</td>
-                    <td>{{ session.final_count }}</td>
-                    <td class="data-table__numeric-column">{{ session.corrections }}</td>
-                    <td class="data-table__numeric-column">{{ session.resolved_discrepancies }}</td>
-                    <td>{{ session.closed_at }}</td>
+                    <td>{{ macros.status_badge(_(session.privacy_label or '—'), session.privacy_variant or 'neutral') }}</td>
+                    <td>{{ macros.status_badge(_(session.status_label), session.status_variant) }}</td>
+                    <td>{{ session.closed_at or '—' }}</td>
                     <td class="data-table__action-column">
-                        <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ session.action_label }}</a>
+                        <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ _(session.action_label) }}</a>
                     </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="8">{{ _("No historical sessions yet.") }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
-    <nav class="pagination" aria-label="{{ _('Pagination') }}">
-        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s sessions", shown=sessions_shown_count, total=sessions_total_count) }}</p>
-        <div class="pagination__controls">
-            <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
-            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
-            <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
-        </div>
-    </nav>
+    {% set pagination_info = _("Showing %(shown)s of %(total)s sessions", shown=sessions_shown_count, total=sessions_total_count) %}
+    {% include "components/pagination.html" %}
 </section>
 {% endblock %}

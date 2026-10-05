@@ -19,6 +19,44 @@
     min-width: 150px;
 }
 
+.filter-bar__search-btn {
+    flex: 0 0 auto;
+    min-width: 40px;
+    padding-inline: var(--space-3);
+}
+
+.list-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    flex-wrap: wrap;
+    margin-bottom: var(--space-3);
+}
+
+.list-meta__viewing {
+    margin: 0;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.list-meta__per-page {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-left: auto;
+}
+
+.list-meta__per-page-label {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.list-meta__per-page-select {
+    width: auto;
+    min-width: 4.5rem;
+}
+
 @media (max-width: 1024px) {
     .filter-bar__search {
         flex-basis: 100%;

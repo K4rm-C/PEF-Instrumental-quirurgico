@@ -28,6 +28,15 @@
     background-color: var(--color-primary-hover);
 }
 
+.btn--success {
+    background-color: var(--color-success);
+    color: #ffffff;
+}
+
+.btn--success:hover {
+    filter: brightness(0.95);
+}
+
 .btn--secondary {
     background-color: var(--color-surface);
     color: var(--color-text-primary);

@@ -80,8 +80,8 @@
 
     <section class="v3-columns">
         <div class="card">
-            <h2 class="card__title">{{ _("Sessions by Day") }}</h2>
-            <div class="bar-chart" role="img" aria-label="{{ _('Counting sessions per day') }}">
+            <h2 class="card__title">{{ _("Sessions by Status") }}</h2>
+            <div class="bar-chart" role="img" aria-label="{{ _('Counting sessions by lifecycle status') }}">
                 {% for day in indicators.sessions_by_day %}
                 <div class="bar-chart__column">
                     <div class="bar-chart__track">
@@ -89,6 +89,8 @@
                     </div>
                     <span class="bar-chart__label">{{ _(day.label) }} ({{ day.count }})</span>
                 </div>
+                {% else %}
+                <p class="v3-empty-state">{{ _("No session data available yet.") }}</p>
                 {% endfor %}
             </div>
         </div>

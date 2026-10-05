@@ -28,3 +28,26 @@
     font-weight: var(--font-weight-semibold);
     white-space: nowrap;
 }
+
+.pagination__goto {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.pagination__goto-label {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    white-space: nowrap;
+}
+
+.pagination__goto-input {
+    width: 4.5rem;
+    min-height: 32px;
+    padding: 4px 8px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text-primary);
+    font-size: var(--font-size-sm);
+}

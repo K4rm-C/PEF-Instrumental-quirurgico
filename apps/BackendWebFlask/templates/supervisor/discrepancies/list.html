@@ -60,52 +60,38 @@
         </div>
     </section>
 
+    {% set discrepancy_filters = discrepancy_filters|default({'search': '', 'instrument': '', 'status': ''}) %}
     <section class="card">
-        <form class="filter-bar" action="{{ url_for('web.supervisor_discrepancies') }}" method="get" role="search">
+        <form class="filter-bar" action="{{ url_for('web.supervisor_discrepancies') }}" method="get" role="search"
+              data-live-filter-form>
             <div class="filter-bar__search">
-                <label class="visually-hidden" for="review-queue-search">{{ _("Search Sessions") }}</label>
+                <label class="visually-hidden" for="review-queue-search">{{ _("Search session / instrument") }}</label>
                 <div class="form-field__input-wrapper">
                     <span class="form-field__icon">{{ macros.icon_search() }}</span>
                     <input class="form-field__input" type="search" id="review-queue-search" name="search"
-                           placeholder="{{ _('Search sessions...') }}">
+                           value="{{ discrepancy_filters.search }}"
+                           placeholder="{{ _('Search session id or instrument...') }}"
+                           data-live-filter>
                 </div>
             </div>
             <div class="filter-bar__select">
-                <label class="visually-hidden" for="review-queue-session-status">{{ _("Session Status") }}</label>
-                <select class="form-field__input form-field__input--plain" id="review-queue-session-status" name="session_status">
-                    <option value="">{{ _("All Session Statuses") }}</option>
-                    {% for status in filter_options.session_statuses %}
-                    <option value="{{ status.code }}">{{ _(status.label) }}</option>
-                    {% endfor %}
-                </select>
+                <label class="visually-hidden" for="review-queue-instrument">{{ _("Instrument") }}</label>
+                <input class="form-field__input form-field__input--plain" type="search"
+                       id="review-queue-instrument" name="instrument"
+                       value="{{ discrepancy_filters.instrument }}"
+                       placeholder="{{ _('Instrument family') }}"
+                       data-live-filter>
             </div>
             <div class="filter-bar__select">
-                <label class="visually-hidden" for="review-queue-review-status">{{ _("Review Status") }}</label>
-                <select class="form-field__input form-field__input--plain" id="review-queue-review-status" name="review_status">
-                    <option value="">{{ _("All Review Statuses") }}</option>
-                    {% for status in filter_options.review_statuses %}
-                    <option value="{{ status.code }}">{{ _(status.label) }}</option>
-                    {% endfor %}
+                <label class="visually-hidden" for="review-queue-status">{{ _("Status") }}</label>
+                <select class="form-field__input form-field__input--plain" id="review-queue-status" name="status"
+                        data-live-filter>
+                    <option value="">{{ _("Open + Resolved") }}</option>
+                    <option value="open" {% if discrepancy_filters.status == 'open' %}selected{% endif %}>{{ _("Open") }}</option>
+                    <option value="resolved" {% if discrepancy_filters.status == 'resolved' %}selected{% endif %}>{{ _("Resolved") }}</option>
                 </select>
             </div>
-            <div class="filter-bar__select">
-                <label class="visually-hidden" for="review-queue-kit">{{ _("Kit") }}</label>
-                <select class="form-field__input form-field__input--plain" id="review-queue-kit" name="kit">
-                    <option value="">{{ _("All Kits") }}</option>
-                    {% for kit in filter_options.kits %}
-                    <option value="{{ kit }}">{{ _(kit) }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="filter-bar__select">
-                <label class="visually-hidden" for="review-queue-date">{{ _("Date") }}</label>
-                <select class="form-field__input form-field__input--plain" id="review-queue-date" name="date">
-                    <option value="">{{ _("All Dates") }}</option>
-                    {% for date in filter_options.dates %}
-                    <option value="{{ date }}">{{ _(date) }}</option>
-                    {% endfor %}
-                </select>
-            </div>
+            <button type="submit" class="btn btn--secondary btn--small">{{ _("Apply") }}</button>
         </form>
     </section>
 
@@ -154,11 +140,26 @@
         <nav class="pagination" aria-label="{{ _('Pagination') }}">
             <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s discrepancies", shown=queue_rows|length, total=queue_rows|length) }}</p>
             <div class="pagination__controls">
-                <a class="btn btn--secondary btn--small" href="#" aria-disabled="true">{{ _("Previous") }}</a>
                 <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=1, total=1) }}</span>
-                <a class="btn btn--secondary btn--small" href="#" aria-disabled="true">{{ _("Next") }}</a>
             </div>
         </nav>
     </section>
 </div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+    var form = document.querySelector("[data-live-filter-form]");
+    if (!form) return;
+    var timer = null;
+    form.querySelectorAll("[data-live-filter]").forEach(function (field) {
+        field.addEventListener("input", function () {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(function () { form.requestSubmit(); }, 280);
+        });
+        field.addEventListener("change", function () { form.requestSubmit(); });
+    });
+})();
+</script>
 {% endblock %}

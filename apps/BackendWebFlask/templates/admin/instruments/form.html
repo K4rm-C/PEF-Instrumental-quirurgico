@@ -2,23 +2,24 @@
 {% import "components/macros.html" as macros %}
 
 {#
-    Single reusable template for both New Instrument and Edit Instrument (implementation
-    prompt section 16), distinguished purely by form_mode ("create" | "edit").
+    Single reusable template for both New Instrument and Edit Instrument,
+    distinguished purely by form_mode ("create" | "edit").
 
     Expected context:
       form_mode                       "create" | "edit", defaults to "create"
       instrument                      dict: internal_code, instrument_family, cycle_status,
-                                       active_status
-      instrument_families              list of {value, label} for the Instrument Family select
-      save_url, cancel_url            URL strings, default "#"
-    Save submits to save_url and is handled by the admin instrument routes.
+                                       active_status, change_reason (edit)
+      instrument_families              list of {value, label}
+      cycle_statuses                   list of {value, label}
+      cycle_events                     recent instrument_cycle_event rows (edit)
+      save_url, cancel_url            URL strings
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
 {% set instrument = instrument|default({
-    'internal_code': 'INS-001', 'instrument_family': 'kelly-clamp', 'cycle_status': 'available', 'active_status': 'active'
+    'internal_code': 'INS-001', 'instrument_family': 'kelly-clamp', 'cycle_status': 'available', 'active_status': 'active', 'change_reason': ''
 } if is_edit else {
-    'internal_code': '', 'instrument_family': '', 'cycle_status': 'available', 'active_status': 'active'
+    'internal_code': '', 'instrument_family': '', 'cycle_status': 'available', 'active_status': 'active', 'change_reason': ''
 }, true) %}
 {% set instrument_families = instrument_families|default([
     {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
@@ -33,6 +34,7 @@
     {'value': 'maintenance', 'label': _('Maintenance')},
     {'value': 'retired', 'label': _('Retired')}
 ], true) %}
+{% set cycle_events = cycle_events|default([], true) %}
 {% set page_title = _("Edit Instrument") if is_edit else _("New Instrument") %}
 {% set page_subtitle = _("Update this instrument's family, cycle status, and active status.") if is_edit else _("Register a new individual surgical instrument in the system.") %}
 
@@ -40,7 +42,11 @@
 
 {% block sidebar %}
 {% set active_nav_item = 'instruments' %}
+{% if current_user and current_user.role_code == 'spd_supervisor' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% else %}
 {% include "partials/sidebar_admin.html" %}
+{% endif %}
 {% endblock %}
 
 {% block breadcrumb %}
@@ -62,22 +68,26 @@
 </div>
 
 <section class="card card--form">
-    <form class="form" action="{{ save_url|default('#') }}" method="post">
+    <form class="form" id="instrument-form" action="{{ save_url|default('#') }}" method="post" data-instrument-form
+          data-form-mode="{{ form_mode }}"
+          data-baseline-family="{{ instrument.instrument_family }}"
+          data-baseline-cycle="{{ instrument.cycle_status }}"
+          data-baseline-active="{{ instrument.active_status }}">
         {% if form_error %}
         <p class="form-field__helper form-field__helper--error" role="alert">{{ form_error }}</p>
         {% endif %}
         <div class="form-field">
             <label class="form-field__label" for="instrument-internal-code">{{ _("Internal Code") }}</label>
             {% if is_edit %}
-            <input class="form-field__input form-field__input--plain" type="text" id="instrument-internal-code" value="{{ instrument.internal_code }}" readonly aria-readonly="true">
+            <input class="form-field__input form-field__input--plain" type="text" id="instrument-internal-code" value="{{ instrument.internal_code }}" readonly aria-readonly="true" data-instrument-code>
             {% else %}
-            <input class="form-field__input form-field__input--plain" type="text" id="instrument-internal-code" name="internal_code" value="{{ instrument.internal_code }}">
+            <input class="form-field__input form-field__input--plain" type="text" id="instrument-internal-code" name="internal_code" value="{{ instrument.internal_code }}" data-instrument-code>
             {% endif %}
         </div>
         <div class="form-field">
             <label class="form-field__label" for="instrument-family">{{ _("Instrument Family") }}</label>
             <div class="form-field__input-wrapper">
-                <select class="form-field__input form-field__select" id="instrument-family" name="instrument_family">
+                <select class="form-field__input form-field__select" id="instrument-family" name="instrument_family" data-instrument-family>
                     <option value="">{{ _("Select an instrument family") }}</option>
                     {% for family in instrument_families %}
                     <option value="{{ family.value }}" {% if family.value == instrument.instrument_family %}selected{% endif %}>{{ family.label }}</option>
@@ -89,7 +99,7 @@
         <div class="form-field">
             <label class="form-field__label" for="instrument-cycle-status">{{ _("Cycle Status") }}</label>
             <div class="form-field__input-wrapper">
-                <select class="form-field__input form-field__select" id="instrument-cycle-status" name="cycle_status">
+                <select class="form-field__input form-field__select" id="instrument-cycle-status" name="cycle_status" data-instrument-cycle>
                     {% for status in cycle_statuses %}
                     <option value="{{ status.value }}" {% if instrument.cycle_status == status.value %}selected{% endif %}>{{ status.label }}</option>
                     {% endfor %}
@@ -100,7 +110,7 @@
         <div class="form-field">
             <label class="form-field__label" for="instrument-active-status">{{ _("Active Status") }}</label>
             <div class="form-field__input-wrapper">
-                <select class="form-field__input form-field__select" id="instrument-active-status" name="active_status">
+                <select class="form-field__input form-field__select" id="instrument-active-status" name="active_status" data-instrument-active>
                     <option value="active" {% if instrument.active_status == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
                     <option value="inactive" {% if instrument.active_status == 'inactive' %}selected{% endif %}>{{ _("Inactive") }}</option>
                 </select>
@@ -108,10 +118,50 @@
             </div>
         </div>
 
+        {% if is_edit %}
+        <div class="form-field">
+            <label class="form-field__label" for="instrument-change-reason">{{ _("Change reason") }}</label>
+            <textarea class="form-field__textarea" id="instrument-change-reason" name="change_reason" rows="3"
+                      data-instrument-reason
+                      placeholder="{{ _('Required when cycle status or active status changes.') }}">{{ instrument.change_reason|default('', true) }}</textarea>
+            <p class="form-field__helper">{{ _("Required when cycle status or active status changes. Logged in cycle history and access audit.") }}</p>
+        </div>
+        {% endif %}
+
         <div class="form-actions">
             <a class="btn btn--secondary" href="{{ cancel_url|default('/admin/instruments') }}">{{ _("Cancel") }}</a>
             <button type="submit" class="btn btn--primary">{{ _("Save Changes") if is_edit else _("Save Instrument") }}</button>
         </div>
     </form>
 </section>
+
+{% if is_edit and cycle_events %}
+<section class="card">
+    <h2 class="card__title">{{ _("Recent cycle events") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("When") }}</th>
+                    <th scope="col">{{ _("Cycle Status") }}</th>
+                    <th scope="col">{{ _("Notes") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in cycle_events %}
+                <tr>
+                    <td>{{ event.occurred_at }}</td>
+                    <td>{{ event.cycle_status_label }}</td>
+                    <td>{{ event.notes }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/instrument-form.js') }}" defer></script>
 {% endblock %}

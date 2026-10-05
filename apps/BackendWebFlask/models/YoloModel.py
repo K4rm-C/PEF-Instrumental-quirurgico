@@ -10,8 +10,8 @@ class YoloModel(db.Model):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     version_tag: Mapped[str] = mapped_column(String, unique=True, nullable=False)  
-    media_asset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('media_asset.id'), nullable=False)
-    checksum: Mapped[str] = mapped_column(CHAR(64), nullable=False)                
+    media_asset_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('media_asset.id'), nullable=True)
+    checksum: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     published_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 

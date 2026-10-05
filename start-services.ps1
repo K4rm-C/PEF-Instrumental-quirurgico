@@ -51,9 +51,21 @@ pip install -r requirements.txt
 python app.py
 "@
 
-Write-Host "Abriendo Auth (5001) y Backend Web (5000)..." -ForegroundColor Yellow
+$VisionCmd = @"
+if (-not (Test-Path .venv)) { python -m venv .venv }
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+if (-not (Test-Path weights\best.pt)) {
+  Write-Host 'Falta weights\best.pt (gitignored). Copialo a apps\VisionWorker\weights\best.pt' -ForegroundColor Red
+}
+python main.py
+"@
+
+Write-Host "Abriendo Auth (5001), Backend Web (5000) y VisionWorker (5002)..." -ForegroundColor Yellow
 Start-AppWindow -Title "PEF Auth :5001" -Directory "$Root\apps\BackendAuthService" -Command $AuthCmd
 Start-AppWindow -Title "PEF BackendWeb :5000" -Directory "$Root\apps\BackendWebFlask" -Command $WebCmd
+Start-AppWindow -Title "PEF VisionWorker :5002" -Directory "$Root\apps\VisionWorker" -Command $VisionCmd
 
-Write-Host "Listo. Web http://127.0.0.1:5000  Auth http://127.0.0.1:5001" -ForegroundColor Green
+Write-Host "Listo. Web http://127.0.0.1:5000  Auth http://127.0.0.1:5001  Vision http://127.0.0.1:5002" -ForegroundColor Green
 Write-Host "Garage S3 http://127.0.0.1:3900" -ForegroundColor Green
+Write-Host "Pesos YOLO: apps\VisionWorker\weights\best.pt (no se suben a GitHub)" -ForegroundColor Cyan

@@ -98,7 +98,7 @@
                         <th scope="col">{{ _("Session / Procedure") }}</th>
                         <th scope="col">{{ _("Kit") }}</th>
                         <th scope="col">{{ _("Operator") }}</th>
-                        <th scope="col">{{ _("Station") }}</th>
+                        <th scope="col">{{ _("Privacy / Capture") }}</th>
                         <th scope="col">{{ _("Started") }}</th>
                         <th scope="col">{{ _("Session Status") }}</th>
                         <th scope="col">{{ _("Review Status") }}</th>
@@ -109,12 +109,13 @@
                     {% for row in session_rows %}
                     <tr>
                         <th scope="row">
-                            <span class="data-table__primary">{{ row.session_id }}</span>
+                            {% if row.details_url %}<a class="data-table__primary" href="{{ row.details_url }}">{{ row.session_id }}</a>
+                            {% else %}<span class="data-table__primary">{{ row.session_id }}</span>{% endif %}
                             <span class="data-table__secondary">{{ row.procedure_label }}</span>
                         </th>
                         <td>{{ row.kit_name }}</td>
                         <td>{{ row.operator_name }}</td>
-                        <td>{{ row.capture_station }}</td>
+                        <td>{{ macros.status_badge(_(row.privacy_label), row.privacy_variant) }}</td>
                         <td>{{ row.started_time or '—' }}</td>
                         <td>{{ macros.status_badge(_(row.session_status.label), row.session_status.variant) }}</td>
                         <td>{{ macros.status_badge(_(row.review_status.label), row.review_status.variant) }}</td>
@@ -129,14 +130,8 @@
             </table>
         </div>
 
-        <nav class="pagination" aria-label="{{ _('Pagination') }}">
-            <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s sessions", shown=session_rows|length, total=list_meta.total) }}</p>
-            <div class="pagination__controls">
-                <a class="btn btn--secondary btn--small" href="#" aria-disabled="true">{{ _("Previous") }}</a>
-                <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=1, total=list_meta.pages) }}</span>
-                <a class="btn btn--secondary btn--small" href="#">{{ _("Next") }}</a>
-            </div>
-        </nav>
+        {% set pagination_info = _("Showing %(shown)s of %(total)s sessions", shown=session_rows|length, total=list_meta.total) %}
+        {% include "components/pagination.html" %}
     </section>
 </div>
 {% endblock %}

@@ -52,16 +52,29 @@
         </div>
     </dl>
     {% if not disc.resolved %}
-    <form method="post" action="{{ url_for('web.supervisor_discrepancy_review', session_id=session.id) }}">
+    <form method="post" action="{{ url_for('web.supervisor_discrepancy_review', session_id=session.id) }}"
+          data-discrepancy-resolve-form
+          data-family-name="{{ disc.family_name }}">
         <input type="hidden" name="discrepancy_id" value="{{ disc.id }}">
+        <fieldset class="form-field">
+            <legend class="form-field__label">{{ _("Outcome") }}</legend>
+            <label class="form-field__checkbox">
+                <input type="radio" name="resolution_outcome" value="notes_only" checked data-outcome-label="{{ _('Resolve with notes only') }}">
+                <span>{{ _("Resolve with notes only") }}</span>
+            </label>
+            <label class="form-field__checkbox">
+                <input type="radio" name="resolution_outcome" value="lost" data-outcome-label="{{ _('Lost — mark one active piece as lost') }}">
+                <span>{{ _("Lost — mark one active piece as lost") }}</span>
+            </label>
+            <label class="form-field__checkbox">
+                <input type="radio" name="resolution_outcome" value="recovered" data-outcome-label="{{ _('Recovered — reactivate a lost piece of this family if found') }}">
+                <span>{{ _("Recovered — reactivate a lost piece of this family if found") }}</span>
+            </label>
+        </fieldset>
         <div class="form-field">
             <label class="form-field__label" for="notes-{{ disc.id }}">{{ _("Resolution notes") }}</label>
-            <textarea class="form-field__input" id="notes-{{ disc.id }}" name="notes" rows="2" required></textarea>
+            <textarea class="form-field__input" id="notes-{{ disc.id }}" name="notes" rows="2" required data-resolution-notes></textarea>
         </div>
-        <label class="form-field__checkbox">
-            <input type="checkbox" name="mark_lost" value="1">
-            <span>{{ _("Mark one active piece of this family as lost") }}</span>
-        </label>
         <div class="page-heading__actions" style="margin-top: 1rem;">
             <button class="btn btn--primary" type="submit">{{ _("Resolve") }}</button>
         </div>
@@ -80,4 +93,41 @@
     <a class="btn btn--primary" href="{{ url_for('web.supervisor_session_details', session_id=session.id) }}">{{ _("Go to Confirm close") }}</a>
 </section>
 {% endif %}
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+    document.querySelectorAll("[data-discrepancy-resolve-form]").forEach(function (form) {
+        form.addEventListener("submit", function (event) {
+            event.preventDefault();
+            var selected = form.querySelector('input[name="resolution_outcome"]:checked');
+            var outcomeLabel = selected
+                ? (selected.getAttribute("data-outcome-label") || selected.value)
+                : "—";
+            var notesEl = form.querySelector("[data-resolution-notes]");
+            var notes = notesEl ? notesEl.value.trim() : "";
+            var family = form.getAttribute("data-family-name") || "Instrument";
+            var html =
+                "<p>Resolve discrepancy for <strong>" + family + "</strong>?</p>" +
+                '<div class="app-modal__audit"><dl class="app-modal__kv">' +
+                "<dt>Outcome</dt><dd>" + outcomeLabel + "</dd>" +
+                "<dt>Notes</dt><dd>" + (notes || "—") + "</dd>" +
+                "</dl></div>";
+            if (window.appConfirm) {
+                window.appConfirm({
+                    title: "Confirm resolution",
+                    html: html,
+                    okLabel: "Resolve",
+                    cancelLabel: "Cancel",
+                }).then(function (ok) {
+                    if (ok && window.appConfirmProceed) window.appConfirmProceed(form);
+                });
+                return;
+            }
+            if (window.appConfirmProceed) window.appConfirmProceed(form);
+        });
+    });
+})();
+</script>
 {% endblock %}

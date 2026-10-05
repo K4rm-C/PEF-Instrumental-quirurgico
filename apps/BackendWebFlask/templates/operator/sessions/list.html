@@ -42,6 +42,8 @@
         </div>
     </div>
 
+    {% set list_filters = list_filters|default({}) %}
+    {% set filter_source_rows = filter_source_rows|default(session_rows) %}
     <section class="card">
         <form class="filter-bar" action="{{ url_for('web.operator_sessions') }}" method="get" role="search"
               {% if v3_demo %}data-v3-session-filter data-today="{{ filter_today }}"{% endif %}>
@@ -50,15 +52,16 @@
                 <div class="form-field__input-wrapper">
                     <span class="form-field__icon">{{ macros.icon_search() }}</span>
                     <input class="form-field__input" type="search" id="assigned-sessions-search" name="search"
-                           placeholder="{{ _('Search assigned sessions...') }}">
+                           value="{{ list_filters.search or '' }}"
+                           placeholder="{{ _('Search session id, procedure, or kit...') }}">
                 </div>
             </div>
             <div class="filter-bar__select">
                 <label class="visually-hidden" for="assigned-sessions-status">{{ _("Status") }}</label>
                 <select class="form-field__input form-field__input--plain" id="assigned-sessions-status" name="status">
                     <option value="">{{ _("All Statuses") }}</option>
-                    {% for row in session_rows|unique(attribute='session_status.code') %}
-                    <option value="{{ row.session_status.code }}">{{ _(row.session_status.label) }}</option>
+                    {% for row in filter_source_rows|unique(attribute='session_status.code') %}
+                    <option value="{{ row.session_status.code }}" {% if list_filters.status == row.session_status.code %}selected{% endif %}>{{ _(row.session_status.label) }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -66,25 +69,23 @@
                 <label class="visually-hidden" for="assigned-sessions-room">{{ _("Operating Room") }}</label>
                 <select class="form-field__input form-field__input--plain" id="assigned-sessions-room" name="room">
                     <option value="">{{ _("All Operating Rooms") }}</option>
-                    {% for row in session_rows|unique(attribute='operating_room') %}
-                    <option value="{{ row.operating_room }}">{{ row.operating_room }}</option>
+                    {% for row in filter_source_rows|unique(attribute='operating_room') %}
+                    <option value="{{ row.operating_room }}" {% if list_filters.room == row.operating_room %}selected{% endif %}>{{ row.operating_room }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="filter-bar__select">
                 <label class="visually-hidden" for="assigned-sessions-date">{{ _("Date Range") }}</label>
                 <select class="form-field__input form-field__input--plain" id="assigned-sessions-date" name="date">
-                    {% if v3_demo %}
                     <option value="">{{ _("All Dates") }}</option>
-                    <option value="today">{{ _("Today") }}</option>
-                    <option value="upcoming">{{ _("Upcoming (next 7 days)") }}</option>
-                    {% else %}
-                    <option value="">{{ _("Date Range") }}</option>
-                    <option value="today">{{ _("Today") }}</option>
-                    <option value="next-7-days">{{ _("Next 7 Days") }}</option>
-                    {% endif %}
+                    <option value="today" {% if list_filters.date == 'today' %}selected{% endif %}>{{ _("Today") }}</option>
+                    <option value="next-7-days" {% if list_filters.date == 'next-7-days' %}selected{% endif %}>{{ _("Next 7 Days") }}</option>
                 </select>
             </div>
+            <button type="submit" class="btn btn--primary btn--small btn--search-submit" aria-label="{{ _('Search') }}">
+                {{ macros.icon_search() }}
+                <span>{{ _("Search") }}</span>
+            </button>
         </form>
     </section>
 
@@ -95,50 +96,41 @@
                     <tr>
                         <th scope="col">{{ _("Session") }}</th>
                         <th scope="col">{{ _("Procedure") }}</th>
-                        <th scope="col">{{ _("Patient") }}</th>
+                        <th scope="col">{{ _("Kit") }}</th>
                         <th scope="col">{{ _("OR") }}</th>
                         <th scope="col">{{ _("Scheduled Time") }}</th>
+                        <th scope="col">{{ _("Privacy / Capture") }}</th>
                         <th scope="col">{{ _("Status") }}</th>
                         <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for row in session_rows %}
-                    <tr{% if v3_demo %} data-session-row
-                        data-search="{{ [row.session_id, row.procedure_name, row.patient_name or '']|join(' ')|lower }}"
-                        data-status="{{ row.session_status.code }}" data-room="{{ row.operating_room }}"
-                        data-date="{{ row.scheduled_date }}"{% endif %}>
+                    <tr>
                         <th scope="row">
                             {% if row.details_url %}<a class="data-table__primary" href="{{ row.details_url }}">{{ row.session_id }}</a>
                             {% else %}<span class="data-table__primary">{{ row.session_id }}</span>{% endif %}
                         </th>
                         <td>{{ row.procedure_name }}</td>
-                        <td>{{ row.patient_name or '—' }}</td>
+                        <td>{{ row.kit_name or '—' }}</td>
                         <td>{{ row.operating_room }}</td>
                         <td>{{ row.scheduled_time }}</td>
+                        <td>{{ macros.status_badge(_(row.privacy_label), row.privacy_variant) }}</td>
                         <td>{{ macros.status_badge(_(row.session_status.label), row.session_status.variant) }}</td>
                         <td class="data-table__action-column">
                             <a class="btn btn--primary btn--small" href="{{ row.action.url }}">{{ _(row.action.label) }}</a>
                         </td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="7">{{ _("No sessions are currently assigned to you.") }}</td></tr>
+                    <tr><td colspan="8">{{ _("No sessions are currently assigned to you.") }}</td></tr>
                     {% endfor %}
-                    {% if v3_demo and session_rows %}
-                    <tr data-session-filter-empty hidden><td colspan="7">{{ _("No assigned sessions match the selected filters.") }}</td></tr>
-                    {% endif %}
                 </tbody>
             </table>
         </div>
 
-        <nav class="pagination" aria-label="{{ _('Pagination') }}">
-            <p class="pagination__info"{% if v3_demo %} data-session-filter-info data-template="{{ _('Showing %(shown)s of %(total)s assigned sessions', shown='{shown}', total='{total}') }}" aria-live="polite"{% endif %}>{{ _("Showing %(shown)s of %(total)s assigned sessions", shown=session_rows|length, total=session_rows|length) }}</p>
-            <div class="pagination__controls">
-                <a class="btn btn--secondary btn--small" href="#" aria-disabled="true">{{ _("Previous") }}</a>
-                <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=1, total=1) }}</span>
-                <a class="btn btn--secondary btn--small" href="#" aria-disabled="true">{{ _("Next") }}</a>
-            </div>
-        </nav>
+        {% set list_meta = list_meta|default({'total': session_rows|length, 'pages': 1, 'page': 1}) %}
+        {% set pagination_info = _("Showing %(shown)s of %(total)s assigned sessions", shown=session_rows|length, total=list_meta.total) %}
+        {% include "components/pagination.html" %}
     </section>
 </div>
 {% endblock %}

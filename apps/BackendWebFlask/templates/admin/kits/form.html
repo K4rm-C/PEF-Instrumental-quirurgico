@@ -2,46 +2,28 @@
 {% import "components/macros.html" as macros %}
 
 {#
-    Single reusable template for both New Kit and Edit Kit (implementation prompt section
-    18), distinguished purely by form_mode ("create" | "edit").
-
-    Expected context:
-      form_mode                 "create" | "edit", defaults to "create"
-      kit                       dict: name, version, status
-      kit_composition           list of {instrument_family_value, instrument_family_label,
-                                 expected_quantity}
-      instrument_families        list of {value, label} for each composition row's select
-      save_url, cancel_url      URL strings, default "#"
-    Kit Composition's "+ Add Instrument Type" / "Remove" and the live Instrument Types /
-    Total Expected Instruments summary are client-side behavior implemented by
-    static/js/pages/kit-form.js; submitted composition is validated and persisted by the backend.
+    Single reusable template for both New Kit and Edit Kit,
+    distinguished purely by form_mode ("create" | "edit").
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
 {% set kit = kit|default({'name': 'Delivery Kit', 'version': 1, 'status': 'active'} if is_edit else {'name': '', 'version': 1, 'status': 'active'}, true) %}
-{% set instrument_families = instrument_families|default([
-    {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
-    {'value': 'foerster-sponge-forceps', 'label': _('Foerster Sponge Forceps')},
-    {'value': 'mayo-hegar-needle-holder', 'label': _('Mayo-Hegar Needle Holder')},
-    {'value': 'mayo-scissors', 'label': _('Mayo Scissors')},
-    {'value': 'allis-tissue-forceps', 'label': _('Allis Tissue Forceps')}
-], true) %}
-{% set kit_composition = kit_composition|default([
-    {'instrument_family_value': 'kelly-clamp', 'instrument_family_label': _('Kelly Clamp'), 'expected_quantity': 4},
-    {'instrument_family_value': 'foerster-sponge-forceps', 'instrument_family_label': _('Foerster Sponge Forceps'), 'expected_quantity': 2},
-    {'instrument_family_value': 'mayo-hegar-needle-holder', 'instrument_family_label': _('Mayo-Hegar Needle Holder'), 'expected_quantity': 2},
-    {'instrument_family_value': 'mayo-scissors', 'instrument_family_label': _('Mayo Scissors'), 'expected_quantity': 1},
-    {'instrument_family_value': 'allis-tissue-forceps', 'instrument_family_label': _('Allis Tissue Forceps'), 'expected_quantity': 2}
-] if is_edit else [], true) %}
+{% set instrument_families = instrument_families|default([], true) %}
+{% set kit_composition = kit_composition|default([] if not is_edit else [], true) %}
+{% set category_purpose_order = category_purpose_order|default(['cutting', 'dissection', 'grasping', 'hemostasis', 'retraction', 'suction', 'suturing'], true) %}
 {% set page_title = _("Edit Kit") if is_edit else _("New Kit") %}
-{% set page_subtitle = _("Configure composition and general characteristics for %(name)s.", name=kit.name) if is_edit else _("Create a surgical instrument kit and define its expected composition.") %}
+{% set page_subtitle = _("Configure composition and general characteristics for %(name)s. Saving creates a new version.", name=kit.name) if is_edit else _("Create a surgical instrument kit and define its expected composition.") %}
 {% set total_expected_instruments = kit_composition|map(attribute='expected_quantity')|map('int')|sum %}
 
 {% block title %}{{ page_title }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
 {% block sidebar %}
 {% set active_nav_item = 'kits' %}
+{% if current_user and current_user.role_code == 'spd_supervisor' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% else %}
 {% include "partials/sidebar_admin.html" %}
+{% endif %}
 {% endblock %}
 
 {% block breadcrumb %}
@@ -63,23 +45,26 @@
 </div>
 
 <section class="card card--form">
-    <form class="form" id="kit-form" action="{{ save_url|default('#') }}" method="post">
+    <form class="form" id="kit-form" action="{{ save_url|default('#') }}" method="post" data-kit-form>
         {% if form_error %}
         <p class="form-field__helper form-field__helper--error" role="alert">{{ form_error }}</p>
         {% endif %}
         <div class="form-field">
             <label class="form-field__label" for="kit-name">{{ _("Kit Name") }}</label>
-            <input class="form-field__input form-field__input--plain" type="text" id="kit-name" name="name" value="{{ kit.name }}">
+            <input class="form-field__input form-field__input--plain" type="text" id="kit-name" name="name" value="{{ kit.name }}" data-kit-name>
         </div>
         <div class="form-grid">
             <div class="form-field">
                 <label class="form-field__label" for="kit-version">{{ _("Version") }}</label>
                 <input class="form-field__input form-field__input--plain" type="text" id="kit-version" value="{{ kit.version }}" readonly aria-readonly="true">
+                {% if is_edit %}
+                <p class="form-field__helper">{{ _("Saving creates version %(next)s and retires this version.", next=(kit.version|int) + 1) }}</p>
+                {% endif %}
             </div>
             <div class="form-field">
                 <label class="form-field__label" for="kit-status">{{ _("Status") }}</label>
                 <div class="form-field__input-wrapper">
-                    <select class="form-field__input form-field__select" id="kit-status" name="status">
+                    <select class="form-field__input form-field__select" id="kit-status" name="status" data-kit-status data-baseline-status="{{ kit.status }}">
                         <option value="active" {% if kit.status == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
                         <option value="inactive" {% if kit.status == 'inactive' %}selected{% endif %}>{{ _("Inactive") }}</option>
                     </select>
@@ -95,24 +80,32 @@
                     <tr>
                         <th scope="col">{{ _("Instrument Family") }}</th>
                         <th scope="col">{{ _("Expected Quantity") }}</th>
+                        <th scope="col">{{ _("Availability") }}</th>
                         <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                     </tr>
                 </thead>
-                <tbody id="kit-composition-rows" data-remove-label="{{ _('Remove') }}">
+                <tbody id="kit-composition-rows"
+                       data-remove-label="{{ _('Remove') }}"
+                       data-undo-label="{{ _('Undo') }}"
+                       data-active-available-template="{{ _('%(count)s active available of family') }}">
                     {% for item in kit_composition %}
-                    <tr class="js-kit-composition-row">
+                    <tr class="js-kit-composition-row"
+                        data-family-id="{{ item.instrument_family_value }}"
+                        data-family-label="{{ item.instrument_family_label }}"
+                        data-baseline-qty="{{ item.expected_quantity }}"
+                        data-row-origin="baseline"
+                        data-category-code="{{ item.category_code|default('', true) }}"
+                        data-category-rank="{{ item.category_rank|default(999, true) }}">
                         <td>
-                            <div class="form-field__input-wrapper">
-                                <select class="form-field__input form-field__select js-kit-instrument-family" name="instrument_family[]">
-                                    {% for family in instrument_families %}
-                                    <option value="{{ family.value }}" {% if family.value == item.instrument_family_value %}selected{% endif %}>{{ family.label }}</option>
-                                    {% endfor %}
-                                </select>
-                                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
-                            </div>
+                            <strong>{{ item.instrument_family_label }}</strong>
+                            <input type="hidden" name="instrument_family[]" value="{{ item.instrument_family_value }}" class="js-kit-instrument-family">
                         </td>
                         <td>
-                            <input class="data-table__input js-kit-quantity" type="number" min="1" max="32767" step="1" name="expected_quantity[]" value="{{ item.expected_quantity }}">
+                            <input class="data-table__input js-kit-quantity" type="number" min="1" max="32767" step="1"
+                                   name="expected_quantity[]" value="{{ item.expected_quantity }}">
+                        </td>
+                        <td class="js-kit-active-available">
+                            {{ _("%(count)s active available of family", count=item.active_available_count|default(0, true)) }}
                         </td>
                         <td class="data-table__action-column">
                             <button type="button" class="link-danger js-kit-remove-row">{{ _("Remove") }}</button>
@@ -122,10 +115,39 @@
                 </tbody>
             </table>
         </div>
-        <button type="button" class="link-action" id="add-instrument-type-btn">
-            {{ macros.icon_plus_circle() }}
-            <span>{{ _("Add Instrument Family") }}</span>
-        </button>
+
+        <div class="composition-add-bar" data-kit-add-bar>
+            <label class="form-field">
+                <span class="form-field__label">{{ _("Instrument Family") }}</span>
+                <select class="form-field__input" data-kit-add-family>
+                    <option value="">{{ _("Select family") }}</option>
+                </select>
+            </label>
+            <label class="form-field">
+                <span class="form-field__label">{{ _("Expected Quantity") }}</span>
+                <input class="form-field__input" type="number" min="1" max="32767" step="1" value="1" data-kit-add-qty>
+            </label>
+            <button type="button" class="btn btn--secondary" id="add-instrument-type-btn" data-kit-add-btn>
+                {{ macros.icon_plus_circle() }}
+                <span>{{ _("Add") }}</span>
+            </button>
+        </div>
+
+        <div class="composition-removed" data-kit-removed hidden>
+            <h3 class="composition-removed__title">{{ _("Removed") }}</h3>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ _("Instrument Family") }}</th>
+                            <th scope="col">{{ _("Expected Quantity") }}</th>
+                            <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                        </tr>
+                    </thead>
+                    <tbody data-kit-removed-rows></tbody>
+                </table>
+            </div>
+        </div>
 
         <div class="stat-card-grid stat-card-grid--two">
             {{ macros.stat_card(_("Instrument Families"), kit_composition|length, 'neutral') }}
@@ -142,7 +164,13 @@
 
 {% block page_scripts %}
 <script id="kit-instrument-family-options" type="application/json">
-[{% for family in instrument_families %}{"value": {{ family.value|tojson }}, "label": {{ family.label|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]
+{{ instrument_families|tojson }}
+</script>
+<script id="kit-category-purpose-order" type="application/json">
+{{ category_purpose_order|tojson }}
+</script>
+<script id="kit-baseline-composition" type="application/json">
+{{ kit_composition|tojson }}
 </script>
 <script src="{{ url_for('static', filename='js/pages/kit-form.js') }}" defer></script>
 {% endblock %}

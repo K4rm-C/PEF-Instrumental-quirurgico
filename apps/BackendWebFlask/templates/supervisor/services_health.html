@@ -1,0 +1,41 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Services health") }} · {{ _("SPD") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'services_health' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Services health") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Future microservices status. This MVP talks to Auth and Postgres directly.") }}</p>
+    </div>
+</div>
+
+<section class="card">
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>{{ _("Service") }}</th>
+                    <th>{{ _("Status") }}</th>
+                    <th>{{ _("Detail") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in services|default([]) %}
+                <tr>
+                    <td>{{ item.name }}</td>
+                    <td><code>{{ item.status }}</code></td>
+                    <td>{{ item.detail }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

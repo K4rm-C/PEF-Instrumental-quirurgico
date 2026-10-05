@@ -4,15 +4,40 @@
 {% block title %}{{ _("New session") }} · {{ _("SPD") }}{% endblock %}
 
 {% block sidebar %}
-{% set active_nav_item = 'sessions' %}
+{% set active_nav_item = 'new_session' %}
 {% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block page_styles %}
+<style>
+.semaphore-badge { display:inline-flex; align-items:center; gap:.35rem; padding:.2rem .55rem; border-radius:999px; font-size:.8rem; font-weight:600; }
+.semaphore-badge--ok { background:#dcfce7; color:#166534; }
+.semaphore-badge--warn { background:#fef9c3; color:#854d0e; }
+.semaphore-badge--block { background:#fee2e2; color:#991b1b; }
+[data-theme="dark"] .semaphore-badge--ok, .theme-dark .semaphore-badge--ok { background:rgba(34,197,94,.2); color:#86efac; }
+[data-theme="dark"] .semaphore-badge--warn, .theme-dark .semaphore-badge--warn { background:rgba(234,179,8,.2); color:#fde047; }
+[data-theme="dark"] .semaphore-badge--block, .theme-dark .semaphore-badge--block { background:rgba(239,68,68,.2); color:#fca5a5; }
+.physician-row { display:grid; grid-template-columns:1fr 1.6fr auto; gap:.75rem; align-items:end; margin-bottom:.75rem; }
+.physician-combo { position:relative; }
+.physician-menu {
+    position:absolute; z-index:20; left:0; right:0; top:calc(100% + .2rem);
+    margin:0; padding:.25rem 0; list-style:none; max-height:12rem; overflow:auto;
+    border:1px solid var(--color-border, #334155); border-radius:.5rem;
+    background:var(--color-surface); color:var(--color-text-primary);
+    box-shadow:0 12px 28px rgba(15,23,42,.25);
+}
+.physician-menu[hidden] { display:none !important; }
+.physician-menu li { padding:.45rem .75rem; cursor:pointer; }
+.physician-menu li:hover, .physician-menu li.is-active { background:var(--color-surface-secondary); }
+.inventory-type-heading { margin:1rem 0 .4rem; font-size:.95rem; font-weight:700; }
+</style>
 {% endblock %}
 
 {% block page_content %}
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ _("Schedule counting session") }}</h1>
-        <p class="page-heading__subtitle">{{ _("RF-SP-02 · programming + optional privacy Via A (placeholder notice).") }}</p>
+        <p class="page-heading__subtitle">{{ _("RF-SP-02 · assign operator, team, kit and expected inventory. Privacy is confirmed on save.") }}</p>
     </div>
 </div>
 
@@ -20,55 +45,58 @@
 <div class="alert alert--warning" role="alert">{{ form_error }}</div>
 {% endif %}
 
-<form method="get" class="card">
-    <label class="form-field">
-        <span>{{ _("Preview kit composition") }}</span>
-        <select class="form-field__input" name="kit_id" onchange="this.form.submit()">
-            {% for kit in kits|default([]) %}
-            <option value="{{ kit.id }}" {% if kit.id == selected_kit %}selected{% endif %}>{{ kit.name }}</option>
-            {% endfor %}
-        </select>
-    </label>
-</form>
-
-<form method="post" class="card">
+{% set form_values = form_values|default({}) %}
+<form method="post" class="card" id="schedule-session-form"
+      data-stock-recheck-url="{{ url_for('web.supervisor_session_stock_recheck') }}"
+      data-schedule-form
+      data-kit-reload-url="{{ url_for('web.supervisor_session_new') }}">
     <input type="hidden" name="action" value="schedule">
+    <input type="hidden" name="privacy_notice_version_id" id="privacy-notice-version-hidden" value="">
+    <input type="hidden" name="confirm_privacy" id="confirm-privacy-hidden" value="">
+    <input type="hidden" name="privacy_confirm_checkbox" id="privacy-confirm-checkbox-hidden" value="">
+    <input type="hidden" name="purpose_model_improvement" id="purpose-model-improvement-hidden" value="">
+
     <div class="form-grid">
         <label class="form-field">
             <span>{{ _("Operator") }}</span>
             <select class="form-field__input" name="operator_user_id" required>
+                <option value="" {% if not form_values.operator_user_id %}selected{% endif %}>{{ _("Select operator") }}</option>
                 {% for op in operators|default([]) %}
-                <option value="{{ op.id }}">{{ op.name }}</option>
+                <option value="{{ op.id }}" {% if form_values.operator_user_id == op.id %}selected{% endif %}>{{ op.name }}</option>
                 {% endfor %}
             </select>
         </label>
         <label class="form-field">
             <span>{{ _("Procedure") }}</span>
             <select class="form-field__input" name="procedure_type_id" required>
+                <option value="" {% if not form_values.procedure_type_id %}selected{% endif %}>{{ _("Select procedure") }}</option>
                 {% for p in procedures|default([]) %}
-                <option value="{{ p.id }}">{{ p.name }}</option>
+                <option value="{{ p.id }}" {% if form_values.procedure_type_id == p.id %}selected{% endif %}>{{ p.name }}</option>
                 {% endfor %}
             </select>
         </label>
         <label class="form-field">
             <span>{{ _("Operating room") }}</span>
             <select class="form-field__input" name="room_id" required>
+                <option value="" {% if not form_values.room_id %}selected{% endif %}>{{ _("Select operating room") }}</option>
                 {% for r in rooms|default([]) %}
-                <option value="{{ r.id }}">{{ r.code }} — {{ r.name }}</option>
+                <option value="{{ r.id }}" {% if form_values.room_id == r.id %}selected{% endif %}>{{ r.code }} — {{ r.name }}</option>
                 {% endfor %}
             </select>
         </label>
         <label class="form-field">
             <span>{{ _("Capture station") }}</span>
             <select class="form-field__input" name="station_id" required>
+                <option value="" {% if not form_values.station_id %}selected{% endif %}>{{ _("Select capture station") }}</option>
                 {% for s in stations|default([]) %}
-                <option value="{{ s.id }}">{{ s.name }}</option>
+                <option value="{{ s.id }}" {% if form_values.station_id == s.id %}selected{% endif %}>{{ s.name }}</option>
                 {% endfor %}
             </select>
         </label>
         <label class="form-field">
             <span>{{ _("Kit") }}</span>
-            <select class="form-field__input" name="kit_id" required>
+            <select class="form-field__input" name="kit_id" required data-kit-select>
+                <option value="" {% if not selected_kit %}selected{% endif %}>{{ _("Select kit") }}</option>
                 {% for kit in kits|default([]) %}
                 <option value="{{ kit.id }}" {% if kit.id == selected_kit %}selected{% endif %}>{{ kit.name }}</option>
                 {% endfor %}
@@ -76,37 +104,48 @@
         </label>
         <label class="form-field">
             <span>{{ _("Scheduled at") }}</span>
-            <input class="form-field__input" type="datetime-local" name="scheduled_at" required>
-        </label>
-        <label class="form-field">
-            <span>{{ _("Initial phase") }}</span>
-            <select class="form-field__input" name="phase_code">
-                {% for ph in phases|default([]) %}
-                <option value="{{ ph.code }}" {% if ph.code == 'setup' %}selected{% endif %}>{{ ph.name }}</option>
-                {% endfor %}
-            </select>
+            <input class="form-field__input" type="datetime-local" name="scheduled_at" required
+                   value="{{ form_values.scheduled_at or '' }}">
         </label>
         <label class="form-field">
             <span>{{ _("Patient (optional)") }}</span>
             <select class="form-field__input" name="patient_id">
                 <option value="">{{ _("—") }}</option>
                 {% for p in patients|default([]) %}
-                <option value="{{ p.id }}">{{ p.name }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <label class="form-field">
-            <span>{{ _("Physician (optional)") }}</span>
-            <select class="form-field__input" name="physician_id">
-                <option value="">{{ _("—") }}</option>
-                {% for p in physicians|default([]) %}
-                <option value="{{ p.id }}">{{ p.name }}</option>
+                <option value="{{ p.id }}" {% if form_values.patient_id == p.id %}selected{% endif %}>{{ p.name }}</option>
                 {% endfor %}
             </select>
         </label>
     </div>
 
-    <h2 class="card__title">{{ _("Expected inventory (kit ± qty)") }}</h2>
+    <h2 class="card__title">{{ _("Surgical team") }}</h2>
+    <p class="text-muted">{{ _("At least one physician is required. Type to search; already selected physicians are excluded from other rows.") }}</p>
+    <script id="physician-options-data" type="application/json">{{ physicians|default([])|tojson }}</script>
+    <div id="physician-rows" data-physician-rows></div>
+    <button type="button" class="btn btn--secondary btn--small" data-physician-add>{{ _("Add physician") }}</button>
+    <template id="physician-row-template">
+        <div class="physician-row" data-physician-row>
+            <label class="form-field">
+                <span>{{ _("Role") }}</span>
+                <select class="form-field__input" name="surgical_role_code[]" required data-role-select>
+                    <option value="">{{ _("Select role") }}</option>
+                    {% for role in surgical_roles|default([]) %}
+                    <option value="{{ role.code }}">{{ role.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <div class="form-field physician-combo">
+                <span>{{ _("Physician") }}</span>
+                <input class="form-field__input" type="search" placeholder="{{ _('Type physician name…') }}"
+                       data-physician-typeahead autocomplete="off" required>
+                <input type="hidden" name="physician_id[]" value="" data-physician-id required>
+                <ul class="physician-menu" data-physician-menu hidden></ul>
+            </div>
+            <button type="button" class="btn btn--secondary btn--small" data-physician-remove>{{ _("Remove") }}</button>
+        </div>
+    </template>
+
+    <h2 class="card__title">{{ _("Expected inventory (by type)") }}</h2>
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -117,19 +156,33 @@
                     <th>{{ _("Semaphore") }}</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody data-stock-tbody>
+                {% set ns = namespace(current='') %}
                 {% for line in expected_lines|default([]) %}
-                <tr>
+                {% set cat = line.category_label or line.category_code or _('Other') %}
+                {% if cat != ns.current %}
+                {% set ns.current = cat %}
+                <tr class="inventory-type-row"><td colspan="4"><strong class="inventory-type-heading">{{ _(cat) }}</strong></td></tr>
+                {% endif %}
+                <tr data-stock-row
+                    data-family-id="{{ line.family_id }}"
+                    data-stock-available="{{ line.stock_available }}"
+                    data-stock-total="{{ line.stock_total }}">
                     <td>
                         {{ line.family_name }}
                         <input type="hidden" name="family_id[]" value="{{ line.family_id }}">
                     </td>
                     <td class="data-table__numeric-column">
                         <input class="form-field__input form-field__input--plain" type="number" min="1"
-                               name="expected_quantity[]" value="{{ line.expected_quantity }}" required>
+                               name="expected_quantity[]" value="{{ line.expected_quantity }}" required
+                               data-qty-input>
                     </td>
-                    <td>{{ line.stock_available }} / {{ line.stock_total }}</td>
-                    <td>{{ line.semaphore }}</td>
+                    <td data-stock-label>{{ line.stock_available }} / {{ line.stock_total }}</td>
+                    <td>
+                        {% set sem = (line.semaphore or 'OK')|upper %}
+                        <span class="semaphore-badge semaphore-badge--{{ 'ok' if sem == 'OK' else ('warn' if sem == 'WARN' else 'block') }}"
+                              data-semaphore-badge>{{ line.semaphore }}</span>
+                    </td>
                 </tr>
                 {% else %}
                 <tr><td colspan="4">{{ _("Select a kit to load composition.") }}</td></tr>
@@ -138,33 +191,52 @@
         </table>
     </div>
 
-    <h2 class="card__title">{{ _("Privacy notice (Via A · placeholder)") }}</h2>
-    <p class="text-muted">{{ _("You may save without confirming notice → operator Start freezes manual_no_privacy.") }}</p>
-    <label class="form-field checkbox">
-        <input type="checkbox" name="confirm_privacy" value="1">
-        <span>{{ _("Also confirm privacy for this session on save") }}</span>
-    </label>
-    <label class="form-field">
-        <span>{{ _("Active notice version") }}</span>
-        <select class="form-field__input" name="privacy_notice_version_id">
-            {% for n in privacy_notices|default([]) %}
-            <option value="{{ n.id }}">{{ n.version }} — {{ n.document_uri }}</option>
-            {% endfor %}
-        </select>
-    </label>
-    <label class="form-field checkbox">
-        <input type="checkbox" name="privacy_confirm_checkbox" value="1">
-        <span>{{ _("I confirm this privacy notice version applies to this session and the selected purposes.") }}</span>
-    </label>
-    <label class="form-field checkbox">
-        <input type="checkbox" name="purpose_model_improvement" value="1">
-        <span>{{ _("Allow evidence for model improvement (opt-in)") }}</span>
-    </label>
-    <p class="text-muted">{{ _("Quality / ops purpose is always ON.") }}</p>
-
     <div class="form-actions">
         <a class="btn btn--secondary" href="{{ url_for('web.supervisor_sessions') }}">{{ _("Cancel") }}</a>
-        <button type="submit" class="btn btn--primary">{{ _("Save scheduled session") }}</button>
+        <button type="submit" class="btn btn--primary" data-schedule-submit>{{ _("Save scheduled session") }}</button>
     </div>
 </form>
+
+{# Privacy is confirmed only in this overlay on Save — not as an inline form section. #}
+<div class="app-modal" id="privacy-continue-modal" role="dialog" aria-modal="true" aria-labelledby="privacy-modal-title">
+    <div class="app-modal__panel">
+        <h2 class="app-modal__title" id="privacy-modal-title">{{ _("Privacy notice for this session") }}</h2>
+        <p class="app-modal__body">{{ _("Choose a privacy notice to enable vision capture, or continue without one (manual path).") }}</p>
+
+        <label class="app-modal__field">
+            <span class="app-modal__label">{{ _("Active notice version") }}</span>
+            <select class="form-field__input" id="privacy-notice-version">
+                <option value="">{{ _("None / manual path") }}</option>
+                {% for n in privacy_notices|default([]) %}
+                <option value="{{ n.id }}">{{ n.version }} — {{ n.document_uri }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label class="app-modal__check">
+            <input type="checkbox" id="privacy-confirm-checkbox" value="1">
+            <span>{{ _("I confirm this privacy notice version applies to this session and the selected purposes.") }}</span>
+        </label>
+        <label class="app-modal__check">
+            <input type="checkbox" id="purpose-model-improvement" value="1">
+            <span>{{ _("Allow evidence for model improvement (opt-in)") }}</span>
+        </label>
+        <label class="app-modal__field">
+            <span class="app-modal__label">{{ _("Upload signed privacy notice (stub)") }}</span>
+            <input class="form-field__input" type="file" id="privacy-notice-upload" accept=".pdf,image/*">
+            <small class="text-muted">{{ _("UI stub only: the file is not uploaded or stored on Save.") }}</small>
+        </label>
+        <p class="app-modal__body">{{ _("Quality / ops purpose is always ON.") }}</p>
+
+        <div class="app-modal__actions">
+            <button type="button" class="btn btn--secondary" data-privacy-modal-cancel>{{ _("Cancel") }}</button>
+            <button type="button" class="btn btn--secondary" data-privacy-modal-manual>{{ _("Continue without privacy notice") }}</button>
+            <button type="button" class="btn btn--primary" data-privacy-modal-with-notice>{{ _("Confirm notice & save") }}</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/schedule-session.js') }}" defer></script>
 {% endblock %}

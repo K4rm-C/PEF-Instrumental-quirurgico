@@ -4,7 +4,7 @@
 {% block title %}{{ session.session_id }} · {{ _("Session details") }}{% endblock %}
 
 {% block sidebar %}
-{% set active_nav_item = 'counting_sessions' %}
+{% set active_nav_item = active_nav_item|default('counting_sessions') %}
 {% include "partials/sidebar_operator.html" %}
 {% endblock %}
 

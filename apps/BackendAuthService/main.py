@@ -54,9 +54,19 @@ allowed_origins = {
 app.config.update(
 	JWT_SECRET_KEY=os.getenv("JWT_SECRET_KEY", "change-this-secret"),
 	JWT_ALGORITHM=os.getenv("JWT_ALGORITHM", "HS256"),
+	# Defaults kept for admin / unknown roles; OP/SPD use ROLE_TOKEN_POLICY below.
 	ACCESS_TOKEN_MINUTES=seconds_from_env("ACCESS_TOKEN_MINUTES", 15),
-	REFRESH_TOKEN_DAYS=seconds_from_env("REFRESH_TOKEN_DAYS", 30),
+	REFRESH_TOKEN_HOURS=seconds_from_env("REFRESH_TOKEN_HOURS", 8),
+	# Legacy env name still accepted (days → hours) if REFRESH_TOKEN_HOURS unset.
+	REFRESH_TOKEN_DAYS=seconds_from_env("REFRESH_TOKEN_DAYS", 0),
 	RESET_TOKEN_MINUTES=seconds_from_env("RESET_TOKEN_MINUTES", 30),
+	SPD_IDLE_TIMEOUT_MINUTES=seconds_from_env("SPD_IDLE_TIMEOUT_MINUTES", 30),
+	SPD_MAX_SESSION_HOURS=seconds_from_env("SPD_MAX_SESSION_HOURS", 12),
+	OP_ACCESS_TOKEN_MINUTES=seconds_from_env("OP_ACCESS_TOKEN_MINUTES", 15),
+	OP_REFRESH_TOKEN_HOURS=seconds_from_env("OP_REFRESH_TOKEN_HOURS", 24),
+	OP_MAX_SESSION_HOURS=seconds_from_env("OP_MAX_SESSION_HOURS", 24),
+	SPD_ACCESS_TOKEN_MINUTES=seconds_from_env("SPD_ACCESS_TOKEN_MINUTES", 15),
+	SPD_REFRESH_TOKEN_HOURS=seconds_from_env("SPD_REFRESH_TOKEN_HOURS", 8),
 	RETURN_RESET_TOKEN=os.getenv("AUTH_RETURN_RESET_TOKEN", "true").lower() == "true",
 	COOKIE_DOMAIN=os.getenv("AUTH_COOKIE_DOMAIN") or None,
 	COOKIE_SECURE=os.getenv("AUTH_COOKIE_SECURE", "true").lower() == "true",
@@ -79,7 +89,77 @@ def token_from_request(token_type: str | None) -> str | None:
 	return request.cookies.get("access_token")
 
 
-def set_auth_cookies(response, access_token: str, refresh_token: str):
+def _primary_role_code(role_rows) -> str:
+	codes = {row["code"] if isinstance(row, dict) else row.code for row in (role_rows or [])}
+	# Prefer operator keep-alive policy when both somehow present.
+	if "station_operator" in codes:
+		return "station_operator"
+	if "spd_supervisor" in codes:
+		return "spd_supervisor"
+	if "it_admin" in codes:
+		return "it_admin"
+	return "default"
+
+
+def _token_policy(role_code: str) -> dict[str, int]:
+	"""Access/refresh/idle/max lifetimes in seconds by role."""
+	if role_code == "station_operator":
+		return {
+			"access": app.config["OP_ACCESS_TOKEN_MINUTES"] * 60,
+			"refresh": app.config["OP_REFRESH_TOKEN_HOURS"] * 3600,
+			"idle": 0,  # no idle while surgery active (enforced in refresh)
+			"max_session": app.config["OP_MAX_SESSION_HOURS"] * 3600,
+		}
+	if role_code == "spd_supervisor":
+		return {
+			"access": app.config["SPD_ACCESS_TOKEN_MINUTES"] * 60,
+			"refresh": app.config["SPD_REFRESH_TOKEN_HOURS"] * 3600,
+			"idle": app.config["SPD_IDLE_TIMEOUT_MINUTES"] * 60,
+			"max_session": app.config["SPD_MAX_SESSION_HOURS"] * 3600,
+		}
+	# Admin / default: SPD-like short access, longer refresh from REFRESH_TOKEN_HOURS
+	refresh_hours = app.config["REFRESH_TOKEN_HOURS"]
+	if app.config["REFRESH_TOKEN_DAYS"]:
+		refresh_hours = max(refresh_hours, app.config["REFRESH_TOKEN_DAYS"] * 24)
+	return {
+		"access": app.config["ACCESS_TOKEN_MINUTES"] * 60,
+		"refresh": refresh_hours * 3600,
+		"idle": app.config["SPD_IDLE_TIMEOUT_MINUTES"] * 60,
+		"max_session": app.config["SPD_MAX_SESSION_HOURS"] * 3600,
+	}
+
+
+def _operator_has_active_surgery(user_id: str) -> bool:
+	"""True while OP has a work_session still in the counting flow (not yet sent to SPD review)."""
+	try:
+		with engine.connect() as connection:
+			row = connection.execute(
+				text(
+					"""
+					SELECT 1
+					FROM work_session w
+					JOIN cat_session_status s ON s.id = w.status_id
+					WHERE w.user_id = CAST(:uid AS uuid)
+					  AND s.code = 'in_progress'
+					  AND w.ended_at IS NULL
+					LIMIT 1
+					"""
+				),
+				{"uid": user_id},
+			).first()
+		return bool(row)
+	except SQLAlchemyError:
+		return False
+
+
+def set_auth_cookies(
+	response,
+	access_token: str,
+	refresh_token: str,
+	*,
+	access_max_age: int,
+	refresh_max_age: int,
+):
 	common = {
 		"domain": app.config["COOKIE_DOMAIN"],
 		"secure": app.config["COOKIE_SECURE"],
@@ -90,13 +170,13 @@ def set_auth_cookies(response, access_token: str, refresh_token: str):
 	response.set_cookie(
 		"access_token",
 		access_token,
-		max_age=app.config["ACCESS_TOKEN_MINUTES"] * 60,
+		max_age=access_max_age,
 		**common,
 	)
 	response.set_cookie(
 		"refresh_token",
 		refresh_token,
-		max_age=app.config["REFRESH_TOKEN_DAYS"] * 86400,
+		max_age=refresh_max_age,
 		**common,
 	)
 	return response
@@ -154,18 +234,26 @@ def issue_token(
 	token_type: str,
 	lifetime: timedelta,
 	institution_id: str | None = None,
+	*,
+	role_code: str = "default",
+	auth_session_started: datetime | None = None,
+	last_activity: datetime | None = None,
 ) -> str:
 	issued_at = utc_now()
 	token_id = str(uuid.uuid4())
 	expires_at = issued_at + lifetime
+	claims = {
+		"sub": user_id,
+		"jti": token_id,
+		"type": token_type,
+		"iat": issued_at,
+		"exp": expires_at,
+		"role": role_code,
+		"sas": int((auth_session_started or issued_at).timestamp()),  # auth session started
+		"la": int((last_activity or issued_at).timestamp()),  # last activity (idle)
+	}
 	token = jwt.encode(
-		{
-			"sub": user_id,
-			"jti": token_id,
-			"type": token_type,
-			"iat": issued_at,
-			"exp": expires_at,
-		},
+		claims,
 		app.config["JWT_SECRET_KEY"],
 		algorithm=app.config["JWT_ALGORITHM"],
 	)
@@ -177,6 +265,43 @@ def issue_token(
 		expires_at=expires_at,
 	)
 	return token
+
+
+def _issue_pair_for_user(
+	user_id: str,
+	institution_id: str | None,
+	role_code: str,
+	*,
+	auth_session_started: datetime | None = None,
+	last_activity: datetime | None = None,
+	touch_activity: bool = True,
+) -> tuple[str, str, int, int]:
+	policy = _token_policy(role_code)
+	now = utc_now()
+	sas = auth_session_started or now
+	# Absolute max session wall-clock from original login.
+	if (now - sas).total_seconds() > policy["max_session"]:
+		raise PermissionError("auth_session_expired")
+	activity = now if touch_activity else (last_activity or sas)
+	access = issue_token(
+		user_id,
+		"access",
+		timedelta(seconds=policy["access"]),
+		institution_id=institution_id,
+		role_code=role_code,
+		auth_session_started=sas,
+		last_activity=activity,
+	)
+	refresh = issue_token(
+		user_id,
+		"refresh",
+		timedelta(seconds=policy["refresh"]),
+		institution_id=institution_id,
+		role_code=role_code,
+		auth_session_started=sas,
+		last_activity=activity,
+	)
+	return access, refresh, policy["access"], policy["refresh"]
 
 
 def revoke_token(jti: str) -> None:
@@ -362,18 +487,13 @@ def login():
 
 	institution_id = str(user["institution_id"])
 	ui_preferences = normalize_ui_preferences(user["ui_preferences"])
-	access = issue_token(
-		str(user["id"]),
-		"access",
-		timedelta(minutes=app.config["ACCESS_TOKEN_MINUTES"]),
-		institution_id=institution_id,
-	)
-	refresh = issue_token(
-		str(user["id"]),
-		"refresh",
-		timedelta(days=app.config["REFRESH_TOKEN_DAYS"]),
-		institution_id=institution_id,
-	)
+	role_code = _primary_role_code(role_rows)
+	try:
+		access, refresh_tok, access_age, refresh_age = _issue_pair_for_user(
+			str(user["id"]), institution_id, role_code,
+		)
+	except PermissionError:
+		return error("Session expired; sign in again.", 401)
 	response = jsonify({
 		"token_type": "Bearer",
 		"user": {
@@ -385,26 +505,94 @@ def login():
 			"roles": [dict(role) for role in role_rows],
 		},
 	})
-	return set_auth_cookies(response, access, refresh)
+	return set_auth_cookies(
+		response, access, refresh_tok,
+		access_max_age=access_age, refresh_max_age=refresh_age,
+	)
 
 
 @app.post("/refresh")
 @token_required("refresh")
 def refresh():
-	revoke_token(g.auth_claims["jti"])
-	access = issue_token(
-		g.auth_user_id,
-		"access",
-		timedelta(minutes=app.config["ACCESS_TOKEN_MINUTES"]),
-		institution_id=g.auth_institution_id,
+	claims = g.auth_claims
+	role_code = claims.get("role") or "default"
+	# Resolve current role from DB (role changes / multi-role).
+	with engine.connect() as connection:
+		role_rows = connection.execute(
+			text(
+				"""
+				SELECT r.code
+				FROM user_role ur
+				JOIN role r ON r.id = ur.role_id
+				WHERE ur.user_id = CAST(:id AS uuid)
+				ORDER BY r.code
+				"""
+			),
+			{"id": g.auth_user_id},
+		).mappings().all()
+	if role_rows:
+		role_code = _primary_role_code(role_rows)
+
+	policy = _token_policy(role_code)
+	now = utc_now()
+	sas_ts = claims.get("sas")
+	try:
+		sas = datetime.fromtimestamp(int(sas_ts), tz=timezone.utc) if sas_ts else now
+	except (TypeError, ValueError, OSError):
+		sas = now
+
+	def _deny_refresh(message: str):
+		revoke_token(claims["jti"])
+		body, status = error(message, 401)
+		return clear_auth_cookies(body), status
+
+	# Absolute max auth session.
+	if (now - sas).total_seconds() > policy["max_session"]:
+		return _deny_refresh("Maximum session duration exceeded; sign in again.")
+
+	# SPD / admin idle timeout. OP skips idle while surgery still in_progress
+	# (until the session is submitted for SPD review).
+	surgery_active = role_code == "station_operator" and _operator_has_active_surgery(g.auth_user_id)
+	if policy["idle"] and not surgery_active:
+		la_ts = claims.get("la")
+		try:
+			last_activity = datetime.fromtimestamp(int(la_ts), tz=timezone.utc) if la_ts else sas
+		except (TypeError, ValueError, OSError):
+			last_activity = sas
+		if (now - last_activity).total_seconds() > policy["idle"]:
+			return _deny_refresh("Signed out due to inactivity.")
+
+	# Heartbeat may pass touch=0 so SPD idle is not reset by a silent timer.
+	touch_raw = request.args.get("touch", request.headers.get("X-Auth-Touch", "1"))
+	touch_activity = str(touch_raw).strip().lower() not in {"0", "false", "no"}
+
+	# Preserve prior last-activity when this is a silent renew.
+	la_ts = claims.get("la")
+	try:
+		prior_activity = datetime.fromtimestamp(int(la_ts), tz=timezone.utc) if la_ts else sas
+	except (TypeError, ValueError, OSError):
+		prior_activity = sas
+
+	revoke_token(claims["jti"])
+	try:
+		access, new_refresh, access_age, refresh_age = _issue_pair_for_user(
+			g.auth_user_id,
+			g.auth_institution_id,
+			role_code,
+			auth_session_started=sas,
+			last_activity=prior_activity,
+			touch_activity=touch_activity,
+		)
+	except PermissionError:
+		return _deny_refresh("Maximum session duration exceeded; sign in again.")
+
+	return set_auth_cookies(
+		jsonify({"token_type": "Bearer"}),
+		access,
+		new_refresh,
+		access_max_age=access_age,
+		refresh_max_age=refresh_age,
 	)
-	new_refresh = issue_token(
-		g.auth_user_id,
-		"refresh",
-		timedelta(days=app.config["REFRESH_TOKEN_DAYS"]),
-		institution_id=g.auth_institution_id,
-	)
-	return set_auth_cookies(jsonify({"token_type": "Bearer"}), access, new_refresh)
 
 
 @app.post("/logout")

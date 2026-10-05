@@ -4,7 +4,7 @@
 {% block title %}{{ _("Report submitted") }} · {{ session.session_id }}{% endblock %}
 
 {% block sidebar %}
-{% set active_nav_item = 'counting_sessions' %}
+{% set active_nav_item = 'session_history' if session.status_code in ['closed', 'aborted', 'awaiting_spd_review', 'correction_required'] else 'counting_sessions' %}
 {% include "partials/sidebar_operator.html" %}
 {% endblock %}
 
@@ -14,7 +14,7 @@
         <h1 class="page-heading__title">{{ _("Session report submitted") }}</h1>
         <p class="page-heading__subtitle">{{ session.session_id }}</p>
     </div>
-    <a class="btn btn--primary" href="{{ url_for('web.operator_sessions') }}">{{ _("Back to sessions") }}</a>
+    <a class="btn btn--primary" href="{{ url_for('web.operator_session_details', session_id=session.id) }}">{{ _("View session details") }}</a>
 </div>
 
 <section class="card">
@@ -22,5 +22,8 @@
     <p>{{ _("Result status code:") }} <code>{{ result_status }}</code></p>
     <p>{{ _("Open discrepancies:") }} {{ session.discrepancy_count }}</p>
     <p class="text-muted">{{ _("No camera or AI evidence was captured for this session. SPD will complete administrative close.") }}</p>
+    <div class="page-heading__actions" style="margin-top:1rem;">
+        <a class="btn btn--secondary" href="{{ url_for('web.operator_session_details', session_id=session.id) }}">{{ _("Go to session details") }}</a>
+    </div>
 </section>
 {% endblock %}
