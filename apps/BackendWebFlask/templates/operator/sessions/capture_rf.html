@@ -12,6 +12,63 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operator-v3.css') }}">
 <style>
+/* Kit-purpose colors: saturated = type, soft = family (aligned with VisionWorker overlay). */
+:root {
+  --kit-cutting: #e11d48;
+  --kit-cutting-soft: #f43f5e;
+  --kit-dissection: #ea580c;
+  --kit-dissection-soft: #fb923c;
+  --kit-grasping: #0f766e;
+  --kit-grasping-soft: #14b8a6;
+  --kit-hemostasis: #7c3aed;
+  --kit-hemostasis-soft: #a78bfa;
+  --kit-retraction: #d97706;
+  --kit-retraction-soft: #fbbf24;
+  --kit-suturing: #2563eb;
+  --kit-suturing-soft: #60a5fa;
+  --kit-suction: #0891b2;
+  --kit-suction-soft: #22d3ee;
+  --kit-other: #64748b;
+  --kit-other-soft: #94a3b8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --kit-cutting: #fb7185;
+    --kit-cutting-soft: #fda4af;
+    --kit-dissection: #fb923c;
+    --kit-dissection-soft: #fdba74;
+    --kit-grasping: #2dd4bf;
+    --kit-grasping-soft: #5eead4;
+    --kit-hemostasis: #c4b5fd;
+    --kit-hemostasis-soft: #ddd6fe;
+    --kit-retraction: #fbbf24;
+    --kit-retraction-soft: #fcd34d;
+    --kit-suturing: #93c5fd;
+    --kit-suturing-soft: #bfdbfe;
+    --kit-suction: #67e8f9;
+    --kit-suction-soft: #a5f3fc;
+    --kit-other: #94a3b8;
+    --kit-other-soft: #cbd5e1;
+  }
+}
+:root[data-theme="dark"] {
+  --kit-cutting: #fb7185;
+  --kit-cutting-soft: #fda4af;
+  --kit-dissection: #fb923c;
+  --kit-dissection-soft: #fdba74;
+  --kit-grasping: #2dd4bf;
+  --kit-grasping-soft: #5eead4;
+  --kit-hemostasis: #c4b5fd;
+  --kit-hemostasis-soft: #ddd6fe;
+  --kit-retraction: #fbbf24;
+  --kit-retraction-soft: #fcd34d;
+  --kit-suturing: #93c5fd;
+  --kit-suturing-soft: #bfdbfe;
+  --kit-suction: #67e8f9;
+  --kit-suction-soft: #a5f3fc;
+  --kit-other: #94a3b8;
+  --kit-other-soft: #cbd5e1;
+}
 .capture-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1.25rem; }
 @media (max-width: 960px) { .capture-layout { grid-template-columns: 1fr; } }
 .capture-stage {
@@ -21,8 +78,45 @@
 }
 .capture-stage img { width: 100%; max-height: 420px; object-fit: contain; background: #000; display: block; }
 .capture-stage__placeholder { padding: 2rem 1rem; text-align: center; color: #94a3b8; }
-.capture-meta { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .75rem; font-size: .9rem; color: #64748b; }
+.capture-meta { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .75rem; font-size: .9rem; color: var(--color-text-secondary); }
 .capture-upload { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-top: 1rem; }
+.capture-cat-header td {
+  font-weight: 600; font-size: .85rem; color: var(--color-text-primary);
+  padding-top: .65rem; padding-bottom: .65rem;
+  border-left: 4px solid var(--kit-swatch, var(--kit-other));
+  background: color-mix(in srgb, var(--kit-swatch, var(--kit-other)) 16%, var(--color-surface));
+}
+.capture-cat-header[data-category-code="cutting"] { --kit-swatch: var(--kit-cutting); }
+.capture-cat-header[data-category-code="dissection"] { --kit-swatch: var(--kit-dissection); }
+.capture-cat-header[data-category-code="grasping"] { --kit-swatch: var(--kit-grasping); }
+.capture-cat-header[data-category-code="hemostasis"] { --kit-swatch: var(--kit-hemostasis); }
+.capture-cat-header[data-category-code="retraction"] { --kit-swatch: var(--kit-retraction); }
+.capture-cat-header[data-category-code="suturing"] { --kit-swatch: var(--kit-suturing); }
+.capture-cat-header[data-category-code="suction"] { --kit-swatch: var(--kit-suction); }
+.capture-family-row td:first-child {
+  border-left: 3px solid var(--kit-swatch-soft, transparent);
+  padding-left: .65rem;
+}
+.capture-family-row[data-category-code="cutting"] { --kit-swatch-soft: var(--kit-cutting-soft); }
+.capture-family-row[data-category-code="dissection"] { --kit-swatch-soft: var(--kit-dissection-soft); }
+.capture-family-row[data-category-code="grasping"] { --kit-swatch-soft: var(--kit-grasping-soft); }
+.capture-family-row[data-category-code="hemostasis"] { --kit-swatch-soft: var(--kit-hemostasis-soft); }
+.capture-family-row[data-category-code="retraction"] { --kit-swatch-soft: var(--kit-retraction-soft); }
+.capture-family-row[data-category-code="suturing"] { --kit-swatch-soft: var(--kit-suturing-soft); }
+.capture-family-row[data-category-code="suction"] { --kit-swatch-soft: var(--kit-suction-soft); }
+.capture-cat-meta { font-weight: 500; color: var(--color-text-secondary); font-size: .8rem; margin-left: .5rem; }
+.capture-pending { color: var(--color-warning); font-size: .78rem; }
+.capture-legend {
+  display: flex; flex-wrap: wrap; gap: .5rem .85rem; margin: .75rem 0 0;
+  font-size: .78rem; color: var(--color-text-secondary);
+}
+.capture-legend__item { display: inline-flex; align-items: center; gap: .35rem; }
+.capture-legend__swatch {
+  width: .7rem; height: .7rem; border-radius: 2px;
+  background: var(--kit-swatch, var(--kit-other));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+}
+.capture-legend__swatch--soft { background: var(--kit-swatch-soft, var(--kit-other-soft)); opacity: .95; }
 </style>
 {% endblock %}
 
@@ -52,10 +146,17 @@
 <div class="capture-layout">
     <section class="card">
         <h2 class="card__title">{{ _("Overhead capture") }}</h2>
-        <p class="card__subtitle">{{ _("Upload a tray video. Frames are sent to YOLO; boxes update here. Low-confidence labels show instrument type instead of family.") }}</p>
+        <p class="card__subtitle">{{ _("Upload a tray video. Pipeline matrix_v1 assigns detections to expected kit quotas. Overlay colors follow instrument type: saturated = type-level label, softer = named family.") }}</p>
         <div class="capture-stage" id="capture-stage">
             <div class="capture-stage__placeholder" id="capture-placeholder">{{ _("Waiting for video…") }}</div>
             <img id="capture-frame" alt="{{ _('Annotated frame') }}" hidden>
+        </div>
+        <div class="capture-legend" aria-label="{{ _('Type color legend') }}">
+            <span class="capture-legend__item" style="--kit-swatch: var(--kit-cutting); --kit-swatch-soft: var(--kit-cutting-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Cutting") }}</span>
+            <span class="capture-legend__item" style="--kit-swatch: var(--kit-grasping); --kit-swatch-soft: var(--kit-grasping-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Grasping") }}</span>
+            <span class="capture-legend__item" style="--kit-swatch: var(--kit-hemostasis); --kit-swatch-soft: var(--kit-hemostasis-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Hemostasis") }}</span>
+            <span class="capture-legend__item" style="--kit-swatch: var(--kit-retraction); --kit-swatch-soft: var(--kit-retraction-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Retraction") }}</span>
+            <span class="capture-legend__item" style="--kit-swatch: var(--kit-suturing); --kit-swatch-soft: var(--kit-suturing-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Suturing") }}</span>
         </div>
         <div class="capture-meta">
             <span id="capture-status">{{ _("Status") }}: idle</span>
@@ -78,6 +179,7 @@
 
     <section class="card">
         <h2 class="card__title">{{ _("Expected vs detected") }}</h2>
+        <p class="text-muted" style="margin-top:0;">{{ _("Grouped by instrument type (kit purpose). Unnamed = type-level boxes capped by remaining expected slots in that type.") }}</p>
         <div class="table-wrapper">
             <table class="data-table" id="capture-counts-table">
                 <thead>
@@ -86,20 +188,37 @@
                         <th class="data-table__numeric-column">{{ _("Expected") }}</th>
                         <th class="data-table__numeric-column">{{ _("Detected") }}</th>
                         <th class="data-table__numeric-column">{{ _("Diff") }}</th>
-                        <th>{{ _("Conf") }}</th>
+                        <th>{{ _("Best") }}</th>
+                        <th>{{ _("Weak") }}</th>
+                        <th>{{ _("Avg") }}</th>
                     </tr>
                 </thead>
                 <tbody>
+                    {% set ns = namespace(prev_cat=None) %}
                     {% for item in session.expected_items|default([]) %}
-                    <tr data-family-code="{{ item.family_code }}">
+                        {% set cat = item.category_label|default('Other') %}
+                        {% set cat_code = (item.category_code|default('other'))|lower %}
+                        {% if cat != ns.prev_cat %}
+                        <tr class="capture-cat-header" data-category-name="{{ cat }}" data-category-code="{{ cat_code }}">
+                            <td colspan="7">
+                                {{ cat }}
+                                <span class="capture-cat-meta" data-cat-meta></span>
+                                <div class="capture-pending" data-cat-pending></div>
+                            </td>
+                        </tr>
+                        {% set ns.prev_cat = cat %}
+                        {% endif %}
+                    <tr class="capture-family-row" data-family-code="{{ item.family_code }}" data-category-name="{{ cat }}" data-category-code="{{ cat_code }}">
                         <td>{{ item.family_name }}</td>
                         <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
                         <td class="data-table__numeric-column" data-detected>—</td>
                         <td class="data-table__numeric-column" data-diff>—</td>
+                        <td data-best>—</td>
+                        <td data-weak>—</td>
                         <td data-conf>—</td>
                     </tr>
                     {% else %}
-                    <tr><td colspan="5">{{ _("No expected inventory rows.") }}</td></tr>
+                    <tr><td colspan="7">{{ _("No expected inventory rows.") }}</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
@@ -139,6 +258,41 @@
     var phaseMsg = document.getElementById("capture-phase-msg");
     var timer = null;
 
+    function fmt(n) {
+        return n == null ? "—" : Number(n).toFixed(2);
+    }
+
+    function applyCategorySummary(summary) {
+        summary = summary || {};
+        table.querySelectorAll("tr.capture-cat-header").forEach(function (row) {
+            var cat = row.getAttribute("data-category-name");
+            var meta = summary[cat];
+            var metaEl = row.querySelector("[data-cat-meta]");
+            var pendEl = row.querySelector("[data-cat-pending]");
+            if (!metaEl) return;
+            if (!meta) {
+                metaEl.textContent = "";
+                if (pendEl) pendEl.textContent = "";
+                return;
+            }
+            metaEl.textContent =
+                "Expected " + meta.expected +
+                " · Named " + meta.named +
+                " · Unnamed " + meta.unnamed +
+                " · Detected " + meta.detected;
+            if (pendEl) {
+                var pending = meta.pending || [];
+                if (!pending.length) {
+                    pendEl.textContent = "";
+                } else {
+                    pendEl.textContent = "Pending: " + pending.map(function (p) {
+                        return p.family_name + " (−" + p.missing + ")";
+                    }).join(", ");
+                }
+            }
+        });
+    }
+
     function applyState(session) {
         if (!session) return;
         statusEl.textContent = "Status: " + (session.status || "—") + (session.message ? " · " + session.message : "");
@@ -146,7 +300,9 @@
             progressEl.textContent = "Progress: " + Math.round(session.progress * 100) + "%";
         }
         if (session.model_version) {
-            modelEl.textContent = "Model: " + session.model_version;
+            modelEl.textContent = "Model: " + session.model_version
+                + (session.pipeline ? " · " + session.pipeline : "")
+                + (session.assign_solver ? " / " + session.assign_solver : "");
         }
         if (session.frame_jpeg_b64) {
             img.src = "data:image/jpeg;base64," + session.frame_jpeg_b64;
@@ -159,12 +315,17 @@
             var meta = counts[code];
             var det = row.querySelector("[data-detected]");
             var diff = row.querySelector("[data-diff]");
+            var best = row.querySelector("[data-best]");
+            var weak = row.querySelector("[data-weak]");
             var conf = row.querySelector("[data-conf]");
             if (!meta) return;
-            det.textContent = meta.detected_quantity;
+            det.textContent = String(meta.detected_quantity);
             diff.textContent = meta.difference;
-            conf.textContent = meta.avg_confidence == null ? "—" : Number(meta.avg_confidence).toFixed(2);
+            best.textContent = fmt(meta.best_confidence);
+            weak.textContent = fmt(meta.weakest_confidence);
+            conf.textContent = fmt(meta.avg_confidence);
         });
+        applyCategorySummary(session.category_summary);
     }
 
     function poll() {

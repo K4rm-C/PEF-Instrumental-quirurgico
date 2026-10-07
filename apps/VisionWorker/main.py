@@ -8,8 +8,29 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request
 
-from config import CONF_DISPLAY_THRESHOLD, HOST, PORT, UPLOAD_DIR, WEIGHTS_PATH
-from inference import SessionState, get_model, process_video_file
+from config import (
+    ASSIGN_SOLVER,
+    BOX_RECALL_CONF,
+    CONF_DISPLAY_REASSIGN,
+    CONF_DISPLAY_THRESHOLD,
+    COUNT_SAMPLE_EVERY,
+    FRAME_STRIDE,
+    HOLD_ABSENT_SECONDS,
+    HOLD_ABSENT_STREAK,
+    HOLD_MIN_SCORE,
+    HOLD_SECONDS,
+    HOLD_SEED_FRAMES,
+    HOLD_ZONE_IOU,
+    HOST,
+    NAME_HOLD_SECONDS,
+    PORT,
+    REASSIGN_MAX_GAP,
+    REASSIGN_MIN_SCORE,
+    UPLOAD_DIR,
+    WEIGHTS_PATH,
+    WORKER_PIPELINE,
+)
+from inference import SessionState, get_model, process_video_file, read_timeline_samples
 
 app = Flask(__name__)
 
@@ -31,7 +52,22 @@ def health():
         "weights_path": str(WEIGHTS_PATH),
         "weights_present": weights_ok,
         "bound_sessions": len(_sessions),
+        "pipeline": WORKER_PIPELINE,
+        "assign_solver": ASSIGN_SOLVER,
+        "box_recall_conf": BOX_RECALL_CONF,
         "conf_display_threshold": CONF_DISPLAY_THRESHOLD,
+        "conf_display_reassign": CONF_DISPLAY_REASSIGN,
+        "reassign_min_score": REASSIGN_MIN_SCORE,
+        "reassign_max_gap": REASSIGN_MAX_GAP,
+        "frame_stride": FRAME_STRIDE,
+        "hold_seconds": HOLD_SECONDS,
+        "name_hold_seconds": NAME_HOLD_SECONDS,
+        "hold_min_score": HOLD_MIN_SCORE,
+        "hold_absent_seconds": HOLD_ABSENT_SECONDS,
+        "hold_absent_streak": HOLD_ABSENT_STREAK,
+        "hold_seed_frames": HOLD_SEED_FRAMES,
+        "hold_zone_iou": HOLD_ZONE_IOU,
+        "count_sample_every": COUNT_SAMPLE_EVERY,
     })
 
 
@@ -95,6 +131,24 @@ def session_state(session_id: str):
     if state is None:
         return jsonify({"ok": False, "error": "Session not bound"}), 404
     return jsonify({"ok": True, "session": state.to_public()})
+
+
+@app.get("/sessions/<session_id>/timeline")
+def session_timeline(session_id: str):
+    """Sampled tallies along the last (or requested) video run — NDJSON-backed."""
+    state = _get_state(session_id)
+    run_id = request.args.get("run_id") or (state.run_id if state else None)
+    samples = read_timeline_samples(session_id, run_id=run_id)
+    return jsonify({
+        "ok": True,
+        "session_id": session_id,
+        "run_id": run_id,
+        "count_sample_every": (
+            state.count_sample_every if state else COUNT_SAMPLE_EVERY
+        ),
+        "samples": samples,
+        "sample_count": len(samples),
+    })
 
 
 @app.post("/sessions/<session_id>/process-video")

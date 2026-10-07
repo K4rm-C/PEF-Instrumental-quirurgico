@@ -919,8 +919,11 @@ def operator_session_capture(session_id):
 @web_bp.route('/operator/sessions/<session_id>/capture/state')
 @require_role('station_operator')
 def operator_session_capture_state(session_id):
-    from services.rf_session import persist_auto_counts_from_worker
-    from services.vision_bridge import VisionBridgeError, fetch_state
+    from services.rf_session import (
+        persist_board_auto_count,
+        persist_vision_timeline_windows,
+    )
+    from services.vision_bridge import VisionBridgeError, fetch_state, fetch_timeline
 
     user = _current_user()
     detail = operator_session_detail(session_id, user['id'])
@@ -933,16 +936,66 @@ def operator_session_capture_state(session_id):
     except VisionBridgeError as exc:
         return jsonify({'ok': False, 'error': exc.message}), exc.status_code
     session_state = data.get('session') or {}
-    # Persist count_event rows when a processing run completes (once per ready flash).
-    if session_state.get('status') == 'ready' and session_state.get('counts'):
+    status = session_state.get('status')
+    run_id = session_state.get('run_id')
+    frames_processed = session_state.get('frames_processed')
+    sample_every = max(1, int(session_state.get('count_sample_every') or 10))
+    sample_meta_base = {
+        'run_id': run_id,
+        'frame_index': session_state.get('frame_index'),
+        'frames_processed': frames_processed,
+        'pipeline': session_state.get('pipeline'),
+        'assign_solver': session_state.get('assign_solver'),
+        'model_version': session_state.get('model_version'),
+        'assignment_metrics': session_state.get('assignment_metrics') or {},
+        'count_sample_every': sample_every,
+        'conf_threshold': session_state.get('conf_threshold'),
+    }
+
+    # Live window: one board event if UI polls on a sample boundary (idempotent once_key).
+    if (
+        status == 'processing'
+        and session_state.get('counts')
+        and run_id
+        and frames_processed
+        and int(frames_processed) % sample_every == 0
+    ):
         try:
-            persist_auto_counts_from_worker(
+            persist_board_auto_count(
+                session_id=UUID(session_id),
+                operator_user_id=UUID(user['id']),
+                counts=session_state.get('counts') or {},
+                model_version=session_state.get('model_version'),
+                reason='video_window',
+                once_key=f"{session_id}:video_window:{run_id}:{frames_processed}",
+                include_boxes=False,
+                sample_meta=sample_meta_base,
+            )
+        except Exception:
+            pass
+
+    # On ready: backfill board windows from worker NDJSON, then final video_ready (with boxes).
+    if status == 'ready' and session_state.get('counts'):
+        try:
+            timeline = fetch_timeline(UUID(session_id), run_id=run_id)
+            persist_vision_timeline_windows(
+                session_id=UUID(session_id),
+                operator_user_id=UUID(user['id']),
+                samples=timeline.get('samples') or [],
+                model_version=session_state.get('model_version'),
+            )
+        except Exception:
+            pass
+        try:
+            persist_board_auto_count(
                 session_id=UUID(session_id),
                 operator_user_id=UUID(user['id']),
                 counts=session_state.get('counts') or {},
                 model_version=session_state.get('model_version'),
                 reason='video_ready',
-                once_key=f"{session_id}:video_ready:{session_state.get('frames_processed')}",
+                once_key=f"{session_id}:video_ready:{run_id}:{frames_processed}",
+                include_boxes=True,
+                sample_meta=sample_meta_base,
             )
         except Exception:
             pass
@@ -1060,6 +1113,9 @@ def operator_session_detection_summary(session_id):
             'ai_detected_quantity': detected,
             'difference': diff,
             'avg_confidence': meta.get('avg_confidence'),
+            'best_confidence': meta.get('best_confidence'),
+            'weakest_confidence': meta.get('weakest_confidence'),
+            'raw_detected_quantity': meta.get('raw_detected_quantity'),
             'result_label': result_label,
             'result_variant': result_variant,
         })

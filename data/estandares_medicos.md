@@ -22,7 +22,11 @@
 
 ---
 
+
+
 ## 2. HL7 FHIR
+
+
 
 ### 2.1 Versiones y cambios relevantes entre R4 → R5 → (R6)
 
@@ -95,7 +99,11 @@
 
 ---
 
+
+
 ## 3. DICOM
+
+
 
 ### 3.1 Qué es y edición vigente
 
@@ -117,6 +125,8 @@ DICOM (NEMA PS3 / ISO 12052) es el estándar de **comunicación y gestión de in
 | **PS3.15** Security                      | Perfiles de seguridad, auditoría, **Attribute Confidentiality / de-identification** (Annex E) | [https://dicom.nema.org/medical/dicom/current/output/html/part15.html](https://dicom.nema.org/medical/dicom/current/output/html/part15.html) |
 | **PS3.18** Web Services (DICOMweb)       | WADO-RS / STOW-RS / QIDO-RS: APIs HTTP modernas vs C-STORE clásico                            | [https://dicom.nema.org/medical/dicom/current/output/html/part18.html](https://dicom.nema.org/medical/dicom/current/output/html/part18.html) |
 | **PS3.21** Transformations               | Transformaciones DICOM ↔ otras representaciones (puente con FHIR/HL7)                         | [https://dicom.nema.org/medical/dicom/current/output/html/part21.html](https://dicom.nema.org/medical/dicom/current/output/html/part21.html) |
+
+
 
 
 ### 3.3 De-identificación (crítico si hay pixels + PHI)
@@ -163,6 +173,8 @@ Sección: [PS3.15 § Attribute Confidentiality Profiles / Annex E](https://dicom
 
 ---
 
+
+
 ## 4. GDPR (Reglamento UE 2016/679)
 
 Texto consolidado oficial: [https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679)  
@@ -184,6 +196,8 @@ Texto consolidado oficial: [https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=
 | **Art. 33–34**        | Notificación de brechas                                                                                                                                                                                   | [Art. 33](https://www.legislation.gov.uk/eur/2016/679/article/33)                                                                                                                      |
 | **Art. 35**           | DPIA cuando el tratamiento es de alto riesgo (salud + visión/IA suele calificar)                                                                                                                          | [Art. 35](https://www.legislation.gov.uk/eur/2016/679/article/35)                                                                                                                      |
 | **Art. 44–49**        | Transferencias internacionales                                                                                                                                                                            | Capítulo V del Reglamento                                                                                                                                                              |
+
+
 
 
 ### 4.2 Traducción a decisiones de BD
@@ -222,7 +236,11 @@ PEF opera primero bajo marco mexicano; GDPR se usó como **checklist de diseño*
 
 ---
 
+
+
 ## 5. LFPDPPP (México)
+
+
 
 ### 5.1 Texto vigente
 
@@ -254,6 +272,8 @@ Referencias al articulado del PDF consolidado (numeración vigente 2025):
 | Persona/departamento de datos personales                                                                          | Art. 29            | Contacto operativo; no necesariamente DPO al estilo GDPR                                                     |
 
 
+
+
 ### 5.3 Impacto hoy vs futuro (LFPDPPP → BD)
 
 
@@ -263,6 +283,8 @@ Referencias al articulado del PDF consolidado (numeración vigente 2025):
 | **Hoy**    | Capacidad de **localizar** datos del titular en PG + object store + telemetría                                                  | Derechos ARCO / cancelación                       |
 | **Futuro** | Registro de consentimientos, bloqueo previo a cancelación, bitácora de vulneraciones, DPIA-like interno                         | Madurez hospitalaria / auditoría de la Secretaría |
 | **Futuro** | Alineación con NOM de expediente clínico electrónico y políticas institucionales (sector salud)                                 | Si el producto se embebe en flujo clínico formal  |
+
+
 
 
 ### 5.4 REDACTADO · LFPDPPP en la BD PEF
@@ -291,6 +313,8 @@ Referencias al articulado del PDF consolidado (numeración vigente 2025):
 
 ---
 
+
+
 ## 6. Cruce de estándares · matriz para diseño de BD
 
 
@@ -313,6 +337,8 @@ Leyenda: ● impacto fuerte · ○ impacto secundario o solo si se amplía el al
 
 ---
 
+
+
 ## 7. Estado tras REDACTADO
 
 1. **FHIR R4** anclado: Identifier, recursos mínimos proyectables, Attachment vía `media_asset`; export en DS08.
@@ -325,7 +351,11 @@ Leyenda: ● impacto fuerte · ○ impacto secundario o solo si se amplía el al
 
 ---
 
+
+
 ## 8. Referencias rápidas
+
+
 
 ### FHIR
 
@@ -339,6 +369,8 @@ Leyenda: ● impacto fuerte · ○ impacto secundario o solo si se amplía el al
 - History / breaking changes R5: [https://hl7.org/fhir/history.html](https://hl7.org/fhir/history.html)
 - State of FHIR 2025: [https://www.hl7.org/documentcenter/public/white-papers/2025%20State%20of%20FHIR%20Survey%20Report.pdf](https://www.hl7.org/documentcenter/public/white-papers/2025%20State%20of%20FHIR%20Survey%20Report.pdf)
 
+
+
 ### DICOM
 
 - Current edition index: [https://www.dicomstandard.org/current](https://www.dicomstandard.org/current)
@@ -347,12 +379,16 @@ Leyenda: ● impacto fuerte · ○ impacto secundario o solo si se amplía el al
 - PS3.15 (security / de-id): [https://dicom.nema.org/medical/dicom/current/output/html/part15.html](https://dicom.nema.org/medical/dicom/current/output/html/part15.html)
 - PS3.18 (DICOMweb): [https://dicom.nema.org/medical/dicom/current/output/html/part18.html](https://dicom.nema.org/medical/dicom/current/output/html/part18.html)
 
+
+
 ### GDPR
 
 - EUR-Lex 2016/679: [https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32016R0679)
 - Art. 9 (categorías especiales): [https://www.legislation.gov.uk/eur/2016/679/article/9](https://www.legislation.gov.uk/eur/2016/679/article/9)
 - Art. 17 (supresión): [https://www.legislation.gov.uk/eur/2016/679/article/17](https://www.legislation.gov.uk/eur/2016/679/article/17)
 - Art. 32 (seguridad): [https://www.legislation.gov.uk/eur/2016/679/article/32](https://www.legislation.gov.uk/eur/2016/679/article/32)
+
+
 
 ### LFPDPPP
 

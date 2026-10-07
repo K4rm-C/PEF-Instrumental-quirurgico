@@ -39,6 +39,7 @@
     </div>
     <p class="text-muted" style="margin-top:.75rem;">
         {{ _("Model") }}: {{ snapshot.model_version|default('—') }}
+        · {{ _("Pipeline") }}: {{ snapshot.pipeline|default('matrix_v1') }}
         · {{ _("Confidence threshold") }}: {{ snapshot.conf_threshold|default('—') }}
         · {{ _("Finished") }}: {{ snapshot.finished_at|default('—') }}
     </p>
@@ -53,8 +54,11 @@
                     <th>{{ _("Instrument") }}</th>
                     <th class="data-table__numeric-column">{{ _("Expected") }}</th>
                     <th class="data-table__numeric-column">{{ _("AI detected") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Raw") }}</th>
                     <th class="data-table__numeric-column">{{ _("Diff") }}</th>
-                    <th>{{ _("Avg conf") }}</th>
+                    <th>{{ _("Best") }}</th>
+                    <th>{{ _("Weak") }}</th>
+                    <th>{{ _("Avg") }}</th>
                     <th>{{ _("Result") }}</th>
                 </tr>
             </thead>
@@ -64,7 +68,10 @@
                     <td>{{ row.family_name }}</td>
                     <td class="data-table__numeric-column">{{ row.expected_quantity }}</td>
                     <td class="data-table__numeric-column">{{ row.ai_detected_quantity }}</td>
+                    <td class="data-table__numeric-column">{% if row.raw_detected_quantity is not none %}{{ row.raw_detected_quantity }}{% else %}—{% endif %}</td>
                     <td class="data-table__numeric-column">{{ row.difference }}</td>
+                    <td>{% if row.best_confidence is not none %}{{ '%.2f'|format(row.best_confidence) }}{% else %}—{% endif %}</td>
+                    <td>{% if row.weakest_confidence is not none %}{{ '%.2f'|format(row.weakest_confidence) }}{% else %}—{% endif %}</td>
                     <td>{% if row.avg_confidence is not none %}{{ '%.2f'|format(row.avg_confidence) }}{% else %}—{% endif %}</td>
                     <td>{{ macros.status_badge(row.result_label, row.result_variant) }}</td>
                 </tr>

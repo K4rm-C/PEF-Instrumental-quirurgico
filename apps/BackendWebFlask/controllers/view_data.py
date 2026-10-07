@@ -1084,11 +1084,26 @@ def _session_detail_payload(item, *, for_role, users):
     ).all()
     for event, event_type in events:
         payload = event.payload if isinstance(event.payload, dict) else {}
-        if event.family_id and event_type.code in {'manual_count', 'auto_count'}:
+        if event_type.code not in {'manual_count', 'auto_count'}:
+            continue
+        # Per-family facts (manual close / legacy auto_count rows).
+        if event.family_id:
             reported = payload.get('reported_quantity')
             if reported is None:
                 reported = event.detected_quantity
             reported_by_family[str(event.family_id)] = reported
+            continue
+        # Board-scoped vision snapshot: last wins per family from payload.board.families.
+        if payload.get('scope') == 'board':
+            for fam in (payload.get('board') or {}).get('families') or []:
+                fid = fam.get('family_id')
+                if not fid:
+                    continue
+                # Prefer human-reported if present; else exposed refined tally.
+                reported = fam.get('reported_quantity')
+                if reported is None:
+                    reported = fam.get('detected_quantity')
+                reported_by_family[str(fid)] = reported
     row['expected_items'] = []
     for inv, family in expected:
         reported = reported_by_family.get(str(inv.family_id))
@@ -1143,18 +1158,41 @@ def _session_detail_payload(item, *, for_role, users):
         })
         bucket['lines'].append(entry)
     row['expected_groups'] = sorted(inventory_groups.values(), key=lambda g: (g['rank'], g['label']))
-    row['timeline'] = [
-        {
+    family_name_by_id = {
+        str(family.id): family.name for _inv, family in expected
+    }
+    row['timeline'] = []
+    for event, event_type in events:
+        payload = event.payload if isinstance(event.payload, dict) else {}
+        board = payload.get('board') if isinstance(payload.get('board'), dict) else {}
+        totals = board.get('totals') if isinstance(board.get('totals'), dict) else {}
+        reason = payload.get('reason')
+        scope = payload.get('scope')
+        label_bits = [event_type.name]
+        if reason:
+            label_bits.append(str(reason))
+        if scope == 'board':
+            label_bits.append('board')
+        fid = str(event.family_id) if event.family_id else None
+        row['timeline'].append({
             'occurred_at': _fmt_dt(event.occurred_at),
             'event_code': event_type.code,
             'event_name': event_type.name,
-            'family_id': str(event.family_id) if event.family_id else None,
+            'event_label': ' · '.join(label_bits),
+            'family_id': fid,
+            'family_name': family_name_by_id.get(fid) if fid else None,
+            'scope': scope,
+            'reason': reason,
             'expected_quantity': event.expected_quantity,
             'detected_quantity': event.detected_quantity,
-            'payload': event.payload if isinstance(event.payload, dict) else {},
-        }
-        for event, event_type in events
-    ]
+            'board_family_count': totals.get('family_count'),
+            'frames_processed': payload.get('frames_processed'),
+            'video_t': payload.get('video_t'),
+            'pipeline': payload.get('pipeline'),
+            'solver': (payload.get('pipeline_config') or {}).get('solver') or payload.get('solver'),
+            'model_version': payload.get('model_version'),
+            'payload': payload,
+        })
     open_discs = db.session.execute(
         select(Discrepancy, InstrumentFamily)
         .outerjoin(InstrumentFamily, InstrumentFamily.id == Discrepancy.family_id)

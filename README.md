@@ -14,7 +14,9 @@ Stack actual: **Flask** (portal operador/SPD/admin), **Auth Service** (Flask/JWT
 | Angel Uriel Muñoz Moreno   | 604386    |
 
 
-Equipo de apoyo: Luis Carlos Rodriguez Medrano, Carlos Ignacio Huerta Carrizales, Juan Hermilo Reyes Perez. Asesor: Dr. Raul Morales Salcedo.
+Equipo de apoyo: Luis Carlos Rodriguez Medrano, Carlos Ignacio Huerta Carrizales, Juan Hermilo Reyes Perez. 
+
+Asesor: Dr. Raul Morales Salcedo.
 
 ## Prerrequisitos
 
@@ -45,7 +47,7 @@ copy .env apps\BackendAuthService\.env
 copy .env apps\BackendWebFlask\.env
 ```
 
-Nota: No hace falta repetir `copy` en cada terminal nueva. Auth y Web leen el `.env` **de su carpeta** al arrancar; una terminal nueva solo necesita `cd` + activar venv + `python ...`.  
+Nota: No hace falta repetir `copy` en cada terminal nueva. Auth y Web leen el `.env` **de su carpeta** al arrancar una terminal nueva solo necesita `cd` + activar venv + `python ...`.  
 Volver a hacer `copy` sobrescribe esos `.env` con el de la raiz (util si editaste la raiz; malo si solo habias tocado el de un app).
 
 ### 2) Contenedores
@@ -130,15 +132,15 @@ Opcional Windows: `.\start-services.ps1` (compose + abre Auth, Web y VisionWorke
 ### 4) URLs y puertos
 
 
-| Servicio      | Donde                                          |
-| ------------- | ---------------------------------------------- |
-| Portal web    | [http://127.0.0.1:5000](http://127.0.0.1:5000) |
-| Auth          | [http://127.0.0.1:5001](http://127.0.0.1:5001) |
+| Servicio      | Donde                                                        |
+| ------------- | ------------------------------------------------------------ |
+| Portal web    | [http://127.0.0.1:5000](http://127.0.0.1:5000)               |
+| Auth          | [http://127.0.0.1:5001](http://127.0.0.1:5001)               |
 | VisionWorker  | [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) |
-| Garage S3 API | [http://127.0.0.1:3900](http://127.0.0.1:3900) |
-| PostgreSQL    | `localhost:5433` / db `InstruMed`              |
-| Redis         | `localhost:6379`                               |
-| MongoDB       | `localhost:27017`                              |
+| Garage S3 API | [http://127.0.0.1:3900](http://127.0.0.1:3900)               |
+| PostgreSQL    | `localhost:5433` / db `InstruMed`                            |
+| Redis         | `localhost:6379`                                             |
+| MongoDB       | `localhost:27017`                                            |
 
 
 
@@ -162,14 +164,14 @@ Opcional Windows: `.\start-services.ps1` (compose + abre Auth, Web y VisionWorke
 **Object storage (Garage / S3)**
 
 
-| Campo      | Valor                                                         |
-| ---------- | ------------------------------------------------------------- |
-| Endpoint   | `http://localhost:3900`                                       |
-| Region     | `garage`                                                      |
-| Access key | `MedAdmin3`                                                   |
-| Secret key | `StorageKeySecret027` (minimo 16 caracteres; lo exige Garage) |
-| Path style | si (`S3_FORCE_PATH_STYLE=true`)                               |
-| Buckets    | `evidence`, `privacy-notices`                                 |
+| Campo      | Valor                           |
+| ---------- | ------------------------------- |
+| Endpoint   | `http://localhost:3900`         |
+| Region     | `garage`                        |
+| Access key | `MedAdmin3`                     |
+| Secret key | `StorageKeySecret027`           |
+| Path style | si (`S3_FORCE_PATH_STYLE=true`) |
+| Buckets    | `evidence`, `privacy-notices`   |
 
 
 Prueba S3 (opcional, con AWS CLI v2):
@@ -186,13 +188,13 @@ aws --endpoint-url http://127.0.0.1:3900 s3 ls s3://evidence
 Códigos de rol RF: `station_operator`, `spd_supervisor`, `it_admin`.
 
 
-| Rol (RF)         | Email                        | Password         |
-| ---------------- | ---------------------------- | ---------------- |
-| station_operator | `operator@instrumed.com`     | `DemopwdOP78!`   |
-| station_operator | `operador2@instrumed.com`    | `DemopwdOP278!`  |
-| spd_supervisor   | `supervisor@instrumed.com`   | `DemopwdSPD78!`  |
-| spd_supervisor   | `supervisor2@instrumed.com`  | `DemopwdSPD278!` |
-| it_admin         | `admin@instrumed.com`        | `DemopwdADM78!`  |
+| Rol (RF)         | Email                       | Password         |
+| ---------------- | --------------------------- | ---------------- |
+| station_operator | `operator@instrumed.com`    | `DemopwdOP78!`   |
+| station_operator | `operador2@instrumed.com`   | `DemopwdOP278!`  |
+| spd_supervisor   | `supervisor@instrumed.com`  | `DemopwdSPD78!`  |
+| spd_supervisor   | `supervisor2@instrumed.com` | `DemopwdSPD278!` |
+| it_admin         | `admin@instrumed.com`       | `DemopwdADM78!`  |
 
 
 ```powershell
@@ -256,17 +258,17 @@ Auth debe tener `Werkzeug==3.1.8` y el seed actual
 ## Estado del desarrollo
 
 
-| Fase | Contenido                                                                          | Estado    |
-| ---- | ---------------------------------------------------------------------------------- | --------- |
-| 0–1  | Empaque Docker (PG/Redis/Mongo/Garage) + seeds + README                            | Listo     |
-| 2    | Auth JWT en Redis (DS01), cookies demo, `ui_preferences.locale`, smoke login       | Listo     |
-| 3.1  | Contrato RF: estados, `capture_mode`, roles RF, seeds ± aviso, OP-01/OP-02 lectura | Listo     |
-| 3.2  | SP-02 programar + privacy Via A, OP-03 Start, OP-04M/06M manual                    | Listo     |
-| 3.3  | Seeds D/E + SP-05/06 cierre + detalle RF supervisor                                | Listo     |
-| 4    | UI RF OP/SPD (sidebars, listas, schedule, kits SPD, stubs reports/profile/health) | Listo |
-| 5a   | Vision upload + VisionWorker + YOLO (`best.pt`) + count_event + validacion UI     | Listo (demo) |
-| 5b   | Electron WSS camara live + Mongo/Garage evidence-worker                            | Pendiente |
-| 6    | i18n real (Flask-Babel)                                                            | Diferido  |
+| Fase | Contenido                                                                                                    | Estado       |
+| ---- | ------------------------------------------------------------------------------------------------------------ | ------------ |
+| 0–1  | Empaque Docker (PG/Redis/Mongo/Garage) + seeds + README                                                      | Listo        |
+| 2    | Auth JWT en Redis (DS01), cookies demo, `ui_preferences.locale`, smoke login                                 | Listo        |
+| 3.1  | Contrato RF: estados, `capture_mode`, roles RF, seeds ± aviso, OP-01/OP-02 lectura                           | Listo        |
+| 3.2  | SP-02 programar + privacy Via A, OP-03 Start, OP-04M/06M manual                                              | Listo        |
+| 3.3  | Seeds D/E + SP-05/06 cierre + detalle RF supervisor                                                          | Listo        |
+| 4    | UI RF OP/SPD (sidebars, listas, schedule, kits SPD, stubs reports/profile/health)                            | Listo        |
+| 5a   | Vision upload + VisionWorker + YOLO (`best.pt`) + matrix_v1 (Hungarian/greedy) + count_event + validacion UI | Listo (demo) |
+| 5b   | Electron WSS camara live + Mongo/Garage evidence-worker                                                      | Pendiente    |
+| 6    | i18n real (Flask-Babel)                                                                                      | Diferido     |
 
 
 Idioma: **ingles** como fuente; Babel = Fase 6. Rutas pre-RF del operador viven en `/legacy/...` (ver `apps/BackendWebFlask/legacy/README.md`). Plantillas V2/mocks retiradas estan en `Legacy/` (raiz del repo).
@@ -300,23 +302,46 @@ Esperado con semilla limpia: roles RF; kit **Video Demo Kit 1** (13 familias, FA
 
 1. SPD: **New session** (`/supervisor/sessions/new`). Sin phase dropdown (fase inicial del procedimiento). Sin privacy → OP vera Manual; con privacy Via A → Vision.
 2. OP: sesion **No notice · Manual** → Review & Start → Start → Continue → reporte de cantidades.
-   - Match → `awaiting_spd_review`.
-   - Baja una cantidad + reason → `correction_required` + discrepancia.
+  - Match → `awaiting_spd_review`.
+  - Baja una cantidad + reason → `correction_required` + discrepancia.
 3. SPD:
-   - **Correction Required** → Review → resolve → `awaiting_spd_review`.
-   - **Awaiting Review** → Confirm close → `closed`.
+  - **Correction Required** → Review → resolve → `awaiting_spd_review`.
+  - **Awaiting Review** → Confirm close → `closed`.
 4. Detalles OP/SPD: expected vs reported, privacy badge, timeline cuando aplica. OP no cierra sesiones.
 
 **4) Rama vision (upload video + YOLO + worker)**
 
-Prerrequisitos: VisionWorker en `:5002` y pesos en `apps/VisionWorker/weights/best.pt` (no estan en GitHub). Seed incluye `yolo_model` activo `yolo26l-demo` + `model_class` (17 etiquetas).
+Prerrequisitos: VisionWorker en `:5002` y pesos en `apps/VisionWorker/weights/best.pt` (no estan en GitHub). Seed incluye `yolo_model` activo `yolo26l-demo` + `model_class` (17 etiquetas). Pipeline demo: `matrix_v1` (NMS con scores por clase + matching por cupos; solver default **Hungarian**, `VISION_ASSIGN_SOLVER=greedy` para A/B).
+
+Umbrales por defecto (override con env `VISION_*`):
+
+
+| Variable                        | Default     | Rol                                                                                                                |
+| ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------ |
+| `VISION_BOX_RECALL_CONF`        | `0.15`      | Piso para que una caja exista (permisivo)                                                                          |
+| `VISION_CONF_DISPLAY_THRESHOLD` | `0.70`      | Overlay naming (kept_raw): familia vs tipo                                                                         |
+| `VISION_CONF_DISPLAY_REASSIGN`  | `0.60`      | Naming si reassigned: además exige raw top-1 ≥ 0.70                                                                |
+| `VISION_REASSIGN_MIN_SCORE`     | `0.45`      | Piso para reasignar a otra familia esperada                                                                        |
+| `VISION_REASSIGN_MAX_GAP`       | `0.15`      | Cercania al score top-1 raw (scores sigmoid)                                                                       |
+| `VISION_ASSIGN_SOLVER`          | `hungarian` | Matching sobre la matriz: `hungarian` | `greedy`                                                                   |
+| `VISION_FRAME_STRIDE`           | `5`         | Inferir cada N frames (~6 fps a 30 fps)                                                                            |
+| `VISION_COUNT_SAMPLE_EVERY`     | `10`        | Muestrear tallies a timeline NDJSON (+ `count_event` `video_window` al ready). `1` = cada inferencia (mas costoso) |
+| `VISION_HOLD_SECONDS`           | `2.5`       | Hold largo mientras hay caja / oclusion en zona                                                                    |
+| `VISION_NAME_HOLD_SECONDS`      | `4.0`       | Sticky naming: no degradar familia→tipo si nadie lo supera                                                         |
+| `VISION_HOLD_MIN_SCORE`         | `0.35`      | No sembrar/refrescar hold con fantasmas debiles                                                                    |
+| `VISION_HOLD_SEED_FRAMES`       | `3`         | Inferencias live seguidas antes de sembrar hold (anti fantasma 1 frame)                                            |
+| `VISION_HOLD_ABSENT_STREAK`     | `3`         | Frames en 0 live antes de acortar TTL (gracia a mano)                                                              |
+| `VISION_HOLD_ABSENT_SECONDS`    | `1.1`       | TTL corto cuando se confirma ausencia (sin overlap en zona)                                                        |
+| `VISION_HOLD_ZONE_IOU`          | `0.12`      | Si alguna caja live solapa el hold, se trata como oclusion (TTL largo)                                             |
+
 
 1. SPD: **New session** con privacy Via A (aviso placeholder) → OP ve **Notice OK · Vision**.
 2. OP (`operator@…` u `operador2@…`): Review & Start → Capture.
-3. En Capture: subir video `.mp4` / `.mkv` / etc. El worker procesa frames (stride), filtra a `expected_inventory`, dibuja cajas (baja confianza → label = tipo/categoria) y el panel muestra conteos. Se persisten `count_event` `auto_count` al terminar el video.
-4. **Finish counting** → resumen AI → **Human validation** (AI locked; validated editable). El cierre usa la ruta de conteo manual (discrepancias solo si validated ≠ expected). El worker se desliga al cerrar.
-5. Cambio de fase en Capture es real en PG (`phase_change`) pero stub respecto a Mongo/Garage.
-6. Fuera de alcance en este ciclo: Electron/camara live, evidencia Mongo/Garage, disc. automaticas por ausencia temporal.
+3. En Capture: subir video `.mp4` / `.mkv` / etc. El worker procesa frames (stride), construye matriz caja×familia, asigna (Hungarian/greedy) hasta cupo esperado, aplica hold/sticky **interno** (sin texto hold/sticky al operador), dibuja cajas con **color por tipo** (saturado = tipo, suave = familia) y el panel lateral resalta cada seccion de tipo.
+4. **Auditoria temporal:** cada `VISION_COUNT_SAMPLE_EVERY` inferencias → NDJSON local (`*_timeline.ndjson`) con observables (raw/refined, boxes+topk). En PG: **un** `count_event` por sample (`family_id` null, `scope=board`, `reason=video_window`) + un board final `video_ready` (con boxes). Discrepancias siguen llevando `family_id` propio y pueden apuntar al board como `origin_event_id`. Serie densa a largo plazo → Mongo DS06. Smoke: `python scripts/smoke_vision_board_events.py`.
+5. **Finish counting** → resumen AI (incluye Raw vs refined) → **Human validation** (AI locked; validated editable). El cierre usa la ruta de conteo manual (discrepancias solo si validated ≠ expected). El worker se desliga al cerrar.
+6. Cambio de fase en Capture es real en PG (`phase_change`) pero stub respecto a Mongo/Garage.
+7. Fuera de alcance en este ciclo: Electron/camara live, evidencia Mongo/Garage, disc. automaticas por ausencia temporal. Matching: Hungarian default; greedy via env para A/B.
 
 **5) Smokes CLI (opcionales; ensucian seed)**
 

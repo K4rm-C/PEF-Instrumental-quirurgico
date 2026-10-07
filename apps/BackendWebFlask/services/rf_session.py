@@ -363,12 +363,17 @@ def get_vision_snapshot(session_id: UUID | str) -> dict | None:
     return _VISION_SNAPSHOTS.get(str(session_id))
 
 
-def clear_vision_snapshot(session_id: UUID | str) -> None:
+def clear_auto_count_flush_keys_for_session(session_id: UUID | str) -> None:
     sid = str(session_id)
-    _VISION_SNAPSHOTS.pop(sid, None)
     stale = [key for key in _AUTO_COUNT_FLUSHED if key.startswith(f"{sid}:")]
     for key in stale:
         _AUTO_COUNT_FLUSHED.discard(key)
+
+
+def clear_vision_snapshot(session_id: UUID | str) -> None:
+    sid = str(session_id)
+    _VISION_SNAPSHOTS.pop(sid, None)
+    clear_auto_count_flush_keys_for_session(sid)
 
 
 def change_phase_stub(
@@ -423,6 +428,189 @@ def change_phase_stub(
     }
 
 
+_BOARD_METRIC_KEYS = (
+    "solver",
+    "extras_raw",
+    "extras_refined",
+    "missing_raw",
+    "missing_refined",
+    "reassign_count",
+    "type_degrade_count",
+    "family_match_rate_raw",
+    "family_match_rate_refined",
+)
+
+
+def _compact_box_audit(box: dict) -> dict:
+    """Keep observable box telemetry; drop recalculable matrix internals."""
+    if not isinstance(box, dict):
+        return {}
+    # Prefer already-compact audit shape from worker; fall back to public box fields.
+    if "yolo_top1" in box or "assigned" in box:
+        topk = box.get("topk") or []
+        return {
+            "xyxy": box.get("xyxy"),
+            "yolo_top1": box.get("yolo_top1"),
+            "assigned": box.get("assigned"),
+            "topk": topk[:4] if isinstance(topk, list) else [],
+        }
+    raw = box.get("raw") or {}
+    refined = box.get("refined") or {}
+    topk = raw.get("topk") or []
+    return {
+        "xyxy": box.get("xyxy"),
+        "yolo_top1": {
+            "family_code": raw.get("family_code") or box.get("family_code"),
+            "family_id": raw.get("family_id") or box.get("family_id"),
+            "score": raw.get("confidence") if raw.get("confidence") is not None else box.get("confidence"),
+        },
+        "assigned": {
+            "family_code": refined.get("family_code") or box.get("family_code"),
+            "family_id": refined.get("family_id") or box.get("family_id"),
+            "score": refined.get("visual_score") if refined.get("visual_score") is not None else box.get("confidence"),
+            "reason": refined.get("resolution_reason") or box.get("resolution_reason"),
+        },
+        "topk": topk[:4] if isinstance(topk, list) else [],
+    }
+
+
+def build_board_payload_from_counts(
+    counts: dict,
+    *,
+    include_boxes: bool = False,
+    sample_meta: dict | None = None,
+    model_version: str | None = None,
+    reason: str = "video_window",
+) -> tuple[dict, int, int]:
+    """Build one board-scoped payload. Returns (payload, expected_total, detected_total)."""
+    meta_extra = sample_meta or {}
+    families: list[dict] = []
+    expected_total = 0
+    detected_total = 0
+    raw_total = 0
+    for code, meta in (counts or {}).items():
+        if not isinstance(meta, dict):
+            continue
+        expected = int(meta.get("expected_quantity") or 0)
+        detected = int(meta.get("detected_quantity") or 0)
+        raw_n = int(meta.get("raw_detected_quantity") or 0)
+        expected_total += expected
+        detected_total += detected
+        raw_total += raw_n
+        row = {
+            "family_id": meta.get("family_id"),
+            "family_code": meta.get("family_code") or code,
+            "family_name": meta.get("family_name"),
+            "category_name": meta.get("category_name"),
+            "expected_quantity": expected,
+            "raw_detected_quantity": raw_n,
+            "detected_quantity": detected,
+            "difference": meta.get("difference"),
+            "best_confidence": meta.get("best_confidence"),
+            "weakest_confidence": meta.get("weakest_confidence"),
+            "avg_confidence": meta.get("avg_confidence"),
+            "held": bool(meta.get("held")),
+            "sticky_name": meta.get("sticky_name"),
+            "reassigned_in": meta.get("reassigned_in"),
+            "reassigned_out": meta.get("reassigned_out"),
+        }
+        boxes = meta.get("boxes") or []
+        if include_boxes and boxes:
+            row["boxes"] = [_compact_box_audit(b) for b in boxes if isinstance(b, dict)]
+        else:
+            row["box_count"] = int(meta.get("box_count") or len(boxes))
+        families.append(row)
+
+    families.sort(key=lambda r: str(r.get("family_code") or ""))
+    pipeline = meta_extra.get("pipeline") or "matrix_v1"
+    solver = meta_extra.get("assign_solver") or meta_extra.get("solver")
+    am = meta_extra.get("assignment_metrics") or {}
+    payload = {
+        "ai": True,
+        "capture_mode": "vision",
+        "scope": "board",
+        "reason": reason,
+        "model_version": model_version or meta_extra.get("model_version"),
+        "pipeline": pipeline,
+        "pipeline_config": {
+            "pipeline": pipeline,
+            "solver": solver,
+            "count_sample_every": meta_extra.get("count_sample_every"),
+            "conf_threshold": meta_extra.get("conf_threshold"),
+        },
+        "run_id": meta_extra.get("run_id"),
+        "frame_index": meta_extra.get("frame_index"),
+        "frames_processed": meta_extra.get("frames_processed"),
+        "video_t": meta_extra.get("video_t"),
+        "board": {
+            "families": families,
+            "totals": {
+                "expected": expected_total,
+                "detected": detected_total,
+                "raw": raw_total,
+                "family_count": len(families),
+            },
+        },
+    }
+    if isinstance(am, dict) and am:
+        payload["assignment_metrics"] = {k: am.get(k) for k in _BOARD_METRIC_KEYS if k in am}
+    return payload, expected_total, detected_total
+
+
+def persist_board_auto_count(
+    *,
+    session_id: UUID,
+    operator_user_id: UUID,
+    counts: dict,
+    model_version: str | None = None,
+    reason: str = "video_window",
+    once_key: str | None = None,
+    include_boxes: bool = False,
+    sample_meta: dict | None = None,
+) -> int:
+    """Insert one auto_count row for a vision board snapshot (family_id NULL).
+
+    Dense telemetry stays in worker NDJSON / future Mongo (DS06). PG stores observables:
+    raw tallies, compact top-k boxes (optional), and exposed final table — not the score matrix.
+    """
+    flush_key = once_key or f"{session_id}:{reason}"
+    if flush_key in _AUTO_COUNT_FLUSHED and reason != "detection_close":
+        return 0
+    work = db.session.get(WorkSession, session_id)
+    if work is None:
+        raise RfSessionError("Session not found.", 404)
+    if not counts:
+        return 0
+
+    payload, expected_total, detected_total = build_board_payload_from_counts(
+        counts,
+        include_boxes=include_boxes,
+        sample_meta=sample_meta,
+        model_version=model_version,
+        reason=reason,
+    )
+    if not payload.get("board", {}).get("families"):
+        return 0
+
+    db.session.add(CountEvent(
+        event_type_id=_event_type_id("auto_count"),
+        session_id=session_id,
+        user_id=operator_user_id,
+        family_id=None,
+        expected_quantity=expected_total,
+        detected_quantity=detected_total,
+        occurred_at=utc_now(),
+        payload=payload,
+    ))
+    try:
+        db.session.commit()
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        raise RfSessionError("Could not persist board auto count.", 503) from exc
+    _AUTO_COUNT_FLUSHED.add(flush_key)
+    return 1
+
+
 def persist_auto_counts_from_worker(
     *,
     session_id: UUID,
@@ -431,54 +619,62 @@ def persist_auto_counts_from_worker(
     model_version: str | None = None,
     reason: str = "video_window",
     once_key: str | None = None,
+    include_boxes: bool = True,
+    sample_meta: dict | None = None,
 ) -> int:
-    """Insert auto_count events for worker tallies (one row per family with a detection or finish)."""
-    flush_key = once_key or f"{session_id}:{reason}"
-    if flush_key in _AUTO_COUNT_FLUSHED and reason != "detection_close":
-        return 0
-    work = db.session.get(WorkSession, session_id)
-    if work is None:
-        raise RfSessionError("Session not found.", 404)
-    expected_rows = {
-        str(row.family_id): row
-        for row in db.session.execute(
-            select(ExpectedInventory).where(ExpectedInventory.session_id == session_id)
-        ).scalars().all()
-    }
-    now = utc_now()
-    auto_type = _event_type_id("auto_count")
-    written = 0
-    for _code, meta in (counts or {}).items():
-        family_id = meta.get("family_id")
-        if not family_id or str(family_id) not in expected_rows:
+    """Compatibility wrapper → board-scoped auto_count (one row per sample)."""
+    return persist_board_auto_count(
+        session_id=session_id,
+        operator_user_id=operator_user_id,
+        counts=counts,
+        model_version=model_version,
+        reason=reason,
+        once_key=once_key,
+        include_boxes=include_boxes,
+        sample_meta=sample_meta,
+    )
+
+
+def persist_vision_timeline_windows(
+    *,
+    session_id: UUID,
+    operator_user_id: UUID,
+    samples: list[dict],
+    model_version: str | None = None,
+) -> int:
+    """Persist one board auto_count per timeline sample (reason=video_window)."""
+    total = 0
+    for sample in samples or []:
+        run_id = sample.get("run_id") or "run"
+        frames_processed = sample.get("frames_processed")
+        if frames_processed is None:
             continue
-        exp = expected_rows[str(family_id)]
-        detected = int(meta.get("detected_quantity") or 0)
-        db.session.add(CountEvent(
-            event_type_id=auto_type,
+        counts = sample.get("counts") or {}
+        if not counts:
+            continue
+        written = persist_board_auto_count(
             session_id=session_id,
-            user_id=operator_user_id,
-            family_id=UUID(str(family_id)),
-            expected_quantity=exp.expected_quantity,
-            detected_quantity=detected,
-            occurred_at=now,
-            payload={
-                "ai": True,
-                "capture_mode": "vision",
-                "avg_confidence": meta.get("avg_confidence"),
-                "model_version": model_version,
-                "reason": reason,
+            operator_user_id=operator_user_id,
+            counts=counts,
+            model_version=model_version or sample.get("model_version"),
+            reason="video_window",
+            once_key=f"{session_id}:video_window:{run_id}:{frames_processed}",
+            include_boxes=bool(sample.get("include_boxes")),
+            sample_meta={
+                "run_id": run_id,
+                "frame_index": sample.get("frame_index"),
+                "frames_processed": frames_processed,
+                "video_t": sample.get("video_t"),
+                "pipeline": sample.get("pipeline"),
+                "assign_solver": sample.get("assign_solver"),
+                "model_version": sample.get("model_version"),
+                "assignment_metrics": sample.get("assignment_metrics") or {},
+                "count_sample_every": sample.get("count_sample_every"),
+                "conf_threshold": sample.get("conf_threshold"),
             },
-        ))
-        written += 1
-    if written:
-        try:
-            db.session.commit()
-        except SQLAlchemyError as exc:
-            db.session.rollback()
-            raise RfSessionError("Could not persist auto counts.", 503) from exc
-        _AUTO_COUNT_FLUSHED.add(flush_key)
-    return written
+        )
+        total += written
+    return total
 
 
 def finish_vision_counting(
@@ -487,7 +683,7 @@ def finish_vision_counting(
     operator_user_id: UUID,
     worker_session: dict,
 ) -> dict:
-    """Freeze worker snapshot for OP-05 and write closing auto_count rows."""
+    """Freeze worker snapshot for OP-05 and write closing board auto_count."""
     work = db.session.get(WorkSession, session_id)
     if work is None:
         raise RfSessionError("Session not found.", 404)
@@ -498,20 +694,39 @@ def finish_vision_counting(
         raise RfSessionError("Vision finish is not available for this session.", 409)
 
     counts = worker_session.get("counts") or {}
-    persist_auto_counts_from_worker(
+    run_id = worker_session.get("run_id")
+    frames_processed = worker_session.get("frames_processed")
+    persist_board_auto_count(
         session_id=session_id,
         operator_user_id=operator_user_id,
         counts=counts,
         model_version=worker_session.get("model_version"),
         reason="detection_close",
+        once_key=f"{session_id}:detection_close:{run_id}:{frames_processed}",
+        include_boxes=True,
+        sample_meta={
+            "run_id": run_id,
+            "frame_index": worker_session.get("frame_index"),
+            "frames_processed": frames_processed,
+            "pipeline": worker_session.get("pipeline"),
+            "assign_solver": worker_session.get("assign_solver"),
+            "model_version": worker_session.get("model_version"),
+            "assignment_metrics": worker_session.get("assignment_metrics") or {},
+            "conf_threshold": worker_session.get("conf_threshold"),
+            "count_sample_every": worker_session.get("count_sample_every"),
+        },
     )
     snapshot = {
         "session_id": str(session_id),
         "model_version": worker_session.get("model_version"),
         "conf_threshold": worker_session.get("conf_threshold"),
+        "pipeline": worker_session.get("pipeline") or "matrix_v1",
+        "assign_solver": worker_session.get("assign_solver"),
         "frame_jpeg_b64": worker_session.get("frame_jpeg_b64"),
         "boxes": worker_session.get("boxes") or [],
         "counts": counts,
+        "raw_counts": worker_session.get("raw_counts") or {},
+        "assignment_metrics": worker_session.get("assignment_metrics") or {},
         "finished_at": utc_now().isoformat(),
     }
     store_vision_snapshot(session_id, snapshot)

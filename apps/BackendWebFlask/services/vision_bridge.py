@@ -145,6 +145,24 @@ def fetch_state(session_id: UUID) -> dict[str, Any]:
     return resp.json()
 
 
+def fetch_timeline(session_id: UUID, run_id: str | None = None) -> dict[str, Any]:
+    """Sampled tallies written by the worker during video processing."""
+    params = {}
+    if run_id:
+        params["run_id"] = run_id
+    try:
+        resp = requests.get(
+            f"{VISION_WORKER_URL}/sessions/{session_id}/timeline",
+            params=params,
+            timeout=min(VISION_WORKER_TIMEOUT, 15),
+        )
+    except requests.RequestException as exc:
+        raise VisionBridgeError(f"Vision worker unreachable: {exc}", 503) from exc
+    if resp.status_code >= 400:
+        raise VisionBridgeError(f"Vision timeline failed: {resp.text}", resp.status_code)
+    return resp.json()
+
+
 def upload_video(session_id: UUID, file_storage) -> dict[str, Any]:
     try:
         files = {

@@ -151,6 +151,7 @@
                 <tr>
                     <th scope="col">{{ _("When") }}</th>
                     <th scope="col">{{ _("Event") }}</th>
+                    <th scope="col">{{ _("Scope") }}</th>
                     <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
                     <th scope="col" class="data-table__numeric-column">{{ _("Detected") }}</th>
                 </tr>
@@ -159,12 +160,21 @@
                 {% for event in session.timeline|default([]) %}
                 <tr>
                     <td>{{ event.occurred_at or '—' }}</td>
-                    <td>{{ event.event_name }} <code>{{ event.event_code }}</code></td>
+                    <td>
+                        {{ event.event_label or event.event_name }}
+                        <code>{{ event.event_code }}</code>
+                        {% if event.family_name %}
+                        <div class="muted">{{ event.family_name }}</div>
+                        {% elif event.scope == 'board' and event.board_family_count %}
+                        <div class="muted">{{ _("Board") }} · {{ event.board_family_count }} {{ _("families") }}{% if event.frames_processed %} · f{{ event.frames_processed }}{% endif %}{% if event.solver %} · {{ event.solver }}{% endif %}</div>
+                        {% endif %}
+                    </td>
+                    <td>{% if event.scope == 'board' %}{{ _("Board") }}{% elif event.family_id %}{{ _("Family") }}{% else %}—{% endif %}</td>
                     <td class="data-table__numeric-column">{{ event.expected_quantity if event.expected_quantity is not none else '—' }}</td>
                     <td class="data-table__numeric-column">{{ event.detected_quantity if event.detected_quantity is not none else '—' }}</td>
                 </tr>
                 {% else %}
-                <tr><td colspan="4">{{ _("No count events yet.") }}</td></tr>
+                <tr><td colspan="5">{{ _("No count events yet.") }}</td></tr>
                 {% endfor %}
             </tbody>
         </table>
