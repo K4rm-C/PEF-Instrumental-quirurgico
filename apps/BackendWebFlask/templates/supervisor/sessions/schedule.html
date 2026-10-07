@@ -31,9 +31,12 @@
 .physician-menu li:hover, .physician-menu li.is-active { background:var(--color-surface-secondary); }
 .inventory-type-heading { margin:1rem 0 .4rem; font-size:.95rem; font-weight:700; }
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
 {% endblock %}
 
 {% block page_content %}
+{% set step_labels = [_('Session Information'), _('Surgical Team'), _('Expected Inventory')] %}
+<div class="v3-page">
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ _("Schedule counting session") }}</h1>
@@ -46,9 +49,11 @@
 {% endif %}
 
 {% set form_values = form_values|default({}) %}
-<form method="post" class="card" id="schedule-session-form"
+{# One form, three client-side steps (js/pages/v3-wizard.js). Hidden steps keep their values;
+   schedule-session.js still owns stock recheck, kit reload, physicians and the privacy modal. #}
+<form method="post" class="v3-stack" id="schedule-session-form"
       data-stock-recheck-url="{{ url_for('web.supervisor_session_stock_recheck') }}"
-      data-schedule-form
+      data-schedule-form data-v3-wizard
       data-kit-reload-url="{{ url_for('web.supervisor_session_new') }}">
     <input type="hidden" name="action" value="schedule">
     <input type="hidden" name="privacy_notice_version_id" id="privacy-notice-version-hidden" value="">
@@ -56,6 +61,27 @@
     <input type="hidden" name="privacy_confirm_checkbox" id="privacy-confirm-checkbox-hidden" value="">
     <input type="hidden" name="purpose_model_improvement" id="purpose-model-improvement-hidden" value="">
 
+    <ol class="v3-stepper" aria-label="{{ _('New session steps') }}">
+        {% for label in step_labels %}
+        <li class="v3-stepper__step{% if loop.first %} v3-stepper__step--current{% endif %}"
+            data-wizard-indicator="{{ loop.index }}"{% if loop.first %} aria-current="step"{% endif %}>
+            <span class="v3-stepper__marker">
+                <span class="v3-stepper__marker-number">{{ loop.index }}</span>
+                <svg class="icon v3-stepper__marker-check" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M5 10.5l3.2 3.2L15 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span class="v3-stepper__label">{{ label }}</span>
+        </li>
+        {% endfor %}
+    </ol>
+
+    {# ------------------------------------------------------------ Step 1 #}
+    <section class="card v3-wizard-panel" data-wizard-step="1" aria-labelledby="schedule-step-1-title">
+    <div class="card__header">
+        <h2 class="card__title" id="schedule-step-1-title" tabindex="-1">{{ _("Session Information") }}</h2>
+        <p class="card__subtitle">{{ _("Complete the session setup by selecting the operator, procedure, location, kit, schedule, and patient.") }}</p>
+    </div>
     <div class="form-grid">
         <label class="form-field">
             <span>{{ _("Operator") }}</span>
@@ -117,8 +143,18 @@
             </select>
         </label>
     </div>
+    <div class="v3-form-footer">
+        <a class="btn btn--secondary" href="{{ url_for('web.supervisor_sessions') }}">{{ _("Cancel") }}</a>
+        <button type="button" class="btn btn--primary" data-wizard-next>{{ _("Continue") }}</button>
+    </div>
+    </section>
 
-    <h2 class="card__title">{{ _("Surgical team") }}</h2>
+    {# ------------------------------------------------------------ Step 2 #}
+    <section class="card v3-wizard-panel" data-wizard-step="2" aria-labelledby="schedule-step-2-title" hidden>
+    <div class="card__header">
+        <h2 class="card__title" id="schedule-step-2-title" tabindex="-1">{{ _("Surgical Team") }}</h2>
+        <p class="card__subtitle">{{ _("Add the physicians participating in the procedure and assign a surgical role to each one.") }}</p>
+    </div>
     <p class="text-muted">{{ _("At least one physician is required. Type to search; already selected physicians are excluded from other rows.") }}</p>
     <script id="physician-options-data" type="application/json">{{ physicians|default([])|tojson }}</script>
     <div id="physician-rows" data-physician-rows></div>
@@ -144,8 +180,18 @@
             <button type="button" class="btn btn--secondary btn--small" data-physician-remove>{{ _("Remove") }}</button>
         </div>
     </template>
+    <div class="v3-form-footer">
+        <button type="button" class="btn btn--secondary" data-wizard-back>{{ _("Back") }}</button>
+        <button type="button" class="btn btn--primary" data-wizard-next>{{ _("Continue") }}</button>
+    </div>
+    </section>
 
-    <h2 class="card__title">{{ _("Expected inventory (by type)") }}</h2>
+    {# ------------------------------------------------------------ Step 3 #}
+    <section class="card v3-wizard-panel" data-wizard-step="3" aria-labelledby="schedule-step-3-title" hidden>
+    <div class="card__header">
+        <h2 class="card__title" id="schedule-step-3-title" tabindex="-1">{{ _("Expected inventory (by type)") }}</h2>
+        <p class="card__subtitle">{{ _("Review the expected inventory, quantities, stock availability, and semaphore status before saving the session.") }}</p>
+    </div>
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
@@ -191,11 +237,13 @@
         </table>
     </div>
 
-    <div class="form-actions">
-        <a class="btn btn--secondary" href="{{ url_for('web.supervisor_sessions') }}">{{ _("Cancel") }}</a>
+    <div class="v3-form-footer">
+        <button type="button" class="btn btn--secondary" data-wizard-back>{{ _("Back") }}</button>
         <button type="submit" class="btn btn--primary" data-schedule-submit>{{ _("Save scheduled session") }}</button>
     </div>
+    </section>
 </form>
+</div>
 
 {# Privacy is confirmed only in this overlay on Save — not as an inline form section. #}
 <div class="app-modal" id="privacy-continue-modal" role="dialog" aria-modal="true" aria-labelledby="privacy-modal-title">
@@ -239,4 +287,5 @@
 
 {% block page_scripts %}
 <script src="{{ url_for('static', filename='js/pages/schedule-session.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/v3-wizard.js') }}" defer></script>
 {% endblock %}

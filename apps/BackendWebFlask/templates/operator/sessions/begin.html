@@ -73,9 +73,9 @@
           data-app-confirm-cancel="{{ _('Cancel') }}">
         {# ------------------------------------------------------------ Step 1 #}
         <section class="card v3-wizard-panel" data-confirm-step="1" {% if step != 1 %}hidden{% endif %} aria-labelledby="confirm-step-1-title">
-            <div>
+            <div class="card__header">
                 <h2 class="card__title" id="confirm-step-1-title" tabindex="-1">{{ _("Session Information") }}</h2>
-                <p class="card__subtitle">{{ _("Supervisor-created details are read-only.") }}</p>
+                <p class="card__subtitle">{{ _("Review the session details assigned by the supervisor before continuing.") }}</p>
             </div>
             <div class="v3-op-readonly-grid">
                 {% for label, value in [
@@ -98,11 +98,13 @@
 
         {# ------------------------------------------------------------ Step 2 #}
         <section class="card v3-wizard-panel" data-confirm-step="2" {% if step != 2 %}hidden{% endif %} aria-labelledby="confirm-step-2-title">
-            <h2 class="card__title" id="confirm-step-2-title" tabindex="-1">{{ _("Patient & Surgical Team") }}</h2>
+            <div class="card__header">
+                <h2 class="card__title" id="confirm-step-2-title" tabindex="-1">{{ _("Patient & Surgical Team") }}</h2>
+                <p class="card__subtitle">{{ _("Verify the patient information and surgical team assigned to this procedure.") }}</p>
+            </div>
             <div class="v3-columns">
                 <div>
                     <h3 class="form-field__label">{{ _("Patient Information") }}</h3>
-                    <p class="card__subtitle">{{ _("Read-only patient details assigned to this session.") }}</p>
                     <dl class="v3-kv-list">
                         <div><dt>{{ _("Patient Name") }}</dt><dd>{{ s.patient_name or '—' }}</dd></div>
                         <div><dt>{{ _("Patient Record") }}</dt><dd>{{ s.patient_record or '—' }}</dd></div>
@@ -110,7 +112,6 @@
                 </div>
                 <div>
                     <h3 class="form-field__label">{{ _("Surgical Team") }}</h3>
-                    <p class="card__subtitle">{{ _("Read-only clinical roles assigned to this session.") }}</p>
                     <div class="table-wrapper">
                         <table class="data-table">
                             <thead>
@@ -138,11 +139,13 @@
 
         {# ------------------------------------------------------------ Step 3 #}
         <section class="card v3-wizard-panel" data-confirm-step="3" {% if step != 3 %}hidden{% endif %} aria-labelledby="confirm-step-3-title">
-            <h2 class="card__title" id="confirm-step-3-title" tabindex="-1">{{ _("Inventory & Readiness") }}</h2>
+            <div class="card__header">
+                <h2 class="card__title" id="confirm-step-3-title" tabindex="-1">{{ _("Inventory & Readiness") }}</h2>
+                <p class="card__subtitle">{{ _("Review the expected inventory and confirm that the physical instrument set is ready.") }}</p>
+            </div>
             <div class="v3-columns">
                 <div>
                     <h3 class="form-field__label">{{ _("Expected Inventory") }}</h3>
-                    <p class="card__subtitle">{{ _("Read-only quantities for the assigned kit.") }}</p>
                     {% if confirmation.inventory and confirmation.inventory.groups %}
                         {% for group in confirmation.inventory.groups %}
                         <h4 class="form-field__label">{{ _(group.label) }}</h4>
@@ -195,7 +198,6 @@
                 </div>
                 <div class="v3-panel">
                     <h3 class="card__title">{{ _("Instrument Readiness") }}</h3>
-                    <p class="card__subtitle">{{ _("Confirm the physical instrument set is present and matches the expected inventory.") }}</p>
                     <div class="form-checkbox">
                         <input type="checkbox" id="instruments-ready" name="instruments_ready" value="1" required data-v3-readiness-check>
                         <label for="instruments-ready">{{ _("I confirm that the physical instrument set is present and matches the expected inventory.") }}</label>

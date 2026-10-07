@@ -101,6 +101,16 @@
                     {% else %}
                     <tr><td colspan="5">{{ _("No expected inventory rows.") }}</td></tr>
                     {% endfor %}
+                    {% if session.expected_items %}
+                    {% set total_expected = session.expected_items|map(attribute='expected_quantity')|map('int')|sum %}
+                    <tr class="v3-total-row" data-total-row data-total-expected="{{ total_expected }}">
+                        <th scope="row">{{ _("Total") }}</th>
+                        <td class="data-table__numeric-column">{{ total_expected }}</td>
+                        <td class="data-table__numeric-column" data-total-detected>—</td>
+                        <td class="data-table__numeric-column" data-total-diff>—</td>
+                        <td>—</td>
+                    </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </div>
@@ -164,7 +174,28 @@
             det.textContent = meta.detected_quantity;
             diff.textContent = meta.difference;
             conf.textContent = meta.avg_confidence == null ? "—" : Number(meta.avg_confidence).toFixed(2);
+            row.setAttribute("data-detected-value", meta.detected_quantity);
         });
+        updateTotals();
+    }
+
+    // Total row: Detected sums the rows that already have counts; Diff = Detected - Expected
+    // (same convention as item.difference). Confidence is not aggregated.
+    function updateTotals() {
+        var totalRow = table.querySelector("[data-total-row]");
+        if (!totalRow) return;
+        var detected = 0;
+        var seen = false;
+        table.querySelectorAll("tr[data-family-code][data-detected-value]").forEach(function (row) {
+            var value = Number(row.getAttribute("data-detected-value"));
+            if (!isNaN(value)) {
+                detected += value;
+                seen = true;
+            }
+        });
+        var expected = Number(totalRow.getAttribute("data-total-expected")) || 0;
+        totalRow.querySelector("[data-total-detected]").textContent = seen ? detected : "—";
+        totalRow.querySelector("[data-total-diff]").textContent = seen ? detected - expected : "—";
     }
 
     function poll() {

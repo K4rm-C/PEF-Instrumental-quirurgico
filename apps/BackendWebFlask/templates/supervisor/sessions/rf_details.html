@@ -1,6 +1,16 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
+{#
+    Supervisor RF Session Details (/supervisor/sessions/<session_id> for real sessions).
+    - Default: free client-side tabs Session / Expected Inventory / Timeline (js/pages/v3-tabs.js,
+      shared with Operator Session Details).
+    - awaiting_spd_review with no open discrepancies: 4-step close review wizard
+      (js/pages/v3-wizard.js). The close form, its POST, the required material_recovered
+      checkbox and the appConfirm modal are unchanged.
+    Section contents are rendered once ({% set %} blocks) and placed in one of the two layouts.
+#}
+
 {% block title %}{{ session.session_id }} · {{ _("Session details") }}{% endblock %}
 
 {% block sidebar %}
@@ -16,8 +26,178 @@
 </ol>
 {% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+{% endblock %}
+
 {% block page_content %}
 {% set inventory_view = inventory_view|default('table') %}
+{% set close_review = session.status_code == 'awaiting_spd_review' and (session.discrepancy_count|default(0)) == 0 %}
+
+{% set session_section %}
+<div class="v3-metric-tiles">
+    <div class="v3-metric-tile">
+        <div class="v3-metric-tile__label">{{ _("Status") }}</div>
+        <div class="v3-metric-tile__value v3-metric-tile__value--text">{{ macros.status_badge(session.status_label, session.status_variant) }}</div>
+    </div>
+    <div class="v3-metric-tile">
+        <div class="v3-metric-tile__label">{{ _("Capture mode") }}</div>
+        <div class="v3-metric-tile__value v3-metric-tile__value--text">{{ session.capture_mode or '—' }}</div>
+    </div>
+    <div class="v3-metric-tile">
+        <div class="v3-metric-tile__label">{{ _("Privacy") }}</div>
+        <div class="v3-metric-tile__value v3-metric-tile__value--text">{{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</div>
+    </div>
+    <div class="v3-metric-tile{% if session.discrepancy_count %} v3-metric-tile--warning{% endif %}">
+        <div class="v3-metric-tile__label">{{ _("Open discrepancies") }}</div>
+        <div class="v3-metric-tile__value">{{ session.discrepancy_count }}</div>
+    </div>
+</div>
+<div class="v3-columns">
+    <div class="v3-panel">
+        <h3 class="v3-panel__title">{{ _("Assignment") }}</h3>
+        <dl class="v3-kv-list">
+            <div><dt>{{ _("Operator") }}</dt><dd>{{ session.operator_name }}</dd></div>
+            <div><dt>{{ _("Patient") }}</dt><dd>{{ session.patient_name or '—' }}</dd></div>
+            <div><dt>{{ _("Kit") }}</dt><dd>{{ session.kit_name }}</dd></div>
+            <div><dt>{{ _("Capture station") }}</dt><dd>{{ session.capture_station_name }}</dd></div>
+        </dl>
+    </div>
+    <div class="v3-panel">
+        <h3 class="v3-panel__title">{{ _("Timing") }}</h3>
+        <dl class="v3-kv-list">
+            <div><dt>{{ _("Scheduled start") }}</dt><dd>{{ session.scheduled_at or '—' }}</dd></div>
+            <div><dt>{{ _("Started") }}</dt><dd>{{ session.started_at or '—' }}</dd></div>
+            <div><dt>{{ _("Ended") }}</dt><dd>{{ session.closed_at or '—' }}</dd></div>
+        </dl>
+    </div>
+</div>
+{% if session.surgical_team or session.privacy %}
+<div class="v3-columns">
+    {% if session.surgical_team %}
+    <div class="v3-panel">
+        <h3 class="v3-panel__title">{{ _("Surgical team") }}</h3>
+        <dl class="v3-kv-list">
+            {% for member in session.surgical_team %}
+            <div><dt>{{ member.name }}</dt><dd>{{ member.role }}</dd></div>
+            {% endfor %}
+        </dl>
+    </div>
+    {% endif %}
+    {% if session.privacy %}
+    <div class="v3-panel">
+        <h3 class="v3-panel__title">{{ _("Privacy notice") }}</h3>
+        {% if session.privacy.has_agreement %}
+        <p class="text-muted">{{ _("Notice") }} {{ session.privacy.version }} · {{ session.privacy.agreed_at or '—' }}</p>
+        {% else %}
+        <p class="text-muted">{{ session.privacy.message }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endset %}
+
+{% set inventory_toggle %}
+<div class="page-heading__actions">
+    <a class="btn btn--secondary btn--small{% if inventory_view != 'by_type' %} btn--primary{% endif %}"
+       href="{{ url_for('web.supervisor_session_details', session_id=session.id, inventory_view='table', _anchor='inventory') }}">{{ _("Table") }}</a>
+    <a class="btn btn--secondary btn--small{% if inventory_view == 'by_type' %} btn--primary{% endif %}"
+       href="{{ url_for('web.supervisor_session_details', session_id=session.id, inventory_view='by_type', _anchor='inventory') }}">{{ _("By type") }}</a>
+</div>
+{% endset %}
+
+{% set inventory_section %}
+{% if inventory_view == 'by_type' %}
+    {% for group in session.expected_groups|default([]) %}
+    <h3 class="form-field__label">{{ _(group.label) }}</h3>
+    <div class="table-wrapper" style="margin-bottom: 1rem;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Family") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
+                    <th scope="col">{{ _("Source") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in group.lines %}
+                <tr>
+                    <td>{{ item.family_name }}</td>
+                    <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                    <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
+                    <td><span class="status-badge status-badge--neutral">{{ _(item.source_label) }}</span></td>
+                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p>{{ _("No expected inventory rows.") }}</p>
+    {% endfor %}
+{% else %}
+<div class="table-wrapper">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th scope="col">{{ _("Family") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Diff") }}</th>
+                <th scope="col">{{ _("Source") }}</th>
+                <th scope="col">{{ _("Status") }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in session.expected_items|default([]) %}
+            <tr>
+                <td>{{ item.family_name }}</td>
+                <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
+                <td class="data-table__numeric-column">{{ item.difference if item.difference is not none else '—' }}</td>
+                <td><span class="status-badge status-badge--neutral">{{ _(item.source_label) }}</span></td>
+                <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6">{{ _("No expected inventory rows.") }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endset %}
+
+{% set timeline_section %}
+<div class="table-wrapper">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th scope="col">{{ _("When") }}</th>
+                <th scope="col">{{ _("Event") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Detected") }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in session.timeline|default([]) %}
+            <tr>
+                <td>{{ event.occurred_at or '—' }}</td>
+                <td>{{ event.event_name }} <code>{{ event.event_code }}</code></td>
+                <td class="data-table__numeric-column">{{ event.expected_quantity if event.expected_quantity is not none else '—' }}</td>
+                <td class="data-table__numeric-column">{{ event.detected_quantity if event.detected_quantity is not none else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4">{{ _("No count events yet.") }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endset %}
+
+<div class="v3-page">
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ session.session_id }}</h1>
@@ -40,158 +220,130 @@
 <div class="alert alert--danger" role="alert">{{ form_error }}</div>
 {% endif %}
 
-<section class="card">
-    <h2 class="card__title">{{ _("Session") }}</h2>
-    <dl class="detail-list">
-        <div><dt>{{ _("Status") }}</dt><dd>{{ macros.status_badge(session.status_label, session.status_variant) }}</dd></div>
-        <div><dt>{{ _("Scheduled start") }}</dt><dd>{{ session.scheduled_at or '—' }}</dd></div>
-        <div><dt>{{ _("Operator") }}</dt><dd>{{ session.operator_name }}</dd></div>
-        <div><dt>{{ _("Patient") }}</dt><dd>{{ session.patient_name or '—' }}</dd></div>
-        <div><dt>{{ _("Kit") }}</dt><dd>{{ session.kit_name }}</dd></div>
-        <div><dt>{{ _("Capture station") }}</dt><dd>{{ session.capture_station_name }}</dd></div>
-        <div><dt>{{ _("Started") }}</dt><dd>{{ session.started_at or '—' }}</dd></div>
-        <div><dt>{{ _("Ended") }}</dt><dd>{{ session.closed_at or '—' }}</dd></div>
-        <div><dt>{{ _("Capture mode") }}</dt><dd>{{ session.capture_mode or '—' }}</dd></div>
-        <div><dt>{{ _("Privacy") }}</dt><dd>{{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</dd></div>
-        <div><dt>{{ _("Open discrepancies") }}</dt><dd>{{ session.discrepancy_count }}</dd></div>
-    </dl>
-    {% if session.surgical_team %}
-    <h3 class="form-field__label">{{ _("Surgical team") }}</h3>
-    <ul>
-        {% for member in session.surgical_team %}
-        <li>{{ member.name }} — {{ member.role }}</li>
+{% if close_review %}
+{% set close_step = 4 if form_error else 1 %}
+{% set close_labels = [_('Session'), _('Expected vs Reported'), _('Timeline'), _('Close Confirmation')] %}
+<div class="v3-stack" data-v3-wizard>
+    <ol class="v3-stepper" aria-label="{{ _('Confirm close steps') }}">
+        {% for label in close_labels %}
+        {% set number = loop.index %}
+        <li class="v3-stepper__step{% if number < close_step %} v3-stepper__step--complete{% elif number == close_step %} v3-stepper__step--current{% endif %}"
+            data-wizard-indicator="{{ number }}"{% if number == close_step %} aria-current="step"{% endif %}>
+            <span class="v3-stepper__marker">
+                <span class="v3-stepper__marker-number">{{ number }}</span>
+                <svg class="icon v3-stepper__marker-check" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M5 10.5l3.2 3.2L15 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span class="v3-stepper__label">{{ label }}</span>
+        </li>
         {% endfor %}
-    </ul>
-    {% endif %}
-    {% if session.privacy and session.privacy.has_agreement %}
-    <p class="text-muted">{{ _("Notice") }} {{ session.privacy.version }} · {{ session.privacy.agreed_at or '—' }}</p>
-    {% elif session.privacy %}
-    <p class="text-muted">{{ session.privacy.message }}</p>
-    {% endif %}
-</section>
+    </ol>
 
-<section class="card">
-    <div class="page-heading" style="margin-bottom: 1rem;">
-        <h2 class="card__title">{{ _("Expected vs reported") }}</h2>
-        <div class="page-heading__actions">
-            <a class="btn btn--secondary btn--small{% if inventory_view != 'by_type' %} btn--primary{% endif %}"
-               href="{{ url_for('web.supervisor_session_details', session_id=session.id, inventory_view='table') }}">{{ _("Table") }}</a>
-            <a class="btn btn--secondary btn--small{% if inventory_view == 'by_type' %} btn--primary{% endif %}"
-               href="{{ url_for('web.supervisor_session_details', session_id=session.id, inventory_view='by_type') }}">{{ _("By type") }}</a>
+    {# ------------------------------------------------------------ Step 1 #}
+    <section class="card v3-wizard-panel" data-wizard-step="1" data-wizard-key="session" aria-labelledby="close-step-1-title" {% if close_step != 1 %}hidden{% endif %}>
+        <div class="card__header">
+            <h2 class="card__title" id="close-step-1-title" tabindex="-1">{{ _("Session") }}</h2>
+            <p class="card__subtitle">{{ _("Review the session information before administrative close.") }}</p>
         </div>
-    </div>
+        {{ session_section }}
+        <div class="v3-form-footer">
+            <a class="btn btn--secondary" href="{{ url_for('web.supervisor_sessions') }}">{{ _("Back to Sessions") }}</a>
+            <button type="button" class="btn btn--primary" data-wizard-next>{{ _("Continue") }}</button>
+        </div>
+    </section>
 
-    {% if inventory_view == 'by_type' %}
-        {% for group in session.expected_groups|default([]) %}
-        <h3 class="form-field__label">{{ _(group.label) }}</h3>
-        <div class="table-wrapper" style="margin-bottom: 1rem;">
-            <table class="data-table">
-                <thead>
-                    <tr>
-                        <th scope="col">{{ _("Family") }}</th>
-                        <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
-                        <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
-                        <th scope="col">{{ _("Source") }}</th>
-                        <th scope="col">{{ _("Status") }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in group.lines %}
-                    <tr>
-                        <td>{{ item.family_name }}</td>
-                        <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
-                        <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
-                        <td><span class="status-badge status-badge--neutral">{{ _(item.source_label) }}</span></td>
-                        <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+    {# ------------------------------------------------------------ Step 2 #}
+    <section class="card v3-wizard-panel" data-wizard-step="2" data-wizard-key="inventory" aria-labelledby="close-step-2-title" {% if close_step != 2 %}hidden{% endif %}>
+        <div class="v3-card-header">
+            <div class="card__header">
+                <h2 class="card__title" id="close-step-2-title" tabindex="-1">{{ _("Expected vs reported") }}</h2>
+                <p class="card__subtitle">{{ _("Verify the expected and reported quantities and confirm that there are no unresolved discrepancies.") }}</p>
+            </div>
+            {{ inventory_toggle }}
         </div>
-        {% else %}
-        <p>{{ _("No expected inventory rows.") }}</p>
+        {{ inventory_section }}
+        <div class="v3-form-footer">
+            <button type="button" class="btn btn--secondary" data-wizard-back>{{ _("Back") }}</button>
+            <button type="button" class="btn btn--primary" data-wizard-next>{{ _("Continue") }}</button>
+        </div>
+    </section>
+
+    {# ------------------------------------------------------------ Step 3 #}
+    <section class="card v3-wizard-panel" data-wizard-step="3" data-wizard-key="timeline" aria-labelledby="close-step-3-title" {% if close_step != 3 %}hidden{% endif %}>
+        <div class="card__header">
+            <h2 class="card__title" id="close-step-3-title" tabindex="-1">{{ _("Timeline") }}</h2>
+            <p class="card__subtitle">{{ _("Review the session timeline and counting events before closing.") }}</p>
+        </div>
+        {{ timeline_section }}
+        <div class="v3-form-footer">
+            <button type="button" class="btn btn--secondary" data-wizard-back>{{ _("Back") }}</button>
+            <button type="button" class="btn btn--primary" data-wizard-next>{{ _("Continue") }}</button>
+        </div>
+    </section>
+
+    {# ------------------------------------------------------------ Step 4 #}
+    <section class="card v3-wizard-panel" data-wizard-step="4" data-wizard-key="close" aria-labelledby="close-step-4-title" {% if close_step != 4 %}hidden{% endif %}>
+        <div class="card__header">
+            <h2 class="card__title" id="close-step-4-title" tabindex="-1">{{ _("Close Confirmation") }}</h2>
+            <p class="card__subtitle">{{ _("Confirm material recovery and close the session administratively.") }}</p>
+        </div>
+        <form method="post" action="{{ url_for('web.supervisor_session_close', session_id=session.id) }}"
+              class="v3-stack"
+              data-session-close-form
+              data-session-label="{{ session.session_id }}"
+              data-procedure="{{ session.procedure_name }}">
+            <div class="v3-panel">
+                <h3 class="card__title">{{ _("Confirm close (SP-05)") }}</h3>
+                <p>{{ _("Confirm that material was recovered and reprocessing can start. This closes the session administratively.") }}</p>
+                <label class="form-field__checkbox">
+                    <input type="checkbox" name="material_recovered" value="1" required data-material-recovered>
+                    <span>{{ _("Material recovered / reprocessing started") }}</span>
+                </label>
+            </div>
+            <div class="v3-form-footer">
+                <button type="button" class="btn btn--secondary" data-wizard-back>{{ _("Back") }}</button>
+                <button class="btn btn--primary" type="submit">{{ _("Confirm close") }}</button>
+            </div>
+        </form>
+    </section>
+</div>
+{% else %}
+{% set detail_tabs = [('session', _('Session')), ('inventory', _('Expected Inventory')), ('timeline', _('Timeline'))] %}
+<div class="v3-stack" data-v3-tabs data-v3-tabs-hash>
+    <div class="v3-tabs" role="tablist" aria-label="{{ _('Session details sections') }}">
+        {% for key, label in detail_tabs %}
+        <button type="button" class="v3-tabs__link{% if loop.first %} v3-tabs__link--active{% endif %}" role="tab"
+                id="tab-{{ key }}" data-tab-target="{{ key }}" aria-controls="tab-panel-{{ key }}"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"{% if not loop.first %} tabindex="-1"{% endif %}>{{ label }}</button>
         {% endfor %}
-    {% else %}
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th scope="col">{{ _("Family") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Diff") }}</th>
-                    <th scope="col">{{ _("Source") }}</th>
-                    <th scope="col">{{ _("Status") }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in session.expected_items|default([]) %}
-                <tr>
-                    <td>{{ item.family_name }}</td>
-                    <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
-                    <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
-                    <td class="data-table__numeric-column">{{ item.difference if item.difference is not none else '—' }}</td>
-                    <td><span class="status-badge status-badge--neutral">{{ _(item.source_label) }}</span></td>
-                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="6">{{ _("No expected inventory rows.") }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
     </div>
-    {% endif %}
-</section>
 
-<section class="card">
-    <h2 class="card__title">{{ _("Timeline") }}</h2>
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th scope="col">{{ _("When") }}</th>
-                    <th scope="col">{{ _("Event") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Detected") }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for event in session.timeline|default([]) %}
-                <tr>
-                    <td>{{ event.occurred_at or '—' }}</td>
-                    <td>{{ event.event_name }} <code>{{ event.event_code }}</code></td>
-                    <td class="data-table__numeric-column">{{ event.expected_quantity if event.expected_quantity is not none else '—' }}</td>
-                    <td class="data-table__numeric-column">{{ event.detected_quantity if event.detected_quantity is not none else '—' }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="4">{{ _("No count events yet.") }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
+    <section class="card v3-tab-panel" role="tabpanel" id="tab-panel-session" aria-labelledby="tab-session" data-tab-panel="session">
+        <h2 class="card__title">{{ _("Session") }}</h2>
+        {{ session_section }}
+    </section>
 
-{% if session.status_code == 'awaiting_spd_review' and (session.discrepancy_count|default(0)) == 0 %}
-<section class="card">
-    <h2 class="card__title">{{ _("Confirm close (SP-05)") }}</h2>
-    <p>{{ _("Confirm that material was recovered and reprocessing can start. This closes the session administratively.") }}</p>
-    <form method="post" action="{{ url_for('web.supervisor_session_close', session_id=session.id) }}"
-          data-session-close-form
-          data-session-label="{{ session.session_id }}"
-          data-procedure="{{ session.procedure_name }}">
-        <label class="form-field__checkbox">
-            <input type="checkbox" name="material_recovered" value="1" required data-material-recovered>
-            <span>{{ _("Material recovered / reprocessing started") }}</span>
-        </label>
-        <div class="page-heading__actions" style="margin-top: 1rem;">
-            <button class="btn btn--primary" type="submit">{{ _("Confirm close") }}</button>
+    <section class="card v3-tab-panel" role="tabpanel" id="tab-panel-inventory" aria-labelledby="tab-inventory" data-tab-panel="inventory" hidden>
+        <div class="v3-card-header">
+            <h2 class="card__title">{{ _("Expected vs reported") }}</h2>
+            {{ inventory_toggle }}
         </div>
-    </form>
-</section>
+        {{ inventory_section }}
+    </section>
+
+    <section class="card v3-tab-panel" role="tabpanel" id="tab-panel-timeline" aria-labelledby="tab-timeline" data-tab-panel="timeline" hidden>
+        <h2 class="card__title">{{ _("Timeline") }}</h2>
+        {{ timeline_section }}
+    </section>
+</div>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/v3-tabs.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/v3-wizard.js') }}" defer></script>
 <script>
 (function () {
     var form = document.querySelector("[data-session-close-form]");
