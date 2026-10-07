@@ -24,7 +24,7 @@
     {% endif %}
     <span class="user-menu__identity">
         <span class="user-menu__name">{{ current_user.name }}</span>
-        <span class="user-menu__role">{{ current_user.role_label }}</span>
+        <span class="user-menu__role">{{ _(current_user.role_label) }}</span>
     </span>
     <button type="button" class="icon-button user-menu__toggle" aria-haspopup="true" aria-expanded="false"
             aria-label="{{ _('User menu') }}">

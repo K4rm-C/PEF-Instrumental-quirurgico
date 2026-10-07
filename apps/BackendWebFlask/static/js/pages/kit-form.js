@@ -8,6 +8,10 @@
 (function () {
   "use strict";
 
+  function t(key, values) {
+    return window.pefT ? window.pefT(key, values) : key;
+  }
+
   var form = document.querySelector("[data-kit-form]");
   var rowsBody = document.getElementById("kit-composition-rows");
   var addButton = document.querySelector("[data-kit-add-btn]");
@@ -64,8 +68,8 @@
   }
 
   var removedItems = {};
-  var removeLabel = rowsBody.getAttribute("data-remove-label") || "Remove";
-  var undoLabel = rowsBody.getAttribute("data-undo-label") || "Undo";
+  var removeLabel = rowsBody.getAttribute("data-remove-label") || t("remove");
+  var undoLabel = rowsBody.getAttribute("data-undo-label") || t("undo");
   var activeAvailableTemplate =
     rowsBody.getAttribute("data-active-available-template") ||
     "%(count)s active available of family";
@@ -104,7 +108,7 @@
   function refreshAddOptions() {
     var blocked = blockedFamilyIds();
     var current = addFamily.value;
-    addFamily.innerHTML = '<option value="">Select family</option>';
+    addFamily.innerHTML = '<option value="">' + t("selectFamily") + "</option>";
     familyOptions.forEach(function (family) {
       if (blocked.indexOf(String(family.value)) !== -1) {
         return;
@@ -146,7 +150,7 @@
   function categoryLabelForRow(row) {
     var family = findFamily(row.getAttribute("data-family-id"));
     if (family && family.category_label) return family.category_label;
-    return row.getAttribute("data-category-code") || "Other";
+    return row.getAttribute("data-category-code") || t("otherCategory");
   }
 
   function sortRowsByPurpose() {
@@ -344,43 +348,43 @@
     var statusSelect = form.querySelector("[data-kit-status]");
     var meta = [];
     if (nameInput && nameInput.defaultValue !== nameInput.value) {
-      meta.push("Name: \"" + nameInput.defaultValue + "\" → \"" + nameInput.value + "\"");
+      meta.push(t("kitNameChange", { before: nameInput.defaultValue, after: nameInput.value }));
     }
     if (statusSelect) {
       var baselineStatus = statusSelect.getAttribute("data-baseline-status") || statusSelect.defaultValue;
       if (baselineStatus !== statusSelect.value) {
-        meta.push("Status: " + baselineStatus + " → " + statusSelect.value);
+        meta.push(t("kitStatusChange", { before: baselineStatus, after: statusSelect.value }));
       }
     }
 
     if (!added.length && !modified.length && !removed.length && !meta.length) {
-      return "<p>No composition or metadata changes detected. Save anyway?</p>";
+      return "<p>" + t("kitNoChanges") + "</p>";
     }
 
-    var html = "<p>Review the changes that will be saved:</p>";
+    var html = "<p>" + t("kitReviewChanges") + "</p>";
     if (meta.length) {
-      html += '<div class="app-modal__audit"><p class="app-modal__audit-title">Kit</p><ul>';
+      html += '<div class="app-modal__audit"><p class="app-modal__audit-title">' + t("kitSectionTitle") + "</p><ul>";
       meta.forEach(function (line) {
         html += "<li>" + line + "</li>";
       });
       html += "</ul></div>";
     }
     if (added.length) {
-      html += '<div class="app-modal__audit"><p class="app-modal__audit-title">Added</p><ul>';
+      html += '<div class="app-modal__audit"><p class="app-modal__audit-title">' + t("changesAdded") + "</p><ul>";
       added.forEach(function (line) {
         html += "<li>" + line + "</li>";
       });
       html += "</ul></div>";
     }
     if (modified.length) {
-      html += '<div class="app-modal__audit"><p class="app-modal__audit-title">Modified</p><ul>';
+      html += '<div class="app-modal__audit"><p class="app-modal__audit-title">' + t("changesModified") + "</p><ul>";
       modified.forEach(function (line) {
         html += "<li>" + line + "</li>";
       });
       html += "</ul></div>";
     }
     if (removed.length) {
-      html += '<div class="app-modal__audit"><p class="app-modal__audit-title">Removed</p><ul>';
+      html += '<div class="app-modal__audit"><p class="app-modal__audit-title">' + t("changesRemoved") + "</p><ul>";
       removed.forEach(function (line) {
         html += "<li>" + line + "</li>";
       });
@@ -419,10 +423,10 @@
     if (window.appConfirm) {
       window
         .appConfirm({
-          title: "Save kit changes?",
+          title: t("kitSaveTitle"),
           html: html,
-          okLabel: "Save Kit",
-          cancelLabel: "Cancel",
+          okLabel: t("kitSaveButton"),
+          cancelLabel: t("cancel"),
         })
         .then(function (ok) {
           if (ok && window.appConfirmProceed) window.appConfirmProceed(form);

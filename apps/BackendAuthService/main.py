@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -216,15 +217,19 @@ def request_json() -> dict[str, Any]:
 	return payload if isinstance(payload, dict) else {}
 
 
+SUPPORTED_LOCALES = {"en", "es-MX"}
+SUPPORTED_THEMES = {"light", "dark", "system"}
+
+
 def normalize_ui_preferences(raw: Any) -> dict[str, Any]:
 	prefs = dict(raw) if isinstance(raw, dict) else {}
 	locale = prefs.get("locale") or prefs.get("language") or "en"
 	if locale == "es":
 		locale = "es-MX"
-	if locale not in {"en", "es-MX"}:
+	if locale not in SUPPORTED_LOCALES:
 		locale = "en"
 	theme = prefs.get("theme") or "light"
-	if theme not in {"light", "dark", "system"}:
+	if theme not in SUPPORTED_THEMES:
 		theme = "light"
 	return {"locale": locale, "theme": theme}
 
@@ -654,6 +659,44 @@ def verify():
 			"roles": roles,
 		},
 	})
+
+
+@app.post("/preferences")
+@token_required("access")
+def update_preferences():
+	"""Partial merge into user.ui_preferences (DS01): only the keys sent are replaced."""
+	payload = request_json()
+	changes: dict[str, Any] = {}
+	if "locale" in payload:
+		if payload["locale"] not in SUPPORTED_LOCALES:
+			return error("locale must be one of: en, es-MX", 400)
+		changes["locale"] = payload["locale"]
+	if "theme" in payload:
+		if payload["theme"] not in SUPPORTED_THEMES:
+			return error("theme must be one of: light, dark, system", 400)
+		changes["theme"] = payload["theme"]
+	if not changes:
+		return error("No supported preference provided", 400)
+
+	with engine.begin() as connection:
+		row = connection.execute(
+			text("SELECT ui_preferences FROM \"user\" WHERE id = :id FOR UPDATE"),
+			{"id": g.auth_user_id},
+		).first()
+		if not row:
+			return error("User not found", 404)
+		stored = dict(row[0]) if isinstance(row[0], dict) else {}
+		if "locale" in changes:
+			stored.pop("language", None)  # legacy alias of locale, superseded
+		stored.update(changes)
+		connection.execute(
+			text(
+				"UPDATE \"user\" SET ui_preferences = CAST(:prefs AS jsonb), updated_at = now() "
+				"WHERE id = :id"
+			),
+			{"prefs": json.dumps(stored), "id": g.auth_user_id},
+		)
+	return jsonify({"ui_preferences": normalize_ui_preferences(stored)})
 
 
 @app.post("/password/forgot")

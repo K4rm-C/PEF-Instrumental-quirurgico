@@ -14,9 +14,15 @@ Canonical cases:
 
 The Operator `scenario` (escalated | clean) is a presentation-only projection of WS-026.
 It is not a lifecycle state and must not leak into services/rf_session.py.
+
+i18n: UI labels and system-generated texts are English msgids marked with N_() (a no-op for
+pybabel extraction); templates translate them with _(). Names, kits, procedures, ids and
+notes that stand in for user-entered text are data and stay unmarked.
 """
 
 from copy import deepcopy
+
+from i18n import N_
 
 
 DEMO_DATE = '2026-10-02'
@@ -41,26 +47,26 @@ REVIEW_OUTCOMES = (REVIEW_OUTCOME_RESOLVED, REVIEW_OUTCOME_UNRESOLVED)
 # ----------------------------------------------------------------------------------------
 
 V3_SESSION_STATUS = {
-    'assigned': ('Assigned', 'success'),
-    'ready_to_start': ('Ready to Start', 'info'),
-    'in_progress': ('In Progress', 'info'),
-    'verifying': ('Verifying', 'info'),
-    'escalation_prepared': ('Escalation Prepared', 'warning'),
-    'escalated': ('Escalated', 'warning'),
-    'ready_to_close': ('Ready to Close', 'success'),
-    'closed': ('Closed', 'neutral'),
+    'assigned': (N_('Assigned'), 'success'),
+    'ready_to_start': (N_('Ready to Start'), 'info'),
+    'in_progress': (N_('In Progress'), 'info'),
+    'verifying': (N_('Verifying'), 'info'),
+    'escalation_prepared': (N_('Escalation Prepared'), 'warning'),
+    'escalated': (N_('Escalated'), 'warning'),
+    'ready_to_close': (N_('Ready to Close'), 'success'),
+    'closed': (N_('Closed'), 'neutral'),
 }
 
 V3_REVIEW_STATUS = {
-    'no_review_needed': ('No Review Needed', 'neutral'),
-    'review_required': ('Review Required', 'warning'),
-    'reviewed_unresolved': ('Reviewed – Unresolved', 'info'),
-    'resolved': ('Resolved', 'success'),
+    'no_review_needed': (N_('No Review Needed'), 'neutral'),
+    'review_required': (N_('Review Required'), 'warning'),
+    'reviewed_unresolved': (N_('Reviewed – Unresolved'), 'info'),
+    'resolved': (N_('Resolved'), 'success'),
 }
 
 V3_SEVERITY = {
-    'critical': ('Critical', 'danger'),
-    'info': ('Info', 'warning'),
+    'critical': (N_('Critical'), 'danger'),
+    'info': (N_('Info'), 'warning'),
 }
 
 
@@ -85,20 +91,20 @@ def severity(code):
 # ----------------------------------------------------------------------------------------
 
 PRESENTATION_USERS = {
-    'operator': {'name': 'Alex Morgan', 'role_label': 'Operator CDE', 'avatar_url': None},
-    'supervisor': {'name': 'Sophia Turner', 'role_label': 'Supervisor CDE / Quality', 'avatar_url': None},
+    'operator': {'name': 'Alex Morgan', 'role_label': N_('Operator CDE'), 'avatar_url': None},
+    'supervisor': {'name': 'Sophia Turner', 'role_label': N_('Supervisor CDE / Quality'), 'avatar_url': None},
 }
 
 SURGICAL_TEAM = [
-    {'name': 'Dr. James Wilson', 'role': 'Lead Surgeon'},
-    {'name': 'Dr. Olivia Chen', 'role': 'Assistant Surgeon'},
-    {'name': 'Dr. Priya Nair', 'role': 'Anesthesiologist'},
-    {'name': 'Jordan Brooks', 'role': 'Scrub Nurse'},
-    {'name': 'Casey Reed', 'role': 'Circulating Nurse'},
+    {'name': 'Dr. James Wilson', 'role': N_('Lead Surgeon')},
+    {'name': 'Dr. Olivia Chen', 'role': N_('Assistant Surgeon')},
+    {'name': 'Dr. Priya Nair', 'role': N_('Anesthesiologist')},
+    {'name': 'Jordan Brooks', 'role': N_('Scrub Nurse')},
+    {'name': 'Casey Reed', 'role': N_('Circulating Nurse')},
 ]
 
-SURGICAL_ROLES = ['Lead Surgeon', 'Assistant Surgeon', 'Anesthesiologist', 'Scrub Nurse', 'Circulating Nurse',
-                  'Other clinical personnel']
+SURGICAL_ROLES = [N_('Lead Surgeon'), N_('Assistant Surgeon'), N_('Anesthesiologist'), N_('Scrub Nurse'),
+                  N_('Circulating Nurse'), N_('Other clinical personnel')]
 
 
 # ----------------------------------------------------------------------------------------
@@ -141,7 +147,7 @@ WS026_SESSION = {
     'closed_time': '15:42',
     'escalated_time': '15:41',
     'escalated_at_display': 'Oct 2, 2026 • 15:41',
-    'surgical_team_summary': '5 clinical members',
+    'surgical_team_summary': N_('5 clinical members'),
     # Status as seen by the Supervisor at review time (operational session already closed).
     'session_status': 'closed',
     'review_status': 'review_required',
@@ -154,35 +160,35 @@ WS026_SESSION = {
 
 WS026_TIMELINE = [
     {'time': '15:15', 'datetime': f'{DEMO_DATE} 15:15:00', 'code': 'SESSION_CREATED',
-     'label': 'Session Created', 'actor': 'Sophia Turner', 'actor_role': 'Supervisor',
-     'target': None, 'entity': 'WorkSession', 'detail': 'New session created for OR-3'},
+     'label': N_('Session Created'), 'actor': 'Sophia Turner', 'actor_role': N_('Supervisor'),
+     'target': None, 'entity': N_('WorkSession'), 'detail': N_('New session created for OR-3')},
     {'time': '15:16', 'datetime': f'{DEMO_DATE} 15:16:00', 'code': 'OPERATOR_ASSIGNED',
-     'label': 'Operator Assigned', 'actor': 'Sophia Turner', 'actor_role': 'Supervisor',
-     'target': 'Alex Morgan', 'entity': 'WorkSession', 'detail': 'Alex Morgan assigned as Operator'},
+     'label': N_('Operator Assigned'), 'actor': 'Sophia Turner', 'actor_role': N_('Supervisor'),
+     'target': 'Alex Morgan', 'entity': N_('WorkSession'), 'detail': N_('Alex Morgan assigned as Operator')},
     {'time': '15:20', 'datetime': f'{DEMO_DATE} 15:20:00', 'code': 'SESSION_STARTED',
-     'label': 'Session Started', 'actor': 'Alex Morgan', 'actor_role': 'Operator',
-     'target': None, 'entity': 'WorkSession', 'detail': 'Session started in OR-3'},
+     'label': N_('Session Started'), 'actor': 'Alex Morgan', 'actor_role': N_('Operator'),
+     'target': None, 'entity': N_('WorkSession'), 'detail': N_('Session started in OR-3')},
     {'time': '15:39:30', 'datetime': f'{DEMO_DATE} 15:39:30', 'code': 'FINAL_TRAY_VERIFICATION_REQUESTED',
-     'label': 'Final Tray Verification Requested', 'actor': None, 'actor_role': 'System',
-     'target': None, 'entity': 'WorkSession', 'detail': 'Final tray verification requested'},
-    {'time': '15:39:45', 'datetime': f'{DEMO_DATE} 15:39:45', 'code': 'FINAL_CAPTURE_CREATED', 'traceability_label': 'Final Capture Created',
-     'label': 'Final Capture Created', 'actor': None, 'actor_role': 'System',
-     'target': None, 'entity': 'Evidence', 'detail': 'Original capture uploaded from CDE-01'},
-    {'time': '15:40:00', 'datetime': f'{DEMO_DATE} 15:40:00', 'code': 'AI_ANALYSIS_COMPLETED', 'traceability_label': 'YOLO Detection Overlay Generated / AI Analysis Completed',
-     'label': 'AI Analysis Completed', 'actor': None, 'actor_role': 'System',
-     'target': None, 'entity': 'Evidence', 'detail': 'YOLO detection overlay generated'},
-    {'time': '15:40:30', 'datetime': f'{DEMO_DATE} 15:40:30', 'code': 'HUMAN_VALIDATION_COMPLETED', 'traceability_label': 'Operator Human Validation Completed',
-     'label': 'Human Validation Completed', 'actor': 'Alex Morgan', 'actor_role': 'Operator',
-     'target': None, 'entity': 'WorkSession', 'detail': 'Operator validation completed'},
-    {'time': '15:41', 'datetime': f'{DEMO_DATE} 15:41:00', 'code': 'DISCREPANCIES_ESCALATED', 'traceability_label': '2 Review Cases Escalated',
-     'label': 'Review Cases Escalated', 'actor': 'Alex Morgan', 'actor_role': 'Operator',
-     'target': 'Sophia Turner', 'entity': 'Review Cases', 'detail': '2 review cases escalated to Supervisor'},
-    {'time': '15:42', 'datetime': f'{DEMO_DATE} 15:42:00', 'code': 'SESSION_CLOSED', 'traceability_label': 'Operational Session Closed / Evidence Locked',
-     'label': 'Session Closed', 'actor': 'Alex Morgan', 'actor_role': 'Operator',
-     'target': None, 'entity': 'WorkSession', 'detail': 'Session closed and submitted for review'},
-    {'time': '15:45', 'datetime': f'{DEMO_DATE} 15:45:00', 'code': 'SUPERVISOR_REVIEW_STARTED', 'traceability_label': 'Supervisor Review Started',
-     'label': 'Supervisor Review Started', 'actor': 'Sophia Turner', 'actor_role': 'Supervisor',
-     'target': None, 'entity': 'Review Cases', 'detail': 'Supervisor review of 2 review cases started'},
+     'label': N_('Final Tray Verification Requested'), 'actor': None, 'actor_role': N_('System'),
+     'target': None, 'entity': N_('WorkSession'), 'detail': N_('Final tray verification requested')},
+    {'time': '15:39:45', 'datetime': f'{DEMO_DATE} 15:39:45', 'code': 'FINAL_CAPTURE_CREATED', 'traceability_label': N_('Final Capture Created'),
+     'label': N_('Final Capture Created'), 'actor': None, 'actor_role': N_('System'),
+     'target': None, 'entity': N_('Evidence'), 'detail': N_('Original capture uploaded from CDE-01')},
+    {'time': '15:40:00', 'datetime': f'{DEMO_DATE} 15:40:00', 'code': 'AI_ANALYSIS_COMPLETED', 'traceability_label': N_('YOLO Detection Overlay Generated / AI Analysis Completed'),
+     'label': N_('AI Analysis Completed'), 'actor': None, 'actor_role': N_('System'),
+     'target': None, 'entity': N_('Evidence'), 'detail': N_('YOLO detection overlay generated')},
+    {'time': '15:40:30', 'datetime': f'{DEMO_DATE} 15:40:30', 'code': 'HUMAN_VALIDATION_COMPLETED', 'traceability_label': N_('Operator Human Validation Completed'),
+     'label': N_('Human Validation Completed'), 'actor': 'Alex Morgan', 'actor_role': N_('Operator'),
+     'target': None, 'entity': N_('WorkSession'), 'detail': N_('Operator validation completed')},
+    {'time': '15:41', 'datetime': f'{DEMO_DATE} 15:41:00', 'code': 'DISCREPANCIES_ESCALATED', 'traceability_label': N_('2 Review Cases Escalated'),
+     'label': N_('Review Cases Escalated'), 'actor': 'Alex Morgan', 'actor_role': N_('Operator'),
+     'target': 'Sophia Turner', 'entity': N_('Review Cases'), 'detail': N_('2 review cases escalated to Supervisor')},
+    {'time': '15:42', 'datetime': f'{DEMO_DATE} 15:42:00', 'code': 'SESSION_CLOSED', 'traceability_label': N_('Operational Session Closed / Evidence Locked'),
+     'label': N_('Session Closed'), 'actor': 'Alex Morgan', 'actor_role': N_('Operator'),
+     'target': None, 'entity': N_('WorkSession'), 'detail': N_('Session closed and submitted for review')},
+    {'time': '15:45', 'datetime': f'{DEMO_DATE} 15:45:00', 'code': 'SUPERVISOR_REVIEW_STARTED', 'traceability_label': N_('Supervisor Review Started'),
+     'label': N_('Supervisor Review Started'), 'actor': 'Sophia Turner', 'actor_role': N_('Supervisor'),
+     'target': None, 'entity': N_('Review Cases'), 'detail': N_('Supervisor review of 2 review cases started')},
 ]
 
 # Events shown in Review Detail -> Validation & Correction Traceability (in timeline order).
@@ -226,15 +232,15 @@ LATEST_LIVE_CAPTURE = {'captured_at': f'{DEMO_DATE} 15:38:50', 'station': 'CDE-0
 # window (Session Started 15:20 -> Final Tray Verification Requested 15:39:30). Mayo-Hegar is
 # removed and never returned, which is why the first final tray verification fails.
 WS026_INSTRUMENT_EVENTS = [
-    {'time': '15:20:30', 'event': 'Detected on Tray', 'instrument': 'Suture Needle Set', 'detail': 'Detected by YOLO'},
-    {'time': '15:21:08', 'event': 'Detected on Tray', 'instrument': 'Kelly Clamp', 'detail': 'Detected by YOLO'},
-    {'time': '15:23:14', 'event': 'Removed from Tray', 'instrument': 'Kelly Clamp', 'detail': 'Instrument in use'},
-    {'time': '15:24:02', 'event': 'Removed from Tray', 'instrument': 'Mayo-Hegar Needle Holder', 'detail': 'Instrument in use'},
-    {'time': '15:26:40', 'event': 'In Use', 'instrument': 'Mayo Scissors', 'detail': 'Outside tray area'},
-    {'time': '15:31:55', 'event': 'Returned to Tray', 'instrument': 'Kelly Clamp', 'detail': 'Returned to tray area'},
-    {'time': '15:34:10', 'event': 'Returned to Tray', 'instrument': 'Mayo Scissors', 'detail': 'Returned to tray area'},
-    {'time': '15:36:22', 'event': 'Detected Again', 'instrument': 'Kelly Clamp', 'detail': 'Re-detected by YOLO'},
-    {'time': '15:38:50', 'event': 'Detected Again', 'instrument': 'Foerster Clamp', 'detail': 'Latest live capture'},
+    {'time': '15:20:30', 'event': N_('Detected on Tray'), 'instrument': 'Suture Needle Set', 'detail': N_('Detected by YOLO')},
+    {'time': '15:21:08', 'event': N_('Detected on Tray'), 'instrument': 'Kelly Clamp', 'detail': N_('Detected by YOLO')},
+    {'time': '15:23:14', 'event': N_('Removed from Tray'), 'instrument': 'Kelly Clamp', 'detail': N_('Instrument in use')},
+    {'time': '15:24:02', 'event': N_('Removed from Tray'), 'instrument': 'Mayo-Hegar Needle Holder', 'detail': N_('Instrument in use')},
+    {'time': '15:26:40', 'event': N_('In Use'), 'instrument': 'Mayo Scissors', 'detail': N_('Outside tray area')},
+    {'time': '15:31:55', 'event': N_('Returned to Tray'), 'instrument': 'Kelly Clamp', 'detail': N_('Returned to tray area')},
+    {'time': '15:34:10', 'event': N_('Returned to Tray'), 'instrument': 'Mayo Scissors', 'detail': N_('Returned to tray area')},
+    {'time': '15:36:22', 'event': N_('Detected Again'), 'instrument': 'Kelly Clamp', 'detail': N_('Re-detected by YOLO')},
+    {'time': '15:38:50', 'event': N_('Detected Again'), 'instrument': 'Foerster Clamp', 'detail': N_('Latest live capture')},
 ]
 
 
@@ -250,7 +256,7 @@ EVIDENCE_IMAGE_EXTENSIONS = ('jpg', 'jpeg', 'png', 'webp')
 
 WS026_EVIDENCE = {
     'image_basename': EVIDENCE_IMAGE_BASENAME,
-    'alt': 'Final tray capture for session WS-026 at capture station CDE-01',
+    'alt': N_('Final tray capture for session WS-026 at capture station CDE-01'),
     'capture_timestamp': f'{DEMO_DATE} 15:39:45',
     'capture_timestamp_display': 'Oct 2, 2026 • 15:39:45',
     'station': 'CDE-01',
@@ -278,35 +284,35 @@ WS026_COUNTS_ESCALATED = {
         'avg_confidence': 96.5, 'avg_confidence_label': '96.5%',
         'instance_confidences': ['98%', '96%', '94%', '98%'],
         'ai_result': 'matched', 'validation_status': 'matched',
-        'correction_reason': 'None', 'correction_notes': 'Verified visually',
+        'correction_reason': N_('None'), 'correction_notes': 'Verified visually',
     },
     'foerster_clamp': {
         'ai_detected': 2, 'validated': 2,
         'avg_confidence': 96.0, 'avg_confidence_label': '96.0%',
         'instance_confidences': [],
         'ai_result': 'matched', 'validation_status': 'matched',
-        'correction_reason': 'None', 'correction_notes': 'Verified visually',
+        'correction_reason': N_('None'), 'correction_notes': 'Verified visually',
     },
     'mayo_hegar': {
         'ai_detected': 1, 'validated': 1,
         'avg_confidence': 94.0, 'avg_confidence_label': '94.0%',
         'instance_confidences': ['94%'],
         'ai_result': 'missing', 'validation_status': 'unresolved',
-        'correction_reason': 'Missing Instrument', 'correction_notes': 'Second instrument not detected',
+        'correction_reason': N_('Missing Instrument'), 'correction_notes': 'Second instrument not detected',
     },
     'mayo_scissors': {
         'ai_detected': 1, 'validated': 1,
         'avg_confidence': 92.0, 'avg_confidence_label': '92.0%',
         'instance_confidences': [],
         'ai_result': 'matched', 'validation_status': 'matched',
-        'correction_reason': 'None', 'correction_notes': 'Verified visually',
+        'correction_reason': N_('None'), 'correction_notes': 'Verified visually',
     },
     'suture_needle_set': {
         'ai_detected': 2, 'validated': 2,
         'avg_confidence': 97.5, 'avg_confidence_label': '97.5%',
         'instance_confidences': [],
         'ai_result': 'matched', 'validation_status': 'evidence_verification_required',
-        'correction_reason': 'Detection evidence requires verification',
+        'correction_reason': N_('Detection evidence requires verification'),
         'correction_notes': 'Verify evidence before finalizing',
     },
 }
@@ -318,23 +324,23 @@ WS026_COUNTS_CLEAN_OVERRIDES = {
         'ai_detected': 2, 'validated': 2,
         'instance_confidences': ['95%', '93%'],
         'ai_result': 'matched', 'validation_status': 'matched',
-        'correction_reason': 'None', 'correction_notes': 'Verified visually',
+        'correction_reason': N_('None'), 'correction_notes': 'Verified visually',
     },
     'suture_needle_set': {
         'validation_status': 'matched',
-        'correction_reason': 'None', 'correction_notes': 'Verified visually',
+        'correction_reason': N_('None'), 'correction_notes': 'Verified visually',
     },
 }
 
 AI_RESULT_UI = {
-    'matched': ('Matched', 'success'),
-    'missing': ('Missing', 'warning'),
+    'matched': (N_('Matched'), 'success'),
+    'missing': (N_('Missing'), 'warning'),
 }
 
 VALIDATION_STATUS_UI = {
-    'matched': ('Matched', 'success'),
-    'unresolved': ('Unresolved', 'danger'),
-    'evidence_verification_required': ('Evidence Verification Required', 'warning'),
+    'matched': (N_('Matched'), 'success'),
+    'unresolved': (N_('Unresolved'), 'danger'),
+    'evidence_verification_required': (N_('Evidence Verification Required'), 'warning'),
 }
 
 
@@ -351,21 +357,21 @@ WS026_REVIEW_CASES = [
         'instrument_name': 'Mayo-Hegar Needle Holder',
         'kit_label': 'Delivery Kit CDE-01',
         'expected_quantity': 2, 'ai_detected': 1, 'validated': 1, 'difference': -1,
-        'type_label': 'Missing Instrument', 'type_short': 'Missing',
+        'type_label': N_('Missing Instrument'), 'type_short': N_('Missing'),
         'severity': 'critical',
         'escalated_time': '15:41',
         'review_status': 'review_required',
         'ai_evidence': {'detected_count': 1, 'avg_confidence_label': '94.0%', 'timestamp': '15:40:00'},
         'operator_validation': {
             'validated_count': 1, 'operator_name': 'Alex Morgan',
-            'reason': 'instrument not detected by camera', 'timestamp': '15:40:30',
+            'reason': N_('instrument not detected by camera'), 'timestamp': '15:40:30',
             'notes': 'Physical recount confirmed only one Mayo-Hegar Needle Holder present.',
         },
-        'summary_title': 'Missing instrument detected',
-        'summary_description': ('One Mayo-Hegar Needle Holder was missing post-procedure. Final '
+        'summary_title': N_('Missing instrument detected'),
+        'summary_description': N_('One Mayo-Hegar Needle Holder was missing post-procedure. Final '
                                 'validated count of 1 does not match expected 2.'),
         'resolution': {
-            'resolution_type': 'Confirmed Missing Instrument',
+            'resolution_type': N_('Confirmed Missing Instrument'),
             'notes': ('Physical recount confirmed one missing Mayo-Hegar Needle Holder. Review '
                       'completed using captured evidence and Operator validation.'),
             'resolved_by': 'Sophia Turner',
@@ -378,26 +384,26 @@ WS026_REVIEW_CASES = [
         'instrument_name': 'Suture Needle Set',
         'kit_label': 'Delivery Kit CDE-01',
         'expected_quantity': 2, 'ai_detected': 2, 'validated': 2, 'difference': 0,
-        'type_label': 'Evidence Verification', 'type_short': 'Evidence Verification',
+        'type_label': N_('Evidence Verification'), 'type_short': N_('Evidence Verification'),
         'severity': 'info',
         'escalated_time': '15:41',
         'review_status': 'review_required',
         'ai_evidence': {'detected_count': 2, 'avg_confidence_label': '97.5%', 'timestamp': '15:40:00'},
         'operator_validation': {
             'validated_count': 2, 'operator_name': 'Alex Morgan',
-            'reason': 'detection evidence requires verification', 'timestamp': '15:40:30',
+            'reason': N_('detection evidence requires verification'), 'timestamp': '15:40:30',
             'notes': 'Verify evidence before finalizing.',
         },
-        'summary_title': 'Evidence verification required',
-        'summary_description': ('Suture Needle Set counts match, but the detection evidence '
+        'summary_title': N_('Evidence verification required'),
+        'summary_description': N_('Suture Needle Set counts match, but the detection evidence '
                                 'requires Supervisor verification.'),
         'resolution': {
-            'resolution_type': 'Evidence Verified / Count Confirmed',
+            'resolution_type': N_('Evidence Verified / Count Confirmed'),
             'notes': 'Captured evidence reviewed; count of 2 confirmed.',
             'resolved_by': 'Sophia Turner',
         },
         'unresolved_resolution': {
-            'resolution_type': 'No valid resolution',
+            'resolution_type': N_('No valid resolution'),
             'notes': 'Available evidence is insufficient to approve the current resolution.',
             'reviewed_by': 'Sophia Turner',
         },
@@ -408,9 +414,9 @@ WS026_REVIEW_CASES = [
 UNRESOLVED_DEMO_CASE_KEY = 'suture-needle-set'
 
 WS026_VALIDATION_HISTORY_EVENT = {
-    'event': 'Operator validation completed',
-    'description': 'Human validation completed for the final WS-026 evidence.',
-    'actor': 'Alex Morgan', 'actor_role': 'Operator', 'timestamp': '15:40:30',
+    'event': N_('Operator validation completed'),
+    'description': N_('Human validation completed for the final WS-026 evidence.'),
+    'actor': 'Alex Morgan', 'actor_role': N_('Operator'), 'timestamp': '15:40:30',
 }
 
 FINAL_VALIDATION = {
@@ -437,9 +443,9 @@ WS027_NEW_SESSION = {
     'patient_name': 'Maria García',
     'patient_record': 'PT-10482',
     'surgical_team': SURGICAL_TEAM,
-    'surgical_team_summary': '5 clinical members',
-    'inventory_note': 'Expected inventory will be frozen when the session starts.',
-    'success_message': 'Session WS-027 created and assigned successfully.',
+    'surgical_team_summary': N_('5 clinical members'),
+    'inventory_note': N_('Expected inventory will be frozen when the session starts.'),
+    'success_message': N_('Session WS-027 created and assigned successfully.'),
     'session_status': 'assigned',
     'review_status': 'no_review_needed',
     'options': {
@@ -480,12 +486,12 @@ SESSION_ROWS = {
                'kit_name': 'Suture Kit', 'operator_name': 'Emily Carter', 'capture_station': 'CDE-02',
                'patient_name': None, 'scheduled_time': '14:00', 'started_time': '14:10', 'closed_time': '14:30',
                'session_status': 'closed', 'review_status': 'reviewed_unresolved',
-               'issue_label': 'Counting error', 'issue_detail': '1 review case'},
+               'issue_label': N_('Counting error'), 'issue_detail': N_('1 review case')},
     'WS-026': {'session_id': WS026_ID, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
                'kit_name': 'Delivery Kit', 'operator_name': 'Alex Morgan', 'capture_station': 'CDE-01',
                'patient_name': 'Maria García', 'scheduled_time': '15:15', 'started_time': '15:20',
                'closed_time': '15:42', 'session_status': 'closed', 'review_status': 'review_required',
-               'issue_label': 'Missing Instrument', 'issue_detail': '2 review cases'},
+               'issue_label': N_('Missing Instrument'), 'issue_detail': N_('2 review cases')},
     'WS-027': {'session_id': WS027_ID, 'procedure_name': 'Appendectomy', 'operating_room': 'OR-3',
                'kit_name': 'Delivery Kit', 'operator_name': 'Alex Morgan', 'capture_station': 'CDE-01',
                'patient_name': 'Maria García', 'scheduled_time': '2026-10-03 08:30', 'started_time': None,
@@ -511,29 +517,29 @@ OPERATOR_ASSIGNED_ROWS = [
 OTHER_REVIEW_QUEUE_ROWS = [
     {'session_id': 'WS-025', 'instrument_name': 'Suture Needle Set', 'kit_label': 'Suture Kit CDE-02',
      'expected_quantity': 6, 'ai_detected': 5, 'validated': 5, 'difference': -1,
-     'type_short': 'Missing', 'review_status': 'reviewed_unresolved'},
+     'type_short': N_('Missing'), 'review_status': 'reviewed_unresolved'},
     {'session_id': 'WS-022', 'instrument_name': 'Retractor Blade', 'kit_label': 'Ortho Kit CDE-04',
      'expected_quantity': 3, 'ai_detected': 2, 'validated': 2, 'difference': -1,
-     'type_short': 'Missing', 'review_status': 'resolved'},
+     'type_short': N_('Missing'), 'review_status': 'resolved'},
 ]
 
 # Operator Assigned Sessions banners (demo only; the list itself never changes state).
 OPERATOR_BANNERS = {
-    'closed_clean': {'variant': 'success', 'title': 'Session {session} closed.',
-                     'description': 'Session Status: Closed · Review Status: No Review Needed.'},
-    'closed_escalated': {'variant': 'success', 'title': 'Session {session} closed.',
-                         'description': ('Session Status: Closed · Review Status: Review Required. Supervisor '
+    'closed_clean': {'variant': 'success', 'title': N_('Session {session} closed.'),
+                     'description': N_('Session Status: Closed · Review Status: No Review Needed.')},
+    'closed_escalated': {'variant': 'success', 'title': N_('Session {session} closed.'),
+                         'description': N_('Session Status: Closed · Review Status: Review Required. Supervisor '
                                          'review continues independently.')},
-    'walkthrough': {'variant': 'info', 'title': 'Demo walkthrough is available for WS-026.',
-                    'description': 'Session {session} is shown for assignment only in this demo.'},
+    'walkthrough': {'variant': 'info', 'title': N_('Demo walkthrough is available for WS-026.'),
+                    'description': N_('Session {session} is shown for assignment only in this demo.')},
 }
 
 SUPERVISOR_DASHBOARD = {
     'kpis': {'sessions_today': 12, 'in_progress_sessions': 3, 'reviews_required': 2,
              'unresolved_discrepancies': 3},
     'sessions_by_day': [
-        {'label': 'Mon', 'count': 8}, {'label': 'Tue', 'count': 12}, {'label': 'Wed', 'count': 10},
-        {'label': 'Thu', 'count': 15}, {'label': 'Fri', 'count': 11},
+        {'label': N_('Mon'), 'count': 8}, {'label': N_('Tue'), 'count': 12}, {'label': N_('Wed'), 'count': 10},
+        {'label': N_('Thu'), 'count': 15}, {'label': N_('Fri'), 'count': 11},
     ],
     'review_status_counts': [
         {'code': 'review_required', 'value': 2},
@@ -546,23 +552,23 @@ SUPERVISOR_DASHBOARD = {
 
 # Applied when a case without a case-specific unresolved text is marked Reviewed – Unresolved.
 GENERIC_UNRESOLVED_RESOLUTION = {
-    'resolution_type': 'No valid resolution',
+    'resolution_type': N_('No valid resolution'),
     'notes': 'Available evidence is insufficient to approve the current resolution.',
     'reviewed_by': 'Sophia Turner',
 }
 
 RESOLUTION_VALIDATED_BANNER = {
     'variant': 'success',
-    'title': 'Resolution validated for WS-026.',
-    'description': 'Demo confirmation only: review state is not persisted.',
+    'title': N_('Resolution validated for WS-026.'),
+    'description': N_('Demo confirmation only: review state is not persisted.'),
 }
 
 RESOLUTION_TYPES = [
-    'Confirmed Missing Instrument',
-    'Evidence Verified / Count Confirmed',
-    'Instrument Located',
-    'Counting Error Corrected',
-    'Other',
+    N_('Confirmed Missing Instrument'),
+    N_('Evidence Verified / Count Confirmed'),
+    N_('Instrument Located'),
+    N_('Counting Error Corrected'),
+    N_('Other'),
 ]
 
 
@@ -582,8 +588,8 @@ SUPERVISOR_FILTER_OPTIONS = {
     'review_statuses': ['no_review_needed', 'review_required', 'reviewed_unresolved', 'resolved'],
     'kits': ['Delivery Kit', 'Suture Kit', 'General Surgery Kit', 'Ortho Kit'],
     'operators': ['Alex Morgan', 'Emily Carter', 'Jordan Brooks', 'Daniel Lee', 'Olivia Chen', 'Priya Nair'],
-    'dates': ['Today', 'Last 7 Days', 'Last 30 Days'],
-    'audit_users': ['Sophia Turner', 'Alex Morgan', 'System'],
+    'dates': [N_('Today'), N_('Last 7 Days'), N_('Last 30 Days')],
+    'audit_users': ['Sophia Turner', 'Alex Morgan', N_('System')],
     'audit_sessions': ['WS-026', 'WS-025', 'WS-022'],
 }
 
@@ -594,25 +600,25 @@ SUPERVISOR_FILTER_OPTIONS = {
 
 SUPERVISOR_REPORTS = {
     'filters': {
-        'date_ranges': ['Last 30 Days', 'Last 7 Days', 'Today'],
-        'session_statuses': ['All Statuses', 'Assigned', 'In Progress', 'Closed'],
+        'date_ranges': [N_('Last 30 Days'), N_('Last 7 Days'), N_('Today')],
+        'session_statuses': [N_('All Statuses'), N_('Assigned'), N_('In Progress'), N_('Closed')],
     },
     'cards': [
-        {'icon': 'document', 'title': 'Session Summary',
-         'description': 'Overview of completed counting sessions.', 'last_generated': '10 mins ago'},
-        {'icon': 'alert_triangle', 'title': 'Discrepancy Summary',
-         'description': 'Summary of unresolved and resolved discrepancies.', 'last_generated': '1 hour ago'},
-        {'icon': 'box', 'title': 'Kit Activity',
-         'description': 'Review counting activity grouped by kit.', 'last_generated': '3 hours ago'},
-        {'icon': 'user', 'title': 'Operator Activity',
-         'description': 'Review counting activity and discrepancy patterns by operator.',
-         'last_generated': 'Yesterday'},
+        {'icon': 'document', 'title': N_('Session Summary'),
+         'description': N_('Overview of completed counting sessions.'), 'last_generated': N_('10 mins ago')},
+        {'icon': 'alert_triangle', 'title': N_('Discrepancy Summary'),
+         'description': N_('Summary of unresolved and resolved discrepancies.'), 'last_generated': N_('1 hour ago')},
+        {'icon': 'box', 'title': N_('Kit Activity'),
+         'description': N_('Review counting activity grouped by kit.'), 'last_generated': N_('3 hours ago')},
+        {'icon': 'user', 'title': N_('Operator Activity'),
+         'description': N_('Review counting activity and discrepancy patterns by operator.'),
+         'last_generated': N_('Yesterday')},
     ],
 }
 
 SUPERVISOR_INDICATORS = {
-    'period': 'October 2026',
-    'periods': ['October 2026', 'September 2026', 'August 2026'],
+    'period': N_('October 2026'),
+    'periods': [N_('October 2026'), N_('September 2026'), N_('August 2026')],
     'kpis': {
         'total_sessions': 156,
         'total_discrepancies': 8,
@@ -626,19 +632,19 @@ SUPERVISOR_INDICATORS = {
         {'label': 'Mayo-Hegar Needle Holder', 'value': 3, 'variant': 'danger'},
         {'label': 'Allis Tissue Forceps', 'value': 2, 'variant': 'warning'},
         {'label': 'Foerster Sponge Forceps', 'value': 1, 'variant': 'neutral'},
-        {'label': 'Other', 'value': 2, 'variant': 'primary'},
+        {'label': N_('Other'), 'value': 2, 'variant': 'primary'},
     ],
     'discrepancies_by_family': [
-        {'label': 'Needle Holders', 'value': 4, 'variant': 'danger'},
-        {'label': 'Forceps', 'value': 3, 'variant': 'warning'},
-        {'label': 'Scissors', 'value': 1, 'variant': 'neutral'},
+        {'label': N_('Needle Holders'), 'value': 4, 'variant': 'danger'},
+        {'label': N_('Forceps'), 'value': 3, 'variant': 'warning'},
+        {'label': N_('Scissors'), 'value': 1, 'variant': 'neutral'},
     ],
     'discrepancies_by_type': [
-        {'label': 'Missing', 'value': 3, 'variant': 'danger'},
-        {'label': 'Extra', 'value': 2, 'variant': 'warning'},
-        {'label': 'Low Confidence', 'value': 1, 'variant': 'neutral'},
-        {'label': 'Unrecognized', 'value': 1, 'variant': 'primary'},
-        {'label': 'Uncertain Classification', 'value': 1, 'variant': 'info'},
+        {'label': N_('Missing'), 'value': 3, 'variant': 'danger'},
+        {'label': N_('Extra'), 'value': 2, 'variant': 'warning'},
+        {'label': N_('Low Confidence'), 'value': 1, 'variant': 'neutral'},
+        {'label': N_('Unrecognized'), 'value': 1, 'variant': 'primary'},
+        {'label': N_('Uncertain Classification'), 'value': 1, 'variant': 'info'},
     ],
 }
 

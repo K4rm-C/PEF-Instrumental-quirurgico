@@ -116,7 +116,7 @@
                 {% for station in capture_stations %}
                 <tr>
                     <th scope="row">{{ station.name }}</th>
-                    <td>{{ station.operating_room }}</td>
+                    <td>{{ _(station.operating_room) }}</td>
                     <td>{{ macros.status_badge(station.status_label, station.status_variant) }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--secondary btn--small" href="{{ station.edit_url }}">{{ _("Edit") }}</a>

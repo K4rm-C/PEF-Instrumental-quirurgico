@@ -33,7 +33,7 @@
     {% for item in items %}
     <li class="status-progress-item">
         <div class="status-progress-item__header">
-            <span>{{ item.label }}</span>
+            <span>{{ _(item.label) }}</span>
             <span class="status-progress-item__value">{{ item.value }}</span>
         </div>
         <div class="status-progress-item__track">

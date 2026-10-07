@@ -199,7 +199,7 @@
                         {% set cat = item.category_label|default('Other') %}
                         {% set cat_code = (item.category_code|default('other'))|lower %}
                         {% if cat != ns.prev_cat %}
-                        <tr class="capture-cat-header" data-category-name="{{ cat }}" data-category-code="{{ cat_code }}">
+                        <tr class="capture-cat-header" data-category-name="{{ item.category_name|default(cat, true) }}" data-category-code="{{ cat_code }}">
                             <td colspan="7">
                                 {{ cat }}
                                 <span class="capture-cat-meta" data-cat-meta></span>
@@ -208,7 +208,7 @@
                         </tr>
                         {% set ns.prev_cat = cat %}
                         {% endif %}
-                    <tr class="capture-family-row" data-family-code="{{ item.family_code }}" data-category-name="{{ cat }}" data-category-code="{{ cat_code }}">
+                    <tr class="capture-family-row" data-family-code="{{ item.family_code }}" data-category-name="{{ item.category_name|default(cat, true) }}" data-category-code="{{ cat_code }}">
                         <td>{{ item.family_name }}</td>
                         <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
                         <td class="data-table__numeric-column" data-detected>—</td>
@@ -269,6 +269,24 @@
     var phaseForm = document.getElementById("capture-phase-form");
     var phaseMsg = document.getElementById("capture-phase-msg");
     var timer = null;
+    var i18n = {
+        catMeta: {{ _("Expected %(expected)s · Named %(named)s · Unnamed %(unnamed)s · Detected %(detected)s")|tojson }},
+        pending: {{ _("Pending: %(items)s")|tojson }},
+        status: {{ _("Status: %(status)s")|tojson }},
+        progress: {{ _("Progress: %(percent)s%%")|tojson }},
+        model: {{ _("Model: %(model)s")|tojson }},
+        uploading: {{ _("uploading…")|tojson }},
+        processing: {{ _("processing")|tojson }},
+        error: {{ _("error · %(detail)s")|tojson }},
+        uploadFailed: {{ _("upload failed")|tojson }},
+        phaseChanged: {{ _("Phase → %(phase)s (logged; stub side-effects)")|tojson }},
+        phaseFailed: {{ _("Phase change failed")|tojson }}
+    };
+    function fill(template, values) {
+        return template.replace(/%\((\w+)\)s/g, function (match, name) {
+            return values[name] !== undefined ? String(values[name]) : match;
+        }).replace(/%%/g, "%");
+    }
 
     function fmt(n) {
         return n == null ? "—" : Number(n).toFixed(2);
@@ -287,19 +305,18 @@
                 if (pendEl) pendEl.textContent = "";
                 return;
             }
-            metaEl.textContent =
-                "Expected " + meta.expected +
-                " · Named " + meta.named +
-                " · Unnamed " + meta.unnamed +
-                " · Detected " + meta.detected;
+            metaEl.textContent = fill(i18n.catMeta, {
+                expected: meta.expected, named: meta.named,
+                unnamed: meta.unnamed, detected: meta.detected
+            });
             if (pendEl) {
                 var pending = meta.pending || [];
                 if (!pending.length) {
                     pendEl.textContent = "";
                 } else {
-                    pendEl.textContent = "Pending: " + pending.map(function (p) {
+                    pendEl.textContent = fill(i18n.pending, {items: pending.map(function (p) {
                         return p.family_name + " (−" + p.missing + ")";
-                    }).join(", ");
+                    }).join(", ")});
                 }
             }
         });
@@ -307,14 +324,14 @@
 
     function applyState(session) {
         if (!session) return;
-        statusEl.textContent = "Status: " + (session.status || "—") + (session.message ? " · " + session.message : "");
+        statusEl.textContent = fill(i18n.status, {status: (session.status || "—") + (session.message ? " · " + session.message : "")});
         if (typeof session.progress === "number") {
-            progressEl.textContent = "Progress: " + Math.round(session.progress * 100) + "%";
+            progressEl.textContent = fill(i18n.progress, {percent: Math.round(session.progress * 100)});
         }
         if (session.model_version) {
-            modelEl.textContent = "Model: " + session.model_version
+            modelEl.textContent = fill(i18n.model, {model: session.model_version
                 + (session.pipeline ? " · " + session.pipeline : "")
-                + (session.assign_solver ? " / " + session.assign_solver : "");
+                + (session.assign_solver ? " / " + session.assign_solver : "")});
         }
         if (session.frame_jpeg_b64) {
             img.src = "data:image/jpeg;base64," + session.frame_jpeg_b64;
@@ -377,19 +394,19 @@
         var fd = new FormData();
         fd.append("video", fileInput.files[0]);
         uploadBtn.disabled = true;
-        statusEl.textContent = "Status: uploading…";
+        statusEl.textContent = fill(i18n.status, {status: i18n.uploading});
         fetch(uploadUrl, { method: "POST", body: fd, credentials: "same-origin" })
             .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (res) {
                 if (!res.ok) {
-                    statusEl.textContent = "Status: error · " + (res.j.error || "upload failed");
+                    statusEl.textContent = fill(i18n.status, {status: fill(i18n.error, {detail: res.j.error || i18n.uploadFailed})});
                     return;
                 }
-                statusEl.textContent = "Status: processing";
+                statusEl.textContent = fill(i18n.status, {status: i18n.processing});
                 if (res.j.session) applyState(res.j.session);
             })
             .catch(function (err) {
-                statusEl.textContent = "Status: error · " + err;
+                statusEl.textContent = fill(i18n.status, {status: fill(i18n.error, {detail: err})});
             })
             .finally(function () { uploadBtn.disabled = false; });
     });
@@ -401,8 +418,8 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
                 phaseMsg.textContent = data.ok
-                    ? ("Phase → " + data.phase_code + " (logged; stub side-effects)")
-                    : (data.error || "Phase change failed");
+                    ? fill(i18n.phaseChanged, {phase: data.phase_code})
+                    : (data.error || i18n.phaseFailed);
             })
             .catch(function (err) { phaseMsg.textContent = String(err); });
     });

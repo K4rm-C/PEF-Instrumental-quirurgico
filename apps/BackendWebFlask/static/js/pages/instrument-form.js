@@ -1,6 +1,10 @@
 (function () {
   "use strict";
 
+  function t(key, values) {
+    return window.pefT ? window.pefT(key, values) : key;
+  }
+
   var form = document.querySelector("[data-instrument-form]");
   if (!form) return;
 
@@ -22,34 +26,34 @@
 
     var lines = [];
     if (mode === "create") {
-      lines.push("Create instrument <strong>" + (code || "(no code)") + "</strong>");
-      lines.push("Family: " + selectedLabel(family));
-      lines.push("Cycle status: " + selectedLabel(cycle));
-      lines.push("Active status: " + selectedLabel(active));
+      lines.push(t("instrumentCreateLine", { code: "<strong>" + (code || t("instrumentNoCode")) + "</strong>" }));
+      lines.push(t("instrumentFamilyLine", { value: selectedLabel(family) }));
+      lines.push(t("instrumentCycleLine", { value: selectedLabel(cycle) }));
+      lines.push(t("instrumentActiveLine", { value: selectedLabel(active) }));
     } else {
       var baseFamily = form.getAttribute("data-baseline-family") || "";
       var baseCycle = form.getAttribute("data-baseline-cycle") || "";
       var baseActive = form.getAttribute("data-baseline-active") || "";
       if (family && family.value !== baseFamily) {
-        lines.push("Family changed → " + selectedLabel(family));
+        lines.push(t("instrumentFamilyChanged", { value: selectedLabel(family) }));
       }
       if (cycle && cycle.value !== baseCycle) {
-        lines.push("Cycle status: " + baseCycle + " → " + selectedLabel(cycle));
+        lines.push(t("instrumentCycleChanged", { before: baseCycle, after: selectedLabel(cycle) }));
       }
       if (active && active.value !== baseActive) {
-        lines.push("Active status: " + baseActive + " → " + selectedLabel(active));
+        lines.push(t("instrumentActiveChanged", { before: baseActive, after: selectedLabel(active) }));
       }
       if (reason && reason.value.trim()) {
-        lines.push("Change reason: " + reason.value.trim());
+        lines.push(t("instrumentChangeReason", { value: reason.value.trim() }));
       }
       if (!lines.length) {
-        lines.push("No status/family changes detected. Save anyway?");
+        lines.push(t("instrumentNoChanges"));
       } else {
-        lines.unshift("Instrument <strong>" + code + "</strong>");
+        lines.unshift(t("instrumentHeading", { code: "<strong>" + code + "</strong>" }));
       }
     }
 
-    var html = "<p>Confirm this instrument save. The change will be audited.</p><div class=\"app-modal__audit\"><ul>";
+    var html = "<p>" + t("instrumentConfirmIntro") + "</p><div class=\"app-modal__audit\"><ul>";
     lines.forEach(function (line) {
       html += "<li>" + line + "</li>";
     });
@@ -58,10 +62,10 @@
     if (window.appConfirm) {
       window
         .appConfirm({
-          title: mode === "edit" ? "Save instrument changes?" : "Create instrument?",
+          title: mode === "edit" ? t("instrumentSaveTitle") : t("instrumentCreateTitle"),
           html: html,
-          okLabel: mode === "edit" ? "Save Changes" : "Save Instrument",
-          cancelLabel: "Cancel",
+          okLabel: mode === "edit" ? t("instrumentSaveChanges") : t("instrumentSaveButton"),
+          cancelLabel: t("cancel"),
         })
         .then(function (ok) {
           if (ok && window.appConfirmProceed) window.appConfirmProceed(form);

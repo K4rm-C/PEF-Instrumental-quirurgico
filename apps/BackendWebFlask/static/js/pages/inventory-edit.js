@@ -1,6 +1,10 @@
 (function () {
   "use strict";
 
+  function t(key, values) {
+    return window.pefT ? window.pefT(key, values) : key;
+  }
+
   var form = document.querySelector("[data-inventory-edit-form]");
   var tbody = document.querySelector("[data-inventory-rows]");
   var addFamily = document.querySelector("[data-inventory-add-family]");
@@ -68,7 +72,7 @@
     if (!addFamily) return;
     var blocked = blockedIds();
     var current = addFamily.value;
-    addFamily.innerHTML = '<option value="">Select family</option>';
+    addFamily.innerHTML = '<option value="">' + t("selectFamily") + "</option>";
     families.forEach(function (family) {
       if (blocked.indexOf(String(family.id)) !== -1) return;
       var opt = document.createElement("option");
@@ -113,7 +117,7 @@
     var last = null;
     rows.forEach(function (row) {
       tbody.appendChild(row);
-      var cat = row.getAttribute("data-category-label") || "Other";
+      var cat = row.getAttribute("data-category-label") || t("otherCategory");
       if (cat !== last) {
         last = cat;
         var header = document.createElement("tr");
@@ -131,7 +135,7 @@
     row.setAttribute("data-inventory-row", "1");
     row.setAttribute("data-family-id", family.id);
     row.setAttribute("data-family-label", family.name);
-    row.setAttribute("data-category-label", family.category_label || "Other");
+    row.setAttribute("data-category-label", family.category_label || t("otherCategory"));
     row.setAttribute(
       "data-category-rank",
       String(family.category_rank != null ? family.category_rank : 999)
@@ -148,8 +152,10 @@
       qty +
       '" required data-qty-input></td>' +
       "<td>" +
-      (origin === "added" ? "New" : "—") +
-      '</td><td><button type="button" class="btn btn--secondary btn--small" data-remove-row>Remove</button></td>';
+      (origin === "added" ? t("newRow") : "—") +
+      '</td><td><button type="button" class="btn btn--secondary btn--small" data-remove-row>' +
+      t("remove") +
+      "</button></td>";
     return row;
   }
 
@@ -173,7 +179,9 @@
         item.qty +
         '</td><td><button type="button" class="btn btn--secondary btn--small" data-undo-id="' +
         id +
-        '">Undo</button></td>';
+        '">' +
+        t("undo") +
+        "</button></td>";
       removedBody.appendChild(tr);
     });
   }
@@ -201,7 +209,7 @@
     var family = findFamily(familyId) || {
       id: familyId,
       name: label,
-      category_label: row.getAttribute("data-category-label") || "Other",
+      category_label: row.getAttribute("data-category-label") || t("otherCategory"),
       category_rank: parseInt(row.getAttribute("data-category-rank") || "999", 10),
     };
     removedItems[familyId] = {
@@ -256,9 +264,9 @@
       if (!current[id]) removed.push(baseline[id].label + " × " + baseline[id].qty);
     });
     if (!added.length && !modified.length && !removed.length) {
-      return "<p>No inventory changes detected. Save session fields anyway?</p>";
+      return "<p>" + t("inventoryNoChanges") + "</p>";
     }
-    var html = "<p>Review inventory changes:</p>";
+    var html = "<p>" + t("inventoryReviewChanges") + "</p>";
     function block(title, lines) {
       if (!lines.length) return "";
       var out = '<div class="app-modal__audit"><p class="app-modal__audit-title">' + title + "</p><ul>";
@@ -267,7 +275,7 @@
       });
       return out + "</ul></div>";
     }
-    html += block("Added", added) + block("Modified", modified) + block("Removed", removed);
+    html += block(t("changesAdded"), added) + block(t("changesModified"), modified) + block(t("changesRemoved"), removed);
     return html;
   }
 
@@ -301,10 +309,10 @@
       if (window.appConfirm) {
         window
           .appConfirm({
-            title: "Save session changes?",
+            title: t("inventorySaveTitle"),
             html: buildChangeSummaryHtml(),
-            okLabel: "Save",
-            cancelLabel: "Cancel",
+            okLabel: t("save"),
+            cancelLabel: t("cancel"),
           })
           .then(function (ok) {
             if (ok && window.appConfirmProceed) window.appConfirmProceed(form);

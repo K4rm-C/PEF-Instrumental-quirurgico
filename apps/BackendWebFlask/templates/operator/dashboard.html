@@ -111,7 +111,7 @@
                     <td>{{ session.operator_name }}</td>
                     <td>{{ macros.status_badge(session.status_label, session.status_variant) }}</td>
                     <td class="data-table__action-column">
-                        <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ session.action_label }}</a>
+                        <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ _(session.action_label) }}</a>
                     </td>
                 </tr>
                 {% endfor %}

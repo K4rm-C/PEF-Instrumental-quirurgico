@@ -280,13 +280,13 @@
 {% macro status_badge(label, variant) %}
 <span class="status-badge status-badge--{{ variant }}">
     <span class="status-badge__dot" aria-hidden="true"></span>
-    <span>{{ label }}</span>
+    <span>{{ _(label) }}</span>
 </span>
 {% endmacro %}
 
 {% macro stat_card(label, value, variant='neutral') %}
 <div class="stat-card stat-card--{{ variant }}">
-    <p class="stat-card__label">{{ label }}</p>
+    <p class="stat-card__label">{{ _(label) }}</p>
     <p class="stat-card__value">{{ value }}</p>
 </div>
 {% endmacro %}
@@ -300,8 +300,8 @@
 <div class="alert alert--{{ variant }}" role="status">
     {% if variant == 'success' %}{{ icon_check_circle() }}{% else %}{{ icon_alert_triangle() }}{% endif %}
     <div class="alert__content">
-        <p class="alert__title">{{ title }}</p>
-        {% if description %}<p class="alert__description">{{ description }}</p>{% endif %}
+        <p class="alert__title">{{ _(title) }}</p>
+        {% if description %}<p class="alert__description">{{ _(description) }}</p>{% endif %}
     </div>
 </div>
 {% endmacro %}
@@ -318,9 +318,10 @@
       percentages of the frame, supplied by data (never hardcoded in templates). Boxes are
       drawn only over a real image; without one, the placeholder shows fallback_label.
     - Visible text (title, tag_label, caption_left/right, fallback_label) is passed in already
-      translated by the caller: imported macros have no access to the `_` context helper.
+      translated by the caller; fallback_label defaults to a translated placeholder text.
 #}
-{% macro evidence_figure(image_url=none, alt='', title='', tag_label='', tag_variant='info', caption_left='', caption_right='', overlay_boxes=none, image_available=true, fallback_label='Evidence image not available', size='') %}
+{% macro evidence_figure(image_url=none, alt='', title='', tag_label='', tag_variant='info', caption_left='', caption_right='', overlay_boxes=none, image_available=true, fallback_label=none, size='') %}
+{% set fallback_label = fallback_label or _("Evidence image not available") %}
 {% set has_image = image_available and image_url %}
 <figure class="v3-evidence{% if size %} v3-evidence--{{ size }}{% endif %}">
     {% if title or tag_label %}

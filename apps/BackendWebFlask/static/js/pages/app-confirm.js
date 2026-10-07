@@ -8,6 +8,11 @@
 (function () {
     "use strict";
 
+    // Default button/title text comes translated from base.html (window.PEF_I18N).
+    function t(key) {
+        return window.pefT ? window.pefT(key) : key;
+    }
+
     function ensureModal() {
         var existing = document.getElementById("app-confirm-modal");
         if (existing) {
@@ -37,14 +42,14 @@
             var bodyEl = modal.querySelector("[data-app-confirm-body]");
             var okBtn = modal.querySelector("[data-app-confirm-ok]");
             var cancelBtn = modal.querySelector("[data-app-confirm-cancel]");
-            titleEl.textContent = options.title || "Confirm";
+            titleEl.textContent = options.title || t("confirm");
             if (options.html) {
                 bodyEl.innerHTML = options.html;
             } else {
                 bodyEl.textContent = options.message || "";
             }
-            okBtn.textContent = options.okLabel || "OK";
-            cancelBtn.textContent = options.cancelLabel || "Cancel";
+            okBtn.textContent = options.okLabel || t("ok");
+            cancelBtn.textContent = options.cancelLabel || t("cancel");
             modal.classList.add("is-open");
 
             function close(result) {
@@ -109,10 +114,10 @@
             event.preventDefault();
             event.stopImmediatePropagation();
             openConfirm({
-                title: form.getAttribute("data-app-confirm-title") || "Confirm",
+                title: form.getAttribute("data-app-confirm-title") || t("confirm"),
                 message: message,
-                okLabel: form.getAttribute("data-app-confirm-ok") || "Continue",
-                cancelLabel: form.getAttribute("data-app-confirm-cancel") || "Cancel",
+                okLabel: form.getAttribute("data-app-confirm-ok") || t("continue"),
+                cancelLabel: form.getAttribute("data-app-confirm-cancel") || t("cancel"),
                 html: form.getAttribute("data-app-confirm-html") || null,
             }).then(function (ok) {
                 if (!ok) {

@@ -107,7 +107,7 @@
         </dl>
         {% else %}
         <p>{{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</p>
-        <p>{{ session.privacy.message if session.privacy else _("No privacy notice linked.") }}</p>
+        <p>{{ _(session.privacy.message) if session.privacy else _("No privacy notice linked.") }}</p>
         {% endif %}
     </section>
 

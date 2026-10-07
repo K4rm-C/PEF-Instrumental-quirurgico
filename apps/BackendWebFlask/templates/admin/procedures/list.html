@@ -69,8 +69,8 @@
                     <th scope="row">{{ procedure.code }}</th>
                     <td>{{ procedure.name }}</td>
                     <td>{{ _("%(count)s Kit(s)", count=procedure.associated_kits_count) }}</td>
-                    <td>{{ procedure.default_kit_name }}</td>
-                    <td>{{ procedure.counting_phases_label }}</td>
+                    <td>{{ _(procedure.default_kit_name) }}</td>
+                    <td>{{ _(procedure.counting_phases_label) }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--secondary btn--small" href="{{ procedure.edit_url }}">{{ _("Edit") }}</a>
                     </td>

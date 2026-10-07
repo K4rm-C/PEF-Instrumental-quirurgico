@@ -92,7 +92,7 @@
                 <tbody>
                     {% for item in catalog_overview %}
                     <tr>
-                        <th scope="row">{{ item.label }}</th>
+                        <th scope="row">{{ _(item.label) }}</th>
                         <td class="data-table__numeric-column">{{ item.value }}</td>
                     </tr>
                     {% endfor %}
@@ -108,7 +108,7 @@
                 <tbody>
                     {% for item in system_overview %}
                     <tr>
-                        <th scope="row">{{ item.label }}</th>
+                        <th scope="row">{{ _(item.label) }}</th>
                         <td class="data-table__numeric-column">{{ item.value }}</td>
                     </tr>
                     {% endfor %}
@@ -125,7 +125,7 @@
             <tbody>
                 {% for item in operational_metrics %}
                 <tr>
-                    <th scope="row">{{ item.label }}</th>
+                    <th scope="row">{{ _(item.label) }}</th>
                     <td class="data-table__numeric-column">{{ item.value }}</td>
                 </tr>
                 {% endfor %}

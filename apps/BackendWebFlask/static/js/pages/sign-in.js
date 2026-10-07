@@ -18,6 +18,17 @@ if (signInForm) {
         },
     };
 
+    const t = (key) => (window.pefT ? window.pefT(key) : key);
+    // The auth service keeps English API messages; show the localized UI text instead.
+    const authErrorKeys = {
+        'Invalid credentials': 'authInvalidCredentials',
+        'Too many failed login attempts. Try again later.': 'authTooManyAttempts',
+        'Session store unavailable': 'authSessionStoreUnavailable',
+        'Database unavailable': 'authDatabaseUnavailable',
+        'Session expired; sign in again.': 'authSessionExpired',
+    };
+    const authErrorMessage = (apiMessage) => t(authErrorKeys[apiMessage] || 'signInFailed');
+
     const safeNextUrl = (value, role) => {
         if (!value) return role.url;
         try {
@@ -49,15 +60,15 @@ if (signInForm) {
             });
             const payload = await response.json();
             if (!response.ok) {
-                throw new Error(payload.error || 'Sign in failed. Please try again.');
+                throw new Error(authErrorMessage(payload.error));
             }
 
             const role = payload.user?.roles?.map(({ code }) => homeByRole[code]).find(Boolean);
             if (!role) {
-                throw new Error('Your account has no application role.');
+                throw new Error(t('noApplicationRole'));
             }
 
-            // Persist locale preference for guest→auth handoff (Flask-Babel arrives in later i18n phase).
+            // DS01: after login the account preference wins over the guest pef_locale cookie.
             const locale = payload.user?.ui_preferences?.locale;
             if (locale === 'en' || locale === 'es-MX') {
                 document.cookie = `pef_locale=${locale}; Path=/; Max-Age=31536000; SameSite=Lax`;
@@ -67,7 +78,7 @@ if (signInForm) {
             window.location.assign(safeNextUrl(requestedNext, role));
         } catch (error) {
             errorMessage.textContent = error instanceof TypeError
-                ? 'Authentication service unavailable.'
+                ? t('authServiceUnavailable')
                 : error.message;
             errorMessage.hidden = false;
         }

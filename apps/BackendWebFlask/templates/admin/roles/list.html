@@ -63,7 +63,7 @@
                 <tr>
                     <th scope="row">{{ role.code }}</th>
                     <td class="data-table__cell--truncate">{{ role.description }}</td>
-                    <td>{{ role.institution }}</td>
+                    <td>{{ _(role.institution) }}</td>
                     <td>{{ role.assigned_users }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--secondary btn--small" href="{{ role.edit_url }}">{{ _("View / Edit") }}</a>

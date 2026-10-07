@@ -123,7 +123,7 @@
                 {% for instrument in instruments %}
                 <tr>
                     <th scope="row">{{ instrument.internal_code }}</th>
-                    <td>{{ instrument.instrument_type_label|default('—') }}</td>
+                    <td>{{ _(instrument.instrument_type_label)|default('—') }}</td>
                     <td>{{ instrument.instrument_family_name }}</td>
                     <td>{{ macros.status_badge(instrument.cycle_status_label, instrument.cycle_status_variant) }}</td>
                     <td>{{ macros.status_badge(instrument.active_status_label, instrument.active_status_variant) }}</td>
