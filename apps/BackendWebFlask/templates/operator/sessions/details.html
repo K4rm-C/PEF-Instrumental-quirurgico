@@ -1,6 +1,12 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
+{#
+    Operator Session Details. Session / Privacy & Capture / Expected Inventory are free
+    client-side tabs (js/pages/v3-tabs.js, shared with Supervisor RF Session Details): all data
+    is already rendered here; the selected tab is kept in location.hash.
+#}
+
 {% block title %}{{ session.session_id }} · {{ _("Session details") }}{% endblock %}
 
 {% block sidebar %}
@@ -16,7 +22,13 @@
 </ol>
 {% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+{% endblock %}
+
 {% block page_content %}
+{% set detail_tabs = [('session', _('Session')), ('privacy', _('Privacy / Capture')), ('inventory', _('Expected Inventory'))] %}
+<div class="v3-page">
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ session.session_id }}</h1>
@@ -32,72 +44,108 @@
     </div>
 </div>
 
-<section class="card">
-    <h2 class="card__title">{{ _("Session") }}</h2>
-    <dl class="detail-list">
-        <div><dt>{{ _("Status") }}</dt><dd>{{ macros.status_badge(session.status_label, session.status_variant) }}</dd></div>
-        <div><dt>{{ _("Kit") }}</dt><dd>{{ session.kit_name }}</dd></div>
-        <div><dt>{{ _("Capture station") }}</dt><dd>{{ session.capture_station_name }}</dd></div>
-        <div><dt>{{ _("Scheduled") }}</dt><dd>{{ session.scheduled_at or '—' }}</dd></div>
-        <div><dt>{{ _("Started") }}</dt><dd>{{ session.started_at or '—' }}</dd></div>
-        <div><dt>{{ _("Capture mode") }}</dt><dd>{{ session.capture_mode or _('(frozen at Start)') }}</dd></div>
-        <div><dt>{{ _("Open discrepancies") }}</dt><dd>{{ session.discrepancy_count }}</dd></div>
-    </dl>
-</section>
-
-<section class="card">
-    <h2 class="card__title">{{ _("Privacy / Capture") }}</h2>
-    {% if session.privacy and session.privacy.has_agreement %}
-    <p>{{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</p>
-    <dl class="detail-list">
-        <div><dt>{{ _("Notice version") }}</dt><dd>{{ session.privacy.version }}</dd></div>
-        <div><dt>{{ _("Agreed at") }}</dt><dd>{{ session.privacy.agreed_at }}</dd></div>
-        <div><dt>{{ _("Confirmed by") }}</dt><dd>{{ session.privacy.agreed_by }}</dd></div>
-        <div><dt>{{ _("Quality / ops") }}</dt><dd>{{ _("Yes") if session.privacy.purpose_quality_ops else _("No") }}</dd></div>
-        <div><dt>{{ _("Model improvement") }}</dt><dd>{{ _("Yes") if session.privacy.purpose_model_improvement else _("No") }}</dd></div>
-        <div><dt>{{ _("Document") }}</dt>
-            <dd>
-                {% if session.privacy.document_uri %}
-                <code>{{ session.privacy.document_uri }}</code>
-                {% else %}—{% endif %}
-            </dd>
-        </div>
-    </dl>
-    {% else %}
-    <p>{{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</p>
-    <p>{{ session.privacy.message if session.privacy else _("No privacy notice linked.") }}</p>
-    {% endif %}
-</section>
-
-<section class="card">
-    <h2 class="card__title">{{ _("Expected inventory") }}</h2>
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th scope="col">{{ _("Family") }}</th>
-                    <th scope="col">{{ _("Code") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
-                    <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
-                    <th scope="col">{{ _("Status") }}</th>
-                    <th scope="col">{{ _("Source") }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in session.expected_items|default([]) %}
-                <tr>
-                    <td>{{ item.family_name }}</td>
-                    <td>{{ item.family_code }}</td>
-                    <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
-                    <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
-                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
-                    <td>{{ item.source }}</td>
-                </tr>
-                {% else %}
-                <tr><td colspan="6">{{ _("No expected inventory rows yet.") }}</td></tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<div class="v3-stack" data-v3-tabs data-v3-tabs-hash>
+    <div class="v3-tabs" role="tablist" aria-label="{{ _('Session details sections') }}">
+        {% for key, label in detail_tabs %}
+        <button type="button" class="v3-tabs__link{% if loop.first %} v3-tabs__link--active{% endif %}" role="tab"
+                id="tab-{{ key }}" data-tab-target="{{ key }}" aria-controls="tab-panel-{{ key }}"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"{% if not loop.first %} tabindex="-1"{% endif %}>{{ label }}</button>
+        {% endfor %}
     </div>
-</section>
+
+    <section class="card v3-tab-panel" role="tabpanel" id="tab-panel-session" aria-labelledby="tab-session" data-tab-panel="session">
+        <h2 class="card__title">{{ _("Session") }}</h2>
+        <div class="v3-metric-tiles">
+            <div class="v3-metric-tile">
+                <div class="v3-metric-tile__label">{{ _("Status") }}</div>
+                <div class="v3-metric-tile__value v3-metric-tile__value--text">{{ macros.status_badge(session.status_label, session.status_variant) }}</div>
+            </div>
+            <div class="v3-metric-tile">
+                <div class="v3-metric-tile__label">{{ _("Capture mode") }}</div>
+                <div class="v3-metric-tile__value v3-metric-tile__value--text">{{ session.capture_mode or _('(frozen at Start)') }}</div>
+            </div>
+            <div class="v3-metric-tile{% if session.discrepancy_count %} v3-metric-tile--warning{% endif %}">
+                <div class="v3-metric-tile__label">{{ _("Open discrepancies") }}</div>
+                <div class="v3-metric-tile__value">{{ session.discrepancy_count }}</div>
+            </div>
+        </div>
+        <div class="v3-columns">
+            <div class="v3-panel">
+                <h3 class="v3-panel__title">{{ _("Assignment") }}</h3>
+                <dl class="v3-kv-list">
+                    <div><dt>{{ _("Kit") }}</dt><dd>{{ session.kit_name }}</dd></div>
+                    <div><dt>{{ _("Capture station") }}</dt><dd>{{ session.capture_station_name }}</dd></div>
+                </dl>
+            </div>
+            <div class="v3-panel">
+                <h3 class="v3-panel__title">{{ _("Timing") }}</h3>
+                <dl class="v3-kv-list">
+                    <div><dt>{{ _("Scheduled") }}</dt><dd>{{ session.scheduled_at or '—' }}</dd></div>
+                    <div><dt>{{ _("Started") }}</dt><dd>{{ session.started_at or '—' }}</dd></div>
+                </dl>
+            </div>
+        </div>
+    </section>
+
+    <section class="card v3-tab-panel" role="tabpanel" id="tab-panel-privacy" aria-labelledby="tab-privacy" data-tab-panel="privacy" hidden>
+        <h2 class="card__title">{{ _("Privacy / Capture") }}</h2>
+        {% if session.privacy and session.privacy.has_agreement %}
+        <p>{{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</p>
+        <dl class="detail-list">
+            <div><dt>{{ _("Notice version") }}</dt><dd>{{ session.privacy.version }}</dd></div>
+            <div><dt>{{ _("Agreed at") }}</dt><dd>{{ session.privacy.agreed_at }}</dd></div>
+            <div><dt>{{ _("Confirmed by") }}</dt><dd>{{ session.privacy.agreed_by }}</dd></div>
+            <div><dt>{{ _("Quality / ops") }}</dt><dd>{{ _("Yes") if session.privacy.purpose_quality_ops else _("No") }}</dd></div>
+            <div><dt>{{ _("Model improvement") }}</dt><dd>{{ _("Yes") if session.privacy.purpose_model_improvement else _("No") }}</dd></div>
+            <div><dt>{{ _("Document") }}</dt>
+                <dd>
+                    {% if session.privacy.document_uri %}
+                    <code>{{ session.privacy.document_uri }}</code>
+                    {% else %}—{% endif %}
+                </dd>
+            </div>
+        </dl>
+        {% else %}
+        <p>{{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</p>
+        <p>{{ session.privacy.message if session.privacy else _("No privacy notice linked.") }}</p>
+        {% endif %}
+    </section>
+
+    <section class="card v3-tab-panel" role="tabpanel" id="tab-panel-inventory" aria-labelledby="tab-inventory" data-tab-panel="inventory" hidden>
+        <h2 class="card__title">{{ _("Expected inventory") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Family") }}</th>
+                        <th scope="col">{{ _("Code") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
+                        <th scope="col">{{ _("Status") }}</th>
+                        <th scope="col">{{ _("Source") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in session.expected_items|default([]) %}
+                    <tr>
+                        <td>{{ item.family_name }}</td>
+                        <td>{{ item.family_code }}</td>
+                        <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                        <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
+                        <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+                        <td>{{ item.source }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6">{{ _("No expected inventory rows yet.") }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/v3-tabs.js') }}" defer></script>
 {% endblock %}
