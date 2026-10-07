@@ -57,7 +57,7 @@
                 <select class="form-field__input form-field__input--plain" id="session-history-kit" name="kit">
                     <option value="">{{ _("All Kits") }}</option>
                     {% for kit in filter_options.kits|default([]) %}
-                    <option value="{{ kit }}" {% if list_filters.kit == kit %}selected{% endif %}>{{ _(kit) }}</option>
+                    <option value="{{ kit.value }}" {% if list_filters.kit == kit.value %}selected{% endif %}>{{ kit.label }}</option>
                     {% endfor %}
                 </select>
             </div>

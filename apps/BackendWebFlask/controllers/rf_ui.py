@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from extensions import db
+from i18n import N_
 from models.CatOperationPhase import CatOperationPhase
 from models.ProcedurePhase import ProcedurePhase
 
@@ -63,12 +64,12 @@ def confirmation_from_rf_detail(detail: dict) -> dict:
             ],
         })
     if not groups and expected:
-        groups = [{'key': 'all', 'label': 'Expected inventory', 'lines': expected}]
+        groups = [{'key': 'all', 'label': N_('Expected inventory'), 'lines': expected}]
     total = sum(int(item.get('expected_quantity') or 0) for item in expected)
     privacy = detail.get('privacy') or {}
     team = detail.get('surgical_team') or []
     if not team:
-        team = [{'role': 'Surgeon', 'name': detail.get('physician_name') or '—'}]
+        team = [{'role': N_('Surgeon'), 'name': detail.get('physician_name') or '—'}]
     return {
         'is_full_case': True,
         'session': {
@@ -127,15 +128,19 @@ def active_session_rows(rows: list[dict]) -> list[dict]:
     return [row for row in rows if row.get('status_code') not in skip]
 
 
+def _id_options(rows: list[dict], id_key: str, label_key: str) -> list[dict]:
+    """Select options: value = stable id (survives a language switch), label = shown name."""
+    pairs = {(r[id_key], r.get(label_key)) for r in rows if r.get(id_key)}
+    return [{'value': value, 'label': label} for value, label in sorted(pairs, key=lambda p: p[1] or '')]
+
+
 def history_filter_options(rows: list[dict]) -> dict:
     return {
         'session_ids': sorted({r.get('session_id') for r in rows if r.get('session_id')}),
-        'procedures': sorted({r.get('procedure_name') for r in rows if r.get('procedure_name')}),
-        'kits': sorted({r.get('kit_name') for r in rows if r.get('kit_name')}),
+        'procedures': _id_options(rows, 'procedure_type_id', 'procedure_name'),
+        'kits': _id_options(rows, 'kit_id', 'kit_name'),
         'operating_rooms': sorted({r.get('operating_room') for r in rows if r.get('operating_room')}),
-        'stations': sorted({
-            r.get('capture_station_name') for r in rows if r.get('capture_station_name')
-        }),
+        'stations': _id_options(rows, 'station_id', 'capture_station_name'),
     }
 
 
@@ -154,22 +159,18 @@ def apply_history_filters(rows: list[dict], filters: dict) -> list[dict]:
     out = []
     for row in rows:
         if search:
-            hay = ' '.join([
-                str(row.get('session_id') or ''),
-                str(row.get('procedure_name') or ''),
-                str(row.get('kit_name') or ''),
-            ]).lower()
+            hay = row.get('search_text') or str(row.get('session_id') or '').lower()
             if search not in hay:
                 continue
         if session_id and session_id not in str(row.get('session_id') or '').lower():
             continue
-        if procedure and row.get('procedure_name') != procedure:
+        if procedure and row.get('procedure_type_id') != procedure:
             continue
-        if kit and row.get('kit_name') != kit:
+        if kit and row.get('kit_id') != kit:
             continue
         if operating_room and row.get('operating_room') != operating_room:
             continue
-        if station and row.get('capture_station_name') != station:
+        if station and row.get('station_id') != station:
             continue
         if privacy and privacy not in str(row.get('privacy_label') or '').lower():
             continue

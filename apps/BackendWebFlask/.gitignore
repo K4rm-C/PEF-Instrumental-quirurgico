@@ -1,3 +1,5 @@
 .venv
 .env
 __pycache__
+# pybabel extract output (regenerated, see README i18n)
+messages.pot

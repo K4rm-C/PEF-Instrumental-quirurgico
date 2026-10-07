@@ -82,6 +82,21 @@
 (function () {
     var form = document.getElementById("quantity-report-form");
     if (!form) return;
+    var t = window.pefT;
+    var i18n = {
+        instrument: {{ _("Instrument")|tojson }},
+        reasonRequired: {{ _("Reason is required when reported quantity differs from expected.")|tojson }},
+        missingReason: {{ _("Missing reason")|tojson }},
+        incompleteTitle: {{ _("Incomplete report")|tojson }},
+        closeWithDiscrepancies: {{ _("Close counting with discrepancies? A discrepancy case will open for shortfalls / extras.")|tojson }},
+        closeAllMatch: {{ _("Close counting session? All reported quantities match expected inventory.")|tojson }},
+        differences: {{ _("Differences")|tojson }},
+        expectedReported: {{ _("expected %(expected)s → reported %(reported)s")|tojson }},
+        nextStep: {{ _("Session will move to awaiting SPD review / close path.")|tojson }},
+        closeWithDiscrepanciesTitle: {{ _("Close with discrepancies?")|tojson }},
+        closeTitle: {{ _("Close counting session?")|tojson }},
+        submitAndClose: {{ _("Submit and close")|tojson }}
+    };
 
     function clearWarnHighlights() {
         form.querySelectorAll("[data-report-row]").forEach(function (row) {
@@ -100,7 +115,7 @@
             if (isNaN(reported)) reported = expected;
             if (reported !== expected && !(reason && reason.value)) {
                 row.classList.add("data-table__row--outline-warning");
-                missing.push(row.getAttribute("data-family-name") || "Instrument");
+                missing.push(row.getAttribute("data-family-name") || i18n.instrument);
             }
         });
         return missing;
@@ -112,18 +127,18 @@
         var missing = validateReasons();
         if (missing.length) {
             var warnHtml =
-                "<p>Reason is required when reported quantity differs from expected.</p>" +
-                '<div class="app-modal__audit"><p class="app-modal__audit-title">Missing reason</p><ul>';
+                "<p>" + i18n.reasonRequired + "</p>" +
+                '<div class="app-modal__audit"><p class="app-modal__audit-title">' + i18n.missingReason + "</p><ul>";
             missing.forEach(function (name) {
                 warnHtml += "<li>" + name + "</li>";
             });
             warnHtml += "</ul></div>";
             if (window.appConfirm) {
                 window.appConfirm({
-                    title: "Incomplete report",
+                    title: i18n.incompleteTitle,
                     html: warnHtml,
-                    okLabel: "OK",
-                    cancelLabel: "Close",
+                    okLabel: t("ok"),
+                    cancelLabel: t("close"),
                 });
             }
             return;
@@ -138,7 +153,7 @@
             if (isNaN(reported)) reported = expected;
             if (reported !== expected) {
                 diffs.push({
-                    name: row.getAttribute("data-family-name") || "Instrument",
+                    name: row.getAttribute("data-family-name") || i18n.instrument,
                     expected: expected,
                     reported: reported,
                     reason: reason && reason.selectedOptions[0]
@@ -149,33 +164,33 @@
         });
 
         var html = diffs.length
-            ? "<p>Close counting with discrepancies? A discrepancy case will open for shortfalls / extras.</p>"
-            : "<p>Close counting session? All reported quantities match expected inventory.</p>";
+            ? "<p>" + i18n.closeWithDiscrepancies + "</p>"
+            : "<p>" + i18n.closeAllMatch + "</p>";
         if (diffs.length) {
-            html += '<div class="app-modal__audit"><p class="app-modal__audit-title">Differences</p><dl class="app-modal__kv">';
+            html += '<div class="app-modal__audit"><p class="app-modal__audit-title">' + i18n.differences + '</p><dl class="app-modal__kv">';
             diffs.forEach(function (d) {
                 html +=
                     "<dt>" +
                     d.name +
-                    "</dt><dd>expected " +
-                    d.expected +
-                    " → reported " +
-                    d.reported +
+                    "</dt><dd>" +
+                    i18n.expectedReported
+                        .replace("%(expected)s", d.expected)
+                        .replace("%(reported)s", d.reported) +
                     (d.reason ? " (" + d.reason + ")" : "") +
                     "</dd>";
             });
             html += "</dl></div>";
         } else {
-            html += "<p>Session will move to awaiting SPD review / close path.</p>";
+            html += "<p>" + i18n.nextStep + "</p>";
         }
 
         if (window.appConfirm) {
             window
                 .appConfirm({
-                    title: diffs.length ? "Close with discrepancies?" : "Close counting session?",
+                    title: diffs.length ? i18n.closeWithDiscrepanciesTitle : i18n.closeTitle,
                     html: html,
-                    okLabel: "Submit and close",
-                    cancelLabel: "Cancel",
+                    okLabel: i18n.submitAndClose,
+                    cancelLabel: t("cancel"),
                 })
                 .then(function (ok) {
                     if (ok && window.appConfirmProceed) window.appConfirmProceed(form);

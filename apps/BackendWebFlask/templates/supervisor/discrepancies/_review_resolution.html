@@ -68,7 +68,7 @@
             </div>
             <div class="form-field">
                 <label class="form-field__label" for="v3-resolution-notes">{{ _("Resolution Notes") }}</label>
-                <textarea class="form-field__textarea" id="v3-resolution-notes" name="resolution_notes" rows="3">{{ _(current_resolution.notes) }}</textarea>
+                <textarea class="form-field__textarea" id="v3-resolution-notes" name="resolution_notes" rows="3">{{ current_resolution.notes }}</textarea>
             </div>
         </form>
     </div>
@@ -81,7 +81,7 @@
             <div><dt>{{ _("AI") }}</dt><dd>{{ case.ai_detected }}</dd></div>
             <div><dt>{{ _("Operator Validated") }}</dt><dd>{{ case.validated }}</dd></div>
             <div><dt>{{ _("Event") }}</dt><dd>{{ _(history.event) }}</dd></div>
-            <div><dt>{{ _("Notes") }}</dt><dd>{{ _(case.operator_validation.notes) }}</dd></div>
+            <div><dt>{{ _("Notes") }}</dt><dd>{{ case.operator_validation.notes }}</dd></div>
             <div><dt>{{ _("Actor") }}</dt><dd>{{ history.actor }} · {{ _("Role: %(role)s", role=_(history.actor_role)) }}</dd></div>
             <div><dt>{{ _("Timestamp") }}</dt><dd>{{ history.timestamp }}</dd></div>
         </dl>

@@ -228,6 +228,39 @@ PEF-Instrumental-quirurgico/
 
 
 
+## Internationalization / i18n
+
+La UI web (BackendWebFlask) usa **Flask-Babel**.
+
+- **Idiomas:** `en` (fuente) y `es-MX`. Los códigos públicos son BCP 47 (`en`, `es-MX`) en `user.ui_preferences.locale`, la cookie `pef_locale` y `<html lang>`; solo el catálogo usa la forma POSIX `es_MX`.
+- **Fuente:** los `msgid` son el texto en inglés; `en` no necesita catálogo.
+- **Catálogo:** `apps/BackendWebFlask/translations/es_MX/LC_MESSAGES/messages.po` (+ `messages.mo` compilado, versionado).
+- **Resolución del idioma:** usuario autenticado → `ui_preferences.locale`; invitado → cookie `pef_locale`; si no hay o es inválido → `en`.
+- **Cambio de idioma:** el selector del encabezado hace `POST /locale` (Web). Invitado: solo cookie. Autenticado: Web llama `POST /preferences` del Auth Service (merge parcial de `ui_preferences`, conserva `theme`) y actualiza la cookie. La página se recarga en la misma URL (query y `#tab` incluidos).
+- **JavaScript:** los textos visibles de `static/js` vienen traducidos desde `templates/base.html` (`window.PEF_I18N`, se leen con `window.pefT(key)`); no hay traducciones dentro de los `.js`.
+- **No se traducen** datos de negocio (nombres, IDs, códigos de estado/rol/fase, textos capturados por usuarios); sí sus etiquetas visibles controladas por código.
+- **Valores de BD controlados por el sistema** (catálogos `cat_*`, familias, kits, estaciones, quirófanos, roles, técnicas): se localizan solo al mostrarlos, con `localize_db_label` / `localize_db_text` / `localize_known_text` de `i18n.py`, usando el `code` (o UUID) como clave y un msgid inglés. La BD no cambia. Un registro cuyo texto guardado ya no coincide con un texto conocido (p. ej. renombrado por un admin) se muestra tal cual, y los inputs editables siempre muestran el valor guardado. Para un registro nuevo del sistema: agregar su entrada `N_("...")` en `i18n.py`, luego extract → update → traducir → compile.
+
+Agregar un texto nuevo:
+
+```jinja
+{{ _("New text") }}                         {# plantilla #}
+{{ _("Showing %(shown)s of %(total)s", shown=n, total=t) }}
+```
+
+En Python usa `gettext("...")` de `flask_babel` dentro de una petición, o `N_("...")` (de `i18n.py`) para etiquetas definidas a nivel de módulo que la plantilla traduce con `_()`.
+
+Después: **extract → update → traducir → compile** (desde `apps/BackendWebFlask`, con el venv activo):
+
+```powershell
+pybabel extract -F babel.cfg -k N_ --no-wrap --sort-by-file -o messages.pot .
+pybabel update -i messages.pot -d translations --no-wrap
+# traducir los msgstr nuevos/vacíos (y revisar los marcados "fuzzy") en translations/es_MX/LC_MESSAGES/messages.po
+pybabel compile -d translations --statistics
+```
+
+Pruebas: `python -m pytest tests` en `apps/BackendWebFlask` y en `apps/BackendAuthService`.
+
 ## Problemas frecuentes
 
 **Garage no lista buckets**  
@@ -268,10 +301,10 @@ Auth debe tener `Werkzeug==3.1.8` y el seed actual
 | 4    | UI RF OP/SPD (sidebars, listas, schedule, kits SPD, stubs reports/profile/health)                            | Listo        |
 | 5a   | Vision upload + VisionWorker + YOLO (`best.pt`) + matrix_v1 (Hungarian/greedy) + count_event + validacion UI | Listo (demo) |
 | 5b   | Electron WSS camara live + Mongo/Garage evidence-worker                                                      | Pendiente    |
-| 6    | i18n real (Flask-Babel)                                                                                      | Diferido     |
+| 6    | i18n real (Flask-Babel): `en` + `es-MX`, selector persistente en `ui_preferences`                            | Listo        |
 
 
-Idioma: **ingles** como fuente; Babel = Fase 6. Rutas pre-RF del operador viven en `/legacy/...` (ver `apps/BackendWebFlask/legacy/README.md`). Plantillas V2/mocks retiradas estan en `Legacy/` (raiz del repo).
+Idioma: **ingles** como fuente, traduccion `es-MX` con Flask-Babel (ver **Internationalization / i18n**). Rutas pre-RF del operador viven en `/legacy/...` (ver `apps/BackendWebFlask/legacy/README.md`). Plantillas V2/mocks retiradas estan en `Legacy/` (raiz del repo).
 
 ### Pruebas (usabilidad y debugging)
 

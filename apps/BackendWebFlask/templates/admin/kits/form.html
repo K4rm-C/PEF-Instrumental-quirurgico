@@ -91,13 +91,13 @@
                     {% for item in kit_composition %}
                     <tr class="js-kit-composition-row"
                         data-family-id="{{ item.instrument_family_value }}"
-                        data-family-label="{{ item.instrument_family_label }}"
+                        data-family-label="{{ _(item.instrument_family_label) }}"
                         data-baseline-qty="{{ item.expected_quantity }}"
                         data-row-origin="baseline"
                         data-category-code="{{ item.category_code|default('', true) }}"
                         data-category-rank="{{ item.category_rank|default(999, true) }}">
                         <td>
-                            <strong>{{ item.instrument_family_label }}</strong>
+                            <strong>{{ _(item.instrument_family_label) }}</strong>
                             <input type="hidden" name="instrument_family[]" value="{{ item.instrument_family_value }}" class="js-kit-instrument-family">
                         </td>
                         <td>

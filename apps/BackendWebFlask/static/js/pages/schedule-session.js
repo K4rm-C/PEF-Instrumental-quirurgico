@@ -1,6 +1,7 @@
 (() => {
   const form = document.querySelector("[data-schedule-form]");
   if (!form) return;
+  const t = (key) => (window.pefT ? window.pefT(key) : key);
 
   const stockUrl = form.dataset.stockRecheckUrl || "";
   const tbody = form.querySelector("[data-stock-tbody]");
@@ -94,10 +95,10 @@
       if (!noticeSelect?.value) {
         if (window.appConfirm) {
           window.appConfirm({
-            title: "Privacy notice required",
-            message: "Select a privacy notice version, or use Continue without privacy notice.",
-            okLabel: "OK",
-            cancelLabel: "Close",
+            title: t("privacyNoticeRequiredTitle"),
+            message: t("privacyNoticeRequiredMessage"),
+            okLabel: t("ok"),
+            cancelLabel: t("close"),
           });
         }
         return;
@@ -105,10 +106,10 @@
       if (!confirmCb?.checked) {
         if (window.appConfirm) {
           window.appConfirm({
-            title: "Confirmation required",
-            message: "Confirm the privacy notice checkbox before saving with a notice.",
-            okLabel: "OK",
-            cancelLabel: "Close",
+            title: t("privacyConfirmationRequiredTitle"),
+            message: t("privacyConfirmationRequiredMessage"),
+            okLabel: t("ok"),
+            cancelLabel: t("close"),
           });
         }
         return;
@@ -183,7 +184,7 @@
     menu.innerHTML = "";
     if (!matches.length) {
       const empty = document.createElement("li");
-      empty.textContent = "No matching physicians";
+      empty.textContent = t("noMatchingPhysicians");
       empty.style.opacity = "0.7";
       empty.style.cursor = "default";
       menu.appendChild(empty);

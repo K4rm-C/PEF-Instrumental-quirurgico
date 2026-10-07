@@ -1,14 +1,16 @@
 {% import "components/macros.html" as macros %}
 {% set current_locale = current_locale|default('en') %}
+{# Language names are endonyms and EN / ES are codes: intentionally not translated. #}
 {% set language_options = [
-    {'code': 'en', 'label': _('English'), 'short_label': _('EN')},
-    {'code': 'es-MX', 'label': _('Español (México)'), 'short_label': _('ES')}
+    {'code': 'en', 'label': 'English', 'short_label': 'EN'},
+    {'code': 'es-MX', 'label': 'Español (México)', 'short_label': 'ES'}
 ] %}
 {% set current_language_option = (language_options|selectattr('code', 'equalto', current_locale)|first) or language_options[0] %}
 
 {#
     current_locale comes from user.ui_preferences.locale (authenticated) or pef_locale cookie.
-    Selecting a language here is still visual-only until Phase 6 (Flask-Babel + merge to BD).
+    static/js/language.js POSTs the selected data-language-code to /locale (cookie + BD for
+    signed-in users) and reloads the current URL.
 #}
 <div class="dropdown" data-dropdown>
     <button type="button"

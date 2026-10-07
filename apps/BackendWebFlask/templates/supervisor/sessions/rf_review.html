@@ -39,8 +39,8 @@
     <h2 class="card__title">{{ disc.family_name }}</h2>
     <dl class="detail-list">
         <div><dt>{{ _("Expected") }}</dt><dd>{{ disc.expected_quantity if disc.expected_quantity is not none else '—' }}</dd></div>
-        <div><dt>{{ _("Detected") }}</dt><dd>{{ disc.detected_quantity if disc.detected_quantity is not none else '—' }}</dd></div>
-        <div><dt>{{ _("Description") }}</dt><dd>{{ disc.description }}</dd></div>
+        <div><dt>{{ _(disc.quantity_label|default("Detected")) }}</dt><dd>{{ disc.detected_quantity if disc.detected_quantity is not none else '—' }}</dd></div>
+        <div><dt>{{ _("Description") }}</dt><dd>{{ disc.display_description|default(disc.description) }}</dd></div>
         <div><dt>{{ _("Resolved") }}</dt>
             <dd>
                 {% if disc.resolved %}
@@ -107,19 +107,21 @@
                 : "—";
             var notesEl = form.querySelector("[data-resolution-notes]");
             var notes = notesEl ? notesEl.value.trim() : "";
-            var family = form.getAttribute("data-family-name") || "Instrument";
+            var family = form.getAttribute("data-family-name") || {{ _("Instrument")|tojson }};
             var html =
-                "<p>Resolve discrepancy for <strong>" + family + "</strong>?</p>" +
+                "<p>" + {{ _("Resolve discrepancy for %(family)s?")|tojson }}.replace(
+                    "%(family)s", "<strong>" + family + "</strong>"
+                ) + "</p>" +
                 '<div class="app-modal__audit"><dl class="app-modal__kv">' +
-                "<dt>Outcome</dt><dd>" + outcomeLabel + "</dd>" +
-                "<dt>Notes</dt><dd>" + (notes || "—") + "</dd>" +
+                "<dt>" + {{ _("Outcome")|tojson }} + "</dt><dd>" + outcomeLabel + "</dd>" +
+                "<dt>" + {{ _("Notes")|tojson }} + "</dt><dd>" + (notes || "—") + "</dd>" +
                 "</dl></div>";
             if (window.appConfirm) {
                 window.appConfirm({
-                    title: "Confirm resolution",
+                    title: {{ _("Confirm resolution")|tojson }},
                     html: html,
-                    okLabel: "Resolve",
-                    cancelLabel: "Cancel",
+                    okLabel: {{ _("Resolve")|tojson }},
+                    cancelLabel: window.pefT("cancel"),
                 }).then(function (ok) {
                     if (ok && window.appConfirmProceed) window.appConfirmProceed(form);
                 });

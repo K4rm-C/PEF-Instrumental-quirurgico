@@ -151,7 +151,7 @@
                 {% for event in cycle_events %}
                 <tr>
                     <td>{{ event.occurred_at }}</td>
-                    <td>{{ event.cycle_status_label }}</td>
+                    <td>{{ _(event.cycle_status_label) }}</td>
                     <td>{{ event.notes }}</td>
                 </tr>
                 {% endfor %}

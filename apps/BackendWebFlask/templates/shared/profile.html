@@ -28,8 +28,9 @@
 {% set name_parts = profile_user.name.split() %}
 {% set profile_initials = (name_parts[0][0] ~ (name_parts[-1][0] if name_parts|length > 1 else '')) | upper %}
 {% set profile_role_label = profile_user.profile_role_label|default(profile_user.role_label) %}
-{% set locale_labels = {'en': _('English'), 'es-MX': _('Español (México)')} %}
-{% set current_language_label = locale_labels.get(current_locale|default('en'), _('English')) %}
+{# Same endonyms as partials/language_selector.html (not translated). #}
+{% set locale_labels = {'en': 'English', 'es-MX': 'Español (México)'} %}
+{% set current_language_label = locale_labels.get(current_locale|default('en'), 'English') %}
 
 {% block title %}{{ _("My Profile") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
@@ -74,7 +75,7 @@
     {% endif %}
     <div class="profile-summary__identity">
         <h2 class="profile-summary__name" id="profile-summary-title">{{ profile_user.name }}</h2>
-        <p class="profile-summary__role">{{ profile_role_label }}</p>
+        <p class="profile-summary__role">{{ _(profile_role_label) }}</p>
         {% if profile_user.email %}
         <p class="profile-summary__email">{{ profile_user.email }}</p>
         {% endif %}
@@ -111,7 +112,7 @@
             </div>
             <div class="profile-details__item">
                 <dt>{{ _("Role") }}</dt>
-                <dd>{{ profile_role_label }}</dd>
+                <dd>{{ _(profile_role_label) }}</dd>
             </div>
             <div class="profile-details__item">
                 <dt>{{ _("Account Status") }}</dt>

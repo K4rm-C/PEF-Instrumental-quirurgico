@@ -9,6 +9,11 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import db
+from flask_babel import gettext
+
+# N_ marks user-facing RfSessionError messages (routes translate them); localize_* give the
+# display labels of system-controlled DB values. Ids/codes returned for forms never change.
+from i18n import N_, localize_db_label, localize_db_text
 from models.AccessAudit import AccessAudit
 from models.CaptureStation import CaptureStation
 from models.CatDiscrepancyReason import CatDiscrepancyReason
@@ -110,12 +115,12 @@ def start_session(*, session_id: UUID, operator_user_id: UUID, institution_id: U
     """RF-OP-03 Start Session transaction (no evidence/WSS in this stage)."""
     work = db.session.get(WorkSession, session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
     if work.user_id != operator_user_id:
-        raise RfSessionError("Session is not assigned to you.", 403)
+        raise RfSessionError(N_("Session is not assigned to you."), 403)
     status = db.session.get(CatSessionStatus, work.status_id)
     if status is None or status.code != "scheduled":
-        raise RfSessionError("Session is no longer scheduled.", 409)
+        raise RfSessionError(N_("Session is no longer scheduled."), 409)
 
     has_agreement = db.session.scalar(
         select(SessionProcessingAgreement.id).where(SessionProcessingAgreement.session_id == session_id)
@@ -177,7 +182,7 @@ def start_session(*, session_id: UUID, operator_user_id: UUID, institution_id: U
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not start session; please retry.", 503) from exc
+        raise RfSessionError(N_("Could not start session; please retry."), 503) from exc
 
     if capture_mode == "vision":
         try:
@@ -201,25 +206,25 @@ def submit_manual_close(
     """RF-OP-06M Submit report and close counting (manual path)."""
     work = db.session.get(WorkSession, session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
     if work.user_id != operator_user_id:
-        raise RfSessionError("Session is not assigned to you.", 403)
+        raise RfSessionError(N_("Session is not assigned to you."), 403)
     status = db.session.get(CatSessionStatus, work.status_id)
     if status is None or status.code != "in_progress":
-        raise RfSessionError("Session is not in progress.", 409)
+        raise RfSessionError(N_("Session is not in progress."), 409)
     # Vision sessions may use the quantity-report path until the video/YOLO feed is wired.
     if work.capture_mode not in {"manual_no_privacy", "vision"}:
-        raise RfSessionError("Quantity report is not allowed for this capture mode.", 409)
+        raise RfSessionError(N_("Quantity report is not allowed for this capture mode."), 409)
 
     expected_rows = db.session.execute(
         select(ExpectedInventory).where(ExpectedInventory.session_id == session_id)
     ).scalars().all()
     if not expected_rows:
-        raise RfSessionError("Session has no expected inventory.", 409)
+        raise RfSessionError(N_("Session has no expected inventory."), 409)
 
     by_family = {str(item.family_id): item for item in expected_rows}
     if set(by_family) != {str(r["family_id"]) for r in reports}:
-        raise RfSessionError("Report must include every expected family exactly once.", 400)
+        raise RfSessionError(N_("Report must include every expected family exactly once."), 400)
 
     now = utc_now()
     open_discrepancies = 0
@@ -233,14 +238,14 @@ def submit_manual_close(
         expected = by_family[str(family_id)]
         reported = int(report["reported_quantity"])
         if reported < 0:
-            raise RfSessionError("Reported quantity must be >= 0.", 400)
+            raise RfSessionError(N_("Reported quantity must be >= 0."), 400)
         reason_code = (report.get("reason_code") or "").strip()
         notes = (report.get("notes") or "").strip()
         diff = reported - expected.expected_quantity
         if diff != 0 and not reason_code:
-            raise RfSessionError("Reason is required when reported quantity differs from expected.", 400)
+            raise RfSessionError(N_("Reason is required when reported quantity differs from expected."), 400)
         if reason_code == "other" and len(notes) < 10:
-            raise RfSessionError("Notes must have at least 10 characters when reason is Other.", 400)
+            raise RfSessionError(N_("Notes must have at least 10 characters when reason is Other."), 400)
 
         event = CountEvent(
             event_type_id=manual_count_type,
@@ -333,7 +338,7 @@ def submit_manual_close(
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not submit report; please retry.", 503) from exc
+        raise RfSessionError(N_("Could not submit report; please retry."), 503) from exc
 
     if capture_mode == "vision":
         try:
@@ -387,15 +392,15 @@ def change_phase_stub(
     """Real phase UPDATE + count_event; no Mongo/Garage side effects in this demo cycle."""
     work = db.session.get(WorkSession, session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
     if work.user_id != operator_user_id:
-        raise RfSessionError("Session is not assigned to you.", 403)
+        raise RfSessionError(N_("Session is not assigned to you."), 403)
     status = db.session.get(CatSessionStatus, work.status_id)
     if status is None or status.code != "in_progress":
-        raise RfSessionError("Session is not in progress.", 409)
+        raise RfSessionError(N_("Session is not in progress."), 409)
     to_phase = db.session.scalar(select(CatOperationPhase).where(CatOperationPhase.code == to_phase_code))
     if to_phase is None:
-        raise RfSessionError("Unknown phase code.", 400)
+        raise RfSessionError(N_("Unknown phase code."), 400)
     from_phase = db.session.get(CatOperationPhase, work.current_phase_id) if work.current_phase_id else None
     now = utc_now()
     work.current_phase_id = to_phase.id
@@ -420,11 +425,11 @@ def change_phase_stub(
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not change phase; please retry.", 503) from exc
+        raise RfSessionError(N_("Could not change phase; please retry."), 503) from exc
     return {
         "session_id": str(session_id),
         "phase_code": to_phase.code,
-        "phase_name": to_phase.name,
+        "phase_name": localize_db_label("operation_phase", to_phase.code, to_phase.name),
     }
 
 
@@ -578,7 +583,7 @@ def persist_board_auto_count(
         return 0
     work = db.session.get(WorkSession, session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
     if not counts:
         return 0
 
@@ -606,7 +611,7 @@ def persist_board_auto_count(
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not persist board auto count.", 503) from exc
+        raise RfSessionError(N_("Could not persist board auto count."), 503) from exc
     _AUTO_COUNT_FLUSHED.add(flush_key)
     return 1
 
@@ -686,12 +691,12 @@ def finish_vision_counting(
     """Freeze worker snapshot for OP-05 and write closing board auto_count."""
     work = db.session.get(WorkSession, session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
     if work.user_id != operator_user_id:
-        raise RfSessionError("Session is not assigned to you.", 403)
+        raise RfSessionError(N_("Session is not assigned to you."), 403)
     status = db.session.get(CatSessionStatus, work.status_id)
     if status is None or status.code != "in_progress" or work.capture_mode != "vision":
-        raise RfSessionError("Vision finish is not available for this session.", 409)
+        raise RfSessionError(N_("Vision finish is not available for this session."), 409)
 
     counts = worker_session.get("counts") or {}
     run_id = worker_session.get("run_id")
@@ -792,7 +797,7 @@ def _normalize_physicians(
     if not team and physician_id:
         team = [{"physician_id": physician_id, "surgical_role_code": "surgeon"}]
     if not team:
-        raise RfSessionError("At least one physician is required.", 400)
+        raise RfSessionError(N_("At least one physician is required."), 400)
 
     normalized = []
     seen_physicians: set[str] = set()
@@ -800,14 +805,14 @@ def _normalize_physicians(
         pid = entry.get("physician_id")
         role_code = (entry.get("surgical_role_code") or "surgeon").strip() or "surgeon"
         if not pid:
-            raise RfSessionError("Each surgical team row needs a physician.", 400)
+            raise RfSessionError(N_("Each surgical team row needs a physician."), 400)
         pid_str = str(pid)
         if pid_str in seen_physicians:
-            raise RfSessionError("Each physician can only be selected once.", 400)
+            raise RfSessionError(N_("Each physician can only be selected once."), 400)
         seen_physicians.add(pid_str)
         physician = db.session.get(Physician, UUID(pid_str))
         if physician is None or not physician.active:
-            raise RfSessionError("Choose a valid physician.", 400)
+            raise RfSessionError(N_("Choose a valid physician."), 400)
         role = db.session.scalar(select(CatSurgicalRole).where(CatSurgicalRole.code == role_code))
         if role is None:
             raise RfSessionError(f"Invalid surgical role: {role_code}", 400)
@@ -839,28 +844,28 @@ def schedule_session(
     """RF-SP-02 save programming (without requiring privacy agreement)."""
     operator = db.session.get(User, operator_user_id)
     if operator is None or not operator.active:
-        raise RfSessionError("Choose a valid operator.", 400)
+        raise RfSessionError(N_("Choose a valid operator."), 400)
     role_ok = db.session.scalar(
         select(UserRole)
         .join(Role, Role.id == UserRole.role_id)
         .where(UserRole.user_id == operator_user_id, Role.code == "station_operator")
     )
     if role_ok is None:
-        raise RfSessionError("Assigned user must have station_operator role.", 400)
+        raise RfSessionError(N_("Assigned user must have station_operator role."), 400)
 
     team = _normalize_physicians(physician_id=physician_id, physicians=physicians)
 
     for line in expected_lines:
         qty = int(line["expected_quantity"])
         if qty < 1:
-            raise RfSessionError("Expected quantities must be >= 1.", 400)
+            raise RfSessionError(N_("Expected quantities must be >= 1."), 400)
         stock = stock_for_families([UUID(str(line["family_id"]))]).get(str(line["family_id"]), {})
         if qty > stock.get("stock_available", 0):
-            raise RfSessionError("Stock BLOCK: requested quantity exceeds available instruments.", 400)
+            raise RfSessionError(N_("Stock BLOCK: requested quantity exceeds available instruments."), 400)
 
     phase = db.session.scalar(select(CatOperationPhase).where(CatOperationPhase.code == phase_code))
     if phase is None:
-        raise RfSessionError("Invalid initial phase.", 400)
+        raise RfSessionError(N_("Invalid initial phase."), 400)
 
     operation = Operation(
         scheduled_at=scheduled_at,
@@ -919,7 +924,7 @@ def schedule_session(
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not schedule session; please retry.", 503) from exc
+        raise RfSessionError(N_("Could not schedule session; please retry."), 503) from exc
     return {"session_id": str(work.id)}
 
 
@@ -934,12 +939,12 @@ def update_session_inventory(
     """Upsert expected inventory while session is scheduled or in_progress."""
     work = db.session.get(WorkSession, session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
     status = db.session.get(CatSessionStatus, work.status_id)
     if status is None or status.code not in {"scheduled", "in_progress"}:
-        raise RfSessionError("Inventory can only be modified while scheduled or in progress.", 409)
+        raise RfSessionError(N_("Inventory can only be modified while scheduled or in progress."), 409)
     if not lines:
-        raise RfSessionError("Provide at least one inventory line.", 400)
+        raise RfSessionError(N_("Provide at least one inventory line."), 400)
 
     kit_qty_map = _kit_qty_map(work.kit_id) if work.kit_id else {}
     existing = {
@@ -953,10 +958,10 @@ def update_session_inventory(
         family_id = UUID(str(line["family_id"]))
         qty = int(line["expected_quantity"])
         if qty < 1:
-            raise RfSessionError("Expected quantities must be >= 1.", 400)
+            raise RfSessionError(N_("Expected quantities must be >= 1."), 400)
         stock = stock_for_families([family_id]).get(str(family_id), {})
         if qty > stock.get("stock_available", 0):
-            raise RfSessionError("Stock BLOCK: requested quantity exceeds available instruments.", 400)
+            raise RfSessionError(N_("Stock BLOCK: requested quantity exceeds available instruments."), 400)
 
         key = str(family_id)
         row = existing.get(key)
@@ -1003,7 +1008,7 @@ def update_session_inventory(
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not update session inventory; please retry.", 503) from exc
+        raise RfSessionError(N_("Could not update session inventory; please retry."), 503) from exc
     return {"session_id": str(session_id), "lines": len(lines)}
 
 
@@ -1026,33 +1031,33 @@ def update_scheduled_session(
     """Full edit of a scheduled session (metadata + team + expected inventory)."""
     work = db.session.get(WorkSession, session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
     status = db.session.get(CatSessionStatus, work.status_id)
     if status is None or status.code != "scheduled":
-        raise RfSessionError("Full session edit is only available while scheduled.", 409)
+        raise RfSessionError(N_("Full session edit is only available while scheduled."), 409)
     operation = db.session.get(Operation, work.operation_id)
     if operation is None:
-        raise RfSessionError("Session operation not found.", 404)
+        raise RfSessionError(N_("Session operation not found."), 404)
 
     operator = db.session.get(User, operator_user_id)
     if operator is None or not operator.active:
-        raise RfSessionError("Choose a valid operator.", 400)
+        raise RfSessionError(N_("Choose a valid operator."), 400)
     role_ok = db.session.scalar(
         select(UserRole)
         .join(Role, Role.id == UserRole.role_id)
         .where(UserRole.user_id == operator_user_id, Role.code == "station_operator")
     )
     if role_ok is None:
-        raise RfSessionError("Assigned user must have station_operator role.", 400)
+        raise RfSessionError(N_("Assigned user must have station_operator role."), 400)
 
     team = _normalize_physicians(physician_id=None, physicians=physicians)
     for line in expected_lines:
         qty = int(line["expected_quantity"])
         if qty < 1:
-            raise RfSessionError("Expected quantities must be >= 1.", 400)
+            raise RfSessionError(N_("Expected quantities must be >= 1."), 400)
         stock = stock_for_families([UUID(str(line["family_id"]))]).get(str(line["family_id"]), {})
         if qty > stock.get("stock_available", 0):
-            raise RfSessionError("Stock BLOCK: requested quantity exceeds available instruments.", 400)
+            raise RfSessionError(N_("Stock BLOCK: requested quantity exceeds available instruments."), 400)
 
     operation.scheduled_at = scheduled_at
     operation.procedure_type_id = procedure_type_id
@@ -1121,7 +1126,7 @@ def update_scheduled_session(
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not update scheduled session; please retry.", 503) from exc
+        raise RfSessionError(N_("Could not update scheduled session; please retry."), 503) from exc
     return {"session_id": str(session_id)}
 
 
@@ -1137,16 +1142,16 @@ def confirm_privacy_via_a(
     """RF-SP-02 Via A: confirm existing privacy notice for a scheduled session."""
     work = db.session.get(WorkSession, session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
     status = db.session.get(CatSessionStatus, work.status_id)
     if status is None or status.code != "scheduled":
-        raise RfSessionError("Privacy agreement can only be set while session is scheduled.", 409)
+        raise RfSessionError(N_("Privacy agreement can only be set while session is scheduled."), 409)
     if work.capture_mode is not None:
-        raise RfSessionError("Capture mode already frozen; cannot change privacy agreement.", 409)
+        raise RfSessionError(N_("Capture mode already frozen; cannot change privacy agreement."), 409)
 
     notice = db.session.get(PrivacyNoticeVersion, privacy_notice_version_id)
     if notice is None or not notice.active:
-        raise RfSessionError("Choose an active privacy notice version.", 400)
+        raise RfSessionError(N_("Choose an active privacy notice version."), 400)
 
     existing = db.session.scalar(
         select(SessionProcessingAgreement).where(SessionProcessingAgreement.session_id == session_id)
@@ -1179,8 +1184,13 @@ def confirm_privacy_via_a(
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not confirm privacy notice; please retry.", 503) from exc
+        raise RfSessionError(N_("Could not confirm privacy notice; please retry."), 503) from exc
     return {"session_id": str(session_id), "privacy_notice_version": notice.version}
+
+
+def _by_name(options: list[dict]) -> list[dict]:
+    """Sort select options by their (localized) display name."""
+    return sorted(options, key=lambda option: (option["name"] or "").lower())
 
 
 def schedule_form_options(institution_id: UUID) -> dict:
@@ -1236,22 +1246,38 @@ def schedule_form_options(institution_id: UUID) -> dict:
         family_rows.append({
             "id": str(family.id),
             "code": family.code,
-            "name": family.name,
+            "name": localize_db_text("instrument_family", family.code, family.name),
             "category_code": code,
-            "category_label": category.name if category else "Other",
+            "category_label": (localize_db_label("instrument_category", category.code, category.name)
+                               if category else gettext("Other")),
             "category_rank": rank,
         })
     family_rows.sort(key=lambda row: (row["category_rank"], row["name"]))
     return {
         "operators": [{"id": str(u.id), "name": u.name} for u in operators],
-        "procedures": [{"id": str(p.id), "code": p.code, "name": p.name} for p in procedures],
-        "rooms": [{"id": str(r.id), "code": r.code, "name": r.name} for r in rooms],
-        "stations": [{"id": str(s.id), "name": s.name, "room_id": str(s.room_id) if s.room_id else ""} for s in stations],
-        "kits": [{"id": str(k.id), "name": k.name} for k in kits],
+        # "name" is the display label; "id"/"code" are what the forms submit.
+        "procedures": _by_name([
+            {"id": str(p.id), "code": p.code, "name": localize_db_label("procedure", p.code, p.name)}
+            for p in procedures
+        ]),
+        "rooms": [
+            {"id": str(r.id), "code": r.code, "name": localize_db_text("operating_room", r.code, r.name)}
+            for r in rooms
+        ],
+        "stations": _by_name([
+            {"id": str(s.id), "name": localize_db_text("capture_station", s.id, s.name),
+             "room_id": str(s.room_id) if s.room_id else ""}
+            for s in stations
+        ]),
+        "kits": _by_name([{"id": str(k.id), "name": localize_db_text("kit", k.id, k.name)} for k in kits]),
         "patients": [{"id": str(p.id), "name": p.display_name} for p in patients],
         "physicians": [{"id": str(p.id), "name": p.name} for p in physicians],
-        "surgical_roles": [{"code": r.code, "name": r.name} for r in surgical_roles],
-        "phases": [{"code": p.code, "name": p.name} for p in phases],
+        "surgical_roles": _by_name([
+            {"code": r.code, "name": localize_db_label("surgical_role", r.code, r.name)} for r in surgical_roles
+        ]),
+        "phases": _by_name([
+            {"code": p.code, "name": localize_db_label("operation_phase", p.code, p.name)} for p in phases
+        ]),
         "privacy_notices": [{
             "id": str(n.id),
             "version": n.version,
@@ -1286,14 +1312,15 @@ def kit_expected_lines(kit_id: UUID) -> list[dict]:
         rank = purpose_order.index(code) if code in purpose_order else len(purpose_order)
         lines.append({
             "family_id": str(item.family_id),
-            "family_name": family.name,
+            "family_name": localize_db_text("instrument_family", family.code, family.name),
             "family_code": family.code,
             "expected_quantity": item.quantity,
             "stock_available": s["stock_available"],
             "stock_total": s["stock_total"],
             "semaphore": semaphore_for_qty(requested, s["stock_available"]),
             "category_code": code,
-            "category_label": category.name if category else "Other",
+            "category_label": (localize_db_label("instrument_category", category.code, category.name)
+                               if category else gettext("Other")),
             "category_rank": rank,
         })
     lines.sort(key=lambda row: (row["category_rank"], row["family_name"]))
@@ -1340,18 +1367,18 @@ def resolve_discrepancy(
 ) -> dict:
     """RF-SP-06 resolve open discrepancy (optionally mark family piece lost or recovered)."""
     if mark_lost and mark_recovered:
-        raise RfSessionError("Choose Lost or Recovered, not both.", 400)
+        raise RfSessionError(N_("Choose Lost or Recovered, not both."), 400)
     if not (notes or "").strip():
-        raise RfSessionError("Resolution notes are required.", 400)
+        raise RfSessionError(N_("Resolution notes are required."), 400)
 
     disc = db.session.get(Discrepancy, discrepancy_id)
     if disc is None:
-        raise RfSessionError("Discrepancy not found.", 404)
+        raise RfSessionError(N_("Discrepancy not found."), 404)
     if disc.resolved:
-        raise RfSessionError("Discrepancy already resolved.", 409)
+        raise RfSessionError(N_("Discrepancy already resolved."), 409)
     work = db.session.get(WorkSession, disc.session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
 
     now = utc_now()
     disc.resolved = True
@@ -1445,7 +1472,7 @@ def resolve_discrepancy(
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not resolve discrepancy; please retry.", 503) from exc
+        raise RfSessionError(N_("Could not resolve discrepancy; please retry."), 503) from exc
     return {
         "session_id": str(work.id),
         "discrepancy_id": str(discrepancy_id),
@@ -1464,13 +1491,13 @@ def confirm_spd_close(
 ) -> dict:
     """RF-SP-05 administrative close when awaiting_spd_review and no open discrepancies."""
     if not material_recovered:
-        raise RfSessionError("Confirm material recovered / reprocessing started.", 400)
+        raise RfSessionError(N_("Confirm material recovered / reprocessing started."), 400)
     work = db.session.get(WorkSession, session_id)
     if work is None:
-        raise RfSessionError("Session not found.", 404)
+        raise RfSessionError(N_("Session not found."), 404)
     status = db.session.get(CatSessionStatus, work.status_id)
     if status is None or status.code != "awaiting_spd_review":
-        raise RfSessionError("Session is not awaiting SPD review.", 409)
+        raise RfSessionError(N_("Session is not awaiting SPD review."), 409)
     open_count = db.session.scalar(
         select(func.count()).select_from(Discrepancy).where(
             Discrepancy.session_id == session_id,
@@ -1478,7 +1505,7 @@ def confirm_spd_close(
         )
     ) or 0
     if open_count:
-        raise RfSessionError("Resolve open discrepancies before closing.", 409)
+        raise RfSessionError(N_("Resolve open discrepancies before closing."), 409)
 
     now = utc_now()
     work.status_id = _status_id("closed")
@@ -1528,5 +1555,5 @@ def confirm_spd_close(
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
-        raise RfSessionError("Could not close session; please retry.", 503) from exc
+        raise RfSessionError(N_("Could not close session; please retry."), 503) from exc
     return {"session_id": str(session_id), "status_code": "closed"}

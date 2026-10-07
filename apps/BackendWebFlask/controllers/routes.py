@@ -4,11 +4,19 @@ from uuid import UUID
 
 import requests
 from flask import Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
+from flask_babel import gettext, ngettext
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from werkzeug.security import generate_password_hash
 
 from extensions import db
+from i18n import (
+    LOCALE_COOKIE,
+    LOCALE_COOKIE_MAX_AGE,
+    N_,
+    is_supported_locale,
+    resolve_locale,
+)
 from models.AccessAudit import AccessAudit
 from models.CatInstrumentCycleStatus import CatInstrumentCycleStatus
 from models.CatOperationPhase import CatOperationPhase
@@ -98,10 +106,11 @@ from controllers.view_data import (
 
 web_bp = Blueprint('web', __name__)
 
+# Display labels (English msgids); templates translate them with _().
 ROLE_LABELS = {
-    'station_operator': 'Station Operator',
-    'spd_supervisor': 'SPD Supervisor',
-    'it_admin': 'Administrator',
+    'station_operator': N_('Station Operator'),
+    'spd_supervisor': N_('SPD Supervisor'),
+    'it_admin': N_('Administrator'),
 }
 
 EMPTY_STATS = {
@@ -112,27 +121,16 @@ EMPTY_STATS = {
 }
 
 
-def _normalize_locale(value):
-    locale = (value or '').strip()
-    if locale == 'es':
-        locale = 'es-MX'
-    if locale not in {'en', 'es-MX'}:
-        return 'en'
-    return locale
-
-
-def _resolve_locale(user):
-    prefs = (user or {}).get('ui_preferences') or {}
-    from_prefs = prefs.get('locale') or prefs.get('language')
-    if from_prefs:
-        return _normalize_locale(from_prefs)
-    return _normalize_locale(request.cookies.get('pef_locale') or 'en')
+def _error_message(exc):
+    """User-facing text of an RfSessionError / VisionBridgeError (services mark it with N_)."""
+    message = getattr(exc, 'message', None) or str(exc)
+    return gettext(message) if message else message
 
 
 def _context(**values):
     current_user = _current_user()
     context = {
-        'current_locale': _resolve_locale(current_user),
+        'current_locale': resolve_locale(current_user),
         'current_user': current_user,
         'nav_urls': _nav_urls(current_user),
         'dashboard_stats': EMPTY_STATS,
@@ -208,6 +206,9 @@ def _current_user():
         session.clear()
         g.verified_user = None
         return None
+    # Token that verified this request (possibly just refreshed), for server-to-server
+    # calls made on the user's behalf (e.g. saving ui_preferences).
+    g.auth_access_token = access_token
 
     payload = response.json()
     user_data = payload.get('user', {})
@@ -344,12 +345,37 @@ def _nav_urls(user):
     }
 
 
-@web_bp.context_processor
-def template_helpers():
-    def translate(value, **variables):
-        return value % variables if variables else value
+@web_bp.post('/locale')
+def set_locale():
+    """
+    Header language selector. Guests: pef_locale cookie only. Authenticated users: merge
+    the locale into user.ui_preferences through the auth service (owner of identity and
+    preferences), then mirror it into the cookie (DS01).
+    """
+    payload = request.get_json(silent=True) or {}
+    locale = payload.get('locale') or request.form.get('locale')
+    if not isinstance(locale, str) or not is_supported_locale(locale):
+        return jsonify({'ok': False, 'error': gettext('Unsupported locale')}), 400
 
-    return {'_': translate}
+    user = _current_user()
+    if user is not None:
+        upstream = _auth_request(
+            'post', '/preferences',
+            token=getattr(g, 'auth_access_token', None),
+            json={'locale': locale},
+        )
+        if upstream is None or not upstream.ok:
+            status = 503 if upstream is None else upstream.status_code
+            return jsonify({'ok': False, 'error': gettext('Could not save the language preference')}), status
+        preferences = (upstream.json() or {}).get('ui_preferences') or {'locale': locale}
+        user['ui_preferences'] = preferences
+    else:
+        preferences = {'locale': locale}
+
+    response = jsonify({'ok': True, 'locale': locale, 'ui_preferences': preferences})
+    response.set_cookie(LOCALE_COOKIE, locale, max_age=LOCALE_COOKIE_MAX_AGE, path='/', samesite='Lax')
+    g.locale_cookie_set = True
+    return response
 
 
 @web_bp.route('/')
@@ -476,7 +502,7 @@ def _v3_operator_begin(session_id):
         if request.form.get('instruments_ready') != '1':
             return _v3_operator_page(
                 'operator/sessions/begin.html', demo=True,
-                form_error='Confirm the physical instrument set before starting.', **values,
+                form_error=gettext('Confirm the physical instrument set before starting.'), **values,
             ), 400
         if not confirmation['is_full_case']:
             return redirect(url_for('web.operator_sessions', notice='walkthrough', session=sid))
@@ -516,11 +542,8 @@ def operator_sessions():
     filtered = []
     for row in rows:
         if search:
-            hay = ' '.join([
-                str(row.get('session_id') or ''),
-                str(row.get('procedure_name') or ''),
-                str(row.get('kit_name') or ''),
-            ]).lower()
+            # Shown (localized) names, stored DB names and codes (see view_data search_text).
+            hay = row.get('search_text') or str(row.get('session_id') or '').lower()
             if search not in hay:
                 continue
         code = (row.get('session_status') or {}).get('code') or ''
@@ -688,7 +711,7 @@ def operator_session_begin(session_id):
         if request.form.get('instruments_ready') != '1':
             return _v3_operator_page(
                 'operator/sessions/begin.html', demo=False,
-                form_error='Confirm the physical instrument set before starting.',
+                form_error=gettext('Confirm the physical instrument set before starting.'),
                 **values,
             ), 400
         try:
@@ -701,7 +724,7 @@ def operator_session_begin(session_id):
         except RfSessionError as exc:
             return _v3_operator_page(
                 'operator/sessions/begin.html', demo=False,
-                form_error=exc.message, **values,
+                form_error=_error_message(exc), **values,
             ), exc.status_code
         if result['capture_mode'] == 'manual_no_privacy':
             return redirect(url_for('web.operator_session_manual', session_id=session_id))
@@ -773,7 +796,7 @@ def operator_session_manual_report(session_id):
                     'operator/sessions/manual_report.html',
                     session=detail,
                     session_id=session_id,
-                    form_error='Enter a whole number for every reported quantity.',
+                    form_error=gettext('Enter a whole number for every reported quantity.'),
                     reason_options=_manual_reason_options(),
                     report_values=report_values,
                 ), 400
@@ -796,7 +819,7 @@ def operator_session_manual_report(session_id):
                 'operator/sessions/manual_report.html',
                 session=detail,
                 session_id=session_id,
-                form_error=exc.message,
+                form_error=_error_message(exc),
                 reason_options=_manual_reason_options(),
                 report_values=report_values,
             ), exc.status_code
@@ -831,10 +854,10 @@ def operator_session_manual_report_done(session_id):
 
 def _manual_reason_options():
     return [
-        {'code': 'shortage', 'label': 'Shortage / missing piece'},
-        {'code': 'surplus', 'label': 'Extra / surplus'},
-        {'code': 'operator_error', 'label': 'Operator counting error'},
-        {'code': 'other', 'label': 'Other'},
+        {'code': 'shortage', 'label': gettext('Shortage / missing piece')},
+        {'code': 'surplus', 'label': gettext('Extra / surplus')},
+        {'code': 'operator_error', 'label': gettext('Operator counting error')},
+        {'code': 'other', 'label': gettext('Other')},
     ]
 
 
@@ -892,7 +915,7 @@ def operator_session_capture(session_id):
         try:
             bind_session(UUID(session_id))
         except VisionBridgeError as exc:
-            bind_error = exc.message
+            bind_error = _error_message(exc)
         except Exception as exc:  # noqa: BLE001
             bind_error = str(exc)
     phases = []
@@ -930,11 +953,11 @@ def operator_session_capture_state(session_id):
     if detail is None:
         abort(404)
     if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
-        return jsonify({'ok': False, 'error': 'Session not in vision capture'}), 409
+        return jsonify({'ok': False, 'error': gettext('Session not in vision capture')}), 409
     try:
         data = fetch_state(UUID(session_id))
     except VisionBridgeError as exc:
-        return jsonify({'ok': False, 'error': exc.message}), exc.status_code
+        return jsonify({'ok': False, 'error': _error_message(exc)}), exc.status_code
     session_state = data.get('session') or {}
     status = session_state.get('status')
     run_id = session_state.get('run_id')
@@ -1012,15 +1035,15 @@ def operator_session_capture_upload(session_id):
     if detail is None:
         abort(404)
     if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
-        return jsonify({'ok': False, 'error': 'Session not in vision capture'}), 409
+        return jsonify({'ok': False, 'error': gettext('Session not in vision capture')}), 409
     video = request.files.get('video')
     if video is None or not video.filename:
-        return jsonify({'ok': False, 'error': 'Choose a video file (.mp4, .mkv, …).'}), 400
+        return jsonify({'ok': False, 'error': gettext('Choose a video file (.mp4, .mkv, …).')}), 400
     try:
         bind_session(UUID(session_id))
         result = upload_video(UUID(session_id), video)
     except VisionBridgeError as exc:
-        return jsonify({'ok': False, 'error': exc.message}), exc.status_code
+        return jsonify({'ok': False, 'error': _error_message(exc)}), exc.status_code
     return jsonify(result), 202
 
 
@@ -1044,7 +1067,7 @@ def operator_session_capture_finish(session_id):
             worker_session=data.get('session') or {},
         )
     except (VisionBridgeError, RfSessionError) as exc:
-        flash(getattr(exc, 'message', str(exc)), 'warning')
+        flash(_error_message(exc), 'warning')
         return redirect(url_for('web.operator_session_capture', session_id=session_id))
     return redirect(url_for('web.operator_session_detection_summary', session_id=session_id))
 
@@ -1059,7 +1082,7 @@ def operator_session_capture_phase(session_id):
     if detail is None:
         abort(404)
     if detail.get('status_code') != 'in_progress':
-        return jsonify({'ok': False, 'error': 'Session not in progress'}), 409
+        return jsonify({'ok': False, 'error': gettext('Session not in progress')}), 409
     to_phase = (request.form.get('phase_code') or (request.get_json(silent=True) or {}).get('phase_code') or '').strip()
     if not to_phase:
         return jsonify({'ok': False, 'error': 'phase_code required'}), 400
@@ -1072,7 +1095,7 @@ def operator_session_capture_phase(session_id):
             ip=request.remote_addr,
         )
     except RfSessionError as exc:
-        return jsonify({'ok': False, 'error': exc.message}), exc.status_code
+        return jsonify({'ok': False, 'error': _error_message(exc)}), exc.status_code
     return jsonify({'ok': True, **result})
 
 
@@ -1103,11 +1126,11 @@ def operator_session_detection_summary(session_id):
         expected = int(item['expected_quantity'] or 0)
         diff = detected - expected
         if diff == 0:
-            result_label, result_variant = 'Match', 'success'
+            result_label, result_variant = gettext('Match'), 'success'
         elif diff < 0:
-            result_label, result_variant = 'Missing', 'danger'
+            result_label, result_variant = gettext('Missing'), 'danger'
         else:
-            result_label, result_variant = 'Extra', 'warning'
+            result_label, result_variant = gettext('Extra'), 'warning'
         rows.append({
             **item,
             'ai_detected_quantity': detected,
@@ -1180,7 +1203,7 @@ def operator_session_vision_validation(session_id):
                     session=detail,
                     session_id=session_id,
                     snapshot=snapshot,
-                    form_error='Enter a whole number for every validated count.',
+                    form_error=gettext('Enter a whole number for every validated count.'),
                     reason_options=_manual_reason_options(),
                     report_values=_default_values(),
                     summary_url=url_for('web.operator_session_detection_summary', session_id=session_id),
@@ -1213,7 +1236,7 @@ def operator_session_vision_validation(session_id):
                 session=detail,
                 session_id=session_id,
                 snapshot=snapshot,
-                form_error=exc.message,
+                form_error=_error_message(exc),
                 reason_options=_manual_reason_options(),
                 report_values=report_values,
                 summary_url=url_for('web.operator_session_detection_summary', session_id=session_id),
@@ -1269,7 +1292,7 @@ def operator_session_validation(session_id):
         scenario = request.values.get('scenario')
         state, errors = operator_v3_parse_validation(request.form, scenario, strict=True)
         if state is None:
-            state, errors = None, ['Submit the Human Validation form to continue.']
+            state, errors = None, [gettext('Submit the Human Validation form to continue.')]
         if errors:
             response = _v3_operator_flow_page(
                 'operator/sessions/validation.html', session_id, 'in_progress',
@@ -1388,10 +1411,14 @@ def operator_session_closed(session_id):
     discrepancies = session_discrepancies(session_id)
     closure_summary = {
         'variant': 'warning',
-        'message': f"Closed with {len(discrepancies)} documented discrepancy(ies).",
+        'message': ngettext(
+            'Closed with %(num)d documented discrepancy.',
+            'Closed with %(num)d documented discrepancies.',
+            len(discrepancies),
+        ),
     } if discrepancies else {
         'variant': 'success',
-        'message': 'All Instruments Accounted For',
+        'message': gettext('All Instruments Accounted For'),
     }
     return _page(
         'operator/sessions/closed_details.html',
@@ -1494,16 +1521,16 @@ def _vision_health_row():
     from services.vision_bridge import worker_health
     health = worker_health()
     if health.get('ok'):
-        weights = 'weights OK' if health.get('weights_present') else 'weights MISSING'
+        weights = gettext('weights OK') if health.get('weights_present') else gettext('weights MISSING')
         return {
-            'name': 'Vision worker',
+            'name': gettext('Vision worker'),
             'status': 'up',
             'detail': f"Local :5002 · {weights} · bound={health.get('bound_sessions', 0)}",
         }
     return {
-        'name': 'Vision worker',
+        'name': gettext('Vision worker'),
         'status': 'down',
-        'detail': health.get('error') or 'Unreachable — start apps/VisionWorker',
+        'detail': health.get('error') or gettext('Unreachable — start apps/VisionWorker'),
     }
 
 
@@ -1514,10 +1541,10 @@ def supervisor_services_health():
     return _page(
         'supervisor/services_health.html',
         services=[
-            {'name': 'Auth', 'status': 'direct', 'detail': 'Local Auth service (no MS mesh yet)'},
-            {'name': 'Web / Session', 'status': 'direct', 'detail': 'Monolith BackendWebFlask'},
+            {'name': 'Auth', 'status': 'direct', 'detail': gettext('Local Auth service (no MS mesh yet)')},
+            {'name': gettext('Web / Session'), 'status': 'direct', 'detail': gettext('Monolith BackendWebFlask')},
             _vision_health_row(),
-            {'name': 'Evidence worker', 'status': 'pending', 'detail': 'Mongo/Garage evidence cycle — deferred'},
+            {'name': gettext('Evidence worker'), 'status': 'pending', 'detail': gettext('Mongo/Garage evidence cycle — deferred')},
         ],
     )
 
@@ -1633,7 +1660,7 @@ def supervisor_session_new():
                     )
             return redirect(url_for('web.supervisor_session_details', session_id=result['session_id']))
         except (RfSessionError, ValueError, TypeError) as exc:
-            message = exc.message if isinstance(exc, RfSessionError) else str(exc)
+            message = _error_message(exc) if isinstance(exc, RfSessionError) else str(exc)
             status = exc.status_code if isinstance(exc, RfSessionError) else 400
             post_kit = (request.form.get('kit_id') or '').strip()
             post_lines = expected_lines
@@ -1689,7 +1716,7 @@ def supervisor_session_stock_recheck():
                 })
         return jsonify({'lines': stock_recheck_lines(lines)})
     except (RfSessionError, KeyError, TypeError, ValueError) as exc:
-        message = exc.message if isinstance(exc, RfSessionError) else 'Invalid stock recheck payload.'
+        message = _error_message(exc) if isinstance(exc, RfSessionError) else gettext('Invalid stock recheck payload.')
         return jsonify({'error': message}), 400
 
 
@@ -1733,17 +1760,16 @@ def supervisor_session_history():
     for row in all_rows:
         if search:
             hay = ' '.join([
-                str(row.get('session_id') or ''),
-                str(row.get('procedure_label') or ''),
-                str(row.get('kit_name') or ''),
-                str(row.get('operator_name') or ''),
-            ]).lower()
+                row.get('search_text') or str(row.get('session_id') or '').lower(),
+                str(row.get('operator_name') or '').lower(),
+            ])
             if search not in hay:
                 continue
         review_code = (row.get('review_status') or {}).get('code') or ''
         if review_status and review_code != review_status:
             continue
-        if kit and row.get('kit_name') != kit:
+        # Kit filter value is the kit id, so it survives a language switch.
+        if kit and row.get('kit_id') != kit:
             continue
         if operator and row.get('operator_name') != operator:
             continue
@@ -1925,7 +1951,7 @@ def supervisor_session_inventory(session_id):
                     ip=request.remote_addr,
                 )
         except (RfSessionError, ValueError, TypeError) as exc:
-            message = exc.message if isinstance(exc, RfSessionError) else str(exc)
+            message = _error_message(exc) if isinstance(exc, RfSessionError) else str(exc)
             return _render_edit(form_error=message, status=400)
         return redirect(url_for('web.supervisor_session_details', session_id=session_id))
 
@@ -1952,7 +1978,7 @@ def supervisor_session_close(session_id):
             'supervisor/sessions/rf_details.html',
             session=detail,
             session_id=session_id,
-            form_error=exc.message,
+            form_error=_error_message(exc),
         ), exc.status_code
     return redirect(url_for('web.supervisor_session_details', session_id=session_id))
 
@@ -1994,10 +2020,10 @@ def supervisor_discrepancies():
 
 
 V3_REVIEW_BANNERS = {
-    'draft': {'variant': 'info', 'title': 'Draft saved.',
-              'description': 'Demo only: the resolution draft is not persisted.'},
+    'draft': {'variant': 'info', 'title': N_('Draft saved.'),
+              'description': N_('Demo only: the resolution draft is not persisted.')},
     'notes_required': {'variant': 'warning',
-                       'title': 'Review notes are required to mark a case as Reviewed – Unresolved.',
+                       'title': N_('Review notes are required to mark a case as Reviewed – Unresolved.'),
                        'description': ''},
 }
 
@@ -2090,7 +2116,7 @@ def supervisor_discrepancy_review(session_id):
                 ip=request.remote_addr,
             )
         except (RfSessionError, ValueError, TypeError) as exc:
-            message = exc.message if isinstance(exc, RfSessionError) else str(exc)
+            message = _error_message(exc) if isinstance(exc, RfSessionError) else str(exc)
             detail = supervisor_session_detail(session_id)
             return _page(
                 'supervisor/sessions/rf_review.html',
@@ -2175,7 +2201,7 @@ def admin_instrument_family_new():
         ctx.update({
             'form_mode': 'create',
             'is_edit': False,
-            'page_title': 'New Instrument Family',
+            'page_title': gettext('New Instrument Family'),
             'save_url': url_for('web.admin_instrument_family_new'),
             'cancel_url': url_for('web.admin_instrument_families'),
         })
@@ -2197,7 +2223,7 @@ def admin_instrument_family_new():
             'form_mode': 'create', 'is_edit': False,
             'save_url': url_for('web.admin_instrument_family_new'),
             'cancel_url': url_for('web.admin_instrument_families'),
-            'form_error': 'Code, name and category are required.',
+            'form_error': gettext('Code, name and category are required.'),
         })
         return _page('admin/instrument_families/form.html', **ctx), 400
     try:
@@ -2209,7 +2235,7 @@ def admin_instrument_family_new():
             'form_mode': 'create', 'is_edit': False,
             'save_url': url_for('web.admin_instrument_family_new'),
             'cancel_url': url_for('web.admin_instrument_families'),
-            'form_error': 'Choose a valid category.',
+            'form_error': gettext('Choose a valid category.'),
         })
         return _page('admin/instrument_families/form.html', **ctx), 400
     if db.session.get(CatInstrumentCategory, category_id) is None:
@@ -2234,7 +2260,7 @@ def admin_instrument_family_new():
             'form_mode': 'create', 'is_edit': False,
             'save_url': url_for('web.admin_instrument_family_new'),
             'cancel_url': url_for('web.admin_instrument_families'),
-            'form_error': 'That family code already exists.',
+            'form_error': gettext('That family code already exists.'),
         })
         return _page('admin/instrument_families/form.html', **ctx), 409
     except SQLAlchemyError:
@@ -2261,7 +2287,7 @@ def admin_instrument_family_edit(family_id):
         ctx.update({
             'form_mode': 'edit',
             'is_edit': True,
-            'page_title': 'Edit Instrument Family',
+            'page_title': gettext('Edit Instrument Family'),
             'family_id': parsed_id,
             'save_url': url_for('web.admin_instrument_family_edit', family_id=parsed_id),
             'cancel_url': url_for('web.admin_instrument_families'),
@@ -2284,7 +2310,7 @@ def admin_instrument_family_edit(family_id):
             'form_mode': 'edit', 'is_edit': True, 'family_id': parsed_id,
             'save_url': url_for('web.admin_instrument_family_edit', family_id=parsed_id),
             'cancel_url': url_for('web.admin_instrument_families'),
-            'form_error': 'Name and category are required.',
+            'form_error': gettext('Name and category are required.'),
         })
         return _page('admin/instrument_families/form.html', **ctx), 400
     try:
@@ -2418,7 +2444,7 @@ def admin_instrument_new():
     except (AttributeError, TypeError, ValueError):
         return _render_instrument_form(
             'create', values=values,
-            form_error='Your account must be assigned to an institution before creating an instrument.', status=400,
+            form_error=gettext('Your account must be assigned to an institution before creating an instrument.'), status=400,
         )
 
     try:
@@ -2426,13 +2452,13 @@ def admin_instrument_new():
         if institution is None:
             return _render_instrument_form(
                 'create', values=values,
-                form_error='Your assigned institution could not be found.', status=400,
+                form_error=gettext('Your assigned institution could not be found.'), status=400,
             )
         family, cycle_status = _validated_instrument_catalog_values(values)
         if family is None or cycle_status is None:
             return _render_instrument_form(
                 'create', values=values,
-                form_error='Choose a valid instrument family and cycle status.', status=400,
+                form_error=gettext('Choose a valid instrument family and cycle status.'), status=400,
             )
 
         instrument = Instrument(
@@ -2448,14 +2474,14 @@ def admin_instrument_new():
         db.session.rollback()
         return _render_instrument_form(
             'create', values=values,
-            form_error='An instrument with this internal code already exists for the institution.', status=409,
+            form_error=gettext('An instrument with this internal code already exists for the institution.'), status=409,
         )
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to create admin instrument')
         return _render_instrument_form(
             'create', values=values,
-            form_error='Unable to save this instrument right now.', status=503,
+            form_error=gettext('Unable to save this instrument right now.'), status=503,
         )
 
     return redirect(url_for('web.admin_instruments'))
@@ -2488,7 +2514,7 @@ def admin_instrument_edit(instrument_id):
         if family is None or cycle_status is None:
             return _render_instrument_form(
                 'edit', instrument_id=parsed_instrument_id, values=values,
-                form_error='Choose a valid instrument family and cycle status.', status=400,
+                form_error=gettext('Choose a valid instrument family and cycle status.'), status=400,
             )
 
         prior_cycle = db.session.get(CatInstrumentCycleStatus, instrument.cycle_status_id)
@@ -2501,7 +2527,7 @@ def admin_instrument_edit(instrument_id):
         if (cycle_changed or active_changed) and not values['change_reason']:
             return _render_instrument_form(
                 'edit', instrument_id=parsed_instrument_id, values=values,
-                form_error='A change reason is required when cycle status or active status changes.',
+                form_error=gettext('A change reason is required when cycle status or active status changes.'),
                 status=400,
             )
 
@@ -2547,14 +2573,14 @@ def admin_instrument_edit(instrument_id):
         db.session.rollback()
         return _render_instrument_form(
             'edit', instrument_id=parsed_instrument_id, values=values,
-            form_error='Unable to save this instrument because it conflicts with existing data.', status=409,
+            form_error=gettext('Unable to save this instrument because it conflicts with existing data.'), status=409,
         )
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to update admin instrument %s', parsed_instrument_id)
         return _render_instrument_form(
             'edit', instrument_id=parsed_instrument_id, values=values,
-            form_error='Unable to save this instrument right now.', status=503,
+            form_error=gettext('Unable to save this instrument right now.'), status=503,
         )
 
     return redirect(url_for('web.admin_instruments'))
@@ -2572,13 +2598,13 @@ def _submitted_instrument_values():
 
 def _validate_instrument_values(values, include_code=False):
     if include_code and not values['internal_code']:
-        return 'Internal code is required.'
+        return gettext('Internal code is required.')
     if include_code and len(values['internal_code']) > 64:
-        return 'Internal code must contain at most 64 characters.'
+        return gettext('Internal code must contain at most 64 characters.')
     if not values['instrument_family'] or not values['cycle_status']:
-        return 'Instrument family and cycle status are required.'
+        return gettext('Instrument family and cycle status are required.')
     if values['active_status'] not in {'active', 'inactive'}:
-        return 'Choose a valid active status.'
+        return gettext('Choose a valid active status.')
     return None
 
 
@@ -2608,7 +2634,7 @@ def _render_instrument_form(form_mode, instrument_id=None, values=None, form_err
     context.update({
         'form_mode': form_mode,
         'is_edit': is_edit,
-        'page_title': 'Edit Instrument' if is_edit else 'New Instrument',
+        'page_title': gettext('Edit Instrument') if is_edit else gettext('New Instrument'),
         'save_url': url_for('web.admin_instrument_edit', instrument_id=instrument_id) if is_edit else url_for('web.admin_instrument_new'),
         'cancel_url': url_for('web.admin_instruments'),
         'form_error': form_error,
@@ -2672,7 +2698,7 @@ def admin_kit_new():
     except (AttributeError, TypeError, ValueError):
         return _render_kit_form(
             'create', values=values,
-            form_error='Your account must be assigned to an institution before creating a kit.', status=400,
+            form_error=gettext('Your account must be assigned to an institution before creating a kit.'), status=400,
         )
 
     try:
@@ -2680,7 +2706,7 @@ def admin_kit_new():
         if institution is None:
             return _render_kit_form(
                 'create', values=values,
-                form_error='Your assigned institution could not be found.', status=400,
+                form_error=gettext('Your assigned institution could not be found.'), status=400,
             )
         error = _validate_kit_families(values)
         if error:
@@ -2700,14 +2726,14 @@ def admin_kit_new():
         db.session.rollback()
         return _render_kit_form(
             'create', values=values,
-            form_error='A kit with this name and version already exists for the institution.', status=409,
+            form_error=gettext('A kit with this name and version already exists for the institution.'), status=409,
         )
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to create admin kit')
         return _render_kit_form(
             'create', values=values,
-            form_error='Unable to save this kit right now.', status=503,
+            form_error=gettext('Unable to save this kit right now.'), status=503,
         )
 
     return redirect(url_for('web.admin_kits'))
@@ -2773,14 +2799,14 @@ def admin_kit_edit(kit_id):
         db.session.rollback()
         return _render_kit_form(
             'edit', kit_id=parsed_kit_id, values=values,
-            form_error='A kit with this name and version already exists for the institution.', status=409,
+            form_error=gettext('A kit with this name and version already exists for the institution.'), status=409,
         )
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to update admin kit %s', parsed_kit_id)
         return _render_kit_form(
             'edit', kit_id=parsed_kit_id, values=values,
-            form_error='Unable to save this kit right now.', status=503,
+            form_error=gettext('Unable to save this kit right now.'), status=503,
         )
 
     return redirect(url_for('web.admin_kits'))
@@ -2794,36 +2820,36 @@ def _submitted_kit_values():
     values = {'kit': kit_values, 'kit_composition': []}
     error = None
     if not kit_values['name']:
-        error = 'Kit name is required.'
+        error = gettext('Kit name is required.')
     elif len(kit_values['name']) > 160:
-        error = 'Kit name must contain at most 160 characters.'
+        error = gettext('Kit name must contain at most 160 characters.')
     elif kit_values['status'] not in {'active', 'inactive'}:
-        error = 'Choose a valid kit status.'
+        error = gettext('Choose a valid kit status.')
 
     family_ids = request.form.getlist('instrument_family[]')
     quantities = request.form.getlist('expected_quantity[]')
     if len(family_ids) != len(quantities):
-        return values, error or 'Kit composition rows are incomplete.'
+        return values, error or gettext('Kit composition rows are incomplete.')
 
     for family_id, quantity_value in zip(family_ids, quantities):
         try:
             UUID(family_id)
         except (TypeError, ValueError):
-            error = error or 'Choose a valid instrument family and quantity for every row.'
+            error = error or gettext('Choose a valid instrument family and quantity for every row.')
         try:
             quantity = int(quantity_value)
         except (TypeError, ValueError):
             quantity = quantity_value
-            error = error or 'Choose a valid instrument family and quantity for every row.'
+            error = error or gettext('Choose a valid instrument family and quantity for every row.')
         if isinstance(quantity, int) and (quantity < 1 or quantity > 32767):
-            error = error or 'Expected quantity must be between 1 and 32767.'
+            error = error or gettext('Expected quantity must be between 1 and 32767.')
         values['kit_composition'].append({
             'instrument_family_value': family_id,
             'expected_quantity': quantity,
         })
 
     if len({item['instrument_family_value'] for item in values['kit_composition']}) != len(values['kit_composition']):
-        error = error or 'An instrument family can only appear once in the composition.'
+        error = error or gettext('An instrument family can only appear once in the composition.')
     return values, error
 
 
@@ -2838,7 +2864,7 @@ def _validate_kit_families(values):
         ).scalars()
     }
     if existing_ids != family_ids:
-        return 'Choose instrument families from the available catalog.'
+        return gettext('Choose instrument families from the available catalog.')
     return None
 
 
@@ -2886,7 +2912,7 @@ def _render_kit_form(form_mode, kit_id=None, values=None, form_error=None, statu
     context.update({
         'form_mode': form_mode,
         'is_edit': is_edit,
-        'page_title': 'Edit Kit' if is_edit else 'New Kit',
+        'page_title': gettext('Edit Kit') if is_edit else gettext('New Kit'),
         'save_url': url_for('web.admin_kit_edit', kit_id=kit_id) if is_edit else url_for('web.admin_kit_new'),
         'cancel_url': url_for('web.admin_kits'),
         'form_error': form_error,
@@ -2928,14 +2954,14 @@ def admin_procedure_new():
         db.session.rollback()
         return _render_procedure_form(
             'create', values=values,
-            form_error='A procedure with this code already exists.', status=409,
+            form_error=gettext('A procedure with this code already exists.'), status=409,
         )
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to create admin procedure')
         return _render_procedure_form(
             'create', values=values,
-            form_error='Unable to save this procedure right now.', status=503,
+            form_error=gettext('Unable to save this procedure right now.'), status=503,
         )
 
     return redirect(url_for('web.admin_procedures'))
@@ -2978,14 +3004,14 @@ def admin_procedure_edit(procedure_id):
         db.session.rollback()
         return _render_procedure_form(
             'edit', procedure_id=parsed_procedure_id, values=values,
-            form_error='A procedure with this code already exists.', status=409,
+            form_error=gettext('A procedure with this code already exists.'), status=409,
         )
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to update admin procedure %s', parsed_procedure_id)
         return _render_procedure_form(
             'edit', procedure_id=parsed_procedure_id, values=values,
-            form_error='Unable to save this procedure right now.', status=503,
+            form_error=gettext('Unable to save this procedure right now.'), status=503,
         )
 
     return redirect(url_for('web.admin_procedures'))
@@ -3005,7 +3031,7 @@ def _submitted_procedure_values():
     default_indices = request.form.getlist('is_default[]')
     kit_active_indices = request.form.getlist('kit_active[]')
     if not (len(kit_ids) == len(kit_indices) == len(technique_labels)):
-        return values, error or 'Associated kit rows are incomplete.'
+        return values, error or gettext('Associated kit rows are incomplete.')
 
     phase_ids = request.form.getlist('phase[]')
     phase_indices = request.form.getlist('phase_row_index[]')
@@ -3013,7 +3039,7 @@ def _submitted_procedure_values():
     count_required_indices = request.form.getlist('count_required[]')
     phase_active_indices = request.form.getlist('phase_active[]')
     if not (len(phase_ids) == len(phase_indices) == len(sort_orders)):
-        return values, error or 'Counting phase rows are incomplete.'
+        return values, error or gettext('Counting phase rows are incomplete.')
 
     try:
         kit_row_indices = [int(value) for value in kit_indices]
@@ -3024,7 +3050,7 @@ def _submitted_procedure_values():
         checked_phase_active_indices = {int(value) for value in phase_active_indices}
         parsed_phase_orders = [int(value) for value in sort_orders]
     except ValueError:
-        return values, error or 'Procedure row data is invalid.'
+        return values, error or gettext('Procedure row data is invalid.')
 
     if (len(set(kit_row_indices)) != len(kit_row_indices)
             or len(set(phase_row_indices)) != len(phase_row_indices)
@@ -3032,15 +3058,15 @@ def _submitted_procedure_values():
             or not checked_kit_active_indices.issubset(kit_row_indices)
             or not checked_count_required_indices.issubset(phase_row_indices)
             or not checked_phase_active_indices.issubset(phase_row_indices)):
-        return values, error or 'Procedure row data is invalid.'
+        return values, error or gettext('Procedure row data is invalid.')
 
     for index, (kit_id, technique_label) in enumerate(zip(kit_ids, technique_labels)):
         try:
             UUID(kit_id)
         except ValueError:
-            return values, error or 'Choose a valid kit for every associated kit row.'
+            return values, error or gettext('Choose a valid kit for every associated kit row.')
         if len(technique_label.strip()) > 160:
-            return values, error or 'Technique labels must contain at most 160 characters.'
+            return values, error or gettext('Technique labels must contain at most 160 characters.')
         row_index = kit_row_indices[index]
         values['associated_kits'].append({
             'kit_value': kit_id,
@@ -3051,15 +3077,15 @@ def _submitted_procedure_values():
         })
 
     if sum(item['is_default'] for item in values['associated_kits']) > 1:
-        return values, error or 'Choose at most one default kit.'
+        return values, error or gettext('Choose at most one default kit.')
 
     for index, (phase_id, sort_order) in enumerate(zip(phase_ids, parsed_phase_orders)):
         try:
             UUID(phase_id)
         except ValueError:
-            return values, error or 'Choose a valid phase for every counting phase row.'
+            return values, error or gettext('Choose a valid phase for every counting phase row.')
         if sort_order < 1 or sort_order > 32767:
-            return values, error or 'Phase order must be between 1 and 32767.'
+            return values, error or gettext('Phase order must be between 1 and 32767.')
         row_index = phase_row_indices[index]
         values['counting_phases'].append({
             'phase_value': phase_id,
@@ -3070,19 +3096,19 @@ def _submitted_procedure_values():
         })
 
     if len({item['kit_value'] for item in values['associated_kits']}) != len(values['associated_kits']):
-        return values, error or 'A kit can only be associated once.'
+        return values, error or gettext('A kit can only be associated once.')
     if len({item['phase_value'] for item in values['counting_phases']}) != len(values['counting_phases']):
-        return values, error or 'A phase can only be added once.'
+        return values, error or gettext('A phase can only be added once.')
     if len({item['sort_order'] for item in values['counting_phases']}) != len(values['counting_phases']):
-        return values, error or 'Each counting phase must have a unique order.'
+        return values, error or gettext('Each counting phase must have a unique order.')
     return values, error
 
 
 def _validate_procedure_values(values):
     if not values['code'] or not values['name']:
-        return 'Procedure code and name are required.'
+        return gettext('Procedure code and name are required.')
     if len(values['code']) > 64 or len(values['name']) > 200:
-        return 'Procedure code must be at most 64 characters and name at most 200 characters.'
+        return gettext('Procedure code must be at most 64 characters and name at most 200 characters.')
     return None
 
 
@@ -3098,7 +3124,7 @@ def _validate_procedure_catalog_rows(values):
         for item in db.session.execute(select(CatOperationPhase).where(CatOperationPhase.id.in_(phase_ids))).scalars()
     } if phase_ids else set()
     if kits != kit_ids or phases != phase_ids:
-        return 'Choose kits and phases from the available catalogs.'
+        return gettext('Choose kits and phases from the available catalogs.')
     return None
 
 
@@ -3148,7 +3174,7 @@ def _render_procedure_form(form_mode, procedure_id=None, values=None, form_error
     context.update({
         'form_mode': form_mode,
         'is_edit': is_edit,
-        'page_title': 'Edit Procedure' if is_edit else 'New Procedure',
+        'page_title': gettext('Edit Procedure') if is_edit else gettext('New Procedure'),
         'save_url': url_for('web.admin_procedure_edit', procedure_id=procedure_id) if is_edit else url_for('web.admin_procedure_new'),
         'cancel_url': url_for('web.admin_procedures'),
         'form_error': form_error,
@@ -3179,9 +3205,9 @@ def admin_user_new():
 
     error = _validate_user_values(values)
     if not error and len(password) < 8:
-        error = 'Password must contain at least 8 characters.'
+        error = gettext('Password must contain at least 8 characters.')
     if not error and password != confirm_password:
-        error = 'Passwords do not match.'
+        error = gettext('Passwords do not match.')
     if error:
         return _render_user_form('create', values=values, form_error=error, status=400)
 
@@ -3189,7 +3215,7 @@ def admin_user_new():
     if institution is None or roles is None:
         return _render_user_form(
             'create', values=values,
-            form_error='Choose a valid institution and at least one role assigned to it.', status=400,
+            form_error=gettext('Choose a valid institution and at least one role assigned to it.'), status=400,
         )
 
     try:
@@ -3206,11 +3232,11 @@ def admin_user_new():
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return _render_user_form('create', values=values, form_error='A user with this email already exists.', status=409)
+        return _render_user_form('create', values=values, form_error=gettext('A user with this email already exists.'), status=409)
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to create admin user')
-        return _render_user_form('create', values=values, form_error='Unable to save this user right now.', status=503)
+        return _render_user_form('create', values=values, form_error=gettext('Unable to save this user right now.'), status=503)
 
     return redirect(url_for('web.admin_users'))
 
@@ -3238,7 +3264,7 @@ def admin_user_edit(user_id):
     if institution is None or roles is None:
         return _render_user_form(
             'edit', user_id=parsed_user_id, values=values,
-            form_error='Choose a valid institution and at least one role assigned to it.', status=400,
+            form_error=gettext('Choose a valid institution and at least one role assigned to it.'), status=400,
         )
 
     try:
@@ -3260,11 +3286,11 @@ def admin_user_edit(user_id):
         db.session.commit()
     except IntegrityError:
         db.session.rollback()
-        return _render_user_form('edit', user_id=parsed_user_id, values=values, form_error='A user with this email already exists.', status=409)
+        return _render_user_form('edit', user_id=parsed_user_id, values=values, form_error=gettext('A user with this email already exists.'), status=409)
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to update admin user %s', parsed_user_id)
-        return _render_user_form('edit', user_id=parsed_user_id, values=values, form_error='Unable to save this user right now.', status=503)
+        return _render_user_form('edit', user_id=parsed_user_id, values=values, form_error=gettext('Unable to save this user right now.'), status=503)
 
     return redirect(url_for('web.admin_users'))
 
@@ -3281,16 +3307,16 @@ def _submitted_user_values():
 
 def _validate_user_values(values):
     if not values['name'] or not values['email'] or not values['institution']:
-        return 'Name, email, and institution are required.'
+        return gettext('Name, email, and institution are required.')
     if len(values['name']) > 160 or len(values['email']) > 255:
-        return 'Name or email is too long.'
+        return gettext('Name or email is too long.')
     email_parts = values['email'].split('@')
     if len(email_parts) != 2 or not email_parts[0] or '.' not in email_parts[1] or any(char.isspace() for char in values['email']):
-        return 'Enter a valid email address.'
+        return gettext('Enter a valid email address.')
     if values['status'] not in {'active', 'inactive'}:
-        return 'Choose a valid user status.'
+        return gettext('Choose a valid user status.')
     if not values['assigned_role_codes']:
-        return 'Assign at least one role.'
+        return gettext('Assign at least one role.')
     return None
 
 
@@ -3321,7 +3347,7 @@ def _render_user_form(form_mode, user_id=None, values=None, form_error=None, sta
         'user': values,
         'form_mode': form_mode,
         'is_edit': is_edit,
-        'page_title': 'Edit User' if is_edit else 'New User',
+        'page_title': gettext('Edit User') if is_edit else gettext('New User'),
         'save_url': url_for('web.admin_user_edit', user_id=user_id) if is_edit else url_for('web.admin_user_new'),
         'cancel_url': url_for('web.admin_users'),
         'form_error': form_error,
@@ -3354,7 +3380,7 @@ def admin_role_new():
     if institution is None:
         return _render_role_form(
             'create', values=values,
-            form_error='Create an institution before adding a role.', status=400,
+            form_error=gettext('Create an institution before adding a role.'), status=400,
         )
 
     try:
@@ -3368,14 +3394,14 @@ def admin_role_new():
         db.session.rollback()
         return _render_role_form(
             'create', values=values,
-            form_error='A role with this code already exists for the institution.', status=409,
+            form_error=gettext('A role with this code already exists for the institution.'), status=409,
         )
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to create admin role')
         return _render_role_form(
             'create', values=values,
-            form_error='Unable to save this role right now.', status=503,
+            form_error=gettext('Unable to save this role right now.'), status=503,
         )
 
     return redirect(url_for('web.admin_roles'))
@@ -3409,14 +3435,14 @@ def admin_role_edit(role_id):
         db.session.rollback()
         return _render_role_form(
             'edit', role_id=parsed_role_id, values=values,
-            form_error='Unable to save this role because it conflicts with existing data.', status=409,
+            form_error=gettext('Unable to save this role because it conflicts with existing data.'), status=409,
         )
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception('Failed to update admin role %s', parsed_role_id)
         return _render_role_form(
             'edit', role_id=parsed_role_id, values=values,
-            form_error='Unable to save this role right now.', status=503,
+            form_error=gettext('Unable to save this role right now.'), status=503,
         )
 
     return redirect(url_for('web.admin_roles'))
@@ -3424,13 +3450,13 @@ def admin_role_edit(role_id):
 
 def _validate_role_values(values, include_code=False):
     if include_code and not values['code']:
-        return 'Role code is required.'
+        return gettext('Role code is required.')
     if not values['description']:
-        return 'Description is required.'
+        return gettext('Description is required.')
     if include_code and len(values['code']) > 64:
-        return 'Role code must contain at most 64 characters.'
+        return gettext('Role code must contain at most 64 characters.')
     if len(values['description']) > 255:
-        return 'Description must contain at most 255 characters.'
+        return gettext('Description must contain at most 255 characters.')
     return None
 
 
@@ -3443,7 +3469,7 @@ def _render_role_form(form_mode, role_id=None, values=None, form_error=None, sta
         'role': role_values,
         'form_mode': form_mode,
         'is_edit': is_edit,
-        'page_title': 'Edit Role' if is_edit else 'New Role',
+        'page_title': gettext('Edit Role') if is_edit else gettext('New Role'),
         'save_url': url_for('web.admin_role_edit', role_id=role_id) if is_edit else url_for('web.admin_role_new'),
         'cancel_url': url_for('web.admin_roles'),
         'form_error': form_error,
@@ -3461,13 +3487,13 @@ def admin_vision_models():
 @web_bp.route('/admin/vision-models/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_vision_model_new():
-    return _page('admin/vision_models/form.html', **vision_model_form_data(), page_title='New Vision Model', form_mode='create')
+    return _page('admin/vision_models/form.html', **vision_model_form_data(), page_title=gettext('New Vision Model'), form_mode='create')
 
 
 @web_bp.route('/admin/vision-models/<model_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_vision_model_edit(model_id):
-    return _page('admin/vision_models/form.html', **vision_model_form_data(model_id), page_title='Edit Vision Model', form_mode='edit', model_id=model_id)
+    return _page('admin/vision_models/form.html', **vision_model_form_data(model_id), page_title=gettext('Edit Vision Model'), form_mode='edit', model_id=model_id)
 
 
 @web_bp.route('/admin/audit-log')
@@ -3490,28 +3516,28 @@ def admin_configuration():
 @web_bp.route('/admin/configuration/institution/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_institution_edit():
-    return _page('admin/configuration/institution_form.html', **institution_form_data(), page_title='Edit Institution Information', form_mode='edit')
+    return _page('admin/configuration/institution_form.html', **institution_form_data(), page_title=gettext('Edit Institution Information'), form_mode='edit')
 
 
 @web_bp.route('/admin/configuration/operating-rooms/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_operating_room_new():
-    return _page('admin/configuration/operating_room_form.html', **operating_room_form_data(), page_title='New Operating Room', is_edit=False, form_mode='create')
+    return _page('admin/configuration/operating_room_form.html', **operating_room_form_data(), page_title=gettext('New Operating Room'), is_edit=False, form_mode='create')
 
 
 @web_bp.route('/admin/configuration/operating-rooms/<room_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_operating_room_edit(room_id):
-    return _page('admin/configuration/operating_room_form.html', **operating_room_form_data(room_id), page_title='Edit Operating Room', is_edit=True, form_mode='edit', room_id=room_id)
+    return _page('admin/configuration/operating_room_form.html', **operating_room_form_data(room_id), page_title=gettext('Edit Operating Room'), is_edit=True, form_mode='edit', room_id=room_id)
 
 
 @web_bp.route('/admin/configuration/capture-stations/new', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_capture_station_new():
-    return _page('admin/configuration/capture_station_form.html', **station_form_data(), page_title='New Capture Station', is_edit=False, form_mode='create')
+    return _page('admin/configuration/capture_station_form.html', **station_form_data(), page_title=gettext('New Capture Station'), is_edit=False, form_mode='create')
 
 
 @web_bp.route('/admin/configuration/capture-stations/<station_id>/edit', methods=['GET', 'POST'])
 @require_role('it_admin')
 def admin_capture_station_edit(station_id):
-    return _page('admin/configuration/capture_station_form.html', **station_form_data(station_id), page_title='Edit Capture Station', is_edit=True, form_mode='edit', station_id=station_id)
+    return _page('admin/configuration/capture_station_form.html', **station_form_data(station_id), page_title=gettext('Edit Capture Station'), is_edit=True, form_mode='edit', station_id=station_id)

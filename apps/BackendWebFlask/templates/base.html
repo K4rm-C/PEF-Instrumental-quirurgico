@@ -24,6 +24,76 @@
         })();
     </script>
 
+    {# UI strings used by static/js, translated by Flask-Babel for the current locale.
+       Scripts read them with window.pefT(key[, {name: value}]) (%(name)s placeholders). #}
+    <script>
+        window.PEF_I18N = {
+            confirm: {{ _("Confirm")|tojson }},
+            ok: {{ _("OK")|tojson }},
+            cancel: {{ _("Cancel")|tojson }},
+            close: {{ _("Close")|tojson }},
+            continue: {{ _("Continue")|tojson }},
+            save: {{ _("Save")|tojson }},
+            languageChangeFailed: {{ _("The language could not be changed. Please try again.")|tojson }},
+            signInFailed: {{ _("Sign in failed. Please try again.")|tojson }},
+            noApplicationRole: {{ _("Your account has no application role.")|tojson }},
+            authServiceUnavailable: {{ _("Authentication service unavailable.")|tojson }},
+            authInvalidCredentials: {{ _("Invalid credentials.")|tojson }},
+            authTooManyAttempts: {{ _("Too many failed login attempts. Try again later.")|tojson }},
+            authSessionStoreUnavailable: {{ _("Session store unavailable. Please try again shortly.")|tojson }},
+            authDatabaseUnavailable: {{ _("Database unavailable. Please try again shortly.")|tojson }},
+            authSessionExpired: {{ _("Your session expired. Please sign in again.")|tojson }},
+            privacyNoticeRequiredTitle: {{ _("Privacy notice required")|tojson }},
+            privacyNoticeRequiredMessage: {{ _("Select a privacy notice version, or use Continue without privacy notice.")|tojson }},
+            privacyConfirmationRequiredTitle: {{ _("Confirmation required")|tojson }},
+            privacyConfirmationRequiredMessage: {{ _("Confirm the privacy notice checkbox before saving with a notice.")|tojson }},
+            noMatchingPhysicians: {{ _("No matching physicians")|tojson }},
+            selectFamily: {{ _("Select family")|tojson }},
+            otherCategory: {{ _("Other")|tojson }},
+            newRow: {{ _("New")|tojson }},
+            remove: {{ _("Remove")|tojson }},
+            undo: {{ _("Undo")|tojson }},
+            changesAdded: {{ _("Added")|tojson }},
+            changesModified: {{ _("Modified")|tojson }},
+            changesRemoved: {{ _("Removed")|tojson }},
+            inventoryNoChanges: {{ _("No inventory changes detected. Save session fields anyway?")|tojson }},
+            inventoryReviewChanges: {{ _("Review inventory changes:")|tojson }},
+            inventorySaveTitle: {{ _("Save session changes?")|tojson }},
+            kitSectionTitle: {{ _("Kit")|tojson }},
+            kitNameChange: {{ _("Name: \"%(before)s\" → \"%(after)s\"")|tojson }},
+            kitStatusChange: {{ _("Status: %(before)s → %(after)s")|tojson }},
+            kitNoChanges: {{ _("No composition or metadata changes detected. Save anyway?")|tojson }},
+            kitReviewChanges: {{ _("Review the changes that will be saved:")|tojson }},
+            kitSaveTitle: {{ _("Save kit changes?")|tojson }},
+            kitSaveButton: {{ _("Save Kit")|tojson }},
+            instrumentCreateLine: {{ _("Create instrument %(code)s")|tojson }},
+            instrumentNoCode: {{ _("(no code)")|tojson }},
+            instrumentFamilyLine: {{ _("Family: %(value)s")|tojson }},
+            instrumentCycleLine: {{ _("Cycle status: %(value)s")|tojson }},
+            instrumentActiveLine: {{ _("Active status: %(value)s")|tojson }},
+            instrumentFamilyChanged: {{ _("Family changed → %(value)s")|tojson }},
+            instrumentCycleChanged: {{ _("Cycle status: %(before)s → %(after)s")|tojson }},
+            instrumentActiveChanged: {{ _("Active status: %(before)s → %(after)s")|tojson }},
+            instrumentChangeReason: {{ _("Change reason: %(value)s")|tojson }},
+            instrumentNoChanges: {{ _("No status/family changes detected. Save anyway?")|tojson }},
+            instrumentHeading: {{ _("Instrument %(code)s")|tojson }},
+            instrumentConfirmIntro: {{ _("Confirm this instrument save. The change will be audited.")|tojson }},
+            instrumentSaveTitle: {{ _("Save instrument changes?")|tojson }},
+            instrumentCreateTitle: {{ _("Create instrument?")|tojson }},
+            instrumentSaveChanges: {{ _("Save Changes")|tojson }},
+            instrumentSaveButton: {{ _("Save Instrument")|tojson }}
+        };
+        window.pefT = function (key, values) {
+            var text = window.PEF_I18N[key];
+            if (text === undefined) {
+                return key;
+            }
+            return text.replace(/%\((\w+)\)s/g, function (match, name) {
+                return values && values[name] !== undefined ? String(values[name]) : match;
+            });
+        };
+    </script>
+
     <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
@@ -45,11 +115,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/app-modal.css') }}">
     {% block page_styles %}{% endblock %}
 </head>
-<body class="{% block body_class %}{% endblock %}" data-auth-service-url="{{ config.AUTH_BROWSER_URL }}">
+<body class="{% block body_class %}{% endblock %}" data-auth-service-url="{{ config.AUTH_BROWSER_URL }}"
+      data-locale-url="{{ request.script_root }}/locale">
     {% block content %}{% endblock %}
 
     <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/language.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/auth-client.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/auth-heartbeat.js') }}" defer></script>

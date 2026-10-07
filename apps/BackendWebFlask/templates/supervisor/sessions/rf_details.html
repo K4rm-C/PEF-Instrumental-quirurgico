@@ -79,7 +79,7 @@
         <h3 class="v3-panel__title">{{ _("Surgical team") }}</h3>
         <dl class="v3-kv-list">
             {% for member in session.surgical_team %}
-            <div><dt>{{ member.name }}</dt><dd>{{ member.role }}</dd></div>
+            <div><dt>{{ member.name }}</dt><dd>{{ _(member.role) }}</dd></div>
             {% endfor %}
         </dl>
     </div>
@@ -90,7 +90,7 @@
         {% if session.privacy.has_agreement %}
         <p class="text-muted">{{ _("Notice") }} {{ session.privacy.version }} · {{ session.privacy.agreed_at or '—' }}</p>
         {% else %}
-        <p class="text-muted">{{ session.privacy.message }}</p>
+        <p class="text-muted">{{ _(session.privacy.message) }}</p>
         {% endif %}
     </div>
     {% endif %}
@@ -362,19 +362,20 @@
         event.preventDefault();
         var recovered = !!form.querySelector("[data-material-recovered]:checked");
         var html =
-            "<p>Confirm administrative close for <strong>" +
-            (form.getAttribute("data-session-label") || "session") +
-            "</strong>?</p>" +
+            "<p>" + {{ _("Confirm administrative close for %(session)s?")|tojson }}.replace(
+                "%(session)s",
+                "<strong>" + (form.getAttribute("data-session-label") || {{ _("session")|tojson }}) + "</strong>"
+            ) + "</p>" +
             '<div class="app-modal__audit"><dl class="app-modal__kv">' +
-            "<dt>Procedure</dt><dd>" + (form.getAttribute("data-procedure") || "—") + "</dd>" +
-            "<dt>Material recovered</dt><dd>" + (recovered ? "Yes" : "No") + "</dd>" +
+            "<dt>" + {{ _("Procedure")|tojson }} + "</dt><dd>" + (form.getAttribute("data-procedure") || "—") + "</dd>" +
+            "<dt>" + {{ _("Material recovered")|tojson }} + "</dt><dd>" + (recovered ? {{ _("Yes")|tojson }} : {{ _("No")|tojson }}) + "</dd>" +
             "</dl></div>";
         if (window.appConfirm) {
             window.appConfirm({
-                title: "Close Counting Session?",
+                title: {{ _("Close Counting Session?")|tojson }},
                 html: html,
-                okLabel: "Close Session",
-                cancelLabel: "Cancel",
+                okLabel: {{ _("Close Session")|tojson }},
+                cancelLabel: window.pefT("cancel"),
             }).then(function (ok) {
                 if (ok && window.appConfirmProceed) window.appConfirmProceed(form);
             });
