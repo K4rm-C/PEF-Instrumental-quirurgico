@@ -41,7 +41,7 @@ INSERT INTO institution (id, name, active) VALUES
   ('11111111-1111-1111-1111-111111111111', 'Hospital Demo PEF', TRUE);
 
 INSERT INTO operating_room (id, code, name, active, institution_id) VALUES
-  ('12121212-0000-4000-8000-000000000001', 'OR-01', 'Quirofano 1', TRUE,
+  ('12121212-0000-4000-8000-000000000001', 'OR-01', 'Operating Room 1', TRUE,
    '11111111-1111-1111-1111-111111111111');
 
 -- La region de interes delimita el area de charola dentro del encuadre.
@@ -56,13 +56,13 @@ INSERT INTO capture_station (id, name, roi, active, room_id) VALUES
 -- Codigos de rol = RF (station_operator / spd_supervisor). it_admin = catalogo tecnico.
 INSERT INTO role (id, code, description, institution_id) VALUES
   ('14141414-0000-4000-8000-000000000001', 'station_operator',
-   'Operador de estacion. Ejecuta sesiones de conteo asignadas.',
+   'Station operator. Runs assigned counting sessions.',
    '11111111-1111-1111-1111-111111111111'),
   ('14141414-0000-4000-8000-000000000002', 'spd_supervisor',
-   'Supervisor SPD. Programa sesiones, aviso de privacidad y cierra casos.',
+   'SPD supervisor. Schedules sessions, privacy notice, and closes cases.',
    '11111111-1111-1111-1111-111111111111'),
   ('14141414-0000-4000-8000-000000000003', 'it_admin',
-   'Administrador Tecnico. Gestiona catalogos, usuarios y configuracion.',
+   'Technical administrator. Manages catalogs, users, and configuration.',
    '11111111-1111-1111-1111-111111111111');
 
 -- ui_preferences: clave DS01 `locale` (en | es-MX) + theme. Babel/traduccion real = fase i18n posterior.
@@ -94,18 +94,18 @@ INSERT INTO user_role (user_id, role_id) VALUES
 -- 3. Paciente y medico (datos minimos, sin historia clinica)
 -- -----------------------------------------------------------------------------
 INSERT INTO patient (id, display_name, birth_date, active, gender_id, institution_id)
-SELECT '31313131-0000-4000-8000-000000000001', 'Paciente Demo 001', DATE '1985-04-17', TRUE,
+SELECT '31313131-0000-4000-8000-000000000001', 'Demo Patient 001', DATE '1985-04-17', TRUE,
        g.id, '11111111-1111-1111-1111-111111111111'
 FROM cat_gender g WHERE g.code = 'female';
 
 INSERT INTO physician (id, name, active, institution_id) VALUES
   ('32323232-0000-4000-8000-000000000001', 'Dr. Hector Villarreal', TRUE,
    '11111111-1111-1111-1111-111111111111'),
-  ('32323232-0000-4000-8000-000000000002', 'Dra. Laura Mendoza', TRUE,
+  ('32323232-0000-4000-8000-000000000002', 'Dr. Laura Mendoza', TRUE,
    '11111111-1111-1111-1111-111111111111'),
   ('32323232-0000-4000-8000-000000000003', 'Dr. Andres Castillo', TRUE,
    '11111111-1111-1111-1111-111111111111'),
-  ('32323232-0000-4000-8000-000000000004', 'Dra. Sofia Ramirez', TRUE,
+  ('32323232-0000-4000-8000-000000000004', 'Dr. Sofia Ramirez', TRUE,
    '11111111-1111-1111-1111-111111111111'),
   ('32323232-0000-4000-8000-000000000005', 'Dr. Miguel Angel Torres', TRUE,
    '11111111-1111-1111-1111-111111111111');
@@ -555,7 +555,7 @@ LEFT JOIN instrument_family f ON f.code = v.family_code;
 INSERT INTO discrepancy (id, description, resolved, resolved_at, reason_id, family_id,
                          expected_quantity, detected_quantity, session_id, origin_event_id)
 SELECT '81000001-0000-4000-8000-000000000001',
-       'Se esperaban 2 separadores Farabeuf conforme al kit y solo se detecto 1 en la charola.',
+       'Expected 2 Farabeuf retractors per the kit; only 1 was detected on the tray.',
        TRUE, '2026-09-05T18:04:00Z',
        dr.id, f.id, 2, 1,
        'c1000001-0000-4000-8000-000000000001',
@@ -565,7 +565,7 @@ WHERE dr.code = 'shortage' AND f.code = 'FARABEUF';
 
 INSERT INTO human_correction (justification, recorded_at, count_event_id, user_id)
 VALUES (
-  'Verificacion fisica de la charola y del campo quirurgico. El inventario de la institucion cuenta con una sola pieza de esta familia disponible al momento de armar el kit; la segunda unidad se encuentra en esterilizacion. Se autoriza el cierre con la diferencia documentada y se solicita ajustar la plantilla del kit o reponer la pieza faltante.',
+  'Physical verification of the tray and surgical field. Institutional inventory had only one piece of this family available when the kit was assembled; the second unit is in sterilization. Close is authorized with the documented difference; request kit template adjustment or replenishment of the missing piece.',
   '2026-09-05T18:04:00Z',
   '71000001-0000-4000-8000-000000000008',
   '22222222-2222-2222-2222-222222222222'
