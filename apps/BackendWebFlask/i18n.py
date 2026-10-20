@@ -8,6 +8,8 @@ the `pef_locale` cookie and <html lang> carry. Babel catalogs use the POSIX form
 English is the source language: msgids are the English UI text, so `en` has no catalog.
 """
 
+import unicodedata
+
 import flask_babel
 from flask import g, request
 
@@ -462,6 +464,34 @@ def localize_known_text(entity, value):
 def search_text(*values):
     """Lower-cased haystack mixing localized labels, stored DB labels and codes."""
     return ' '.join(str(value) for value in values if value).lower()
+
+
+def localized_search_matches(term, *entities):
+    """Codes, UUIDs and stored texts of system-controlled DB values whose label in the
+    current locale contains `term`.
+
+    AdminService searches the stored values only; the portal sends these extra matches so
+    a search typed in Spanish (e.g. "pinza") still finds records stored in English.
+    """
+    needle = _fold(term)
+    if not needle:
+        return []
+    matches = set()
+    for entity in entities:
+        for code, msgid in DB_CODE_LABELS.get(entity, {}).items():
+            if needle in _fold(flask_babel.gettext(msgid)):
+                matches.add(code)
+        for key, variants in DB_RECORD_TEXTS.get(entity, {}).items():
+            for stored_text, msgid in variants.items():
+                if needle in _fold(flask_babel.gettext(msgid)):
+                    matches.update((key, stored_text))
+    return sorted(matches)
+
+
+def _fold(value):
+    """Lower-case and accent-free, so "colecistectomia" finds "Colecistectomía"."""
+    text = unicodedata.normalize('NFKD', str(value or '').strip().lower())
+    return ''.join(char for char in text if not unicodedata.combining(char))
 
 
 # ----------------------------------------------------------------------------------------

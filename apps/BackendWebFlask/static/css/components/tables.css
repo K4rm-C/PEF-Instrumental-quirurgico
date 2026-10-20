@@ -34,6 +34,11 @@
     text-align: right;
 }
 
+/* Inline POST actions (e.g. Delete) sit next to the row's links. */
+.data-table__inline-form {
+    display: inline;
+}
+
 /* Two-line "Session / Procedure" style cell: bold identifier + secondary detail line. */
 .data-table__primary {
     display: block;

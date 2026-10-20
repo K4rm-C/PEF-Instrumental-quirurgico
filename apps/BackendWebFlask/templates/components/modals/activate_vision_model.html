@@ -14,11 +14,10 @@
       on the same list page (one per inactive row)
     - activate_vision_model (dict): version_tag, classes_label, checksum
     - activate_vision_model_url (optional string, defaults to "#")
-    Integration point: no POST route/service exists yet to actually flip YoloModel.active —
-    documented as pending in V2_IMPLEMENTATION_NOTES.md rather than invented here.
+    The button posts to activate_vision_model_url; AdminService deactivates the current model,
+    activates this one and audits both changes.
 #}
-{% set activate_vision_model = activate_vision_model|default({'version_tag': 'v0.4.2', 'classes_label': _('11 Classes'), 'checksum': ''}) %}
-{% set activate_vision_model_url = activate_vision_model_url|default('#') %}
+{% set activate_vision_model_url = activate_vision_model_url|default(activate_vision_model.activate_url) %}
 <div class="modal-overlay" id="{{ activate_modal_id }}" hidden>
     <div class="modal-dialog" role="dialog" aria-modal="true"
          aria-labelledby="{{ activate_modal_id }}-title" aria-describedby="{{ activate_modal_id }}-description">
@@ -31,7 +30,7 @@
         <div class="modal-dialog__info-box">
             <div class="modal-dialog__info-row"><dt>{{ _("Version") }}</dt><dd>{{ activate_vision_model.version_tag }}</dd></div>
             <div class="modal-dialog__info-row"><dt>{{ _("Classes") }}</dt><dd>{{ activate_vision_model.classes_label }}</dd></div>
-            <div class="modal-dialog__info-row"><dt>{{ _("Model Asset") }}</dt><dd>{{ _("Configured") }}</dd></div>
+            <div class="modal-dialog__info-row"><dt>{{ _("Model Asset") }}</dt><dd>{{ _(activate_vision_model.asset_label) if activate_vision_model.asset_label else _("Configured") }}</dd></div>
             <div class="modal-dialog__info-row"><dt>{{ _("Checksum") }}</dt><dd>{{ activate_vision_model.checksum_short|default(activate_vision_model.checksum) }}</dd></div>
         </div>
 
@@ -39,7 +38,9 @@
 
         <div class="modal-dialog__actions">
             <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
-            <a class="btn btn--primary" href="{{ activate_vision_model_url }}">{{ _("Activate Model") }}</a>
+            <form action="{{ activate_vision_model_url }}" method="post">
+                <button type="submit" class="btn btn--primary">{{ _("Activate Model") }}</button>
+            </form>
         </div>
     </div>
 </div>
