@@ -2,7 +2,7 @@
 
 Conteo y trazabilidad asistidos por vision de instrumental quirurgico (PEF UDEM).
 
-Stack actual: **Flask** (portal operador/SPD/admin), **Auth Service** (Flask/JWT), **PostgreSQL**, **Redis**, **MongoDB**, **Garage** (S3-compatible; reemplaza MinIO porque su imagen ya no esta en Docker Hub).
+Stack actual: **Flask** (portal operador/SPD/admin), **Auth Service** (Flask/JWT), **AdminService** (Flask, microservicio de administración), **PostgreSQL**, **Redis**, **MongoDB**, **Garage** (S3-compatible; reemplaza MinIO porque su imagen ya no esta en Docker Hub).
 
 ## Equipo
 
@@ -23,7 +23,7 @@ Asesor: Dr. Raul Morales Salcedo.
 - Docker Desktop en ejecucion
 - Python 3.11+ en PATH
 - Git
-- Puertos libres: `5433`, `6379`, `27017`, `3900`, `3901`, `3903`, `5000`, `5001`, `5002`
+- Puertos libres: `5433`, `6379`, `27017`, `3900`, `3901`, `3903`, `5000`, `5001`, `5002`, `5003`
 
 ```powershell
 docker --version
@@ -45,9 +45,10 @@ Solo la **primera vez**, o cuando cambies `.env.example` / tu `.env` de raiz:
 copy .env.example .env
 copy .env apps\BackendAuthService\.env
 copy .env apps\BackendWebFlask\.env
+copy .env apps\AdminService\.env
 ```
 
-Nota: No hace falta repetir `copy` en cada terminal nueva. Auth y Web leen el `.env` **de su carpeta** al arrancar una terminal nueva solo necesita `cd` + activar venv + `python ...`.  
+Nota: No hace falta repetir `copy` en cada terminal nueva. Auth, AdminService y Web leen el `.env` **de su carpeta** al arrancar una terminal nueva solo necesita `cd` + activar venv + `python ...`.  
 Volver a hacer `copy` sobrescribe esos `.env` con el de la raiz (util si editaste la raiz; malo si solo habias tocado el de un app).
 
 ### 2) Contenedores
@@ -89,7 +90,7 @@ docker exec pef_garage /garage key list
 
 El bucket `evidence` y la key `MedAdmin3` se crean solos con `--default-bucket` si `S3_SECRET_KEY` es valida.
 
-### 3) Auth, Web y VisionWorker (tres terminales)
+### 3) Auth, AdminService, Web y VisionWorker (cuatro terminales)
 
 **Terminal A — Auth**
 
@@ -100,6 +101,18 @@ python -m venv .venv
 pip install -r requirements.txt
 python main.py
 ```
+
+**Terminal A2 — AdminService** (pantallas de administración; ver `apps/AdminService/README.md`)
+
+```powershell
+cd apps\AdminService
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python main.py
+```
+
+Comprueba: [http://127.0.0.1:5003/health](http://127.0.0.1:5003/health).
 
 **Terminal B — Web**
 
@@ -127,7 +140,7 @@ python main.py
 
 Comprueba: [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) debe reportar `"weights_present": true`.
 
-Opcional Windows: `.\start-services.ps1` (compose + abre Auth, Web y VisionWorker).
+Opcional Windows: `.\start-services.ps1` (compose + abre Auth, AdminService, Web y VisionWorker).
 
 ### 4) URLs y puertos
 
@@ -136,6 +149,7 @@ Opcional Windows: `.\start-services.ps1` (compose + abre Auth, Web y VisionWorke
 | ------------- | ------------------------------------------------------------ |
 | Portal web    | [http://127.0.0.1:5000](http://127.0.0.1:5000)               |
 | Auth          | [http://127.0.0.1:5001](http://127.0.0.1:5001)               |
+| AdminService  | [http://127.0.0.1:5003/health](http://127.0.0.1:5003/health) |
 | VisionWorker  | [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) |
 | Garage S3 API | [http://127.0.0.1:3900](http://127.0.0.1:3900)               |
 | PostgreSQL    | `localhost:5433` / db `InstruMed`                            |
@@ -155,6 +169,7 @@ Opcional Windows: `.\start-services.ps1` (compose + abre Auth, Web y VisionWorke
 | 5000   | Backend Web      |
 | 5001   | Auth             |
 | 5002   | VisionWorker     |
+| 5003   | AdminService     |
 
 
 
@@ -221,6 +236,7 @@ PEF-Instrumental-quirurgico/
 ├── data/
 └── apps/
     ├── BackendAuthService/
+    ├── AdminService/
     ├── BackendWebFlask/
     └── VisionWorker/
         └── weights/best.pt   # local only (gitignored)
@@ -259,7 +275,7 @@ pybabel update -i messages.pot -d translations --no-wrap
 pybabel compile -d translations --statistics
 ```
 
-Pruebas: `python -m pytest tests` en `apps/BackendWebFlask` y en `apps/BackendAuthService`.
+Pruebas: `python -m pytest tests` en `apps/BackendWebFlask`, `apps/BackendAuthService` y `apps/AdminService` (este último necesita PostgreSQL arriba).
 
 ## Problemas frecuentes
 
@@ -302,6 +318,7 @@ Auth debe tener `Werkzeug==3.1.8` y el seed actual
 | 5a   | Vision upload + VisionWorker + YOLO (`best.pt`) + matrix_v1 (Hungarian/greedy) + count_event + validacion UI | Listo (demo) |
 | 5b   | Electron WSS camara live + Mongo/Garage evidence-worker                                                      | Pendiente    |
 | 6    | i18n real (Flask-Babel): `en` + `es-MX`, selector persistente en `ui_preferences`                            | Listo        |
+| 7    | AdminService (microservicio): CRUD real de catálogos, usuarios, roles, modelos y configuración; dashboard y bitácora reales; auditoría de cada operación y de LOGIN/LOGOUT | Listo        |
 
 
 Idioma: **ingles** como fuente, traduccion `es-MX` con Flask-Babel (ver **Internationalization / i18n**). Rutas pre-RF del operador viven en `/legacy/...` (ver `apps/BackendWebFlask/legacy/README.md`). Plantillas V2/mocks retiradas estan en `Legacy/` (raiz del repo).
@@ -329,7 +346,7 @@ Esperado con semilla limpia: roles RF; kit **Video Demo Kit 1** (13 familias, FA
 1. [http://127.0.0.1:5000/sign-in](http://127.0.0.1:5000/sign-in) con cada rol demo.
 2. **OP** sidebar: Assigned Sessions → Session History → Profile. Home = `/operator/sessions`.
 3. **SPD** sidebar: Dashboard → Sessions / New session / Discrepancies / History → Kits / Instruments → Indicators / Reports (stub) / Audit → Services health (stub) → Profile. Privacy catalog = admin only.
-4. **Admin** → panel admin (privacy notices, users, etc.).
+4. **Admin** → panel admin servido por AdminService (dashboard, familias, instrumentos, kits, procedimientos, usuarios, roles, modelos de visión, bitácora, configuración). Requiere AdminService en `:5003`.
 
 **3) Ciclo SPD → OP → SPD (ruta manual — utilizable sin YOLO)**
 
@@ -383,6 +400,12 @@ Desde `apps/BackendWebFlask` con venv activo:
 ```powershell
 python ..\..\scripts\smoke_rf_32.py
 python ..\..\scripts\smoke_rf_33.py
+```
+
+Smoke del flujo de administración (Auth y AdminService corriendo):
+
+```powershell
+python scripts\smoke_admin_service.py
 ```
 
 Despues, si necesitas demos UI con seeds predecibles, vuelve a `down -v` + `up -d` + `privacy-notices`.

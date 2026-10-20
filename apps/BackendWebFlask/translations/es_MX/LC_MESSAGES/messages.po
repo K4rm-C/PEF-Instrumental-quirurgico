@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PEF VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-07 13:47-0600\n"
+"POT-Creation-Date: 2026-10-20 12:21-0600\n"
 "PO-Revision-Date: 2026-10-07 11:47-0600\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: es_MX\n"
@@ -18,6 +18,782 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.18.0\n"
 
+#: clients/admin_service.py:18
+msgid "The administration service is not available right now. Try again in a moment."
+msgstr "El servicio de administración no está disponible en este momento. Intenta de nuevo en un momento."
+
+#: clients/admin_service.py:19
+msgid "Your role cannot perform this operation."
+msgstr "Tu rol no puede realizar esta operación."
+
+#: clients/admin_service.py:20 clients/admin_service.py:21
+#: clients/admin_service.py:22 clients/admin_service.py:23
+msgid "Your session expired. Sign in again."
+msgstr "Tu sesión expiró. Inicia sesión de nuevo."
+
+#: clients/admin_service.py:24
+msgid "The database is not available right now. Try again in a moment."
+msgstr "La base de datos no está disponible en este momento. Intenta de nuevo en un momento."
+
+#: clients/admin_service.py:25 clients/admin_service.py:26
+#: clients/admin_service.py:27 clients/admin_service.py:28
+#: clients/admin_service.py:29 clients/admin_service.py:30
+#: clients/admin_service.py:31 clients/admin_service.py:32
+#: clients/admin_service.py:33 clients/admin_service.py:34
+msgid "Record not found."
+msgstr "No se encontró el registro."
+
+#: clients/admin_service.py:35
+msgid "Choose a valid status."
+msgstr "Elige un estado válido."
+
+#: clients/admin_service.py:37 clients/admin_service.py:39
+msgid "Code, name and category are required."
+msgstr "El código, el nombre y la categoría son obligatorios."
+
+#: clients/admin_service.py:38
+msgid "Name is required."
+msgstr "El nombre es obligatorio."
+
+#: clients/admin_service.py:40
+msgid "Choose a valid category."
+msgstr "Elige una categoría válida."
+
+#: clients/admin_service.py:41
+msgid "That family code already exists."
+msgstr "Ese código de familia ya existe."
+
+#: clients/admin_service.py:43
+msgid "Internal code is required."
+msgstr "El código interno es obligatorio."
+
+#: clients/admin_service.py:44
+msgid "Internal code must contain at most 64 characters."
+msgstr "El código interno debe tener como máximo 64 caracteres."
+
+#: clients/admin_service.py:45 clients/admin_service.py:46
+msgid "Instrument family and cycle status are required."
+msgstr "La familia de instrumentos y el estado de ciclo son obligatorios."
+
+#: clients/admin_service.py:47
+msgid "Choose a valid instrument family and cycle status."
+msgstr "Elige una familia de instrumentos y un estado de ciclo válidos."
+
+#: clients/admin_service.py:48
+msgid "An instrument with this internal code already exists for the institution."
+msgstr "Ya existe un instrumento con este código interno en la institución."
+
+#: clients/admin_service.py:49
+msgid "A change reason is required when cycle status or active status changes."
+msgstr "Se requiere un motivo de cambio cuando cambia el estado de ciclo o el estado activo."
+
+#: clients/admin_service.py:51
+msgid "A kit with this name and version already exists for the institution."
+msgstr "Ya existe un kit con este nombre y versión en la institución."
+
+#: clients/admin_service.py:52
+msgid "Choose a valid instrument family and quantity for every row."
+msgstr "Elige una familia de instrumentos y una cantidad válidas en cada fila."
+
+#: clients/admin_service.py:53
+msgid "Expected quantity must be between 1 and 32767."
+msgstr "La cantidad esperada debe estar entre 1 y 32767."
+
+#: clients/admin_service.py:54
+msgid "An instrument family can only appear once in the composition."
+msgstr "Una familia de instrumentos solo puede aparecer una vez en la composición."
+
+#: clients/admin_service.py:55
+msgid "Add at least one instrument family to the kit composition."
+msgstr "Agrega al menos una familia de instrumentos a la composición del kit."
+
+#: clients/admin_service.py:56
+msgid "Choose instrument families from the available catalog."
+msgstr "Elige familias de instrumentos del catálogo disponible."
+
+#: clients/admin_service.py:58
+msgid "A procedure with this code already exists."
+msgstr "Ya existe un procedimiento con este código."
+
+#: clients/admin_service.py:59
+msgid "Choose a valid kit for every associated kit row."
+msgstr "Elige un kit válido en cada fila de kits asociados."
+
+#: clients/admin_service.py:60
+msgid "A kit can only be associated once."
+msgstr "Un kit solo puede asociarse una vez."
+
+#: clients/admin_service.py:61
+msgid "Choose at most one default kit."
+msgstr "Elige como máximo un kit predeterminado."
+
+#: clients/admin_service.py:62
+msgid "The default kit must be an active association."
+msgstr "El kit predeterminado debe ser una asociación activa."
+
+#: clients/admin_service.py:63
+msgid "Choose kits and phases from the available catalogs."
+msgstr "Elige kits y fases de los catálogos disponibles."
+
+#: clients/admin_service.py:64
+msgid "Choose a valid phase for every counting phase row."
+msgstr "Elige una fase válida en cada fila de fases de conteo."
+
+#: clients/admin_service.py:65
+msgid "Phase order must be between 1 and 32767."
+msgstr "El orden de la fase debe estar entre 1 y 32767."
+
+#: clients/admin_service.py:66
+msgid "A phase can only be added once."
+msgstr "Una fase solo puede agregarse una vez."
+
+#: clients/admin_service.py:67
+msgid "Each counting phase must have a unique order."
+msgstr "Cada fase de conteo debe tener un orden único."
+
+#: clients/admin_service.py:69 clients/admin_service.py:70
+msgid "Name, email, and institution are required."
+msgstr "El nombre, el correo electrónico y la institución son obligatorios."
+
+#: clients/admin_service.py:71
+msgid "Enter a valid email address."
+msgstr "Ingresa un correo electrónico válido."
+
+#: clients/admin_service.py:72 clients/admin_service.py:74
+msgid "Choose a valid institution and at least one role assigned to it."
+msgstr "Elige una institución válida y al menos un rol asignado a ella."
+
+#: clients/admin_service.py:73
+msgid "Assign at least one role."
+msgstr "Asigna al menos un rol."
+
+#: clients/admin_service.py:75
+msgid "A user with this email already exists."
+msgstr "Ya existe un usuario con este correo electrónico."
+
+#: clients/admin_service.py:76
+msgid "Password must contain at least 8 characters."
+msgstr "La contraseña debe tener al menos 8 caracteres."
+
+#: clients/admin_service.py:77 templates/admin/users/form.html:62
+msgid "Passwords do not match."
+msgstr "Las contraseñas no coinciden."
+
+#: clients/admin_service.py:78 templates/admin/users/form.html:135
+msgid "You cannot deactivate your own account."
+msgstr "No puedes desactivar tu propia cuenta."
+
+#: clients/admin_service.py:79
+msgid "You cannot remove the administrator role from your own account."
+msgstr "No puedes quitar el rol de administrador de tu propia cuenta."
+
+#: clients/admin_service.py:80
+msgid "At least one active administrator must remain."
+msgstr "Debe quedar al menos un administrador activo."
+
+#: clients/admin_service.py:82
+msgid "A role with this code already exists for the institution."
+msgstr "Ya existe un rol con este código en la institución."
+
+#: clients/admin_service.py:83
+msgid "Role code may only contain lowercase letters, numbers and underscores."
+msgstr "El código del rol solo puede contener letras minúsculas, números y guiones bajos."
+
+#: clients/admin_service.py:84
+msgid "Description is required."
+msgstr "La descripción es obligatoria."
+
+#: clients/admin_service.py:85 templates/admin/roles/form.html:105
+msgid "System roles cannot be deleted."
+msgstr "Los roles del sistema no se pueden eliminar."
+
+#: clients/admin_service.py:86 templates/admin/roles/form.html:107
+msgid "Remove this role from every user before deleting it."
+msgstr "Quita este rol a todos los usuarios antes de eliminarlo."
+
+#: clients/admin_service.py:88
+msgid "Version tag is required."
+msgstr "La etiqueta de versión es obligatoria."
+
+#: clients/admin_service.py:89
+msgid "A vision model with this version tag already exists."
+msgstr "Ya existe un modelo de visión con esta etiqueta de versión."
+
+#: clients/admin_service.py:90
+msgid "Checksum must be a 64-character SHA-256 hex value."
+msgstr "El checksum debe ser un valor SHA-256 hexadecimal de 64 caracteres."
+
+#: clients/admin_service.py:91
+msgid "YOLO class IDs must be whole numbers from 0."
+msgstr "Los IDs de clase YOLO deben ser números enteros desde 0."
+
+#: clients/admin_service.py:92
+msgid "Each YOLO class ID can only be mapped once."
+msgstr "Cada ID de clase YOLO solo se puede mapear una vez."
+
+#: clients/admin_service.py:93
+msgid "Each instrument family can only be mapped once per model."
+msgstr "Cada familia de instrumentos solo se puede mapear una vez por modelo."
+
+#: clients/admin_service.py:94
+msgid "Map at least one YOLO class before activating a model."
+msgstr "Mapea al menos una clase YOLO antes de activar un modelo."
+
+#: clients/admin_service.py:95 templates/admin/vision_models/form.html:62
+msgid "The class mapping of the active model cannot be changed. Register a new version instead."
+msgstr "El mapeo de clases del modelo activo no se puede cambiar. Registra una nueva versión."
+
+#: clients/admin_service.py:97
+msgid "You cannot deactivate the institution your account belongs to."
+msgstr "No puedes desactivar la institución a la que pertenece tu cuenta."
+
+#: clients/admin_service.py:98
+msgid "An operating room with this code already exists."
+msgstr "Ya existe un quirófano con este código."
+
+#: clients/admin_service.py:99 clients/admin_service.py:100
+msgid "Choose a valid operating room."
+msgstr "Elige un quirófano válido."
+
+#: clients/admin_service.py:101
+msgid "Use the YYYY-MM-DD date format."
+msgstr "Usa el formato de fecha AAAA-MM-DD."
+
+#: clients/admin_service.py:119
+msgid "Fill in every required field."
+msgstr "Completa todos los campos obligatorios."
+
+#: clients/admin_service.py:121
+msgid "One of the fields is too long."
+msgstr "Uno de los campos es demasiado largo."
+
+#: clients/admin_service.py:122
+msgid "Unable to save this record right now."
+msgstr "No se pudo guardar este registro en este momento."
+
+#: controllers/admin_presenters.py:19 controllers/view_data.py:272
+#: controllers/view_data.py:393
+msgid "Uncategorized"
+msgstr "Sin categoría"
+
+#: controllers/admin_presenters.py:27 controllers/admin_presenters.py:214
+#: controllers/view_data.py:127 controllers/view_data.py:2363 i18n.py:112
+msgid "Not specified"
+msgstr "No especificado"
+
+#: controllers/admin_presenters.py:33 controllers/admin_presenters.py:287
+#: controllers/view_data.py:745 controllers/view_data.py:879
+msgid "Unknown family"
+msgstr "Familia desconocida"
+
+#: controllers/admin_presenters.py:43 controllers/view_data.py:823
+msgid "Unknown phase"
+msgstr "Fase desconocida"
+
+#: controllers/admin_presenters.py:49 controllers/view_data.py:812
+msgid "Unknown kit"
+msgstr "Kit desconocido"
+
+#: controllers/admin_presenters.py:65 controllers/view_data.py:227
+#: controllers/view_data.py:274 controllers/view_data.py:327
+#: controllers/view_data.py:398 controllers/view_data.py:478
+#: controllers/view_data.py:550 controllers/view_data.py:607
+#: controllers/view_data.py:619
+#: templates/admin/configuration/capture_station_form.html:77
+#: templates/admin/configuration/institution_form.html:60
+#: templates/admin/configuration/operating_room_form.html:64
+#: templates/admin/instrument_families/form.html:101
+#: templates/admin/instruments/form.html:101 templates/admin/kits/form.html:68
+#: templates/admin/procedures/form.html:85
+#: templates/admin/procedures/form.html:139 templates/admin/roles/edit.html:60
+#: templates/admin/users/form.html:118
+#: templates/admin/vision_models/form.html:96 templates/shared/profile.html:24
+#: templates/shared/profile.html:85 templates/shared/profile.html:119
+msgid "Active"
+msgstr "Activo"
+
+#: controllers/admin_presenters.py:66 controllers/admin_presenters.py:416
+#: controllers/view_data.py:227 controllers/view_data.py:274
+#: controllers/view_data.py:327 controllers/view_data.py:398
+#: controllers/view_data.py:478 controllers/view_data.py:550
+#: controllers/view_data.py:607 controllers/view_data.py:619
+#: controllers/view_data.py:857
+#: templates/admin/configuration/capture_station_form.html:78
+#: templates/admin/configuration/institution_form.html:61
+#: templates/admin/configuration/operating_room_form.html:65
+#: templates/admin/instrument_families/form.html:102
+#: templates/admin/instruments/form.html:102 templates/admin/kits/form.html:69
+#: templates/admin/roles/edit.html:61 templates/admin/users/form.html:119
+#: templates/admin/vision_models/list.html:53
+msgid "Inactive"
+msgstr "Inactivo"
+
+#: controllers/admin_presenters.py:140 controllers/admin_presenters.py:142
+#: controllers/view_data.py:1587 controllers/view_data.py:1589
+#: controllers/view_data.py:1590
+#, python-format
+msgid "%(count)s Active"
+msgstr "%(count)s activos"
+
+#: controllers/admin_presenters.py:140 controllers/view_data.py:1587
+#: templates/admin/dashboard.html:37
+#: templates/admin/instrument_families/form.html:42
+#: templates/admin/instrument_families/list.html:4
+#: templates/admin/instrument_families/list.html:15
+#: templates/admin/instrument_families/list.html:28
+#: templates/admin/kits/form.html:153 templates/admin/kits/list.html:105
+#: templates/partials/sidebar_admin.html:46
+msgid "Instrument Families"
+msgstr "Familias de instrumentos"
+
+#: controllers/admin_presenters.py:141 controllers/admin_presenters.py:143
+#: controllers/view_data.py:1588
+#, python-format
+msgid "%(count)s Registered"
+msgstr "%(count)s registrados"
+
+#: controllers/admin_presenters.py:141 controllers/view_data.py:1588
+#: templates/admin/instruments/form.html:43
+#: templates/admin/instruments/list.html:4
+#: templates/admin/instruments/list.html:19
+#: templates/admin/instruments/list.html:37
+#: templates/partials/sidebar_admin.html:54
+#: templates/partials/sidebar_supervisor.html:87
+msgid "Instruments"
+msgstr "Instrumentos"
+
+#: controllers/admin_presenters.py:142 controllers/view_data.py:1589
+#: templates/admin/kits/form.html:33 templates/admin/kits/list.html:4
+#: templates/admin/kits/list.html:19 templates/admin/kits/list.html:36
+#: templates/partials/sidebar_admin.html:62
+#: templates/partials/sidebar_supervisor.html:79
+msgid "Kits"
+msgstr "Kits"
+
+#: controllers/admin_presenters.py:143 controllers/view_data.py:1590
+#: templates/admin/dashboard.html:43 templates/admin/procedures/form.html:44
+#: templates/admin/procedures/list.html:4
+#: templates/admin/procedures/list.html:15
+#: templates/admin/procedures/list.html:27
+#: templates/admin/procedures/list.html:54
+#: templates/partials/sidebar_admin.html:70
+msgid "Procedures"
+msgstr "Procedimientos"
+
+#: controllers/admin_presenters.py:144 controllers/admin_presenters.py:150
+#: controllers/view_data.py:1591 controllers/view_data.py:1597
+#: templates/admin/configuration/capture_station_form.html:38
+#: templates/admin/configuration/index.html:89
+#: templates/admin/dashboard.html:44
+msgid "Capture Stations"
+msgstr "Estaciones de captura"
+
+#: controllers/admin_presenters.py:144 controllers/view_data.py:1591
+#, python-format
+msgid "%(count)s Configured"
+msgstr "%(count)s configuradas"
+
+#: controllers/admin_presenters.py:147 controllers/view_data.py:1594
+msgid "Inactive Users"
+msgstr "Usuarios inactivos"
+
+#: controllers/admin_presenters.py:148 controllers/view_data.py:1595
+msgid "Configured Roles"
+msgstr "Roles configurados"
+
+#: controllers/admin_presenters.py:149 controllers/view_data.py:1596
+#: templates/admin/configuration/index.html:51
+#: templates/admin/configuration/operating_room_form.html:34
+msgid "Operating Rooms"
+msgstr "Quirófanos"
+
+#: controllers/admin_presenters.py:151 controllers/view_data.py:1598
+msgid "Active Institution"
+msgstr "Institución activa"
+
+#: controllers/admin_presenters.py:152 controllers/demo_data.py:287
+#: controllers/demo_data.py:294 controllers/demo_data.py:308
+#: controllers/demo_data.py:327 controllers/demo_data.py:331
+#: controllers/view_data.py:1599 controllers/view_data.py:2478
+#: templates/operator/sessions/validation.html:86
+msgid "None"
+msgstr "Ninguno"
+
+#: controllers/admin_presenters.py:152 controllers/view_data.py:1599
+msgid "Active Vision Model Version"
+msgstr "Versión del modelo de visión activo"
+
+#: controllers/admin_presenters.py:153 controllers/view_data.py:1600
+#: templates/admin/vision_models/form.html:122
+msgid "Model Classes"
+msgstr "Clases del modelo"
+
+#: controllers/admin_presenters.py:156 controllers/view_data.py:1603
+#: templates/supervisor/indicators.html:70
+msgid "Total Sessions"
+msgstr "Sesiones totales"
+
+#: controllers/admin_presenters.py:157 controllers/view_data.py:1604
+#: templates/supervisor/indicators.html:71
+msgid "Total Discrepancies"
+msgstr "Discrepancias totales"
+
+#: controllers/admin_presenters.py:158 templates/operator/dashboard.html:54
+#: templates/supervisor/discrepancies/_review_resolution.html:28
+msgid "Open Discrepancies"
+msgstr "Discrepancias abiertas"
+
+#: controllers/admin_presenters.py:159 controllers/view_data.py:1605
+msgid "AI-Human Agreement"
+msgstr "Concordancia IA-humano"
+
+#: controllers/admin_presenters.py:160 controllers/admin_presenters.py:164
+msgid "No data yet"
+msgstr "Sin datos aún"
+
+#: controllers/admin_presenters.py:161 controllers/view_data.py:1606
+#: templates/components/modals/close_session.html:33
+msgid "Human Corrections"
+msgstr "Correcciones humanas"
+
+#: controllers/admin_presenters.py:162 controllers/view_data.py:1607
+#: templates/supervisor/indicators.html:78
+msgid "Average Resolution Time"
+msgstr "Tiempo promedio de resolución"
+
+#: controllers/admin_presenters.py:163
+#, python-format
+msgid "%(minutes)s min"
+msgstr "%(minutes)s min"
+
+#: controllers/admin_presenters.py:238 controllers/view_data.py:691
+#: controllers/view_data.py:1004 controllers/view_data.py:2139
+msgid "Unknown"
+msgstr "Desconocido"
+
+#: controllers/admin_presenters.py:271 controllers/demo_data.py:571
+#: controllers/demo_data.py:635 controllers/routes.py:821
+#: controllers/view_data.py:144 controllers/view_data.py:2123
+#: controllers/view_data.py:2125 controllers/view_data.py:2350 i18n.py:111
+#: services/rf_session.py:1252 services/rf_session.py:1323
+#: templates/base.html:52 templates/supervisor/sessions/inventory_edit.html:182
+#: templates/supervisor/sessions/schedule.html:208
+msgid "Other"
+msgstr "Otro"
+
+#: controllers/admin_presenters.py:306 controllers/view_data.py:791
+msgid "Not set"
+msgstr "Sin definir"
+
+#: controllers/admin_presenters.py:307 controllers/view_data.py:792
+msgid "Not configured"
+msgstr "Sin configurar"
+
+#: controllers/admin_presenters.py:345 controllers/admin_presenters.py:379
+#: controllers/view_data.py:224 controllers/view_data.py:252
+msgid "Unknown institution"
+msgstr "Institución desconocida"
+
+#: controllers/admin_presenters.py:348
+msgid "Never"
+msgstr "Nunca"
+
+#: controllers/admin_presenters.py:414 controllers/view_data.py:856
+#, python-format
+msgid "%(num)d Class"
+msgid_plural "%(num)d Classes"
+msgstr[0] "%(num)d clase"
+msgstr[1] "%(num)d clases"
+
+#: controllers/admin_presenters.py:416 controllers/view_data.py:857
+#: templates/admin/vision_models/list.html:52
+msgid "Active Model"
+msgstr "Modelo activo"
+
+#: controllers/admin_presenters.py:421
+msgid "Not registered"
+msgstr "No registrado"
+
+#: controllers/admin_presenters.py:474 controllers/view_data.py:606
+msgid "Unassigned"
+msgstr "Sin asignar"
+
+#: controllers/admin_presenters.py:486 controllers/routes.py:74
+msgid "Administrator"
+msgstr "Administrador"
+
+#: controllers/admin_presenters.py:487 controllers/routes.py:73
+msgid "SPD Supervisor"
+msgstr "Supervisor SPD"
+
+#: controllers/admin_presenters.py:488 controllers/routes.py:72
+msgid "Station Operator"
+msgstr "Operador CDE"
+
+#: controllers/admin_presenters.py:492 templates/admin/instruments/form.html:75
+#: templates/admin/instruments/list.html:112 templates/admin/kits/form.html:81
+#: templates/admin/kits/form.html:121 templates/admin/kits/form.html:142
+#: templates/admin/vision_models/form.html:129
+#: templates/supervisor/sessions/inventory_edit.html:204
+msgid "Instrument Family"
+msgstr "Familia de instrumentos"
+
+#: controllers/admin_presenters.py:493
+#: templates/components/modals/mark_unresolved.html:24
+#: templates/operator/sessions/active.html:74
+#: templates/operator/sessions/ai_detection.html:67
+#: templates/operator/sessions/awaiting_review.html:98
+#: templates/operator/sessions/begin.html:156
+#: templates/operator/sessions/begin.html:177
+#: templates/operator/sessions/capture.html:101
+#: templates/operator/sessions/capture_rf.html:187
+#: templates/operator/sessions/closed_details.html:107
+#: templates/operator/sessions/closed_details.html:134
+#: templates/operator/sessions/detection_summary_rf.html:54
+#: templates/operator/sessions/discrepancy.html:135
+#: templates/operator/sessions/manual_progress.html:41
+#: templates/operator/sessions/manual_report.html:33
+#: templates/operator/sessions/manual_report.html:87
+#: templates/operator/sessions/new.html:147
+#: templates/operator/sessions/validation.html:94
+#: templates/operator/sessions/validation_summary.html:90
+#: templates/operator/sessions/validation_summary.html:123
+#: templates/operator/sessions/vision_validation_rf.html:42
+#: templates/supervisor/discrepancies/_review_evidence.html:12
+#: templates/supervisor/discrepancies/_review_final.html:47
+#: templates/supervisor/discrepancies/_review_overview.html:66
+#: templates/supervisor/discrepancies/_review_resolution.html:79
+#: templates/supervisor/discrepancies/list.html:78
+#: templates/supervisor/discrepancies/list.html:105
+#: templates/supervisor/sessions/_details_activity.html:49
+#: templates/supervisor/sessions/_details_counts.html:10
+#: templates/supervisor/sessions/rf_review.html:110
+msgid "Instrument"
+msgstr "Instrumento"
+
+#: controllers/admin_presenters.py:494 controllers/view_data.py:75
+#: templates/admin/kits/list.html:103 templates/admin/procedures/form.html:82
+#: templates/base.html:62 templates/operator/dashboard.html:99
+#: templates/operator/sessions/active.html:55
+#: templates/operator/sessions/awaiting_review.html:65
+#: templates/operator/sessions/begin.html:84
+#: templates/operator/sessions/closed_details.html:75
+#: templates/operator/sessions/correction_requested.html:64
+#: templates/operator/sessions/details.html:76
+#: templates/operator/sessions/history.html:66
+#: templates/operator/sessions/history.html:127
+#: templates/operator/sessions/list.html:99
+#: templates/operator/sessions/new.html:94
+#: templates/supervisor/dashboard.html:96
+#: templates/supervisor/discrepancies/_review_overview.html:12
+#: templates/supervisor/reports.html:51
+#: templates/supervisor/sessions/_details_overview.html:11
+#: templates/supervisor/sessions/history.html:56
+#: templates/supervisor/sessions/history.html:95
+#: templates/supervisor/sessions/inventory_edit.html:92
+#: templates/supervisor/sessions/list.html:73
+#: templates/supervisor/sessions/list.html:99
+#: templates/supervisor/sessions/rf_details.html:62
+#: templates/supervisor/sessions/schedule.html:123
+msgid "Kit"
+msgstr "Kit"
+
+#: controllers/admin_presenters.py:495 templates/admin/procedures/list.html:60
+#: templates/components/modals/approve_review.html:29
+#: templates/components/modals/close_session.html:30
+#: templates/components/modals/close_session_v3.html:31
+#: templates/operator/sessions/_context_bar.html:14
+#: templates/operator/sessions/active.html:51
+#: templates/operator/sessions/awaiting_review.html:61
+#: templates/operator/sessions/begin.html:82
+#: templates/operator/sessions/correction_requested.html:60
+#: templates/operator/sessions/history.html:57
+#: templates/operator/sessions/history.html:126
+#: templates/operator/sessions/list.html:98
+#: templates/supervisor/discrepancies/_review_overview.html:9
+#: templates/supervisor/sessions/_details_overview.html:7
+#: templates/supervisor/sessions/inventory_edit.html:68
+#: templates/supervisor/sessions/rf_details.html:370
+#: templates/supervisor/sessions/schedule.html:96
+msgid "Procedure"
+msgstr "Procedimiento"
+
+#: controllers/admin_presenters.py:496 templates/admin/audit_log.html:46
+#: templates/admin/audit_log.html:110
+#: templates/operator/sessions/closed_details.html:149
+#: templates/shared/profile.html:21 templates/supervisor/audit_log.html:50
+#: templates/supervisor/audit_log.html:97
+msgid "User"
+msgstr "Usuario"
+
+#: controllers/admin_presenters.py:497 templates/admin/audit_log.html:111
+#: templates/admin/users/list.html:49
+#: templates/operator/sessions/begin.html:120 templates/shared/profile.html:114
+#: templates/supervisor/audit_log.html:98
+#: templates/supervisor/sessions/inventory_edit.html:121
+#: templates/supervisor/sessions/inventory_edit.html:143
+#: templates/supervisor/sessions/schedule.html:165
+msgid "Role"
+msgstr "Rol"
+
+#: controllers/admin_presenters.py:498
+#: templates/operator/sessions/ai_detection.html:125
+#: templates/supervisor/sessions/_details_counts.html:60
+msgid "Vision Model"
+msgstr "Modelo de visión"
+
+#: controllers/admin_presenters.py:499
+#: templates/admin/configuration/institution_form.html:29
+#: templates/admin/roles/form.html:78 templates/admin/roles/list.html:59
+#: templates/admin/users/form.html:77 templates/admin/users/list.html:58
+#: templates/admin/users/list.html:87 templates/shared/profile.html:110
+msgid "Institution"
+msgstr "Institución"
+
+#: controllers/admin_presenters.py:500
+#: templates/admin/configuration/capture_station_form.html:62
+#: templates/admin/configuration/index.html:100
+#: templates/operator/sessions/begin.html:83
+#: templates/operator/sessions/closed_details.html:72
+#: templates/operator/sessions/list.html:69
+#: templates/operator/sessions/new.html:89
+#: templates/supervisor/discrepancies/_review_overview.html:11
+#: templates/supervisor/sessions/_details_overview.html:10
+msgid "Operating Room"
+msgstr "Quirófano"
+
+#: controllers/admin_presenters.py:501
+#: templates/operator/sessions/ai_detection.html:50
+#: templates/operator/sessions/ai_detection.html:57
+#: templates/operator/sessions/begin.html:84
+#: templates/operator/sessions/capture.html:51
+#: templates/operator/sessions/closed_details.html:77
+#: templates/operator/sessions/discrepancy.html:195
+#: templates/operator/sessions/new.html:124
+#: templates/operator/sessions/validation.html:51
+#: templates/operator/sessions/validation.html:57
+#: templates/supervisor/discrepancies/_review_evidence.html:61
+#: templates/supervisor/discrepancies/_review_evidence.html:67
+#: templates/supervisor/discrepancies/_review_overview.html:13
+#: templates/supervisor/sessions/_details_counts.html:44
+#: templates/supervisor/sessions/_details_counts.html:51
+#: templates/supervisor/sessions/_details_overview.html:12
+msgid "Capture Station"
+msgstr "Estación de captura"
+
+#: controllers/admin_presenters.py:502
+#: templates/operator/sessions/active.html:4
+#: templates/operator/sessions/active.html:15
+#: templates/operator/sessions/awaiting_review.html:23
+#: templates/operator/sessions/correction_requested.html:23
+msgid "Counting Session"
+msgstr "Sesión de conteo"
+
+#: controllers/admin_presenters.py:503
+#: templates/operator/sessions/history.html:111
+#: templates/operator/sessions/validation_summary.html:106
+msgid "Discrepancy"
+msgstr "Discrepancia"
+
+#: controllers/admin_presenters.py:504
+#: templates/operator/sessions/_context_bar.html:15
+#: templates/operator/sessions/active.html:52
+#: templates/operator/sessions/awaiting_review.html:62
+#: templates/operator/sessions/closed_details.html:73
+#: templates/operator/sessions/correction_requested.html:61
+#: templates/operator/sessions/new.html:74
+#: templates/supervisor/discrepancies/_review_overview.html:10
+#: templates/supervisor/sessions/_details_overview.html:8
+#: templates/supervisor/sessions/rf_details.html:61
+msgid "Patient"
+msgstr "Paciente"
+
+#: controllers/admin_presenters.py:505
+msgid "Privacy Notice"
+msgstr "Aviso de privacidad"
+
+#: controllers/admin_presenters.py:517
+msgid "System client"
+msgstr "Cliente del sistema"
+
+#: controllers/admin_presenters.py:524 templates/admin/audit_log.html:86
+msgid "SUCCESS"
+msgstr "ÉXITO"
+
+#: controllers/admin_presenters.py:524 templates/admin/audit_log.html:87
+msgid "DENIED"
+msgstr "DENEGADO"
+
+#: controllers/admin_routes.py:173 controllers/admin_routes.py:193
+msgid "Instrument family saved."
+msgstr "Familia de instrumentos guardada."
+
+#: controllers/admin_routes.py:285 controllers/admin_routes.py:306
+msgid "Instrument saved."
+msgstr "Instrumento guardado."
+
+#: controllers/admin_routes.py:404
+msgid "Kit saved."
+msgstr "Kit guardado."
+
+#: controllers/admin_routes.py:426
+#, python-format
+msgid "Kit saved as version %(version)s. The previous version was kept for history."
+msgstr "Kit guardado como versión %(version)s. La versión anterior se conservó para el historial."
+
+#: controllers/admin_routes.py:429
+msgid "No changes were made to the kit."
+msgstr "No se hicieron cambios al kit."
+
+#: controllers/admin_routes.py:548 controllers/admin_routes.py:569
+msgid "Procedure saved."
+msgstr "Procedimiento guardado."
+
+#: controllers/admin_routes.py:656 controllers/admin_routes.py:677
+msgid "User saved."
+msgstr "Usuario guardado."
+
+#: controllers/admin_routes.py:700
+msgid "Password updated. The user must sign in with the new password."
+msgstr "Contraseña actualizada. El usuario debe iniciar sesión con la nueva contraseña."
+
+#: controllers/admin_routes.py:706
+msgid "User deactivated. Their history is kept."
+msgstr "Usuario desactivado. Su historial se conserva."
+
+#: controllers/admin_routes.py:712
+msgid "User reactivated."
+msgstr "Usuario reactivado."
+
+#: controllers/admin_routes.py:774 controllers/admin_routes.py:795
+msgid "Role saved."
+msgstr "Rol guardado."
+
+#: controllers/admin_routes.py:810
+msgid "Role deleted."
+msgstr "Rol eliminado."
+
+#: controllers/admin_routes.py:900 controllers/admin_routes.py:921
+msgid "Vision model saved."
+msgstr "Modelo de visión guardado."
+
+#: controllers/admin_routes.py:936
+#, python-format
+msgid "Vision model %(version)s is now the active model."
+msgstr "El modelo de visión %(version)s ahora es el modelo activo."
+
+#: controllers/admin_routes.py:1012
+msgid "Institution information saved."
+msgstr "Información de la institución guardada."
+
+#: controllers/admin_routes.py:1043
+msgid "Operating room saved."
+msgstr "Quirófano guardado."
+
+#: controllers/admin_routes.py:1103
+msgid "Capture station saved."
+msgstr "Estación de captura guardada."
+
 #: controllers/demo_data.py:50 controllers/demo_data.py:604
 msgid "Assigned"
 msgstr "Asignada"
@@ -27,7 +803,7 @@ msgid "Ready to Start"
 msgstr "Lista para iniciar"
 
 #: controllers/demo_data.py:52 controllers/demo_data.py:604
-#: controllers/view_data.py:67 i18n.py:137 i18n.py:145
+#: controllers/view_data.py:67 i18n.py:139 i18n.py:147
 msgid "In Progress"
 msgstr "En progreso"
 
@@ -52,7 +828,7 @@ msgid "Ready to Close"
 msgstr "Lista para cerrar"
 
 #: controllers/demo_data.py:57 controllers/demo_data.py:604
-#: controllers/view_data.py:70 i18n.py:136 i18n.py:143
+#: controllers/view_data.py:70 i18n.py:138 i18n.py:145
 #: templates/operator/sessions/closed_details.html:79
 #: templates/operator/sessions/history.html:110
 msgid "Closed"
@@ -89,13 +865,11 @@ msgstr "Crítica"
 msgid "Info"
 msgstr "Informativa"
 
-#: controllers/demo_data.py:94 templates/admin/users/form.html:34
-#: templates/admin/users/list.html:54
+#: controllers/demo_data.py:94
 msgid "Operator CDE"
 msgstr "Operador CDE"
 
-#: controllers/demo_data.py:95 templates/admin/users/form.html:35
-#: templates/admin/users/list.html:55
+#: controllers/demo_data.py:95
 msgid "Supervisor CDE / Quality"
 msgstr "Supervisor CDE / Calidad"
 
@@ -107,7 +881,7 @@ msgstr "Cirujano principal"
 msgid "Assistant Surgeon"
 msgstr "Cirujano ayudante"
 
-#: controllers/demo_data.py:101 controllers/demo_data.py:106 i18n.py:129
+#: controllers/demo_data.py:101 controllers/demo_data.py:106 i18n.py:131
 msgid "Anesthesiologist"
 msgstr "Anestesiólogo"
 
@@ -190,11 +964,11 @@ msgstr "Verificación final de charola solicitada"
 #: controllers/demo_data.py:172 controllers/demo_data.py:175
 #: controllers/demo_data.py:178 controllers/demo_data.py:592
 #: controllers/view_data.py:1955 templates/admin/audit_log.html:13
-#: templates/admin/configuration/capture_station_form.html:39
+#: templates/admin/configuration/capture_station_form.html:34
 #: templates/admin/configuration/index.html:13
 #: templates/admin/configuration/institution_form.html:25
 #: templates/admin/configuration/operating_room_form.html:30
-#: templates/admin/vision_models/form.html:49
+#: templates/admin/vision_models/form.html:41
 #: templates/admin/vision_models/list.html:13
 #: templates/partials/sidebar_admin.html:99
 #: templates/partials/theme_selector.html:5 templates/shared/profile.html:149
@@ -297,9 +1071,7 @@ msgstr "Instrumento en uso"
 msgid "Outside tray area"
 msgstr "Fuera del área de la charola"
 
-#: controllers/demo_data.py:239 i18n.py:150
-#: templates/admin/instruments/form.html:32
-#: templates/admin/instruments/list.html:28
+#: controllers/demo_data.py:239 i18n.py:152
 msgid "In Use"
 msgstr "En uso"
 
@@ -327,13 +1099,6 @@ msgstr "Última captura en vivo"
 msgid "Final tray capture for session WS-026 at capture station CDE-01"
 msgstr "Captura final de la charola de la sesión WS-026 en la estación de captura CDE-01"
 
-#: controllers/demo_data.py:287 controllers/demo_data.py:294
-#: controllers/demo_data.py:308 controllers/demo_data.py:327
-#: controllers/demo_data.py:331 controllers/view_data.py:1599
-#: controllers/view_data.py:2478 templates/operator/sessions/validation.html:86
-msgid "None"
-msgstr "Ninguno"
-
 #: controllers/demo_data.py:301 controllers/demo_data.py:360
 #: controllers/demo_data.py:494 controllers/view_data.py:2345
 msgid "Missing Instrument"
@@ -352,7 +1117,7 @@ msgstr "Coincide"
 
 #: controllers/demo_data.py:337 controllers/demo_data.py:360
 #: controllers/demo_data.py:520 controllers/demo_data.py:523
-#: controllers/demo_data.py:643 controllers/routes.py:1131
+#: controllers/demo_data.py:643 controllers/routes.py:1092
 msgid "Missing"
 msgstr "Faltante"
 
@@ -491,16 +1256,6 @@ msgstr "Instrumento localizado"
 msgid "Counting Error Corrected"
 msgstr "Error de conteo corregido"
 
-#: controllers/demo_data.py:571 controllers/demo_data.py:635
-#: controllers/routes.py:860 controllers/view_data.py:144
-#: controllers/view_data.py:2123 controllers/view_data.py:2125
-#: controllers/view_data.py:2350 i18n.py:109 services/rf_session.py:1252
-#: services/rf_session.py:1323 templates/base.html:52
-#: templates/supervisor/sessions/inventory_edit.html:182
-#: templates/supervisor/sessions/schedule.html:208
-msgid "Other"
-msgstr "Otro"
-
 #: controllers/demo_data.py:591 controllers/demo_data.py:603
 #: controllers/view_data.py:2104
 msgid "Last 7 Days"
@@ -597,7 +1352,7 @@ msgstr "Pinzas"
 msgid "Scissors"
 msgstr "Tijeras"
 
-#: controllers/demo_data.py:644 controllers/routes.py:1133
+#: controllers/demo_data.py:644 controllers/routes.py:1094
 #: controllers/view_data.py:1218
 msgid "Extra"
 msgstr "Sobrante"
@@ -618,513 +1373,143 @@ msgstr "Clasificación incierta"
 msgid "Expected inventory"
 msgstr "Inventario esperado"
 
-#: controllers/rf_ui.py:72 i18n.py:132
+#: controllers/rf_ui.py:72 i18n.py:134
 msgid "Surgeon"
 msgstr "Cirujano"
 
-#: controllers/routes.py:111
-msgid "Station Operator"
-msgstr "Operador CDE"
-
-#: controllers/routes.py:112
-msgid "SPD Supervisor"
-msgstr "Supervisor SPD"
-
-#: controllers/routes.py:113
-msgid "Administrator"
-msgstr "Administrador"
-
-#: controllers/routes.py:358
+#: controllers/routes.py:319
 msgid "Unsupported locale"
 msgstr "Idioma no compatible"
 
-#: controllers/routes.py:369
+#: controllers/routes.py:330
 msgid "Could not save the language preference"
 msgstr "No se pudo guardar la preferencia de idioma"
 
-#: controllers/routes.py:505 controllers/routes.py:714
+#: controllers/routes.py:466 controllers/routes.py:675
 msgid "Confirm the physical instrument set before starting."
 msgstr "Confirma el juego físico de instrumentos antes de iniciar."
 
-#: controllers/routes.py:799
+#: controllers/routes.py:760
 msgid "Enter a whole number for every reported quantity."
 msgstr "Ingresa un número entero en cada cantidad reportada."
 
-#: controllers/routes.py:857
+#: controllers/routes.py:818
 msgid "Shortage / missing piece"
 msgstr "Faltante / pieza faltante"
 
-#: controllers/routes.py:858
+#: controllers/routes.py:819
 msgid "Extra / surplus"
 msgstr "Sobrante / excedente"
 
-#: controllers/routes.py:859
+#: controllers/routes.py:820
 msgid "Operator counting error"
 msgstr "Error de conteo del operador"
 
-#: controllers/routes.py:956 controllers/routes.py:1038
+#: controllers/routes.py:917 controllers/routes.py:999
 msgid "Session not in vision capture"
 msgstr "La sesión no está en captura por visión"
 
-#: controllers/routes.py:1041
+#: controllers/routes.py:1002
 msgid "Choose a video file (.mp4, .mkv, …)."
 msgstr "Elige un archivo de video (.mp4, .mkv, …)."
 
-#: controllers/routes.py:1085
+#: controllers/routes.py:1046
 msgid "Session not in progress"
 msgstr "La sesión no está en progreso"
 
-#: controllers/routes.py:1129 controllers/view_data.py:1214
+#: controllers/routes.py:1090 controllers/view_data.py:1214
 msgid "Match"
 msgstr "Coincide"
 
-#: controllers/routes.py:1206
+#: controllers/routes.py:1167
 msgid "Enter a whole number for every validated count."
 msgstr "Ingresa un número entero en cada conteo validado."
 
-#: controllers/routes.py:1295
+#: controllers/routes.py:1256
 msgid "Submit the Human Validation form to continue."
 msgstr "Envía el formulario de validación humana para continuar."
 
-#: controllers/routes.py:1415
+#: controllers/routes.py:1376
 #, python-format
 msgid "Closed with %(num)d documented discrepancy."
 msgid_plural "Closed with %(num)d documented discrepancies."
 msgstr[0] "Cerrada con %(num)d discrepancia documentada."
 msgstr[1] "Cerrada con %(num)d discrepancias documentadas."
 
-#: controllers/routes.py:1421
+#: controllers/routes.py:1382
 msgid "All Instruments Accounted For"
 msgstr "Todos los instrumentos están contabilizados"
 
-#: controllers/routes.py:1524
+#: controllers/routes.py:1485
 msgid "weights OK"
 msgstr "pesos OK"
 
-#: controllers/routes.py:1524
+#: controllers/routes.py:1485
 msgid "weights MISSING"
 msgstr "pesos FALTANTES"
 
-#: controllers/routes.py:1526 controllers/routes.py:1531
+#: controllers/routes.py:1487 controllers/routes.py:1492
 #: templates/operator/sessions/capture_rf.html:140
 msgid "Vision worker"
 msgstr "Servicio de visión"
 
-#: controllers/routes.py:1533
+#: controllers/routes.py:1494
 msgid "Unreachable — start apps/VisionWorker"
 msgstr "Inaccesible — inicia apps/VisionWorker"
 
-#: controllers/routes.py:1544
+#: controllers/routes.py:1505
 msgid "Local Auth service (no MS mesh yet)"
 msgstr "Servicio Auth local (aún sin malla de microservicios)"
 
-#: controllers/routes.py:1545
+#: controllers/routes.py:1506
 msgid "Web / Session"
 msgstr "Web / Sesión"
 
-#: controllers/routes.py:1545
+#: controllers/routes.py:1506
 msgid "Monolith BackendWebFlask"
 msgstr "Monolito BackendWebFlask"
 
-#: controllers/routes.py:1547
+#: controllers/routes.py:1508
 msgid "Evidence worker"
 msgstr "Servicio de evidencias"
 
-#: controllers/routes.py:1547
+#: controllers/routes.py:1508
 msgid "Mongo/Garage evidence cycle — deferred"
 msgstr "Ciclo de evidencias Mongo/Garage — pospuesto"
 
-#: controllers/routes.py:1719
+#: controllers/routes.py:1680
 msgid "Invalid stock recheck payload."
 msgstr "Datos inválidos para volver a verificar existencias."
 
-#: controllers/routes.py:2023
+#: controllers/routes.py:1984
 msgid "Draft saved."
 msgstr "Borrador guardado."
 
-#: controllers/routes.py:2024
+#: controllers/routes.py:1985
 msgid "Demo only: the resolution draft is not persisted."
 msgstr "Solo demostración: el borrador de la resolución no se guarda."
 
-#: controllers/routes.py:2026
+#: controllers/routes.py:1987
 msgid "Review notes are required to mark a case as Reviewed – Unresolved."
 msgstr "Las notas de revisión son obligatorias para marcar un caso como Revisada – Sin resolver."
 
-#: controllers/routes.py:2204 templates/admin/instrument_families/form.html:39
-#: templates/admin/instrument_families/list.html:46
-msgid "New Instrument Family"
-msgstr "Nueva familia de instrumentos"
-
-#: controllers/routes.py:2226
-msgid "Code, name and category are required."
-msgstr "El código, el nombre y la categoría son obligatorios."
-
-#: controllers/routes.py:2238
-msgid "Choose a valid category."
-msgstr "Elige una categoría válida."
-
-#: controllers/routes.py:2263
-msgid "That family code already exists."
-msgstr "Ese código de familia ya existe."
-
-#: controllers/routes.py:2290 templates/admin/instrument_families/form.html:39
-msgid "Edit Instrument Family"
-msgstr "Editar familia de instrumentos"
-
-#: controllers/routes.py:2313
-msgid "Name and category are required."
-msgstr "El nombre y la categoría son obligatorios."
-
-#: controllers/routes.py:2447
-msgid "Your account must be assigned to an institution before creating an instrument."
-msgstr "Tu cuenta debe estar asignada a una institución antes de crear un instrumento."
-
-#: controllers/routes.py:2455 controllers/routes.py:2709
-msgid "Your assigned institution could not be found."
-msgstr "No se encontró tu institución asignada."
-
-#: controllers/routes.py:2461 controllers/routes.py:2517
-msgid "Choose a valid instrument family and cycle status."
-msgstr "Elige una familia de instrumentos y un estado de ciclo válidos."
-
-#: controllers/routes.py:2477
-msgid "An instrument with this internal code already exists for the institution."
-msgstr "Ya existe un instrumento con este código interno en la institución."
-
-#: controllers/routes.py:2484 controllers/routes.py:2583
-msgid "Unable to save this instrument right now."
-msgstr "No es posible guardar este instrumento en este momento."
-
-#: controllers/routes.py:2530
-msgid "A change reason is required when cycle status or active status changes."
-msgstr "Se requiere un motivo de cambio cuando cambia el estado de ciclo o el estado activo."
-
-#: controllers/routes.py:2576
-msgid "Unable to save this instrument because it conflicts with existing data."
-msgstr "No es posible guardar este instrumento porque entra en conflicto con datos existentes."
-
-#: controllers/routes.py:2601
-msgid "Internal code is required."
-msgstr "El código interno es obligatorio."
-
-#: controllers/routes.py:2603
-msgid "Internal code must contain at most 64 characters."
-msgstr "El código interno debe tener como máximo 64 caracteres."
-
-#: controllers/routes.py:2605
-msgid "Instrument family and cycle status are required."
-msgstr "La familia de instrumentos y el estado de ciclo son obligatorios."
-
-#: controllers/routes.py:2607
-msgid "Choose a valid active status."
-msgstr "Elige un estado activo válido."
-
-#: controllers/routes.py:2637 templates/admin/instruments/form.html:38
-msgid "Edit Instrument"
-msgstr "Editar instrumento"
-
-#: controllers/routes.py:2637 templates/admin/instruments/form.html:38
-#: templates/admin/instruments/list.html:46
-msgid "New Instrument"
-msgstr "Nuevo instrumento"
-
-#: controllers/routes.py:2701
-msgid "Your account must be assigned to an institution before creating a kit."
-msgstr "Tu cuenta debe estar asignada a una institución antes de crear un kit."
-
-#: controllers/routes.py:2729 controllers/routes.py:2802
-msgid "A kit with this name and version already exists for the institution."
-msgstr "Ya existe un kit con este nombre y versión en la institución."
-
-#: controllers/routes.py:2736 controllers/routes.py:2809
-msgid "Unable to save this kit right now."
-msgstr "No es posible guardar este kit en este momento."
-
-#: controllers/routes.py:2823
-msgid "Kit name is required."
-msgstr "El nombre del kit es obligatorio."
-
-#: controllers/routes.py:2825
-msgid "Kit name must contain at most 160 characters."
-msgstr "El nombre del kit debe tener como máximo 160 caracteres."
-
-#: controllers/routes.py:2827
-msgid "Choose a valid kit status."
-msgstr "Elige un estado de kit válido."
-
-#: controllers/routes.py:2832
-msgid "Kit composition rows are incomplete."
-msgstr "Las filas de la composición del kit están incompletas."
-
-#: controllers/routes.py:2838 controllers/routes.py:2843
-msgid "Choose a valid instrument family and quantity for every row."
-msgstr "Elige una familia de instrumentos y una cantidad válidas en cada fila."
-
-#: controllers/routes.py:2845
-msgid "Expected quantity must be between 1 and 32767."
-msgstr "La cantidad esperada debe estar entre 1 y 32767."
-
-#: controllers/routes.py:2852
-msgid "An instrument family can only appear once in the composition."
-msgstr "Una familia de instrumentos solo puede aparecer una vez en la composición."
-
-#: controllers/routes.py:2867
-msgid "Choose instrument families from the available catalog."
-msgstr "Elige familias de instrumentos del catálogo disponible."
-
-#: controllers/routes.py:2915 templates/admin/kits/form.html:14
-msgid "Edit Kit"
-msgstr "Editar kit"
-
-#: controllers/routes.py:2915 templates/admin/kits/form.html:14
-#: templates/admin/kits/list.html:41
-msgid "New Kit"
-msgstr "Nuevo kit"
-
-#: controllers/routes.py:2957 controllers/routes.py:3007
-msgid "A procedure with this code already exists."
-msgstr "Ya existe un procedimiento con este código."
-
-#: controllers/routes.py:2964 controllers/routes.py:3014
-msgid "Unable to save this procedure right now."
-msgstr "No es posible guardar este procedimiento en este momento."
-
-#: controllers/routes.py:3034
-msgid "Associated kit rows are incomplete."
-msgstr "Las filas de kits asociados están incompletas."
-
-#: controllers/routes.py:3042
-msgid "Counting phase rows are incomplete."
-msgstr "Las filas de fases de conteo están incompletas."
-
-#: controllers/routes.py:3053 controllers/routes.py:3061
-msgid "Procedure row data is invalid."
-msgstr "Los datos de las filas del procedimiento no son válidos."
-
-#: controllers/routes.py:3067
-msgid "Choose a valid kit for every associated kit row."
-msgstr "Elige un kit válido en cada fila de kits asociados."
-
-#: controllers/routes.py:3069
-msgid "Technique labels must contain at most 160 characters."
-msgstr "Las etiquetas de técnica deben tener como máximo 160 caracteres."
-
-#: controllers/routes.py:3080
-msgid "Choose at most one default kit."
-msgstr "Elige como máximo un kit predeterminado."
-
-#: controllers/routes.py:3086
-msgid "Choose a valid phase for every counting phase row."
-msgstr "Elige una fase válida en cada fila de fases de conteo."
-
-#: controllers/routes.py:3088
-msgid "Phase order must be between 1 and 32767."
-msgstr "El orden de la fase debe estar entre 1 y 32767."
-
-#: controllers/routes.py:3099
-msgid "A kit can only be associated once."
-msgstr "Un kit solo puede asociarse una vez."
-
-#: controllers/routes.py:3101
-msgid "A phase can only be added once."
-msgstr "Una fase solo puede agregarse una vez."
-
-#: controllers/routes.py:3103
-msgid "Each counting phase must have a unique order."
-msgstr "Cada fase de conteo debe tener un orden único."
-
-#: controllers/routes.py:3109
-msgid "Procedure code and name are required."
-msgstr "El código y el nombre del procedimiento son obligatorios."
-
-#: controllers/routes.py:3111
-msgid "Procedure code must be at most 64 characters and name at most 200 characters."
-msgstr "El código del procedimiento debe tener como máximo 64 caracteres y el nombre como máximo 200."
-
-#: controllers/routes.py:3127
-msgid "Choose kits and phases from the available catalogs."
-msgstr "Elige kits y fases de los catálogos disponibles."
-
-#: controllers/routes.py:3177 templates/admin/procedures/form.html:43
-msgid "Edit Procedure"
-msgstr "Editar procedimiento"
-
-#: controllers/routes.py:3177 templates/admin/procedures/form.html:43
-#: templates/admin/procedures/list.html:32
-msgid "New Procedure"
-msgstr "Nuevo procedimiento"
-
-#: controllers/routes.py:3208
-msgid "Password must contain at least 8 characters."
-msgstr "La contraseña debe tener al menos 8 caracteres."
-
-#: controllers/routes.py:3210 templates/admin/users/form.html:68
-msgid "Passwords do not match."
-msgstr "Las contraseñas no coinciden."
-
-#: controllers/routes.py:3218 controllers/routes.py:3267
-msgid "Choose a valid institution and at least one role assigned to it."
-msgstr "Elige una institución válida y al menos un rol asignado a ella."
-
-#: controllers/routes.py:3235 controllers/routes.py:3289
-msgid "A user with this email already exists."
-msgstr "Ya existe un usuario con este correo electrónico."
-
-#: controllers/routes.py:3239 controllers/routes.py:3293
-msgid "Unable to save this user right now."
-msgstr "No es posible guardar este usuario en este momento."
-
-#: controllers/routes.py:3310
-msgid "Name, email, and institution are required."
-msgstr "El nombre, el correo electrónico y la institución son obligatorios."
-
-#: controllers/routes.py:3312
-msgid "Name or email is too long."
-msgstr "El nombre o el correo electrónico son demasiado largos."
-
-#: controllers/routes.py:3315
-msgid "Enter a valid email address."
-msgstr "Ingresa un correo electrónico válido."
-
-#: controllers/routes.py:3317
-msgid "Choose a valid user status."
-msgstr "Elige un estado de usuario válido."
-
-#: controllers/routes.py:3319
-msgid "Assign at least one role."
-msgstr "Asigna al menos un rol."
-
-#: controllers/routes.py:3350 templates/admin/users/form.html:38
-msgid "Edit User"
-msgstr "Editar usuario"
-
-#: controllers/routes.py:3350 templates/admin/users/form.html:38
-#: templates/admin/users/list.html:34
-msgid "New User"
-msgstr "Nuevo usuario"
-
-#: controllers/routes.py:3383
-msgid "Create an institution before adding a role."
-msgstr "Crea una institución antes de agregar un rol."
-
-#: controllers/routes.py:3397
-msgid "A role with this code already exists for the institution."
-msgstr "Ya existe un rol con este código en la institución."
-
-#: controllers/routes.py:3404 controllers/routes.py:3445
-msgid "Unable to save this role right now."
-msgstr "No es posible guardar este rol en este momento."
-
-#: controllers/routes.py:3438
-msgid "Unable to save this role because it conflicts with existing data."
-msgstr "No es posible guardar este rol porque entra en conflicto con datos existentes."
-
-#: controllers/routes.py:3453
-msgid "Role code is required."
-msgstr "El código del rol es obligatorio."
-
-#: controllers/routes.py:3455
-msgid "Description is required."
-msgstr "La descripción es obligatoria."
-
-#: controllers/routes.py:3457
-msgid "Role code must contain at most 64 characters."
-msgstr "El código del rol debe tener como máximo 64 caracteres."
-
-#: controllers/routes.py:3459
-msgid "Description must contain at most 255 characters."
-msgstr "La descripción debe tener como máximo 255 caracteres."
-
-#: controllers/routes.py:3472 templates/admin/roles/edit.html:16
-#: templates/admin/roles/edit.html:36 templates/admin/roles/form.html:23
-msgid "Edit Role"
-msgstr "Editar rol"
-
-#: controllers/routes.py:3472 templates/admin/roles/form.html:23
-#: templates/admin/roles/list.html:30
-msgid "New Role"
-msgstr "Nuevo rol"
-
-#: controllers/routes.py:3490 templates/admin/vision_models/form.html:37
-#: templates/admin/vision_models/list.html:42
-msgid "New Vision Model"
-msgstr "Nuevo modelo de visión"
-
-#: controllers/routes.py:3496 templates/admin/vision_models/form.html:37
-msgid "Edit Vision Model"
-msgstr "Editar modelo de visión"
-
-#: controllers/routes.py:3519
-#: templates/admin/configuration/institution_form.html:16
-#: templates/admin/configuration/institution_form.html:38
-msgid "Edit Institution Information"
-msgstr "Editar información de la institución"
-
-#: controllers/routes.py:3525 templates/admin/configuration/index.html:68
-#: templates/admin/configuration/operating_room_form.html:19
-msgid "New Operating Room"
-msgstr "Nuevo quirófano"
-
-#: controllers/routes.py:3531
-#: templates/admin/configuration/operating_room_form.html:19
-msgid "Edit Operating Room"
-msgstr "Editar quirófano"
-
-#: controllers/routes.py:3537
-#: templates/admin/configuration/capture_station_form.html:27
-#: templates/admin/configuration/index.html:102
-msgid "New Capture Station"
-msgstr "Nueva estación de captura"
-
-#: controllers/routes.py:3543
-#: templates/admin/configuration/capture_station_form.html:27
-msgid "Edit Capture Station"
-msgstr "Editar estación de captura"
-
-#: controllers/view_data.py:66 i18n.py:138 i18n.py:146
+#: controllers/view_data.py:66 i18n.py:140 i18n.py:148
 #: templates/operator/sessions/details.html:83
 msgid "Scheduled"
 msgstr "Programada"
 
-#: controllers/view_data.py:68 i18n.py:142
+#: controllers/view_data.py:68 i18n.py:144
 msgid "Awaiting Review"
 msgstr "Esperando revisión de SPD"
 
-#: controllers/view_data.py:69 i18n.py:144
+#: controllers/view_data.py:69 i18n.py:146
 msgid "Correction Required"
 msgstr "Corrección requerida"
 
-#: controllers/view_data.py:71 i18n.py:141
+#: controllers/view_data.py:71 i18n.py:143
 #: templates/operator/sessions/history.html:113
 msgid "Aborted"
 msgstr "Abortada"
-
-#: controllers/view_data.py:75 templates/admin/kits/list.html:103
-#: templates/admin/procedures/form.html:95 templates/base.html:62
-#: templates/operator/dashboard.html:99
-#: templates/operator/sessions/active.html:55
-#: templates/operator/sessions/awaiting_review.html:65
-#: templates/operator/sessions/begin.html:84
-#: templates/operator/sessions/closed_details.html:75
-#: templates/operator/sessions/correction_requested.html:64
-#: templates/operator/sessions/details.html:76
-#: templates/operator/sessions/history.html:66
-#: templates/operator/sessions/history.html:127
-#: templates/operator/sessions/list.html:99
-#: templates/operator/sessions/new.html:94
-#: templates/supervisor/dashboard.html:96
-#: templates/supervisor/discrepancies/_review_overview.html:12
-#: templates/supervisor/reports.html:51
-#: templates/supervisor/sessions/_details_overview.html:11
-#: templates/supervisor/sessions/history.html:56
-#: templates/supervisor/sessions/history.html:95
-#: templates/supervisor/sessions/inventory_edit.html:92
-#: templates/supervisor/sessions/list.html:73
-#: templates/supervisor/sessions/list.html:99
-#: templates/supervisor/sessions/rf_details.html:62
-#: templates/supervisor/sessions/schedule.html:123
-msgid "Kit"
-msgstr "Kit"
 
 #: controllers/view_data.py:76
 msgid "Additional (schedule)"
@@ -1138,10 +1523,6 @@ msgstr "Agregado durante la sesión"
 msgid "Manual"
 msgstr "Manual"
 
-#: controllers/view_data.py:127 controllers/view_data.py:2363 i18n.py:110
-msgid "Not specified"
-msgstr "No especificado"
-
 #: controllers/view_data.py:195 templates/operator/sessions/capture_rf.html:189
 #: templates/supervisor/sessions/rf_details.html:182
 msgid "Detected"
@@ -1154,99 +1535,6 @@ msgstr "Detectado"
 #: templates/supervisor/sessions/rf_details.html:148
 msgid "Reported"
 msgstr "Reportado"
-
-#: controllers/view_data.py:224 controllers/view_data.py:252
-msgid "Unknown institution"
-msgstr "Institución desconocida"
-
-#: controllers/view_data.py:227 controllers/view_data.py:274
-#: controllers/view_data.py:327 controllers/view_data.py:398
-#: controllers/view_data.py:478 controllers/view_data.py:550
-#: controllers/view_data.py:607 controllers/view_data.py:619
-#: controllers/view_data.py:857
-#: templates/admin/configuration/capture_station_form.html:80
-#: templates/admin/configuration/index.html:41
-#: templates/admin/configuration/institution_form.html:58
-#: templates/admin/configuration/operating_room_form.html:62
-#: templates/admin/instrument_families/form.html:111
-#: templates/admin/instruments/form.html:115 templates/admin/kits/form.html:69
-#: templates/admin/roles/edit.html:61 templates/admin/users/form.html:124
-#: templates/admin/vision_models/list.html:30
-#: templates/admin/vision_models/list.html:63
-msgid "Inactive"
-msgstr "Inactivo"
-
-#: controllers/view_data.py:227 controllers/view_data.py:274
-#: controllers/view_data.py:327 controllers/view_data.py:398
-#: controllers/view_data.py:478 controllers/view_data.py:550
-#: controllers/view_data.py:607 controllers/view_data.py:619
-#: templates/admin/configuration/capture_station_form.html:79
-#: templates/admin/configuration/index.html:30
-#: templates/admin/configuration/index.html:33
-#: templates/admin/configuration/index.html:34
-#: templates/admin/configuration/index.html:35
-#: templates/admin/configuration/index.html:36
-#: templates/admin/configuration/index.html:39
-#: templates/admin/configuration/index.html:40
-#: templates/admin/configuration/institution_form.html:57
-#: templates/admin/configuration/operating_room_form.html:61
-#: templates/admin/instrument_families/form.html:110
-#: templates/admin/instrument_families/list.html:28
-#: templates/admin/instrument_families/list.html:29
-#: templates/admin/instrument_families/list.html:30
-#: templates/admin/instruments/form.html:114 templates/admin/kits/form.html:68
-#: templates/admin/procedures/form.html:98
-#: templates/admin/procedures/form.html:152 templates/admin/roles/edit.html:60
-#: templates/admin/users/form.html:123
-#: templates/admin/vision_models/form.html:101 templates/shared/profile.html:24
-#: templates/shared/profile.html:85 templates/shared/profile.html:119
-msgid "Active"
-msgstr "Activo"
-
-#: controllers/view_data.py:272 controllers/view_data.py:393
-msgid "Uncategorized"
-msgstr "Sin categoría"
-
-#: controllers/view_data.py:606
-msgid "Unassigned"
-msgstr "Sin asignar"
-
-#: controllers/view_data.py:691 controllers/view_data.py:1004
-#: controllers/view_data.py:2139
-msgid "Unknown"
-msgstr "Desconocido"
-
-#: controllers/view_data.py:745 controllers/view_data.py:879
-msgid "Unknown family"
-msgstr "Familia desconocida"
-
-#: controllers/view_data.py:791
-msgid "Not set"
-msgstr "Sin definir"
-
-#: controllers/view_data.py:792
-msgid "Not configured"
-msgstr "Sin configurar"
-
-#: controllers/view_data.py:812
-msgid "Unknown kit"
-msgstr "Kit desconocido"
-
-#: controllers/view_data.py:823
-msgid "Unknown phase"
-msgstr "Fase desconocida"
-
-#: controllers/view_data.py:856
-#, python-format
-msgid "%(num)d Class"
-msgid_plural "%(num)d Classes"
-msgstr[0] "%(num)d clase"
-msgstr[1] "%(num)d clases"
-
-#: controllers/view_data.py:857 templates/admin/vision_models/list.html:29
-#: templates/admin/vision_models/list.html:62
-msgid "Active Model"
-msgstr "Modelo activo"
 
 #: controllers/view_data.py:1009
 msgid "Notice OK · Vision"
@@ -1341,120 +1629,6 @@ msgstr "Abierta"
 msgid "Unspecified room"
 msgstr "Quirófano no especificado"
 
-#: controllers/view_data.py:1587 controllers/view_data.py:1589
-#: controllers/view_data.py:1590
-#, python-format
-msgid "%(count)s Active"
-msgstr "%(count)s activos"
-
-#: controllers/view_data.py:1587 templates/admin/dashboard.html:43
-#: templates/admin/dashboard.html:75
-#: templates/admin/instrument_families/form.html:54
-#: templates/admin/instrument_families/list.html:4
-#: templates/admin/instrument_families/list.html:15
-#: templates/admin/instrument_families/list.html:41
-#: templates/admin/kits/form.html:153 templates/admin/kits/list.html:105
-#: templates/partials/sidebar_admin.html:46
-msgid "Instrument Families"
-msgstr "Familias de instrumentos"
-
-#: controllers/view_data.py:1588
-#, python-format
-msgid "%(count)s Registered"
-msgstr "%(count)s registrados"
-
-#: controllers/view_data.py:1588 templates/admin/dashboard.html:44
-#: templates/admin/instruments/form.html:56
-#: templates/admin/instruments/list.html:4
-#: templates/admin/instruments/list.html:19
-#: templates/admin/instruments/list.html:41
-#: templates/partials/sidebar_admin.html:54
-#: templates/partials/sidebar_supervisor.html:87
-msgid "Instruments"
-msgstr "Instrumentos"
-
-#: controllers/view_data.py:1589 templates/admin/dashboard.html:45
-#: templates/admin/kits/form.html:33 templates/admin/kits/list.html:4
-#: templates/admin/kits/list.html:19 templates/admin/kits/list.html:36
-#: templates/partials/sidebar_admin.html:62
-#: templates/partials/sidebar_supervisor.html:79
-msgid "Kits"
-msgstr "Kits"
-
-#: controllers/view_data.py:1590 templates/admin/dashboard.html:46
-#: templates/admin/dashboard.html:81 templates/admin/procedures/form.html:57
-#: templates/admin/procedures/list.html:4
-#: templates/admin/procedures/list.html:15
-#: templates/admin/procedures/list.html:27
-#: templates/admin/procedures/list.html:53
-#: templates/partials/sidebar_admin.html:70
-msgid "Procedures"
-msgstr "Procedimientos"
-
-#: controllers/view_data.py:1591
-#, python-format
-msgid "%(count)s Configured"
-msgstr "%(count)s configuradas"
-
-#: controllers/view_data.py:1591 controllers/view_data.py:1597
-#: templates/admin/configuration/capture_station_form.html:43
-#: templates/admin/configuration/index.html:99
-#: templates/admin/dashboard.html:47 templates/admin/dashboard.html:53
-#: templates/admin/dashboard.html:82
-msgid "Capture Stations"
-msgstr "Estaciones de captura"
-
-#: controllers/view_data.py:1594 templates/admin/dashboard.html:50
-msgid "Inactive Users"
-msgstr "Usuarios inactivos"
-
-#: controllers/view_data.py:1595 templates/admin/dashboard.html:51
-msgid "Configured Roles"
-msgstr "Roles configurados"
-
-#: controllers/view_data.py:1596 templates/admin/configuration/index.html:65
-#: templates/admin/configuration/operating_room_form.html:34
-#: templates/admin/dashboard.html:52
-msgid "Operating Rooms"
-msgstr "Quirófanos"
-
-#: controllers/view_data.py:1598 templates/admin/dashboard.html:54
-msgid "Active Institution"
-msgstr "Institución activa"
-
-#: controllers/view_data.py:1599 templates/admin/dashboard.html:55
-msgid "Active Vision Model Version"
-msgstr "Versión del modelo de visión activo"
-
-#: controllers/view_data.py:1600 templates/admin/dashboard.html:56
-#: templates/admin/vision_models/form.html:127
-msgid "Model Classes"
-msgstr "Clases del modelo"
-
-#: controllers/view_data.py:1603 templates/admin/dashboard.html:59
-#: templates/supervisor/indicators.html:70
-msgid "Total Sessions"
-msgstr "Sesiones totales"
-
-#: controllers/view_data.py:1604 templates/admin/dashboard.html:60
-#: templates/supervisor/indicators.html:71
-msgid "Total Discrepancies"
-msgstr "Discrepancias totales"
-
-#: controllers/view_data.py:1605 templates/admin/dashboard.html:61
-msgid "AI-Human Agreement"
-msgstr "Concordancia IA-humano"
-
-#: controllers/view_data.py:1606 templates/admin/dashboard.html:62
-#: templates/components/modals/close_session.html:33
-msgid "Human Corrections"
-msgstr "Correcciones humanas"
-
-#: controllers/view_data.py:1607 templates/admin/dashboard.html:63
-#: templates/supervisor/indicators.html:78
-msgid "Average Resolution Time"
-msgstr "Tiempo promedio de resolución"
-
 #: controllers/view_data.py:1757
 msgid "Continue Review"
 msgstr "Continuar revisión"
@@ -1538,682 +1712,672 @@ msgstr "Se detectó una discrepancia en el conteo"
 msgid "%(name)s counts match, but the detection evidence requires verification."
 msgstr "Los conteos de %(name)s coinciden, pero la evidencia de detección requiere verificación."
 
-#: i18n.py:107
+#: i18n.py:109
 msgid "Female"
 msgstr "Femenino"
 
-#: i18n.py:108
+#: i18n.py:110
 msgid "Male"
 msgstr "Masculino"
 
-#: i18n.py:113
+#: i18n.py:115
 msgid "Anesthesiology"
 msgstr "Anestesiología"
 
-#: i18n.py:114
+#: i18n.py:116
 msgid "General surgery"
 msgstr "Cirugía general"
 
-#: i18n.py:115
+#: i18n.py:117
 msgid "Gynecology and obstetrics"
 msgstr "Ginecología y obstetricia"
 
-#: i18n.py:116
+#: i18n.py:118
 msgid "Neurosurgery"
 msgstr "Neurocirugía"
 
-#: i18n.py:117
+#: i18n.py:119
 msgid "Traumatology and orthopedics"
 msgstr "Traumatología y ortopedia"
 
-#: i18n.py:118
+#: i18n.py:120
 msgid "Urology"
 msgstr "Urología"
 
-#: i18n.py:121 templates/admin/procedures/form.html:25
+#: i18n.py:123
 msgid "Appendectomy"
 msgstr "Apendicectomía"
 
-#: i18n.py:122
+#: i18n.py:124
 msgid "Cesarean section"
 msgstr "Cesárea"
 
-#: i18n.py:123
+#: i18n.py:125
 msgid "Inguinal hernia repair"
 msgstr "Plastia inguinal"
 
-#: i18n.py:124
+#: i18n.py:126
 msgid "Hip arthroplasty"
 msgstr "Artroplastia de cadera"
 
-#: i18n.py:125
+#: i18n.py:127
 msgid "Laparoscopic cholecystectomy"
 msgstr "Colecistectomía laparoscópica"
 
-#: i18n.py:126
+#: i18n.py:128
 msgid "Open cholecystectomy"
 msgstr "Colecistectomía abierta"
 
-#: i18n.py:130
+#: i18n.py:132
 msgid "First assistant"
 msgstr "Primer ayudante"
 
-#: i18n.py:131
+#: i18n.py:133
 msgid "Resident physician"
 msgstr "Médico residente"
 
-#: i18n.py:135
+#: i18n.py:137
 msgid "Cancelled"
 msgstr "Cancelada"
 
-#: i18n.py:149 templates/admin/instruments/form.html:30
-#: templates/admin/instruments/list.html:27
+#: i18n.py:151
 msgid "Available"
 msgstr "Disponible"
 
-#: i18n.py:151
+#: i18n.py:153
 msgid "Lost / not recovered"
 msgstr "Perdida / no recuperada"
 
-#: i18n.py:152 templates/admin/instruments/form.html:34
+#: i18n.py:154
 msgid "Maintenance"
 msgstr "En mantenimiento"
 
-#: i18n.py:153 templates/admin/instruments/form.html:31
+#: i18n.py:155
 msgid "Reserved"
 msgstr "Reservada"
 
-#: i18n.py:154 templates/admin/instruments/form.html:35
+#: i18n.py:156
 msgid "Retired"
 msgstr "Retirada"
 
-#: i18n.py:155 templates/admin/instruments/form.html:33
-#: templates/admin/instruments/list.html:29
+#: i18n.py:157
 msgid "Sterilization"
 msgstr "En esterilización"
 
-#: i18n.py:158 templates/admin/instrument_families/form.html:36
-#: templates/admin/instrument_families/list.html:69
-#: templates/operator/sessions/capture_rf.html:155
+#: i18n.py:160 templates/operator/sessions/capture_rf.html:155
 msgid "Cutting"
 msgstr "Corte"
 
-#: i18n.py:159
+#: i18n.py:161
 msgid "Dissection"
 msgstr "Disección"
 
-#: i18n.py:160 templates/admin/instrument_families/form.html:34
-#: templates/admin/instrument_families/list.html:67
-#: templates/operator/sessions/capture_rf.html:156
+#: i18n.py:162 templates/operator/sessions/capture_rf.html:156
 msgid "Grasping"
 msgstr "Prensión"
 
-#: i18n.py:161 templates/admin/instrument_families/form.html:33
-#: templates/admin/instrument_families/list.html:66
-#: templates/operator/sessions/capture_rf.html:157
+#: i18n.py:163 templates/operator/sessions/capture_rf.html:157
 msgid "Hemostasis"
 msgstr "Hemostasia"
 
-#: i18n.py:162 templates/operator/sessions/capture_rf.html:158
+#: i18n.py:164 templates/operator/sessions/capture_rf.html:158
 msgid "Retraction"
 msgstr "Separación"
 
-#: i18n.py:163
+#: i18n.py:165
 msgid "Suction"
 msgstr "Aspiración"
 
-#: i18n.py:164 templates/admin/instrument_families/form.html:35
-#: templates/admin/instrument_families/list.html:68
-#: templates/operator/sessions/capture_rf.html:159
+#: i18n.py:166 templates/operator/sessions/capture_rf.html:159
 msgid "Suturing"
 msgstr "Sutura"
 
-#: i18n.py:167
+#: i18n.py:169
 msgid "Operative use during surgery"
 msgstr "Uso operativo en acto quirúrgico"
 
-#: i18n.py:168
+#: i18n.py:170
 msgid "Teaching or training use"
 msgstr "Uso pedagógico o de entrenamiento"
 
-#: i18n.py:171
+#: i18n.py:173
 msgid "Piece classified in the wrong family"
 msgstr "Pieza clasificada en familia incorrecta"
 
-#: i18n.py:172
+#: i18n.py:174
 msgid "Piece occluded or outside the region of interest"
 msgstr "Pieza ocluida o fuera de la región de interés"
 
-#: i18n.py:173
+#: i18n.py:175
 msgid "Operator capture or handling error"
 msgstr "Error de captura o manipulación del operador"
 
-#: i18n.py:174
+#: i18n.py:176
 msgid "Shortage against expected inventory"
 msgstr "Faltante respecto al inventario esperado"
 
-#: i18n.py:175
+#: i18n.py:177
 msgid "Surplus against expected inventory"
 msgstr "Sobrante respecto al inventario esperado"
 
-#: i18n.py:176
+#: i18n.py:178
 msgid "Piece present but not identified by the model"
 msgstr "Pieza presente no identificada por el modelo"
 
-#: i18n.py:179 i18n.py:207
+#: i18n.py:181 i18n.py:209
 msgid "Session close"
 msgstr "Cierre de sesión"
 
-#: i18n.py:180
+#: i18n.py:182
 msgid "Discrepancy recorded"
 msgstr "Discrepancia registrada"
 
-#: i18n.py:181
+#: i18n.py:183
 msgid "Periodic capture"
 msgstr "Captura periódica"
 
-#: i18n.py:182
+#: i18n.py:184
 msgid "Operator manual mark"
 msgstr "Marca manual del operador"
 
-#: i18n.py:183
+#: i18n.py:185
 msgid "Session start"
 msgstr "Inicio de sesión de conteo"
 
-#: i18n.py:184
+#: i18n.py:186
 msgid "Relevant state change"
 msgstr "Cambio de estado relevante"
 
-#: i18n.py:187
+#: i18n.py:189
 msgid "Closure"
 msgstr "Cierre"
 
-#: i18n.py:188
+#: i18n.py:190
 msgid "Demo phase one"
 msgstr "Fase demo uno"
 
-#: i18n.py:189
+#: i18n.py:191
 msgid "Demo phase two"
 msgstr "Fase demo dos"
 
-#: i18n.py:190
+#: i18n.py:192
 msgid "Demo phase three"
 msgstr "Fase demo tres"
 
-#: i18n.py:191
+#: i18n.py:193
 msgid "Final count"
 msgstr "Conteo final"
 
-#: i18n.py:192
+#: i18n.py:194
 msgid "Tray handover and removal"
 msgstr "Entrega y retiro de charola"
 
-#: i18n.py:193
+#: i18n.py:195
 msgid "Intraoperative"
 msgstr "Transoperatorio"
 
-#: i18n.py:194
+#: i18n.py:196
 msgid "Count before cavity closure"
 msgstr "Conteo previo a cierre de cavidad"
 
-#: i18n.py:195
+#: i18n.py:197
 msgid "Initial count before incision"
 msgstr "Conteo inicial previo a incisión"
 
-#: i18n.py:196
+#: i18n.py:198
 msgid "Table setup"
 msgstr "Preparación de mesa"
 
-#: i18n.py:197
+#: i18n.py:199
 msgid "Start / initial stage"
 msgstr "Inicio / etapa inicial"
 
-#: i18n.py:200
+#: i18n.py:202
 msgid "Count suggested by the model"
 msgstr "Conteo sugerido por el modelo"
 
-#: i18n.py:201
+#: i18n.py:203
 msgid "Close attempt blocked"
 msgstr "Intento de cierre bloqueado"
 
-#: i18n.py:202
+#: i18n.py:204
 msgid "Human correction applied"
 msgstr "Corrección humana aplicada"
 
-#: i18n.py:203
+#: i18n.py:205
 msgid "Discrepancy detected"
 msgstr "Discrepancia detectada"
 
-#: i18n.py:204
+#: i18n.py:206
 msgid "Close with manual quantity report"
 msgstr "Cierre con reporte manual de cantidades"
 
-#: i18n.py:205
+#: i18n.py:207
 msgid "Manually captured count"
 msgstr "Conteo capturado manualmente"
 
-#: i18n.py:206
+#: i18n.py:208
 msgid "Surgical phase change"
 msgstr "Cambio de fase quirúrgica"
 
-#: i18n.py:208
+#: i18n.py:210
 msgid "Session opened"
 msgstr "Apertura de sesión"
 
-#: i18n.py:209
+#: i18n.py:211
 msgid "Validation without discrepancies"
 msgstr "Validación sin discrepancias"
 
-#: i18n.py:212
+#: i18n.py:214
 msgid "Transfer to third parties"
 msgstr "Transferencia a terceros"
 
-#: i18n.py:213
+#: i18n.py:215
 msgid "Vision model improvement"
 msgstr "Mejora del modelo de visión"
 
-#: i18n.py:214
+#: i18n.py:216
 msgid "Quality and operation of the counting process"
 msgstr "Calidad y operación del proceso de conteo"
 
-#: i18n.py:225
+#: i18n.py:227
 msgid "Station operator. Runs assigned counting sessions."
 msgstr "Operador de estación. Ejecuta sesiones de conteo asignadas."
 
-#: i18n.py:229
+#: i18n.py:231
 msgid "SPD supervisor. Schedules sessions, confirms the privacy notice and closes cases."
 msgstr "Supervisor SPD. Programa sesiones, aviso de privacidad y cierra casos."
 
-#: i18n.py:233
+#: i18n.py:235
 msgid "Technical administrator. Manages catalogs, users and configuration."
 msgstr "Administrador técnico. Gestiona catálogos, usuarios y configuración."
 
-#: i18n.py:237 templates/admin/configuration/index.html:33
+#: i18n.py:239
 msgid "Operating Room 1"
 msgstr "Quirófano 1"
 
-#: i18n.py:241
+#: i18n.py:243
 msgid "Overhead Capture Station OR-01"
 msgstr "Estación cenital OR-01"
 
-#: i18n.py:242
+#: i18n.py:244
 msgid "Capture Station CS-01"
 msgstr "Estación de captura CS-01"
 
-#: i18n.py:247
+#: i18n.py:249
 msgid "Basic laparoscopic kit"
 msgstr "Kit laparoscópico básico"
 
-#: i18n.py:248
+#: i18n.py:250
 msgid "Video Demo Kit 1"
 msgstr "Kit demo de video 1"
 
-#: i18n.py:251
+#: i18n.py:253
 msgid "Video Demo Kit 2"
 msgstr "Kit demo de video 2"
 
-#: i18n.py:255
+#: i18n.py:257
 msgid "Kelly forceps"
 msgstr "Pinza Kelly"
 
-#: i18n.py:256
+#: i18n.py:258
 msgid "Metzenbaum scissors"
 msgstr "Tijera Metzenbaum"
 
-#: i18n.py:258 i18n.py:259
+#: i18n.py:260 i18n.py:261
 msgid "Mayo-Hegar needle holder"
 msgstr "Portaagujas Mayo-Hegar"
 
-#: i18n.py:262 i18n.py:263
+#: i18n.py:264 i18n.py:265
 msgid "Farabeuf retractor"
 msgstr "Separador Farabeuf"
 
-#: i18n.py:265
+#: i18n.py:267
 msgid "Pozzi forceps"
 msgstr "Pinza Pozzi"
 
-#: i18n.py:266
+#: i18n.py:268
 msgid "Scalpel handle #3"
 msgstr "Mango de bisturí #3"
 
-#: i18n.py:267
+#: i18n.py:269
 msgid "Curved Mayo Scissor"
 msgstr "Tijera Mayo curva"
 
-#: i18n.py:268
+#: i18n.py:270
 msgid "Straight Mayo Scissor"
 msgstr "Tijera Mayo recta"
 
-#: i18n.py:269
+#: i18n.py:271
 msgid "Straight Kelly Forceps"
 msgstr "Pinza Kelly recta"
 
-#: i18n.py:270
+#: i18n.py:272
 msgid "Allis forceps"
 msgstr "Pinza Allis"
 
-#: i18n.py:271
+#: i18n.py:273
 msgid "Foerster forceps"
 msgstr "Pinza Foerster"
 
-#: i18n.py:272
+#: i18n.py:274
 msgid "Rochester-Pean forceps"
 msgstr "Pinza Rochester-Pean"
 
-#: i18n.py:273
+#: i18n.py:275
 msgid "Olsen-Hegar needle holder"
 msgstr "Portaagujas Olsen-Hegar"
 
-#: i18n.py:274
+#: i18n.py:276
 msgid "Adson without teeth"
 msgstr "Pinza Adson sin dientes"
 
-#: i18n.py:275
+#: i18n.py:277
 msgid "Adson with teeth"
 msgstr "Pinza Adson con dientes"
 
-#: i18n.py:276
+#: i18n.py:278
 msgid "Curve Mosquito Kocher"
 msgstr "Pinza Mosquito Kocher curva"
 
-#: i18n.py:277
+#: i18n.py:279
 msgid "Scalpel n4 S"
 msgstr "Mango de bisturí #4 S"
 
-#: i18n.py:278
+#: i18n.py:280
 msgid "Crile Wood"
 msgstr "Portaagujas Crile-Wood"
 
-#: i18n.py:279
+#: i18n.py:281
 msgid "Surgical probe"
 msgstr "Estilete quirúrgico"
 
-#: i18n.py:283
+#: i18n.py:285
 msgid "Straight or curved forceps with a ratchet and transverse serrations at the tip that do not reach the end."
 msgstr "Pinza recta o curva con cremallera y ranuras transversales en la punta que no llegan al extremo."
 
-#: i18n.py:285
+#: i18n.py:287
 msgid "Scissors with thin blades that are short relative to the handle length."
 msgstr "Tijera de hojas delgadas y cortas respecto a la longitud del mango."
 
-#: i18n.py:288
+#: i18n.py:290
 msgid "Similar to forceps but with short, broad tips and cross-hatched grooves."
 msgstr "Similar a una pinza pero con puntas cortas, anchas y ranurado cruzado."
 
-#: i18n.py:290
+#: i18n.py:292
 msgid "Needle holder with short, broad jaws and cross-hatched grip."
 msgstr "Portaagujas de mandíbulas cortas y anchas con agarre de ranurado cruzado."
 
-#: i18n.py:294
+#: i18n.py:296
 msgid "Metal blade bent at both ends, with no ratchet or joint."
 msgstr "Lámina metálica doblada en ambos extremos, sin cremallera ni articulación."
 
-#: i18n.py:296
+#: i18n.py:298
 msgid "Double-ended flat metal blade bent at both ends; no ratchet."
 msgstr "Lámina metálica plana de doble extremo, doblada en ambos lados; sin cremallera."
 
-#: i18n.py:299
+#: i18n.py:301
 msgid "Forceps with interlocking jaws used for tissue or sponge handling."
 msgstr "Pinza de mandíbulas entrelazadas para manipular tejido o gasas."
 
-#: i18n.py:301
+#: i18n.py:303
 msgid "Flat handle with a distal slot for disposable blades (size #3)."
 msgstr "Mango plano con ranura distal para hojas desechables (tamaño #3)."
 
-#: i18n.py:303
+#: i18n.py:305
 msgid "Heavy scissors with curved blades and blunt tips."
 msgstr "Tijera robusta de hojas curvas y puntas romas."
 
-#: i18n.py:305
+#: i18n.py:307
 msgid "Heavy scissors with straight blades and blunt tips."
 msgstr "Tijera robusta de hojas rectas y puntas romas."
 
-#: i18n.py:307
+#: i18n.py:309
 msgid "Hemostatic forceps with partial-jaw serrations (Kelly profile)."
 msgstr "Pinza hemostática con estriado parcial en las mandíbulas (perfil Kelly)."
 
-#: i18n.py:309
+#: i18n.py:311
 msgid "Ring forceps with multiple interlocking teeth at the tip."
 msgstr "Pinza de anillos con varios dientes entrelazados en la punta."
 
-#: i18n.py:311
+#: i18n.py:313
 msgid "Long ring forceps with oval fenestrated jaws (sponge stick)."
 msgstr "Pinza larga de anillos con mandíbulas ovaladas fenestradas (portagasas)."
 
-#: i18n.py:313
+#: i18n.py:315
 msgid "Hemostatic forceps with transverse serrations extending to the tip."
 msgstr "Pinza hemostática con estriado transversal hasta la punta."
 
-#: i18n.py:315
+#: i18n.py:317
 msgid "Needle holder with built-in suture-cutting scissors near the jaws."
 msgstr "Portaagujas con tijera integrada para cortar sutura cerca de las mandíbulas."
 
-#: i18n.py:317
+#: i18n.py:319
 msgid "Fine tissue forceps with serrated tips and no teeth."
 msgstr "Pinza fina de tejido con puntas estriadas y sin dientes."
 
-#: i18n.py:319
+#: i18n.py:321
 msgid "Fine tissue forceps with 1x2 teeth at the tip."
 msgstr "Pinza fina de tejido con dientes 1x2 en la punta."
 
-#: i18n.py:321
+#: i18n.py:323
 msgid "Fine curved hemostatic forceps (mosquito / Kocher profile)."
 msgstr "Pinza hemostática fina y curva (perfil mosquito / Kocher)."
 
-#: i18n.py:323
+#: i18n.py:325
 msgid "Scalpel handle sized for #4 blades (heavier than #3)."
 msgstr "Mango de bisturí para hojas #4 (más robusto que el #3)."
 
-#: i18n.py:325
+#: i18n.py:327
 msgid "Needle holder with Crile-Wood jaw pattern."
 msgstr "Portaagujas con patrón de mandíbula Crile-Wood."
 
-#: i18n.py:327
+#: i18n.py:329
 msgid "Slender probe used to explore tracts or cavities."
 msgstr "Estilete delgado para explorar trayectos o cavidades."
 
-#: i18n.py:331
+#: i18n.py:333
 msgid "Hemostasis instrument. Distinguished from the Rochester by its partial serration."
 msgstr "Instrumental de hemostasia. Se distingue de la Rochester por el estriado parcial."
 
-#: i18n.py:333
+#: i18n.py:335
 msgid "Cutting instrument for delicate tissue, not for suture."
 msgstr "Instrumental de corte para tejido delicado, no para sutura."
 
-#: i18n.py:336
+#: i18n.py:338
 msgid "Suturing instrument. Differs from forceps by its grid-pattern grooves."
 msgstr "Instrumental de sutura. Se diferencia de la pinza por el ranurado en rejilla."
 
-#: i18n.py:338
+#: i18n.py:340
 msgid "Suturing instrument without integrated scissors."
 msgstr "Instrumental de sutura sin tijera integrada."
 
-#: i18n.py:342
+#: i18n.py:344
 msgid "Manual retraction instrument, always used in pairs."
 msgstr "Instrumental de separación de uso manual, siempre en par."
 
-#: i18n.py:344
+#: i18n.py:346
 msgid "Retraction instrument; used in pairs."
 msgstr "Instrumental de separación; se usa en pares."
 
-#: i18n.py:347
+#: i18n.py:349
 msgid "Grasping instrument; longer jaws than Adson, typically ring-handled."
 msgstr "Instrumental de prensión; mandíbulas más largas que la Adson, normalmente con anillos."
 
-#: i18n.py:349
+#: i18n.py:351
 msgid "Cutting instrument; no scissors blades, only a blade mount."
 msgstr "Instrumental de corte; sin hojas de tijera, solo montaje para hoja."
 
-#: i18n.py:351
+#: i18n.py:353
 msgid "Cutting instrument for denser tissue; curved blade profile."
 msgstr "Instrumental de corte para tejido más denso; perfil de hoja curvo."
 
-#: i18n.py:353
+#: i18n.py:355
 msgid "Cutting instrument for denser tissue; straight blade profile."
 msgstr "Instrumental de corte para tejido más denso; perfil de hoja recto."
 
-#: i18n.py:355
+#: i18n.py:357
 msgid "Hemostasis instrument; distinct from Mayo scissors and Rochester-Pean."
 msgstr "Instrumental de hemostasia; distinto de la tijera Mayo y de la Rochester-Pean."
 
-#: i18n.py:357
+#: i18n.py:359
 msgid "Grasping instrument for firmer tissue purchase."
 msgstr "Instrumental de prensión para un agarre más firme del tejido."
 
-#: i18n.py:359
+#: i18n.py:361
 msgid "Grasping instrument for sponges; fenestrated jaws."
 msgstr "Instrumental de prensión para gasas; mandíbulas fenestradas."
 
-#: i18n.py:361
+#: i18n.py:363
 msgid "Hemostasis instrument; fuller serration than classic Kelly forceps."
 msgstr "Instrumental de hemostasia; estriado más completo que la pinza Kelly clásica."
 
-#: i18n.py:363
+#: i18n.py:365
 msgid "Suturing instrument; combined holder and cutter."
 msgstr "Instrumental de sutura; portaagujas y cortador combinados."
 
-#: i18n.py:365
+#: i18n.py:367
 msgid "Grasping instrument for delicate tissue; plain tips."
 msgstr "Instrumental de prensión para tejido delicado; puntas lisas."
 
-#: i18n.py:367
+#: i18n.py:369
 msgid "Grasping instrument for delicate tissue; toothed tips."
 msgstr "Instrumental de prensión para tejido delicado; puntas con dientes."
 
-#: i18n.py:369
+#: i18n.py:371
 msgid "Hemostasis instrument; smaller jaws than Kelly or Rochester."
 msgstr "Instrumental de hemostasia; mandíbulas más pequeñas que la Kelly o la Rochester."
 
-#: i18n.py:371
+#: i18n.py:373
 msgid "Cutting instrument; blade mount for larger blades."
 msgstr "Instrumental de corte; montaje para hojas más grandes."
 
-#: i18n.py:373
+#: i18n.py:375
 msgid "Suturing instrument; finer grip than Mayo-Hegar."
 msgstr "Instrumental de sutura; agarre más fino que el Mayo-Hegar."
 
-#: i18n.py:375
+#: i18n.py:377
 msgid "Dissection / exploration instrument; no cutting edge."
 msgstr "Instrumental de disección / exploración; sin filo cortante."
 
-#: i18n.py:379
+#: i18n.py:381
 msgid "Occlude small and medium vessels during dissection."
 msgstr "Ocluir vasos sanguíneos de calibre pequeño y mediano durante la disección."
 
-#: i18n.py:381
+#: i18n.py:383
 msgid "Cut and dissect fine tissue without damaging adjacent structures."
 msgstr "Cortar y disecar tejido fino sin dañar estructuras adyacentes."
 
-#: i18n.py:384
+#: i18n.py:386
 msgid "Hold the needle firmly while passing the suture."
 msgstr "Sujetar la aguja con firmeza durante el paso de sutura."
 
-#: i18n.py:386
+#: i18n.py:388
 msgid "Hold the needle firmly while passing suture."
 msgstr "Sujetar la aguja con firmeza al pasar la sutura."
 
-#: i18n.py:390
+#: i18n.py:392
 msgid "Retract the wound edges to expose the surgical field."
 msgstr "Retraer bordes de la herida para exponer el campo quirúrgico."
 
-#: i18n.py:392
+#: i18n.py:394
 msgid "Retract wound edges to expose the field."
 msgstr "Retraer los bordes de la herida para exponer el campo."
 
-#: i18n.py:395
+#: i18n.py:397
 msgid "Hold tissue or sponges during operative exposure."
 msgstr "Sujetar tejido o gasas durante la exposición operatoria."
 
-#: i18n.py:397
+#: i18n.py:399
 msgid "Mount a blade to make controlled skin or tissue incisions."
 msgstr "Montar una hoja para realizar incisiones controladas en piel o tejido."
 
-#: i18n.py:399
+#: i18n.py:401
 msgid "Cut fascia or tougher tissue along a curved path."
 msgstr "Cortar fascia o tejido más resistente siguiendo una trayectoria curva."
 
-#: i18n.py:401
+#: i18n.py:403
 msgid "Cut suture or tougher tissue in a straight line."
 msgstr "Cortar sutura o tejido más resistente en línea recta."
 
-#: i18n.py:403
+#: i18n.py:405
 msgid "Clamp vessels or tissue for hemostasis."
 msgstr "Pinzar vasos o tejido para hemostasia."
 
-#: i18n.py:404
+#: i18n.py:406
 msgid "Hold or retract denser tissue edges."
 msgstr "Sujetar o retraer bordes de tejido más denso."
 
-#: i18n.py:405
+#: i18n.py:407
 msgid "Hold sponges for blotting or packing."
 msgstr "Sujetar gasas para secar o empaquetar."
 
-#: i18n.py:406
+#: i18n.py:408
 msgid "Clamp larger vessels or pedicles."
 msgstr "Pinzar vasos o pedículos de mayor calibre."
 
-#: i18n.py:408
+#: i18n.py:410
 msgid "Hold the needle and cut suture without changing instruments."
 msgstr "Sujetar la aguja y cortar la sutura sin cambiar de instrumento."
 
-#: i18n.py:410
+#: i18n.py:412
 msgid "Handle skin or delicate tissue with less trauma."
 msgstr "Manipular piel o tejido delicado con menor trauma."
 
-#: i18n.py:412
+#: i18n.py:414
 msgid "Hold skin or fascia with a more secure bite."
 msgstr "Sujetar piel o fascia con un agarre más seguro."
 
-#: i18n.py:413
+#: i18n.py:415
 msgid "Clamp small vessels in delicate fields."
 msgstr "Pinzar vasos pequeños en campos delicados."
 
-#: i18n.py:414
+#: i18n.py:416
 msgid "Mount a #4 blade for larger incisions."
 msgstr "Montar una hoja #4 para incisiones más grandes."
 
-#: i18n.py:415
+#: i18n.py:417
 msgid "Hold needles for finer suture work."
 msgstr "Sujetar agujas para suturas más finas."
 
-#: i18n.py:416
+#: i18n.py:418
 msgid "Explore tracts or guide blunt dissection."
 msgstr "Explorar trayectos o guiar la disección roma."
 
-#: i18n.py:423
+#: i18n.py:425
 msgid "Laparoscopic"
 msgstr "Laparoscópica"
 
-#: i18n.py:424
+#: i18n.py:426
 msgid "Video demo"
 msgstr "Demo en video"
 
-#: i18n.py:425
+#: i18n.py:427
 msgid "Compact demo"
 msgstr "Demo compacta"
 
-#: i18n.py:505
+#: i18n.py:535
 #, python-format
 msgid "%(instrument)s: the kit expects %(expected)s, but only %(num)d was detected on the tray."
 msgid_plural "%(instrument)s: the kit expects %(expected)s, but only %(num)d were detected on the tray."
 msgstr[0] "%(instrument)s: el kit contempla %(expected)s, pero solo se detectó %(num)d en la charola."
 msgstr[1] "%(instrument)s: el kit contempla %(expected)s, pero solo se detectaron %(num)d en la charola."
 
-#: i18n.py:510
+#: i18n.py:540
 #, python-format
 msgid "%(instrument)s: the kit expects %(expected)s, but only %(num)d was reported."
 msgid_plural "%(instrument)s: the kit expects %(expected)s, but only %(num)d were reported."
 msgstr[0] "%(instrument)s: el kit contempla %(expected)s, pero solo se reportó %(num)d."
 msgstr[1] "%(instrument)s: el kit contempla %(expected)s, pero solo se reportaron %(num)d."
 
-#: i18n.py:516
+#: i18n.py:546
 #, python-format
 msgid "%(instrument)s: the kit expects %(expected)s, but %(num)d was reported."
 msgid_plural "%(instrument)s: the kit expects %(expected)s, but %(num)d were reported."
 msgstr[0] "%(instrument)s: el kit contempla %(expected)s, pero se reportó %(num)d."
 msgstr[1] "%(instrument)s: el kit contempla %(expected)s, pero se reportaron %(num)d."
 
-#: i18n.py:523
+#: i18n.py:556
 #, python-format
 msgid "%(instrument)s: the kit expects %(expected)s, but %(num)d was recorded."
 msgid_plural "%(instrument)s: the kit expects %(expected)s, but %(num)d were recorded."
@@ -2408,7 +2572,7 @@ msgid "Could not close session; please retry."
 msgstr "No se pudo cerrar la sesión; inténtalo de nuevo."
 
 #: templates/admin/audit_log.html:4 templates/admin/audit_log.html:15
-#: templates/admin/audit_log.html:39 templates/partials/sidebar_admin.html:114
+#: templates/admin/audit_log.html:30 templates/partials/sidebar_admin.html:114
 #: templates/partials/sidebar_supervisor.html:117
 #: templates/supervisor/audit_log.html:11
 #: templates/supervisor/audit_log.html:22
@@ -2417,20 +2581,20 @@ msgid "Audit Log"
 msgstr "Bitácora de auditoría"
 
 #: templates/admin/audit_log.html:4
-#: templates/admin/configuration/capture_station_form.html:30
+#: templates/admin/configuration/capture_station_form.html:25
 #: templates/admin/configuration/index.html:4
 #: templates/admin/configuration/institution_form.html:16
 #: templates/admin/configuration/operating_room_form.html:21
 #: templates/admin/dashboard.html:4
-#: templates/admin/instrument_families/form.html:43
+#: templates/admin/instrument_families/form.html:31
 #: templates/admin/instrument_families/list.html:4
-#: templates/admin/instruments/form.html:41
+#: templates/admin/instruments/form.html:28
 #: templates/admin/instruments/list.html:4 templates/admin/kits/form.html:18
-#: templates/admin/kits/list.html:4 templates/admin/procedures/form.html:46
+#: templates/admin/kits/list.html:4 templates/admin/procedures/form.html:33
 #: templates/admin/procedures/list.html:4 templates/admin/roles/edit.html:16
 #: templates/admin/roles/form.html:25 templates/admin/roles/list.html:4
-#: templates/admin/users/form.html:41 templates/admin/users/list.html:4
-#: templates/admin/vision_models/form.html:40
+#: templates/admin/users/form.html:35 templates/admin/users/list.html:4
+#: templates/admin/vision_models/form.html:32
 #: templates/admin/vision_models/list.html:4 templates/auth/sign_in.html:4
 #: templates/auth/sign_in.html:14 templates/base.html:6
 #: templates/layouts/public.html:11 templates/operator/dashboard.html:4
@@ -2459,75 +2623,69 @@ msgstr "Bitácora de auditoría"
 msgid "Surgical Instrument Traceability System"
 msgstr "Sistema de Trazabilidad de Instrumental Quirúrgico"
 
-#: templates/admin/audit_log.html:30
-msgid "New instrument registered"
-msgstr "Nuevo instrumento registrado"
-
-#: templates/admin/audit_log.html:30 templates/admin/audit_log.html:31
-#: templates/admin/audit_log.html:32 templates/admin/users/form.html:36
-#: templates/admin/users/list.html:56
-msgid "IT Administrator"
-msgstr "Administrador de TI"
-
 #: templates/admin/audit_log.html:31
-msgid "Delivery Kit composition updated"
-msgstr "Composición de Delivery Kit actualizada"
-
-#: templates/admin/audit_log.html:32
-msgid "Instrument YOLO v0.4.2 activated"
-msgstr "Instrument YOLO v0.4.2 activado"
-
-#: templates/admin/audit_log.html:40
 msgid "Review administrative and system traceability events."
 msgstr "Revisa los eventos administrativos y de trazabilidad del sistema."
 
-#: templates/admin/audit_log.html:49
+#: templates/admin/audit_log.html:38
 msgid "Search Events"
 msgstr "Buscar eventos"
 
-#: templates/admin/audit_log.html:53
+#: templates/admin/audit_log.html:42
 msgid "Search events..."
 msgstr "Buscar eventos..."
 
-#: templates/admin/audit_log.html:57 templates/admin/audit_log.html:97
-#: templates/operator/sessions/closed_details.html:149
-#: templates/shared/profile.html:21 templates/supervisor/audit_log.html:50
-#: templates/supervisor/audit_log.html:97
-msgid "User"
-msgstr "Usuario"
-
-#: templates/admin/audit_log.html:60 templates/supervisor/audit_log.html:53
+#: templates/admin/audit_log.html:49 templates/supervisor/audit_log.html:53
 msgid "All Users"
 msgstr "Todos los usuarios"
 
-#: templates/admin/audit_log.html:66 templates/supervisor/audit_log.html:60
+#: templates/admin/audit_log.html:58 templates/supervisor/audit_log.html:60
 msgid "Event Type"
 msgstr "Tipo de evento"
 
-#: templates/admin/audit_log.html:69
+#: templates/admin/audit_log.html:61
 msgid "All Event Types"
 msgstr "Todos los tipos de evento"
 
-#: templates/admin/audit_log.html:75 templates/admin/audit_log.html:100
+#: templates/admin/audit_log.html:70 templates/admin/audit_log.html:113
 #: templates/supervisor/audit_log.html:100
 msgid "Entity"
 msgstr "Entidad"
 
-#: templates/admin/audit_log.html:78
+#: templates/admin/audit_log.html:73
 msgid "All Entities"
 msgstr "Todas las entidades"
 
-#: templates/admin/audit_log.html:84 templates/supervisor/audit_log.html:80
+#: templates/admin/audit_log.html:82 templates/admin/audit_log.html:115
+#: templates/operator/sessions/ai_detection.html:72
+#: templates/operator/sessions/detection_summary_rf.html:62
+#: templates/supervisor/audit_log.html:102
+msgid "Result"
+msgstr "Resultado"
+
+#: templates/admin/audit_log.html:85
+msgid "All Results"
+msgstr "Todos los resultados"
+
+#: templates/admin/audit_log.html:93 templates/supervisor/audit_log.html:80
 #: templates/supervisor/sessions/history.html:74
 #: templates/supervisor/sessions/list.html:82
 msgid "Date"
 msgstr "Fecha"
 
-#: templates/admin/audit_log.html:91
+#: templates/admin/audit_log.html:97
+msgid "Clear Filters"
+msgstr "Limpiar filtros"
+
+#: templates/admin/audit_log.html:98
+msgid "Apply Filters"
+msgstr "Aplicar filtros"
+
+#: templates/admin/audit_log.html:104
 msgid "Administrative Events"
 msgstr "Eventos administrativos"
 
-#: templates/admin/audit_log.html:96
+#: templates/admin/audit_log.html:109
 #: templates/operator/sessions/capture.html:99
 #: templates/operator/sessions/closed_details.html:147
 #: templates/supervisor/audit_log.html:96
@@ -2535,16 +2693,7 @@ msgstr "Eventos administrativos"
 msgid "Timestamp"
 msgstr "Fecha y hora"
 
-#: templates/admin/audit_log.html:98 templates/admin/users/list.html:51
-#: templates/operator/sessions/begin.html:120 templates/shared/profile.html:114
-#: templates/supervisor/audit_log.html:98
-#: templates/supervisor/sessions/inventory_edit.html:121
-#: templates/supervisor/sessions/inventory_edit.html:143
-#: templates/supervisor/sessions/schedule.html:165
-msgid "Role"
-msgstr "Rol"
-
-#: templates/admin/audit_log.html:99
+#: templates/admin/audit_log.html:112
 #: templates/operator/sessions/capture.html:100
 #: templates/operator/sessions/closed_details.html:148
 #: templates/supervisor/audit_log.html:99
@@ -2553,131 +2702,104 @@ msgstr "Rol"
 msgid "Event"
 msgstr "Evento"
 
-#: templates/admin/audit_log.html:101 templates/supervisor/audit_log.html:101
+#: templates/admin/audit_log.html:114 templates/supervisor/audit_log.html:101
 msgid "Record"
 msgstr "Registro"
 
-#: templates/admin/audit_log.html:102
-#: templates/operator/sessions/ai_detection.html:72
-#: templates/operator/sessions/detection_summary_rf.html:62
-#: templates/supervisor/audit_log.html:102
-msgid "Result"
-msgstr "Resultado"
+#: templates/admin/audit_log.html:116
+msgid "IP Address"
+msgstr "Dirección IP"
 
-#: templates/admin/audit_log.html:103
-#: templates/operator/sessions/manual_progress.html:26
-#: templates/supervisor/audit_log.html:103
-msgid "Details"
-msgstr "Detalles"
+#: templates/admin/audit_log.html:133
+msgid "No audit events match the current filters."
+msgstr "Ningún evento de auditoría coincide con los filtros actuales."
 
-#: templates/admin/audit_log.html:122 templates/supervisor/audit_log.html:126
+#: templates/admin/audit_log.html:139 templates/supervisor/audit_log.html:126
 #, python-format
 msgid "Showing %(shown)s of %(total)s events"
 msgstr "Mostrando %(shown)s de %(total)s eventos"
 
-#: templates/admin/audit_log.html:124
-msgid "Event types:"
-msgstr "Tipos de evento:"
+#: templates/admin/configuration/capture_station_form.html:22
+msgid "Edit Capture Station"
+msgstr "Editar estación de captura"
 
 #: templates/admin/configuration/capture_station_form.html:22
-msgid "OR-1"
-msgstr "OR-1"
+#: templates/admin/configuration/index.html:92
+msgid "New Capture Station"
+msgstr "Nueva estación de captura"
 
 #: templates/admin/configuration/capture_station_form.html:23
-msgid "OR-2"
-msgstr "OR-2"
-
-#: templates/admin/configuration/capture_station_form.html:24
-msgid "OR-3"
-msgstr "OR-3"
-
-#: templates/admin/configuration/capture_station_form.html:25
-msgid "OR-4"
-msgstr "OR-4"
-
-#: templates/admin/configuration/capture_station_form.html:28
 msgid "Update capture station information and status."
 msgstr "Actualiza la información y el estado de la estación de captura."
 
-#: templates/admin/configuration/capture_station_form.html:28
+#: templates/admin/configuration/capture_station_form.html:23
 msgid "Register a capture station available for counting sessions."
 msgstr "Registra una estación de captura disponible para sesiones de conteo."
 
-#: templates/admin/configuration/capture_station_form.html:41
+#: templates/admin/configuration/capture_station_form.html:36
 #: templates/admin/configuration/index.html:4
 #: templates/admin/configuration/index.html:15
-#: templates/admin/configuration/index.html:46
+#: templates/admin/configuration/index.html:28
 #: templates/admin/configuration/institution_form.html:27
 #: templates/admin/configuration/operating_room_form.html:32
 #: templates/partials/sidebar_admin.html:122
 msgid "Configuration"
 msgstr "Configuración"
 
-#: templates/admin/configuration/capture_station_form.html:45
-#: templates/admin/configuration/index.html:54
-#: templates/admin/configuration/index.html:88
-#: templates/admin/configuration/index.html:122
+#: templates/admin/configuration/capture_station_form.html:40
+#: templates/admin/configuration/index.html:36
+#: templates/admin/configuration/index.html:74
+#: templates/admin/configuration/index.html:114
 #: templates/admin/configuration/institution_form.html:31
 #: templates/admin/configuration/operating_room_form.html:36
-#: templates/admin/instrument_families/form.html:56
-#: templates/admin/instrument_families/list.html:106
-#: templates/admin/instruments/form.html:58
-#: templates/admin/instruments/list.html:131 templates/admin/kits/form.html:35
-#: templates/admin/kits/list.html:122 templates/admin/procedures/form.html:59
-#: templates/admin/procedures/list.html:75 templates/admin/roles/edit.html:29
-#: templates/admin/roles/form.html:38 templates/admin/users/form.html:54
-#: templates/admin/users/list.html:106
-#: templates/admin/vision_models/form.html:53
-#: templates/admin/vision_models/list.html:95
+#: templates/admin/instrument_families/form.html:44
+#: templates/admin/instrument_families/list.html:92
+#: templates/admin/instruments/form.html:45
+#: templates/admin/instruments/list.html:127 templates/admin/kits/form.html:35
+#: templates/admin/kits/list.html:122 templates/admin/procedures/form.html:46
+#: templates/admin/procedures/list.html:76 templates/admin/roles/edit.html:29
+#: templates/admin/roles/form.html:38 templates/admin/users/form.html:48
+#: templates/admin/users/list.html:111
+#: templates/admin/vision_models/form.html:45
+#: templates/admin/vision_models/list.html:88
 #: templates/supervisor/sessions/inventory_edit.html:17
 msgid "Edit"
 msgstr "Editar"
 
-#: templates/admin/configuration/capture_station_form.html:45
+#: templates/admin/configuration/capture_station_form.html:40
 #: templates/admin/configuration/operating_room_form.html:36
-#: templates/admin/instrument_families/form.html:56
-#: templates/admin/instruments/form.html:58 templates/admin/kits/form.html:35
-#: templates/admin/procedures/form.html:59 templates/admin/roles/form.html:38
-#: templates/admin/users/form.html:54
-#: templates/admin/vision_models/form.html:53 templates/base.html:53
+#: templates/admin/instrument_families/form.html:44
+#: templates/admin/instruments/form.html:45 templates/admin/kits/form.html:35
+#: templates/admin/procedures/form.html:46 templates/admin/roles/form.html:38
+#: templates/admin/users/form.html:48
+#: templates/admin/vision_models/form.html:45 templates/base.html:53
 msgid "New"
 msgstr "Nuevo"
 
-#: templates/admin/configuration/capture_station_form.html:60
-#: templates/admin/configuration/index.html:109
+#: templates/admin/configuration/capture_station_form.html:58
+#: templates/admin/configuration/index.html:99
 msgid "Station Name"
 msgstr "Nombre de la estación"
 
-#: templates/admin/configuration/capture_station_form.html:64
-#: templates/admin/configuration/index.html:110
-#: templates/operator/sessions/begin.html:83
-#: templates/operator/sessions/closed_details.html:72
-#: templates/operator/sessions/list.html:69
-#: templates/operator/sessions/new.html:89
-#: templates/supervisor/discrepancies/_review_overview.html:11
-#: templates/supervisor/sessions/_details_overview.html:10
-msgid "Operating Room"
-msgstr "Quirófano"
-
-#: templates/admin/configuration/capture_station_form.html:67
+#: templates/admin/configuration/capture_station_form.html:65
 msgid "Select an operating room"
 msgstr "Selecciona un quirófano"
 
-#: templates/admin/configuration/capture_station_form.html:76
-#: templates/admin/configuration/index.html:59
-#: templates/admin/configuration/index.html:77
-#: templates/admin/configuration/index.html:111
-#: templates/admin/configuration/institution_form.html:54
-#: templates/admin/configuration/operating_room_form.html:58
-#: templates/admin/instrument_families/form.html:107
-#: templates/admin/instrument_families/list.html:74
-#: templates/admin/instrument_families/list.html:93
+#: templates/admin/configuration/capture_station_form.html:74
+#: templates/admin/configuration/index.html:42
+#: templates/admin/configuration/index.html:63
+#: templates/admin/configuration/index.html:102
+#: templates/admin/configuration/institution_form.html:57
+#: templates/admin/configuration/operating_room_form.html:61
+#: templates/admin/instrument_families/form.html:98
+#: templates/admin/instrument_families/list.html:57
+#: templates/admin/instrument_families/list.html:79
 #: templates/admin/kits/form.html:65 templates/admin/kits/list.html:67
 #: templates/admin/kits/list.html:108 templates/admin/roles/edit.html:57
-#: templates/admin/users/form.html:120 templates/admin/users/list.html:67
-#: templates/admin/users/list.html:86
-#: templates/admin/vision_models/list.html:59
-#: templates/admin/vision_models/list.html:77
+#: templates/admin/users/form.html:115 templates/admin/users/list.html:67
+#: templates/admin/users/list.html:90
+#: templates/admin/vision_models/list.html:49
+#: templates/admin/vision_models/list.html:70
 #: templates/operator/dashboard.html:101
 #: templates/operator/sessions/capture_rf.html:162
 #: templates/operator/sessions/closed_details.html:112
@@ -2700,28 +2822,31 @@ msgstr "Selecciona un quirófano"
 msgid "Status"
 msgstr "Estado"
 
-#: templates/admin/configuration/capture_station_form.html:86
+#: templates/admin/configuration/capture_station_form.html:84
+#: templates/admin/configuration/index.html:101
 msgid "ROI Configuration"
 msgstr "Configuración de ROI"
 
-#: templates/admin/configuration/capture_station_form.html:88
+#: templates/admin/configuration/capture_station_form.html:86
+#: templates/admin/configuration/index.html:111
 msgid "Not Configured"
 msgstr "Sin configurar"
 
-#: templates/admin/configuration/capture_station_form.html:88
-#: templates/components/modals/activate_vision_model.html:34
+#: templates/admin/configuration/capture_station_form.html:86
+#: templates/admin/configuration/index.html:111
+#: templates/components/modals/activate_vision_model.html:33
 msgid "Configured"
 msgstr "Configurada"
 
-#: templates/admin/configuration/capture_station_form.html:93
-#: templates/admin/configuration/institution_form.html:65
-#: templates/admin/configuration/operating_room_form.html:69
-#: templates/admin/instrument_families/form.html:118
-#: templates/admin/instruments/form.html:132 templates/admin/kits/form.html:158
-#: templates/admin/procedures/form.html:194 templates/admin/roles/edit.html:73
-#: templates/admin/roles/form.html:93 templates/admin/users/form.html:145
-#: templates/admin/vision_models/form.html:181 templates/base.html:33
-#: templates/components/modals/activate_vision_model.html:41
+#: templates/admin/configuration/capture_station_form.html:91
+#: templates/admin/configuration/institution_form.html:69
+#: templates/admin/configuration/operating_room_form.html:72
+#: templates/admin/instrument_families/form.html:109
+#: templates/admin/instruments/form.html:119 templates/admin/kits/form.html:158
+#: templates/admin/procedures/form.html:181 templates/admin/roles/edit.html:73
+#: templates/admin/roles/form.html:95 templates/admin/users/form.html:151
+#: templates/admin/vision_models/form.html:176 templates/base.html:33
+#: templates/components/modals/activate_vision_model.html:40
 #: templates/components/modals/approve_review.html:65
 #: templates/components/modals/change_password.html:31
 #: templates/components/modals/close_session_v3.html:45
@@ -2735,69 +2860,66 @@ msgstr "Configurada"
 msgid "Cancel"
 msgstr "Cancelar"
 
-#: templates/admin/configuration/capture_station_form.html:94
+#: templates/admin/configuration/capture_station_form.html:92
 msgid "Save Capture Station"
 msgstr "Guardar estación de captura"
 
-#: templates/admin/configuration/capture_station_form.html:94
-#: templates/admin/configuration/institution_form.html:66
-#: templates/admin/configuration/operating_room_form.html:70
-#: templates/admin/instruments/form.html:133
-#: templates/admin/procedures/form.html:195 templates/admin/users/form.html:146
-#: templates/admin/vision_models/form.html:182 templates/base.html:83
+#: templates/admin/configuration/capture_station_form.html:92
+#: templates/admin/configuration/institution_form.html:70
+#: templates/admin/configuration/operating_room_form.html:73
+#: templates/admin/instruments/form.html:120
+#: templates/admin/procedures/form.html:182 templates/admin/users/form.html:152
+#: templates/admin/vision_models/form.html:180 templates/base.html:83
 msgid "Save Changes"
 msgstr "Guardar cambios"
 
-#: templates/admin/configuration/index.html:34
-msgid "Operating Room 2"
-msgstr "Quirófano 2"
-
-#: templates/admin/configuration/index.html:35
-msgid "Operating Room 3"
-msgstr "Quirófano 3"
-
-#: templates/admin/configuration/index.html:36
-msgid "Operating Room 4"
-msgstr "Quirófano 4"
-
-#: templates/admin/configuration/index.html:47
+#: templates/admin/configuration/index.html:29
 msgid "Manage operational system configuration required by the application."
 msgstr "Administra la configuración operativa del sistema que requiere la aplicación."
 
-#: templates/admin/configuration/index.html:53
+#: templates/admin/configuration/index.html:35
 msgid "Institution Information"
 msgstr "Información de la institución"
 
-#: templates/admin/configuration/index.html:57
-#: templates/admin/configuration/institution_form.html:46
+#: templates/admin/configuration/index.html:40
+#: templates/admin/configuration/institution_form.html:49
 msgid "Institution Name"
 msgstr "Nombre de la institución"
 
-#: templates/admin/configuration/index.html:58
-#: templates/admin/configuration/institution_form.html:50
+#: templates/admin/configuration/index.html:41
+#: templates/admin/configuration/institution_form.html:53
 msgid "Institution Code"
 msgstr "Código de la institución"
 
-#: templates/admin/configuration/index.html:75
-#: templates/admin/configuration/operating_room_form.html:50
+#: templates/admin/configuration/index.html:45
+msgid "Institution information is not available right now."
+msgstr "La información de la institución no está disponible en este momento."
+
+#: templates/admin/configuration/index.html:54
+#: templates/admin/configuration/operating_room_form.html:19
+msgid "New Operating Room"
+msgstr "Nuevo quirófano"
+
+#: templates/admin/configuration/index.html:61
+#: templates/admin/configuration/operating_room_form.html:53
 msgid "Room Code"
 msgstr "Código del quirófano"
 
-#: templates/admin/configuration/index.html:76
-#: templates/admin/configuration/operating_room_form.html:54
+#: templates/admin/configuration/index.html:62
+#: templates/admin/configuration/operating_room_form.html:57
 msgid "Room Name"
 msgstr "Nombre del quirófano"
 
-#: templates/admin/configuration/index.html:78
-#: templates/admin/configuration/index.html:112
-#: templates/admin/instrument_families/list.html:94
-#: templates/admin/instruments/list.html:119 templates/admin/kits/form.html:84
+#: templates/admin/configuration/index.html:64
+#: templates/admin/configuration/index.html:103
+#: templates/admin/instrument_families/list.html:80
+#: templates/admin/instruments/list.html:115 templates/admin/kits/form.html:84
 #: templates/admin/kits/form.html:144 templates/admin/kits/list.html:109
-#: templates/admin/procedures/form.html:99
-#: templates/admin/procedures/list.html:63 templates/admin/roles/list.html:58
-#: templates/admin/users/list.html:87
-#: templates/admin/vision_models/form.html:135
-#: templates/admin/vision_models/list.html:80
+#: templates/admin/procedures/form.html:86
+#: templates/admin/procedures/list.html:64 templates/admin/roles/list.html:61
+#: templates/admin/users/list.html:91
+#: templates/admin/vision_models/form.html:130
+#: templates/admin/vision_models/list.html:73
 #: templates/operator/dashboard.html:102
 #: templates/operator/sessions/history.html:132
 #: templates/operator/sessions/list.html:104
@@ -2810,23 +2932,37 @@ msgstr "Nombre del quirófano"
 msgid "Action"
 msgstr "Acción"
 
-#: templates/admin/configuration/institution_form.html:29
-#: templates/admin/roles/form.html:76 templates/admin/roles/list.html:56
-#: templates/admin/users/form.html:83 templates/admin/users/list.html:60
-#: templates/admin/users/list.html:84 templates/shared/profile.html:110
-msgid "Institution"
-msgstr "Institución"
+#: templates/admin/configuration/index.html:79
+msgid "No operating rooms registered yet."
+msgstr "Aún no hay quirófanos registrados."
+
+#: templates/admin/configuration/index.html:119
+msgid "No capture stations registered yet."
+msgstr "Aún no hay estaciones de captura registradas."
+
+#: templates/admin/configuration/institution_form.html:16
+#: templates/admin/configuration/institution_form.html:38
+msgid "Edit Institution Information"
+msgstr "Editar información de la institución"
 
 #: templates/admin/configuration/institution_form.html:39
 msgid "Update the institution information used by the system."
 msgstr "Actualiza la información de la institución que utiliza el sistema."
 
-#: templates/admin/configuration/operating_room_form.html:70
+#: templates/admin/configuration/institution_form.html:65
+msgid "Your own institution cannot be deactivated: every account that belongs to it would lose access."
+msgstr "Tu propia institución no se puede desactivar: todas las cuentas que pertenecen a ella perderían el acceso."
+
+#: templates/admin/configuration/operating_room_form.html:19
+msgid "Edit Operating Room"
+msgstr "Editar quirófano"
+
+#: templates/admin/configuration/operating_room_form.html:73
 msgid "Save Operating Room"
 msgstr "Guardar quirófano"
 
 #: templates/admin/dashboard.html:4 templates/admin/dashboard.html:15
-#: templates/admin/dashboard.html:68 templates/operator/dashboard.html:4
+#: templates/admin/dashboard.html:30 templates/operator/dashboard.html:4
 #: templates/operator/dashboard.html:15 templates/operator/dashboard.html:41
 #: templates/partials/sidebar_admin.html:32
 #: templates/partials/sidebar_supervisor.html:27
@@ -2842,344 +2978,163 @@ msgstr "Panel"
 msgid "Home"
 msgstr "Inicio"
 
-#: templates/admin/dashboard.html:43
-msgid "11 Active"
-msgstr "11 activos"
-
-#: templates/admin/dashboard.html:44
-msgid "96 Registered"
-msgstr "96 registrados"
-
-#: templates/admin/dashboard.html:45
-msgid "8 Active"
-msgstr "8 activos"
-
-#: templates/admin/dashboard.html:46
-msgid "5 Active"
-msgstr "5 activos"
-
-#: templates/admin/dashboard.html:47
-msgid "3 Configured"
-msgstr "3 configuradas"
-
-#: templates/admin/dashboard.html:63
-msgid "18 min"
-msgstr "18 min"
-
-#: templates/admin/dashboard.html:69
+#: templates/admin/dashboard.html:31
 msgid "Overview of system catalogs, users, and configuration."
 msgstr "Resumen de catálogos, usuarios y configuración del sistema."
 
-#: templates/admin/dashboard.html:73
+#: templates/admin/dashboard.html:35
 msgid "Key system metrics"
 msgstr "Métricas clave del sistema"
 
-#: templates/admin/dashboard.html:74
+#: templates/admin/dashboard.html:36
 msgid "Active Users"
 msgstr "Usuarios activos"
 
-#: templates/admin/dashboard.html:76
+#: templates/admin/dashboard.html:38
 msgid "Registered Instruments"
 msgstr "Instrumentos registrados"
 
-#: templates/admin/dashboard.html:77
+#: templates/admin/dashboard.html:39
 msgid "Active Kits"
 msgstr "Kits activos"
 
-#: templates/admin/dashboard.html:80
+#: templates/admin/dashboard.html:42
 msgid "Secondary system metrics"
 msgstr "Métricas secundarias del sistema"
 
-#: templates/admin/dashboard.html:83 templates/admin/vision_models/form.html:51
+#: templates/admin/dashboard.html:45 templates/admin/vision_models/form.html:43
 #: templates/admin/vision_models/list.html:4
 #: templates/admin/vision_models/list.html:15
-#: templates/admin/vision_models/list.html:37
-#: templates/admin/vision_models/list.html:70
+#: templates/admin/vision_models/list.html:29
+#: templates/admin/vision_models/list.html:63
 #: templates/partials/sidebar_admin.html:106
 msgid "Vision Models"
 msgstr "Modelos de visión"
 
-#: templates/admin/dashboard.html:84
+#: templates/admin/dashboard.html:46
 msgid "Active Vision Model"
 msgstr "Modelo de visión activo"
 
-#: templates/admin/dashboard.html:89
+#: templates/admin/dashboard.html:51
 msgid "Catalog Overview"
 msgstr "Resumen de catálogos"
 
-#: templates/admin/dashboard.html:105 templates/shared/landing.html:25
+#: templates/admin/dashboard.html:67 templates/shared/landing.html:25
 msgid "System Overview"
 msgstr "Resumen del sistema"
 
-#: templates/admin/dashboard.html:122
+#: templates/admin/dashboard.html:84
 msgid "Operational Metrics"
 msgstr "Métricas operativas"
 
-#: templates/admin/instrument_families/form.html:25
-msgid "Look for serrated blades, straight or curved, with a locking ratchet mechanism near the finger rings. Kelly clamps have serrations on only the distal half of the jaws."
-msgstr "Busca hojas estriadas, rectas o curvas, con un mecanismo de cremallera cerca de los anillos para los dedos. Las pinzas Kelly tienen estrías solo en la mitad distal de las mandíbulas."
-
-#: templates/admin/instrument_families/form.html:26
-msgid "Surgical grade stainless steel, serrated jaws, finger-ring handles with locking ratchet."
-msgstr "Acero inoxidable de grado quirúrgico, mandíbulas estriadas, mangos de anillos con cremallera."
+#: templates/admin/instrument_families/form.html:27
+msgid "Edit Instrument Family"
+msgstr "Editar familia de instrumentos"
 
 #: templates/admin/instrument_families/form.html:27
-msgid "Clamping blood vessels"
-msgstr "Pinzamiento de vasos sanguíneos"
+#: templates/admin/instrument_families/list.html:33
+msgid "New Instrument Family"
+msgstr "Nueva familia de instrumentos"
 
-#: templates/admin/instrument_families/form.html:37
-#: templates/admin/instrument_families/list.html:70
-msgid "Retracting"
-msgstr "Retracción"
-
-#: templates/admin/instrument_families/form.html:40
+#: templates/admin/instrument_families/form.html:28
 msgid "Update this instrument type's classification information."
 msgstr "Actualiza la información de clasificación de este tipo de instrumento."
 
-#: templates/admin/instrument_families/form.html:40
+#: templates/admin/instrument_families/form.html:28
 msgid "Register a new surgical instrument type and its classification information."
 msgstr "Registra un nuevo tipo de instrumento quirúrgico y su información de clasificación."
 
-#: templates/admin/instrument_families/form.html:41
+#: templates/admin/instrument_families/form.html:29
 msgid "Save Instrument Family"
 msgstr "Guardar familia de instrumentos"
 
-#: templates/admin/instrument_families/form.html:52
+#: templates/admin/instrument_families/form.html:40
 #: templates/admin/instrument_families/list.html:13
-#: templates/admin/instruments/form.html:54
+#: templates/admin/instruments/form.html:41
 #: templates/admin/instruments/list.html:17 templates/admin/kits/form.html:31
-#: templates/admin/kits/list.html:17 templates/admin/procedures/form.html:55
+#: templates/admin/kits/list.html:17 templates/admin/procedures/form.html:42
 #: templates/admin/procedures/list.html:13
 #: templates/partials/sidebar_admin.html:39
 msgid "Catalogs"
 msgstr "Catálogos"
 
-#: templates/admin/instrument_families/form.html:71
-#: templates/admin/instrument_families/list.html:89
-#: templates/admin/procedures/list.html:58 templates/admin/roles/list.html:54
+#: templates/admin/instrument_families/form.html:62
+#: templates/admin/instrument_families/list.html:75
+#: templates/admin/procedures/list.html:59 templates/admin/roles/list.html:57
 #: templates/operator/sessions/details.html:121
 msgid "Code"
 msgstr "Código"
 
-#: templates/admin/instrument_families/form.html:79
-#: templates/admin/instrument_families/list.html:90
-#: templates/admin/users/form.html:73 templates/admin/users/list.html:82
+#: templates/admin/instrument_families/form.html:70
+#: templates/admin/instrument_families/list.html:76
+#: templates/admin/users/form.html:67 templates/admin/users/list.html:85
 #: templates/operator/sessions/begin.html:119
 msgid "Name"
 msgstr "Nombre"
 
-#: templates/admin/instrument_families/form.html:83
-#: templates/admin/instrument_families/list.html:63
-#: templates/admin/instrument_families/list.html:91
+#: templates/admin/instrument_families/form.html:74
+#: templates/admin/instrument_families/list.html:48
+#: templates/admin/instrument_families/list.html:77
 msgid "Category"
 msgstr "Categoría"
 
-#: templates/admin/instrument_families/form.html:86
+#: templates/admin/instrument_families/form.html:77
 msgid "Select a category"
 msgstr "Selecciona una categoría"
 
-#: templates/admin/instrument_families/form.html:95
+#: templates/admin/instrument_families/form.html:86
 msgid "How to Identify"
 msgstr "Cómo identificarlo"
 
-#: templates/admin/instrument_families/form.html:99
+#: templates/admin/instrument_families/form.html:90
 msgid "Classification Characteristics"
 msgstr "Características de clasificación"
 
-#: templates/admin/instrument_families/form.html:103
-#: templates/admin/instrument_families/list.html:92
+#: templates/admin/instrument_families/form.html:94
+#: templates/admin/instrument_families/list.html:78
 msgid "Function"
 msgstr "Función"
 
-#: templates/admin/instrument_families/list.html:42
+#: templates/admin/instrument_families/list.html:29
 msgid "Manage instrument types and their classification information."
 msgstr "Administra los tipos de instrumento y su información de clasificación."
 
-#: templates/admin/instrument_families/list.html:55
+#: templates/admin/instrument_families/list.html:40
 msgid "Search Families"
 msgstr "Buscar familias"
 
-#: templates/admin/instrument_families/list.html:59
+#: templates/admin/instrument_families/list.html:44
 msgid "Search families..."
 msgstr "Buscar familias..."
 
-#: templates/admin/instrument_families/list.html:65
+#: templates/admin/instrument_families/list.html:50
 msgid "Category: All"
 msgstr "Categoría: todas"
 
-#: templates/admin/instrument_families/list.html:76
-#: templates/admin/instruments/list.html:82 templates/admin/kits/list.html:69
+#: templates/admin/instrument_families/list.html:59
+#: templates/admin/instruments/list.html:78 templates/admin/kits/list.html:69
 #: templates/admin/users/list.html:69
 msgid "Status: Active"
 msgstr "Estado: activo"
 
-#: templates/admin/instrument_families/list.html:77
-#: templates/admin/instruments/list.html:83 templates/admin/kits/list.html:70
+#: templates/admin/instrument_families/list.html:60
+#: templates/admin/instruments/list.html:79 templates/admin/kits/list.html:70
 #: templates/admin/users/list.html:70
 msgid "Status: Inactive"
 msgstr "Estado: inactivo"
 
-#: templates/admin/instrument_families/list.html:78
-#: templates/admin/instruments/list.html:84 templates/admin/kits/list.html:71
+#: templates/admin/instrument_families/list.html:61
+#: templates/admin/instruments/list.html:80 templates/admin/kits/list.html:71
 #: templates/admin/users/list.html:71
-#: templates/admin/vision_models/list.html:61
+#: templates/admin/vision_models/list.html:51
 msgid "Status: All"
 msgstr "Estado: todos"
 
-#: templates/admin/instrument_families/list.html:114
-#: templates/admin/procedures/list.html:83 templates/admin/users/list.html:119
-#: templates/components/pagination.html:13
-#: templates/supervisor/audit_log.html:125
-#: templates/supervisor/discrepancies/list.html:140
-msgid "Pagination"
-msgstr "Paginación"
-
-#: templates/admin/instrument_families/list.html:115
-#, python-format
-msgid "Showing %(shown)s of %(total)s families"
-msgstr "Mostrando %(shown)s de %(total)s familias"
-
-#: templates/admin/instrument_families/list.html:117
-#: templates/admin/users/list.html:122 templates/components/pagination.html:19
-#: templates/supervisor/audit_log.html:128
-msgid "Previous"
-msgstr "Anterior"
-
-#: templates/admin/instrument_families/list.html:118
-#: templates/admin/procedures/list.html:85 templates/admin/users/list.html:123
-#: templates/components/pagination.html:21
-#: templates/supervisor/audit_log.html:129
-#: templates/supervisor/discrepancies/list.html:143
-#, python-format
-msgid "Page %(current)s of %(total)s"
-msgstr "Página %(current)s de %(total)s"
-
-#: templates/admin/instrument_families/list.html:119
-#: templates/admin/users/list.html:124 templates/components/pagination.html:23
-#: templates/supervisor/audit_log.html:130
-msgid "Next"
-msgstr "Siguiente"
-
-#: templates/admin/instruments/form.html:25
-#: templates/admin/vision_models/form.html:28
-#: templates/admin/vision_models/form.html:33
-msgid "Kelly Clamp"
-msgstr "Kelly Clamp"
-
-#: templates/admin/instruments/form.html:26
-msgid "Foerster Sponge Forceps"
-msgstr "Foerster Sponge Forceps"
-
-#: templates/admin/instruments/form.html:27
-#: templates/admin/vision_models/form.html:29
-#: templates/admin/vision_models/form.html:34
-msgid "Mayo-Hegar Needle Holder"
-msgstr "Mayo-Hegar Needle Holder"
-
-#: templates/admin/instruments/form.html:39
-msgid "Update this instrument's family, cycle status, and active status."
-msgstr "Actualiza la familia, el estado de ciclo y el estado activo de este instrumento."
-
-#: templates/admin/instruments/form.html:39
-msgid "Register a new individual surgical instrument in the system."
-msgstr "Registra un nuevo instrumento quirúrgico individual en el sistema."
-
-#: templates/admin/instruments/form.html:80
-#: templates/admin/instruments/list.html:114
-msgid "Internal Code"
-msgstr "Código interno"
-
-#: templates/admin/instruments/form.html:88
-#: templates/admin/instruments/list.html:116 templates/admin/kits/form.html:81
-#: templates/admin/kits/form.html:121 templates/admin/kits/form.html:142
-#: templates/admin/vision_models/form.html:134
-#: templates/supervisor/sessions/inventory_edit.html:204
-msgid "Instrument Family"
-msgstr "Familia de instrumentos"
-
-#: templates/admin/instruments/form.html:91
-msgid "Select an instrument family"
-msgstr "Selecciona una familia de instrumentos"
-
-#: templates/admin/instruments/form.html:100
-#: templates/admin/instruments/form.html:146
-#: templates/admin/instruments/list.html:71
-#: templates/admin/instruments/list.html:117
-msgid "Cycle Status"
-msgstr "Estado de ciclo"
-
-#: templates/admin/instruments/form.html:111
-#: templates/admin/instruments/list.html:80
-#: templates/admin/instruments/list.html:118
-msgid "Active Status"
-msgstr "Estado activo"
-
-#: templates/admin/instruments/form.html:123
-msgid "Change reason"
-msgstr "Motivo del cambio"
-
-#: templates/admin/instruments/form.html:126
-msgid "Required when cycle status or active status changes."
-msgstr "Obligatorio cuando cambia el estado de ciclo o el estado activo."
-
-#: templates/admin/instruments/form.html:127
-msgid "Required when cycle status or active status changes. Logged in cycle history and access audit."
-msgstr "Obligatorio cuando cambia el estado de ciclo o el estado activo. Se registra en el historial de ciclo y en la auditoría de acceso."
-
-#: templates/admin/instruments/form.html:133 templates/base.html:84
-msgid "Save Instrument"
-msgstr "Guardar instrumento"
-
-#: templates/admin/instruments/form.html:140
-msgid "Recent cycle events"
-msgstr "Eventos de ciclo recientes"
-
-#: templates/admin/instruments/form.html:145
-#: templates/supervisor/sessions/rf_details.html:178
-msgid "When"
-msgstr "Cuándo"
-
-#: templates/admin/instruments/form.html:147
-#: templates/operator/sessions/manual_report.html:37
-#: templates/operator/sessions/vision_validation_rf.html:47
-#: templates/supervisor/discrepancies/_review_resolution.html:84
-#: templates/supervisor/sessions/rf_review.html:117
-msgid "Notes"
-msgstr "Notas"
-
-#: templates/admin/instruments/list.html:30
-#: templates/operator/sessions/capture_rf.html:141
-msgid "Unavailable"
-msgstr "No disponible"
-
-#: templates/admin/instruments/list.html:42
-msgid "Manage individual surgical instruments registered in the system."
-msgstr "Administra los instrumentos quirúrgicos individuales registrados en el sistema."
-
-#: templates/admin/instruments/list.html:54
-msgid "Search Instruments"
-msgstr "Buscar instrumentos"
-
-#: templates/admin/instruments/list.html:58
-msgid "Search instruments..."
-msgstr "Buscar instrumentos..."
-
-#: templates/admin/instruments/list.html:62
-#: templates/admin/instruments/list.html:115
-#: templates/supervisor/discrepancies/_review_overview.html:71
-#: templates/supervisor/discrepancies/list.html:108
-msgid "Type"
-msgstr "Tipo"
-
-#: templates/admin/instruments/list.html:64
-msgid "Type: All"
-msgstr "Tipo: todos"
-
-#: templates/admin/instruments/list.html:73
-msgid "Cycle: All"
-msgstr "Ciclo: todos"
-
-#: templates/admin/instruments/list.html:87 templates/admin/kits/list.html:77
+#: templates/admin/instrument_families/list.html:64
+#: templates/admin/instruments/list.html:83 templates/admin/kits/list.html:77
+#: templates/admin/procedures/list.html:47 templates/admin/roles/list.html:46
+#: templates/admin/users/list.html:74
+#: templates/admin/vision_models/list.html:56
 #: templates/operator/sessions/list.html:85
 #: templates/operator/sessions/list.html:87
 #: templates/supervisor/sessions/history.html:82
@@ -3187,23 +3142,139 @@ msgstr "Ciclo: todos"
 msgid "Search"
 msgstr "Buscar"
 
-#: templates/admin/instruments/list.html:95
+#: templates/admin/instrument_families/list.html:97
+msgid "No instrument families match the current filters."
+msgstr "Ninguna familia de instrumentos coincide con los filtros actuales."
+
+#: templates/admin/instrument_families/list.html:104
+#, python-format
+msgid "Showing %(shown)s of %(total)s families"
+msgstr "Mostrando %(shown)s de %(total)s familias"
+
+#: templates/admin/instruments/form.html:25
+msgid "Edit Instrument"
+msgstr "Editar instrumento"
+
+#: templates/admin/instruments/form.html:25
+#: templates/admin/instruments/list.html:42
+msgid "New Instrument"
+msgstr "Nuevo instrumento"
+
+#: templates/admin/instruments/form.html:26
+msgid "Update this instrument's family, cycle status, and active status."
+msgstr "Actualiza la familia, el estado de ciclo y el estado activo de este instrumento."
+
+#: templates/admin/instruments/form.html:26
+msgid "Register a new individual surgical instrument in the system."
+msgstr "Registra un nuevo instrumento quirúrgico individual en el sistema."
+
+#: templates/admin/instruments/form.html:67
+#: templates/admin/instruments/list.html:110
+msgid "Internal Code"
+msgstr "Código interno"
+
+#: templates/admin/instruments/form.html:78
+msgid "Select an instrument family"
+msgstr "Selecciona una familia de instrumentos"
+
+#: templates/admin/instruments/form.html:87
+#: templates/admin/instruments/form.html:133
+#: templates/admin/instruments/list.html:67
+#: templates/admin/instruments/list.html:113
+msgid "Cycle Status"
+msgstr "Estado de ciclo"
+
+#: templates/admin/instruments/form.html:98
+#: templates/admin/instruments/list.html:76
+#: templates/admin/instruments/list.html:114
+msgid "Active Status"
+msgstr "Estado activo"
+
+#: templates/admin/instruments/form.html:110
+msgid "Change reason"
+msgstr "Motivo del cambio"
+
+#: templates/admin/instruments/form.html:113
+msgid "Required when cycle status or active status changes."
+msgstr "Obligatorio cuando cambia el estado de ciclo o el estado activo."
+
+#: templates/admin/instruments/form.html:114
+msgid "Required when cycle status or active status changes. Logged in cycle history and access audit."
+msgstr "Obligatorio cuando cambia el estado de ciclo o el estado activo. Se registra en el historial de ciclo y en la auditoría de acceso."
+
+#: templates/admin/instruments/form.html:120 templates/base.html:84
+msgid "Save Instrument"
+msgstr "Guardar instrumento"
+
+#: templates/admin/instruments/form.html:127
+msgid "Recent cycle events"
+msgstr "Eventos de ciclo recientes"
+
+#: templates/admin/instruments/form.html:132
+#: templates/supervisor/sessions/rf_details.html:178
+msgid "When"
+msgstr "Cuándo"
+
+#: templates/admin/instruments/form.html:134
+#: templates/operator/sessions/manual_report.html:37
+#: templates/operator/sessions/vision_validation_rf.html:47
+#: templates/supervisor/discrepancies/_review_resolution.html:84
+#: templates/supervisor/sessions/rf_review.html:117
+msgid "Notes"
+msgstr "Notas"
+
+#: templates/admin/instruments/list.html:38
+msgid "Manage individual surgical instruments registered in the system."
+msgstr "Administra los instrumentos quirúrgicos individuales registrados en el sistema."
+
+#: templates/admin/instruments/list.html:50
+msgid "Search Instruments"
+msgstr "Buscar instrumentos"
+
+#: templates/admin/instruments/list.html:54
+msgid "Search instruments..."
+msgstr "Buscar instrumentos..."
+
+#: templates/admin/instruments/list.html:58
+#: templates/admin/instruments/list.html:111
+#: templates/supervisor/discrepancies/_review_overview.html:71
+#: templates/supervisor/discrepancies/list.html:108
+msgid "Type"
+msgstr "Tipo"
+
+#: templates/admin/instruments/list.html:60
+msgid "Type: All"
+msgstr "Tipo: todos"
+
+#: templates/admin/instruments/list.html:69
+msgid "Cycle: All"
+msgstr "Ciclo: todos"
+
+#: templates/admin/instruments/list.html:91
 #, python-format
 msgid "Viewing %(shown)s out of %(total)s instruments"
 msgstr "Viendo %(shown)s de %(total)s instrumentos"
 
-#: templates/admin/instruments/list.html:101 templates/admin/kits/list.html:90
+#: templates/admin/instruments/list.html:97 templates/admin/kits/list.html:90
 msgid "Per page"
 msgstr "Por página"
 
-#: templates/admin/instruments/list.html:136
+#: templates/admin/instruments/list.html:132
 msgid "No instruments match the current filters."
 msgstr "Ningún instrumento coincide con los filtros actuales."
 
+#: templates/admin/kits/form.html:14
+msgid "Edit Kit"
+msgstr "Editar kit"
+
+#: templates/admin/kits/form.html:14 templates/admin/kits/list.html:41
+msgid "New Kit"
+msgstr "Nuevo kit"
+
 #: templates/admin/kits/form.html:15
 #, python-format
-msgid "Configure composition and general characteristics for %(name)s. Saving creates a new version."
-msgstr "Configura la composición y las características generales de %(name)s. Al guardar se crea una nueva versión."
+msgid "Configure composition and general characteristics for %(name)s."
+msgstr "Configura la composición y las características generales de %(name)s."
 
 #: templates/admin/kits/form.html:15
 msgid "Create a surgical instrument kit and define its expected composition."
@@ -3214,15 +3285,14 @@ msgid "Kit Name"
 msgstr "Nombre del kit"
 
 #: templates/admin/kits/form.html:58 templates/admin/kits/list.html:104
-#: templates/admin/vision_models/list.html:75
-#: templates/components/modals/activate_vision_model.html:32
+#: templates/admin/vision_models/list.html:68
+#: templates/components/modals/activate_vision_model.html:31
 msgid "Version"
 msgstr "Versión"
 
 #: templates/admin/kits/form.html:61
-#, python-format
-msgid "Saving creates version %(next)s and retires this version."
-msgstr "Al guardar se crea la versión %(next)s y se retira esta versión."
+msgid "Any change saves a new version and retires this one; sessions already started keep their own copy."
+msgstr "Cualquier cambio guarda una nueva versión y retira esta; las sesiones ya iniciadas conservan su propia copia."
 
 #: templates/admin/kits/form.html:76
 msgid "Kit Composition"
@@ -3243,10 +3313,10 @@ msgid "Availability"
 msgstr "Disponibilidad"
 
 #: templates/admin/kits/form.html:88 templates/admin/kits/form.html:111
-#: templates/admin/procedures/form.html:102
-#: templates/admin/procedures/form.html:129
-#: templates/admin/vision_models/form.html:138
-#: templates/admin/vision_models/form.html:153 templates/base.html:54
+#: templates/admin/procedures/form.html:89
+#: templates/admin/procedures/form.html:116
+#: templates/admin/vision_models/form.html:133
+#: templates/admin/vision_models/form.html:148 templates/base.html:54
 #: templates/supervisor/sessions/inventory_edit.html:135
 #: templates/supervisor/sessions/inventory_edit.html:156
 #: templates/supervisor/sessions/inventory_edit.html:195
@@ -3319,104 +3389,83 @@ msgstr "Tipos de procedimiento"
 msgid "No kits match the current filters."
 msgstr "Ningún kit coincide con los filtros actuales."
 
-#: templates/admin/procedures/form.html:27
-msgid "Delivery Kit"
-msgstr "Delivery Kit"
+#: templates/admin/procedures/form.html:30
+msgid "Edit Procedure"
+msgstr "Editar procedimiento"
 
-#: templates/admin/procedures/form.html:28
-msgid "Suture Kit"
-msgstr "Suture Kit"
+#: templates/admin/procedures/form.html:30
+#: templates/admin/procedures/list.html:32
+msgid "New Procedure"
+msgstr "Nuevo procedimiento"
 
-#: templates/admin/procedures/form.html:29
-msgid "General Surgery Kit"
-msgstr "General Surgery Kit"
-
-#: templates/admin/procedures/form.html:32
-#: templates/supervisor/sessions/_details_overview.html:33
-msgid "Pre-Procedure"
-msgstr "Preprocedimiento"
-
-#: templates/admin/procedures/form.html:33
-#: templates/supervisor/sessions/_details_overview.html:37
-msgid "Post-Procedure"
-msgstr "Posprocedimiento"
-
-#: templates/admin/procedures/form.html:36
-msgid "Standard"
-msgstr "Estándar"
-
-#: templates/admin/procedures/form.html:37
-msgid "Alternative"
-msgstr "Alternativa"
-
-#: templates/admin/procedures/form.html:44
+#: templates/admin/procedures/form.html:31
 msgid "Update the procedure, associated kits, and counting phases."
 msgstr "Actualiza el procedimiento, los kits asociados y las fases de conteo."
 
-#: templates/admin/procedures/form.html:44
+#: templates/admin/procedures/form.html:31
 msgid "Register a surgical procedure and configure its available kits and counting phases."
 msgstr "Registra un procedimiento quirúrgico y configura sus kits disponibles y fases de conteo."
 
-#: templates/admin/procedures/form.html:76
+#: templates/admin/procedures/form.html:63
 msgid "Procedure Information"
 msgstr "Información del procedimiento"
 
-#: templates/admin/procedures/form.html:79
+#: templates/admin/procedures/form.html:66
 msgid "Procedure Code"
 msgstr "Código del procedimiento"
 
-#: templates/admin/procedures/form.html:83
+#: templates/admin/procedures/form.html:70
 msgid "Procedure Name"
 msgstr "Nombre del procedimiento"
 
-#: templates/admin/procedures/form.html:90
-#: templates/admin/procedures/list.html:60
+#: templates/admin/procedures/form.html:77
+#: templates/admin/procedures/list.html:61
 msgid "Associated Kits"
 msgstr "Kits asociados"
 
-#: templates/admin/procedures/form.html:96
+#: templates/admin/procedures/form.html:83
 msgid "Technique Label"
 msgstr "Etiqueta de técnica"
 
-#: templates/admin/procedures/form.html:97
+#: templates/admin/procedures/form.html:84
 msgid "Default"
 msgstr "Predeterminado"
 
-#: templates/admin/procedures/form.html:136
+#: templates/admin/procedures/form.html:123
 msgid "Only one associated kit can be the Default Kit."
 msgstr "Solo un kit asociado puede ser el kit predeterminado."
 
-#: templates/admin/procedures/form.html:139
+#: templates/admin/procedures/form.html:126
 msgid "Add Kit"
 msgstr "Agregar kit"
 
-#: templates/admin/procedures/form.html:144
-#: templates/admin/procedures/list.html:62
+#: templates/admin/procedures/form.html:131
+#: templates/admin/procedures/list.html:63
 msgid "Counting Phases"
 msgstr "Fases de conteo"
 
-#: templates/admin/procedures/form.html:149
+#: templates/admin/procedures/form.html:136
 #: templates/operator/sessions/capture_rf.html:135
 msgid "Phase"
 msgstr "Fase"
 
-#: templates/admin/procedures/form.html:150
+#: templates/admin/procedures/form.html:137
 msgid "Count Required"
 msgstr "Conteo obligatorio"
 
-#: templates/admin/procedures/form.html:151
+#: templates/admin/procedures/form.html:138
 msgid "Order"
 msgstr "Orden"
 
-#: templates/admin/procedures/form.html:186
+#: templates/admin/procedures/form.html:173
 msgid "Order determines the sequence of counting phases."
 msgstr "El orden determina la secuencia de las fases de conteo."
 
-#: templates/admin/procedures/form.html:189
+#: templates/admin/procedures/form.html:176
 msgid "Add Phase"
 msgstr "Agregar fase"
 
-#: templates/admin/procedures/form.html:195
+#: templates/admin/procedures/form.html:182
 msgid "Save Procedure"
 msgstr "Guardar procedimiento"
 
@@ -3425,57 +3474,46 @@ msgid "Manage surgical procedures, associated kits, and configured counting phas
 msgstr "Administra los procedimientos quirúrgicos, los kits asociados y las fases de conteo configuradas."
 
 #: templates/admin/procedures/list.html:37
-#: templates/admin/procedures/list.html:42
+#: templates/admin/procedures/list.html:40
 msgid "Search Procedures"
 msgstr "Buscar procedimientos"
 
-#: templates/admin/procedures/list.html:46
+#: templates/admin/procedures/list.html:44
 msgid "Search procedures..."
 msgstr "Buscar procedimientos..."
 
-#: templates/admin/procedures/list.html:59
-#: templates/components/modals/approve_review.html:29
-#: templates/components/modals/close_session.html:30
-#: templates/components/modals/close_session_v3.html:31
-#: templates/operator/sessions/_context_bar.html:14
-#: templates/operator/sessions/active.html:51
-#: templates/operator/sessions/awaiting_review.html:61
-#: templates/operator/sessions/begin.html:82
-#: templates/operator/sessions/correction_requested.html:60
-#: templates/operator/sessions/history.html:57
-#: templates/operator/sessions/history.html:126
-#: templates/operator/sessions/list.html:98
-#: templates/supervisor/discrepancies/_review_overview.html:9
-#: templates/supervisor/sessions/_details_overview.html:7
-#: templates/supervisor/sessions/inventory_edit.html:68
-#: templates/supervisor/sessions/rf_details.html:370
-#: templates/supervisor/sessions/schedule.html:96
-msgid "Procedure"
-msgstr "Procedimiento"
-
-#: templates/admin/procedures/list.html:61
+#: templates/admin/procedures/list.html:62
 msgid "Default Kit"
 msgstr "Kit predeterminado"
 
-#: templates/admin/procedures/list.html:71
+#: templates/admin/procedures/list.html:72
 #, python-format
 msgid "%(count)s Kit(s)"
 msgstr "%(count)s kit(s)"
 
-#: templates/admin/procedures/list.html:84
+#: templates/admin/procedures/list.html:81
+msgid "No procedures match the current filters."
+msgstr "Ningún procedimiento coincide con los filtros actuales."
+
+#: templates/admin/procedures/list.html:88
 #, python-format
 msgid "Showing %(shown)s of %(total)s procedures"
 msgstr "Mostrando %(shown)s de %(total)s procedimientos"
 
+#: templates/admin/roles/edit.html:16 templates/admin/roles/edit.html:36
+#: templates/admin/roles/form.html:23
+msgid "Edit Role"
+msgstr "Editar rol"
+
 #: templates/admin/roles/edit.html:25 templates/admin/roles/form.html:34
-#: templates/admin/roles/list.html:13 templates/admin/users/form.html:50
+#: templates/admin/roles/list.html:13 templates/admin/users/form.html:44
 #: templates/admin/users/list.html:13 templates/partials/sidebar_admin.html:77
 msgid "Administration"
 msgstr "Administración"
 
 #: templates/admin/roles/edit.html:27 templates/admin/roles/form.html:36
 #: templates/admin/roles/list.html:4 templates/admin/roles/list.html:15
-#: templates/admin/roles/list.html:25 templates/partials/sidebar_admin.html:92
+#: templates/admin/roles/list.html:27 templates/partials/sidebar_admin.html:92
 msgid "Roles"
 msgstr "Roles"
 
@@ -3491,29 +3529,24 @@ msgstr "Código del rol"
 msgid "Role Name"
 msgstr "Nombre del rol"
 
-#: templates/admin/roles/edit.html:52 templates/admin/roles/form.html:81
-#: templates/admin/roles/list.html:55
+#: templates/admin/roles/edit.html:52 templates/admin/roles/form.html:83
+#: templates/admin/roles/list.html:58
 #: templates/supervisor/sessions/rf_review.html:43
 msgid "Description"
 msgstr "Descripción"
 
-#: templates/admin/roles/edit.html:67 templates/admin/roles/form.html:87
-#: templates/admin/roles/list.html:57
+#: templates/admin/roles/edit.html:67 templates/admin/roles/form.html:89
+#: templates/admin/roles/list.html:60
 msgid "Assigned Users"
 msgstr "Usuarios asignados"
 
-#: templates/admin/roles/edit.html:74 templates/admin/roles/form.html:94
+#: templates/admin/roles/edit.html:74 templates/admin/roles/form.html:96
 msgid "Save Role"
 msgstr "Guardar rol"
 
-#: templates/admin/roles/form.html:21
-msgid "Manages instrument traceability, counting sessions, and operational validation."
-msgstr "Gestiona la trazabilidad de instrumentos, las sesiones de conteo y la validación operativa."
-
-#: templates/admin/roles/form.html:21 templates/admin/users/form.html:31
-#: templates/admin/users/list.html:63
-msgid "Hospital Institution"
-msgstr "Hospital Institution"
+#: templates/admin/roles/form.html:23 templates/admin/roles/list.html:32
+msgid "New Role"
+msgstr "Nuevo rol"
 
 #: templates/admin/roles/form.html:46
 msgid "Configure code, description, institution, and assigned users for this system role."
@@ -3527,7 +3560,19 @@ msgstr "Registra un nuevo rol del sistema y su descripción."
 msgid "Current Role Codes"
 msgstr "Códigos de rol actuales"
 
-#: templates/admin/roles/list.html:26
+#: templates/admin/roles/form.html:73
+msgid "Lowercase letters, numbers and underscores (for example: quality_auditor)."
+msgstr "Letras minúsculas, números y guiones bajos (por ejemplo: quality_auditor)."
+
+#: templates/admin/roles/form.html:103 templates/admin/roles/form.html:111
+msgid "Delete Role"
+msgstr "Eliminar rol"
+
+#: templates/admin/roles/form.html:109
+msgid "This role has no assigned users and can be deleted. The deletion is recorded in the audit log."
+msgstr "Este rol no tiene usuarios asignados y se puede eliminar. La eliminación queda registrada en la bitácora de auditoría."
+
+#: templates/admin/roles/list.html:28
 msgid "Manage the roles available in the system."
 msgstr "Administra los roles disponibles en el sistema."
 
@@ -3539,64 +3584,90 @@ msgstr "Buscar roles"
 msgid "Search roles..."
 msgstr "Buscar roles..."
 
-#: templates/admin/roles/list.html:69
+#: templates/admin/roles/list.html:72
 msgid "View / Edit"
 msgstr "Ver / Editar"
 
-#: templates/admin/roles/list.html:76
+#: templates/admin/roles/list.html:77
+msgid "No roles match the current filters."
+msgstr "Ningún rol coincide con los filtros actuales."
+
+#: templates/admin/roles/list.html:83
 #, python-format
 msgid "Showing %(shown)s of %(total)s roles"
 msgstr "Mostrando %(shown)s de %(total)s roles"
 
-#: templates/admin/users/form.html:39
+#: templates/admin/users/form.html:32
+msgid "Edit User"
+msgstr "Editar usuario"
+
+#: templates/admin/users/form.html:32 templates/admin/users/list.html:34
+msgid "New User"
+msgstr "Nuevo usuario"
+
+#: templates/admin/users/form.html:33
 msgid "Update user information and assigned role."
 msgstr "Actualiza la información del usuario y el rol asignado."
 
-#: templates/admin/users/form.html:39
+#: templates/admin/users/form.html:33
 msgid "Create an authorized system user and assign a role."
 msgstr "Crea un usuario autorizado del sistema y asígnale un rol."
 
-#: templates/admin/users/form.html:52 templates/admin/users/list.html:4
+#: templates/admin/users/form.html:46 templates/admin/users/list.html:4
 #: templates/admin/users/list.html:15 templates/admin/users/list.html:29
 #: templates/partials/sidebar_admin.html:84
 msgid "Users"
 msgstr "Usuarios"
 
-#: templates/admin/users/form.html:75
+#: templates/admin/users/form.html:69
 msgid "Enter full name"
 msgstr "Ingresa el nombre completo"
 
-#: templates/admin/users/form.html:78 templates/auth/sign_in.html:33
+#: templates/admin/users/form.html:72 templates/auth/sign_in.html:33
 #: templates/shared/profile.html:106
 msgid "Institutional Email"
 msgstr "Correo institucional"
 
-#: templates/admin/users/form.html:80
+#: templates/admin/users/form.html:74
 msgid "Enter institutional email address"
 msgstr "Ingresa el correo electrónico institucional"
 
-#: templates/admin/users/form.html:94 templates/admin/users/list.html:85
+#: templates/admin/users/form.html:80
+msgid "Select an institution"
+msgstr "Selecciona una institución"
+
+#: templates/admin/users/form.html:89 templates/admin/users/list.html:88
 msgid "Assigned Roles"
 msgstr "Roles asignados"
 
-#: templates/admin/users/form.html:108 templates/auth/sign_in.html:42
+#: templates/admin/users/form.html:103 templates/auth/sign_in.html:42
 msgid "Password"
 msgstr "Contraseña"
 
-#: templates/admin/users/form.html:110
-msgid "Set the initial password for this user."
-msgstr "Define la contraseña inicial de este usuario."
+#: templates/admin/users/form.html:105
+msgid "Set the initial password for this user (at least 8 characters)."
+msgstr "Define la contraseña inicial de este usuario (al menos 8 caracteres)."
 
-#: templates/admin/users/form.html:113
+#: templates/admin/users/form.html:108
 msgid "Confirm Password"
 msgstr "Confirmar contraseña"
 
-#: templates/admin/users/form.html:132
+#: templates/admin/users/form.html:126
+#, python-format
+msgid "Last sign in: %(date)s"
+msgstr "Último inicio de sesión: %(date)s"
+
+#: templates/admin/users/form.html:127
+#, python-format
+msgid "Password last changed: %(date)s"
+msgstr "Último cambio de contraseña: %(date)s"
+
+#: templates/admin/users/form.html:129
 #: templates/components/modals/change_password.html:32
 msgid "Change Password"
 msgstr "Cambiar contraseña"
 
-#: templates/admin/users/form.html:136 templates/shared/profile.html:118
+#: templates/admin/users/form.html:133 templates/shared/profile.html:118
 msgid "Account Status"
 msgstr "Estado de la cuenta"
 
@@ -3605,11 +3676,19 @@ msgid "Deactivate this user to prevent system access while preserving historical
 msgstr "Desactiva a este usuario para impedir su acceso al sistema conservando sus registros históricos."
 
 #: templates/admin/users/form.html:139
-#: templates/components/modals/deactivate_user.html:40
+#: templates/components/modals/deactivate_user.html:41
 msgid "Deactivate User"
 msgstr "Desactivar usuario"
 
-#: templates/admin/users/form.html:146
+#: templates/admin/users/form.html:142
+msgid "This user is inactive and cannot sign in. Their historical records are preserved."
+msgstr "Este usuario está inactivo y no puede iniciar sesión. Sus registros históricos se conservan."
+
+#: templates/admin/users/form.html:144
+msgid "Reactivate User"
+msgstr "Reactivar usuario"
+
+#: templates/admin/users/form.html:152
 msgid "Save User"
 msgstr "Guardar usuario"
 
@@ -3617,76 +3696,80 @@ msgstr "Guardar usuario"
 msgid "Manage authorized system users and their assigned roles."
 msgstr "Administra los usuarios autorizados del sistema y sus roles asignados."
 
-#: templates/admin/users/list.html:43
+#: templates/admin/users/list.html:41
 msgid "Search Users"
 msgstr "Buscar usuarios"
 
-#: templates/admin/users/list.html:47
+#: templates/admin/users/list.html:45
 msgid "Search users..."
 msgstr "Buscar usuarios..."
 
-#: templates/admin/users/list.html:53
+#: templates/admin/users/list.html:51
 msgid "Role: All"
 msgstr "Rol: todos"
 
-#: templates/admin/users/list.html:62
+#: templates/admin/users/list.html:60
 msgid "Institution: All"
 msgstr "Institución: todas"
 
-#: templates/admin/users/list.html:83
+#: templates/admin/users/list.html:86
 msgid "Email"
 msgstr "Correo electrónico"
 
-#: templates/admin/users/list.html:112
+#: templates/admin/users/list.html:89
+msgid "Last Sign In"
+msgstr "Último inicio de sesión"
+
+#: templates/admin/users/list.html:117
 msgid "No users found."
 msgstr "No se encontraron usuarios."
 
-#: templates/admin/users/list.html:120
+#: templates/admin/users/list.html:124
 #, python-format
 msgid "Showing %(shown)s of %(total)s users"
 msgstr "Mostrando %(shown)s de %(total)s usuarios"
 
-#: templates/admin/vision_models/form.html:30
-#: templates/admin/vision_models/form.html:35
-msgid "Allis Tissue Forceps"
-msgstr "Allis Tissue Forceps"
+#: templates/admin/vision_models/form.html:29
+msgid "Edit Vision Model"
+msgstr "Editar modelo de visión"
 
-#: templates/admin/vision_models/form.html:38
+#: templates/admin/vision_models/form.html:29
+#: templates/admin/vision_models/list.html:34
+msgid "New Vision Model"
+msgstr "Nuevo modelo de visión"
+
+#: templates/admin/vision_models/form.html:30
 msgid "Update model settings and instrument class mappings."
 msgstr "Actualiza la configuración del modelo y el mapeo de clases de instrumentos."
 
-#: templates/admin/vision_models/form.html:38
+#: templates/admin/vision_models/form.html:30
 msgid "Register a computer vision model version and its instrument class mappings."
 msgstr "Registra una versión de modelo de visión por computadora y su mapeo de clases de instrumentos."
 
-#: templates/admin/vision_models/form.html:69
+#: templates/admin/vision_models/form.html:61
 msgid "Current Active Model"
 msgstr "Modelo activo actual"
 
-#: templates/admin/vision_models/form.html:70
-msgid "Warning: the historical version number must not be silently overwritten."
-msgstr "Advertencia: el número de versión histórico no debe sobrescribirse sin aviso."
-
-#: templates/admin/vision_models/form.html:77
+#: templates/admin/vision_models/form.html:72
 msgid "Model Information"
 msgstr "Información del modelo"
 
-#: templates/admin/vision_models/form.html:80
+#: templates/admin/vision_models/form.html:75
 msgid "Version Tag"
 msgstr "Etiqueta de versión"
 
-#: templates/admin/vision_models/form.html:89
-#: templates/admin/vision_models/form.html:120
-#: templates/admin/vision_models/list.html:78
+#: templates/admin/vision_models/form.html:84
+#: templates/admin/vision_models/form.html:115
+#: templates/admin/vision_models/list.html:71
 msgid "Published At"
 msgstr "Publicado el"
 
-#: templates/admin/vision_models/form.html:94
-#: templates/admin/vision_models/form.html:170
+#: templates/admin/vision_models/form.html:89
+#: templates/admin/vision_models/form.html:165
 msgid "Model Asset Reference"
 msgstr "Referencia del archivo del modelo"
 
-#: templates/admin/vision_models/form.html:103
+#: templates/admin/vision_models/form.html:98
 #: templates/operator/sessions/details.html:98
 #: templates/operator/sessions/details.html:99
 #: templates/operator/sessions/validation_summary.html:167
@@ -3694,79 +3777,79 @@ msgstr "Referencia del archivo del modelo"
 msgid "Yes"
 msgstr "Sí"
 
-#: templates/admin/vision_models/form.html:103
+#: templates/admin/vision_models/form.html:98
 #: templates/operator/sessions/details.html:98
 #: templates/operator/sessions/details.html:99
 #: templates/supervisor/sessions/rf_details.html:371
 msgid "No"
 msgstr "No"
 
-#: templates/admin/vision_models/form.html:107
+#: templates/admin/vision_models/form.html:102
 msgid "Activate this model on save"
 msgstr "Activar este modelo al guardar"
 
-#: templates/admin/vision_models/form.html:113
-#: templates/admin/vision_models/form.html:174
-#: templates/admin/vision_models/list.html:79
-#: templates/components/modals/activate_vision_model.html:35
+#: templates/admin/vision_models/form.html:108
+#: templates/admin/vision_models/form.html:169
+#: templates/admin/vision_models/list.html:72
+#: templates/components/modals/activate_vision_model.html:34
 msgid "Checksum"
 msgstr "Suma de verificación"
 
-#: templates/admin/vision_models/form.html:121
+#: templates/admin/vision_models/form.html:116
 msgid "Generated when the model is published or activated"
 msgstr "Se genera cuando el modelo se publica o se activa"
 
-#: templates/admin/vision_models/form.html:128
+#: templates/admin/vision_models/form.html:123
 msgid "Map YOLO class identifiers to registered instrument families."
 msgstr "Asocia los identificadores de clase YOLO con las familias de instrumentos registradas."
 
-#: templates/admin/vision_models/form.html:133
+#: templates/admin/vision_models/form.html:128
 msgid "YOLO Class ID"
 msgstr "ID de clase YOLO"
 
-#: templates/admin/vision_models/form.html:162
+#: templates/admin/vision_models/form.html:157
 msgid "Add Class Mapping"
 msgstr "Agregar asociación de clase"
 
-#: templates/admin/vision_models/form.html:168
+#: templates/admin/vision_models/form.html:163
 msgid "Model Reference"
 msgstr "Referencia del modelo"
 
-#: templates/admin/vision_models/form.html:182
+#: templates/admin/vision_models/form.html:178
+#: templates/components/modals/activate_vision_model.html:42
+msgid "Activate Model"
+msgstr "Activar modelo"
+
+#: templates/admin/vision_models/form.html:180
 msgid "Save Vision Model"
 msgstr "Guardar modelo de visión"
 
-#: templates/admin/vision_models/list.html:29
-#: templates/components/modals/activate_vision_model.html:20
-msgid "11 Classes"
-msgstr "11 clases"
-
 #: templates/admin/vision_models/list.html:30
-msgid "10 Classes"
-msgstr "10 clases"
-
-#: templates/admin/vision_models/list.html:38
 msgid "Manage computer vision model versions used for AI-assisted instrument counting."
 msgstr "Administra las versiones del modelo de visión por computadora usadas para el conteo de instrumentos asistido por IA."
 
-#: templates/admin/vision_models/list.html:51
+#: templates/admin/vision_models/list.html:41
 msgid "Search Models"
 msgstr "Buscar modelos"
 
-#: templates/admin/vision_models/list.html:55
+#: templates/admin/vision_models/list.html:45
 msgid "Search models..."
 msgstr "Buscar modelos..."
 
-#: templates/admin/vision_models/list.html:76
-#: templates/components/modals/activate_vision_model.html:33
+#: templates/admin/vision_models/list.html:69
+#: templates/components/modals/activate_vision_model.html:32
 msgid "Classes"
 msgstr "Clases"
 
-#: templates/admin/vision_models/list.html:93
+#: templates/admin/vision_models/list.html:86
 msgid "Activate"
 msgstr "Activar"
 
-#: templates/admin/vision_models/list.html:102
+#: templates/admin/vision_models/list.html:93
+msgid "No vision models match the current filters."
+msgstr "Ningún modelo de visión coincide con los filtros actuales."
+
+#: templates/admin/vision_models/list.html:99
 #, python-format
 msgid "Showing %(shown)s of %(total)s models"
 msgstr "Mostrando %(shown)s de %(total)s modelos"
@@ -3985,25 +4068,21 @@ msgstr "¿Crear instrumento?"
 msgid "Evidence image not available"
 msgstr "Imagen de evidencia no disponible"
 
-#: templates/components/modals/activate_vision_model.html:26
+#: templates/components/modals/activate_vision_model.html:25
 msgid "Activate Vision Model?"
 msgstr "¿Activar el modelo de visión?"
 
-#: templates/components/modals/activate_vision_model.html:28
+#: templates/components/modals/activate_vision_model.html:27
 msgid "This version will become the active model used for new AI-assisted counting sessions."
 msgstr "Esta versión se convertirá en el modelo activo para las nuevas sesiones de conteo asistidas por IA."
 
-#: templates/components/modals/activate_vision_model.html:34
+#: templates/components/modals/activate_vision_model.html:33
 msgid "Model Asset"
 msgstr "Archivo del modelo"
 
-#: templates/components/modals/activate_vision_model.html:38
+#: templates/components/modals/activate_vision_model.html:37
 msgid "Historical counting sessions will retain the model version originally used."
 msgstr "Las sesiones de conteo históricas conservarán la versión del modelo que usaron originalmente."
-
-#: templates/components/modals/activate_vision_model.html:42
-msgid "Activate Model"
-msgstr "Activar modelo"
 
 #: templates/components/modals/approve_review.html:17
 msgid "Confirm Resolution Validation"
@@ -4088,16 +4167,16 @@ msgstr "Confirmo el resultado final de la sesión y reconozco que esta revisión
 msgid "Confirm Resolution"
 msgstr "Confirmar resolución"
 
-#: templates/components/modals/change_password.html:13
+#: templates/components/modals/change_password.html:12
 #: templates/components/modals/deactivate_user.html:15
 msgid "this user"
 msgstr "este usuario"
 
-#: templates/components/modals/change_password.html:18
+#: templates/components/modals/change_password.html:17
 msgid "Change User Password"
 msgstr "Cambiar contraseña del usuario"
 
-#: templates/components/modals/change_password.html:20
+#: templates/components/modals/change_password.html:19
 #, python-format
 msgid "Set a new password for %(name)s. The user will need to use this password for their next sign in."
 msgstr "Define una nueva contraseña para %(name)s. El usuario deberá usarla en su próximo inicio de sesión."
@@ -4228,38 +4307,6 @@ msgstr "Marcar como Revisada – Sin resolver"
 msgid "Record the unresolved review outcome and reason for keeping this case open."
 msgstr "Registra el resultado de la revisión sin resolver y el motivo para mantener abierto este caso."
 
-#: templates/components/modals/mark_unresolved.html:24
-#: templates/operator/sessions/active.html:74
-#: templates/operator/sessions/ai_detection.html:67
-#: templates/operator/sessions/awaiting_review.html:98
-#: templates/operator/sessions/begin.html:156
-#: templates/operator/sessions/begin.html:177
-#: templates/operator/sessions/capture.html:101
-#: templates/operator/sessions/capture_rf.html:187
-#: templates/operator/sessions/closed_details.html:107
-#: templates/operator/sessions/closed_details.html:134
-#: templates/operator/sessions/detection_summary_rf.html:54
-#: templates/operator/sessions/discrepancy.html:135
-#: templates/operator/sessions/manual_progress.html:41
-#: templates/operator/sessions/manual_report.html:33
-#: templates/operator/sessions/manual_report.html:87
-#: templates/operator/sessions/new.html:147
-#: templates/operator/sessions/validation.html:94
-#: templates/operator/sessions/validation_summary.html:90
-#: templates/operator/sessions/validation_summary.html:123
-#: templates/operator/sessions/vision_validation_rf.html:42
-#: templates/supervisor/discrepancies/_review_evidence.html:12
-#: templates/supervisor/discrepancies/_review_final.html:47
-#: templates/supervisor/discrepancies/_review_overview.html:66
-#: templates/supervisor/discrepancies/_review_resolution.html:79
-#: templates/supervisor/discrepancies/list.html:78
-#: templates/supervisor/discrepancies/list.html:105
-#: templates/supervisor/sessions/_details_activity.html:49
-#: templates/supervisor/sessions/_details_counts.html:10
-#: templates/supervisor/sessions/rf_review.html:110
-msgid "Instrument"
-msgstr "Instrumento"
-
 #: templates/components/modals/mark_unresolved.html:25
 #: templates/operator/sessions/active.html:75
 #: templates/operator/sessions/ai_detection.html:68
@@ -4336,6 +4383,29 @@ msgstr "Marcar este caso como Revisada – Sin resolver lo mantiene abierto en l
 msgid "Mark as Unresolved"
 msgstr "Marcar como sin resolver"
 
+#: templates/components/pagination.html:13
+#: templates/supervisor/audit_log.html:125
+#: templates/supervisor/discrepancies/list.html:140
+msgid "Pagination"
+msgstr "Paginación"
+
+#: templates/components/pagination.html:19
+#: templates/supervisor/audit_log.html:128
+msgid "Previous"
+msgstr "Anterior"
+
+#: templates/components/pagination.html:21
+#: templates/supervisor/audit_log.html:129
+#: templates/supervisor/discrepancies/list.html:143
+#, python-format
+msgid "Page %(current)s of %(total)s"
+msgstr "Página %(current)s de %(total)s"
+
+#: templates/components/pagination.html:23
+#: templates/supervisor/audit_log.html:130
+msgid "Next"
+msgstr "Siguiente"
+
 #: templates/components/pagination.html:32
 msgid "Go to:"
 msgstr "Ir a:"
@@ -4397,11 +4467,6 @@ msgstr "Sesiones activas"
 msgid "Closed Sessions"
 msgstr "Sesiones cerradas"
 
-#: templates/operator/dashboard.html:54
-#: templates/supervisor/discrepancies/_review_resolution.html:28
-msgid "Open Discrepancies"
-msgstr "Discrepancias abiertas"
-
 #: templates/operator/dashboard.html:59 templates/supervisor/dashboard.html:53
 msgid "Sessions by Day"
 msgstr "Sesiones por día"
@@ -4428,18 +4493,6 @@ msgstr "Sesiones de conteo recientes"
 msgid "Procedure / Operation"
 msgstr "Procedimiento / Operación"
 
-#: templates/operator/sessions/_context_bar.html:15
-#: templates/operator/sessions/active.html:52
-#: templates/operator/sessions/awaiting_review.html:62
-#: templates/operator/sessions/closed_details.html:73
-#: templates/operator/sessions/correction_requested.html:61
-#: templates/operator/sessions/new.html:74
-#: templates/supervisor/discrepancies/_review_overview.html:10
-#: templates/supervisor/sessions/_details_overview.html:8
-#: templates/supervisor/sessions/rf_details.html:61
-msgid "Patient"
-msgstr "Paciente"
-
 #: templates/operator/sessions/_context_bar.html:16
 #: templates/operator/sessions/begin.html:114
 #: templates/supervisor/discrepancies/_review_overview.html:43
@@ -4453,13 +4506,6 @@ msgstr "Equipo quirúrgico"
 #: templates/operator/sessions/active.html:56
 msgid "Station"
 msgstr "Estación"
-
-#: templates/operator/sessions/active.html:4
-#: templates/operator/sessions/active.html:15
-#: templates/operator/sessions/awaiting_review.html:23
-#: templates/operator/sessions/correction_requested.html:23
-msgid "Counting Session"
-msgstr "Sesión de conteo"
 
 #: templates/operator/sessions/active.html:53
 #: templates/operator/sessions/awaiting_review.html:63
@@ -4578,24 +4624,6 @@ msgstr "Referencia"
 msgid "Final Capture"
 msgstr "Captura final"
 
-#: templates/operator/sessions/ai_detection.html:50
-#: templates/operator/sessions/ai_detection.html:57
-#: templates/operator/sessions/begin.html:84
-#: templates/operator/sessions/capture.html:51
-#: templates/operator/sessions/closed_details.html:77
-#: templates/operator/sessions/discrepancy.html:195
-#: templates/operator/sessions/new.html:124
-#: templates/operator/sessions/validation.html:51
-#: templates/operator/sessions/validation.html:57
-#: templates/supervisor/discrepancies/_review_evidence.html:61
-#: templates/supervisor/discrepancies/_review_evidence.html:67
-#: templates/supervisor/discrepancies/_review_overview.html:13
-#: templates/supervisor/sessions/_details_counts.html:44
-#: templates/supervisor/sessions/_details_counts.html:51
-#: templates/supervisor/sessions/_details_overview.html:12
-msgid "Capture Station"
-msgstr "Estación de captura"
-
 #: templates/operator/sessions/ai_detection.html:51
 #: templates/operator/sessions/validation.html:52
 #: templates/supervisor/discrepancies/_review_evidence.html:62
@@ -4675,11 +4703,6 @@ msgstr "Los resultados de la IA son solo sugerencias. Continúa con la validaci�
 #: templates/supervisor/sessions/_details_counts.html:58
 msgid "AI Analysis Details"
 msgstr "Detalles del análisis de IA"
-
-#: templates/operator/sessions/ai_detection.html:125
-#: templates/supervisor/sessions/_details_counts.html:60
-msgid "Vision Model"
-msgstr "Modelo de visión"
 
 #: templates/operator/sessions/ai_detection.html:126
 #: templates/supervisor/sessions/_details_counts.html:61
@@ -5028,6 +5051,10 @@ msgstr "Captura"
 #: templates/operator/sessions/capture_rf.html:126
 msgid "Active capture"
 msgstr "Captura activa"
+
+#: templates/operator/sessions/capture_rf.html:141
+msgid "Unavailable"
+msgstr "No disponible"
 
 #: templates/operator/sessions/capture_rf.html:142
 msgid "You can retry after starting VisionWorker, or use the quantity report fallback."
@@ -5685,11 +5712,6 @@ msgstr "Fecha de cierre"
 msgid "Closed date contains…"
 msgstr "La fecha de cierre contiene…"
 
-#: templates/operator/sessions/history.html:111
-#: templates/operator/sessions/validation_summary.html:106
-msgid "Discrepancy"
-msgstr "Discrepancia"
-
 #: templates/operator/sessions/history.html:112
 #: templates/supervisor/discrepancies/_review_final.html:56
 msgid "Pending review"
@@ -5762,6 +5784,11 @@ msgstr "Avance manual"
 #: templates/operator/sessions/manual_progress.html:22
 msgid "Manual progress (no live capture)"
 msgstr "Avance manual (sin captura en vivo)"
+
+#: templates/operator/sessions/manual_progress.html:26
+#: templates/supervisor/audit_log.html:103
+msgid "Details"
+msgstr "Detalles"
 
 #: templates/operator/sessions/manual_progress.html:27
 msgid "Proceed to quantity report"
@@ -6998,6 +7025,14 @@ msgstr "Estado PRE/POST procedimiento"
 msgid "Net Count Difference: %(diff)s"
 msgstr "Diferencia neta del conteo: %(diff)s"
 
+#: templates/supervisor/sessions/_details_overview.html:33
+msgid "Pre-Procedure"
+msgstr "Preprocedimiento"
+
+#: templates/supervisor/sessions/_details_overview.html:37
+msgid "Post-Procedure"
+msgstr "Posprocedimiento"
+
 #: templates/supervisor/sessions/_details_overview.html:38
 msgid "Counted/Validated Instruments"
 msgstr "Instrumentos contados/validados"
@@ -7415,4 +7450,181 @@ msgstr "Continuar sin aviso de privacidad"
 #: templates/supervisor/sessions/schedule.html:282
 msgid "Confirm notice & save"
 msgstr "Confirmar aviso y guardar"
+
+#~ msgid "Name and category are required."
+#~ msgstr "El nombre y la categoría son obligatorios."
+
+#~ msgid "Your account must be assigned to an institution before creating an instrument."
+#~ msgstr "Tu cuenta debe estar asignada a una institución antes de crear un instrumento."
+
+#~ msgid "Your assigned institution could not be found."
+#~ msgstr "No se encontró tu institución asignada."
+
+#~ msgid "Unable to save this instrument right now."
+#~ msgstr "No es posible guardar este instrumento en este momento."
+
+#~ msgid "Unable to save this instrument because it conflicts with existing data."
+#~ msgstr "No es posible guardar este instrumento porque entra en conflicto con datos existentes."
+
+#~ msgid "Choose a valid active status."
+#~ msgstr "Elige un estado activo válido."
+
+#~ msgid "Your account must be assigned to an institution before creating a kit."
+#~ msgstr "Tu cuenta debe estar asignada a una institución antes de crear un kit."
+
+#~ msgid "Unable to save this kit right now."
+#~ msgstr "No es posible guardar este kit en este momento."
+
+#~ msgid "Kit name must contain at most 160 characters."
+#~ msgstr "El nombre del kit debe tener como máximo 160 caracteres."
+
+#~ msgid "Kit composition rows are incomplete."
+#~ msgstr "Las filas de la composición del kit están incompletas."
+
+#~ msgid "Unable to save this procedure right now."
+#~ msgstr "No es posible guardar este procedimiento en este momento."
+
+#~ msgid "Associated kit rows are incomplete."
+#~ msgstr "Las filas de kits asociados están incompletas."
+
+#~ msgid "Counting phase rows are incomplete."
+#~ msgstr "Las filas de fases de conteo están incompletas."
+
+#~ msgid "Procedure row data is invalid."
+#~ msgstr "Los datos de las filas del procedimiento no son válidos."
+
+#~ msgid "Technique labels must contain at most 160 characters."
+#~ msgstr "Las etiquetas de técnica deben tener como máximo 160 caracteres."
+
+#~ msgid "Procedure code and name are required."
+#~ msgstr "El código y el nombre del procedimiento son obligatorios."
+
+#~ msgid "Procedure code must be at most 64 characters and name at most 200 characters."
+#~ msgstr "El código del procedimiento debe tener como máximo 64 caracteres y el nombre como máximo 200."
+
+#~ msgid "Choose a valid user status."
+#~ msgstr "Elige un estado de usuario válido."
+
+#~ msgid "Create an institution before adding a role."
+#~ msgstr "Crea una institución antes de agregar un rol."
+
+#~ msgid "Unable to save this role right now."
+#~ msgstr "No es posible guardar este rol en este momento."
+
+#~ msgid "Unable to save this role because it conflicts with existing data."
+#~ msgstr "No es posible guardar este rol porque entra en conflicto con datos existentes."
+
+#~ msgid "Role code is required."
+#~ msgstr "El código del rol es obligatorio."
+
+#~ msgid "Role code must contain at most 64 characters."
+#~ msgstr "El código del rol debe tener como máximo 64 caracteres."
+
+#~ msgid "Description must contain at most 255 characters."
+#~ msgstr "La descripción debe tener como máximo 255 caracteres."
+
+#~ msgid "New instrument registered"
+#~ msgstr "Nuevo instrumento registrado"
+
+#~ msgid "IT Administrator"
+#~ msgstr "Administrador de TI"
+
+#~ msgid "Delivery Kit composition updated"
+#~ msgstr "Composición de Delivery Kit actualizada"
+
+#~ msgid "Instrument YOLO v0.4.2 activated"
+#~ msgstr "Instrument YOLO v0.4.2 activado"
+
+#~ msgid "Event types:"
+#~ msgstr "Tipos de evento:"
+
+#~ msgid "OR-1"
+#~ msgstr "OR-1"
+
+#~ msgid "OR-2"
+#~ msgstr "OR-2"
+
+#~ msgid "OR-3"
+#~ msgstr "OR-3"
+
+#~ msgid "OR-4"
+#~ msgstr "OR-4"
+
+#~ msgid "Operating Room 2"
+#~ msgstr "Quirófano 2"
+
+#~ msgid "Operating Room 3"
+#~ msgstr "Quirófano 3"
+
+#~ msgid "Operating Room 4"
+#~ msgstr "Quirófano 4"
+
+#~ msgid "11 Active"
+#~ msgstr "11 activos"
+
+#~ msgid "8 Active"
+#~ msgstr "8 activos"
+
+#~ msgid "5 Active"
+#~ msgstr "5 activos"
+
+#~ msgid "3 Configured"
+#~ msgstr "3 configuradas"
+
+#~ msgid "18 min"
+#~ msgstr "18 min"
+
+#~ msgid "Look for serrated blades, straight or curved, with a locking ratchet mechanism near the finger rings. Kelly clamps have serrations on only the distal half of the jaws."
+#~ msgstr "Busca hojas estriadas, rectas o curvas, con un mecanismo de cremallera cerca de los anillos para los dedos. Las pinzas Kelly tienen estrías solo en la mitad distal de las mandíbulas."
+
+#~ msgid "Surgical grade stainless steel, serrated jaws, finger-ring handles with locking ratchet."
+#~ msgstr "Acero inoxidable de grado quirúrgico, mandíbulas estriadas, mangos de anillos con cremallera."
+
+#~ msgid "Clamping blood vessels"
+#~ msgstr "Pinzamiento de vasos sanguíneos"
+
+#~ msgid "Retracting"
+#~ msgstr "Retracción"
+
+#~ msgid "Kelly Clamp"
+#~ msgstr "Kelly Clamp"
+
+#~ msgid "Foerster Sponge Forceps"
+#~ msgstr "Foerster Sponge Forceps"
+
+#~ msgid "Mayo-Hegar Needle Holder"
+#~ msgstr "Mayo-Hegar Needle Holder"
+
+#~ msgid "Saving creates version %(next)s and retires this version."
+#~ msgstr "Al guardar se crea la versión %(next)s y se retira esta versión."
+
+#~ msgid "Delivery Kit"
+#~ msgstr "Delivery Kit"
+
+#~ msgid "Suture Kit"
+#~ msgstr "Suture Kit"
+
+#~ msgid "General Surgery Kit"
+#~ msgstr "General Surgery Kit"
+
+#~ msgid "Standard"
+#~ msgstr "Estándar"
+
+#~ msgid "Alternative"
+#~ msgstr "Alternativa"
+
+#~ msgid "Manages instrument traceability, counting sessions, and operational validation."
+#~ msgstr "Gestiona la trazabilidad de instrumentos, las sesiones de conteo y la validación operativa."
+
+#~ msgid "Allis Tissue Forceps"
+#~ msgstr "Allis Tissue Forceps"
+
+#~ msgid "Warning: the historical version number must not be silently overwritten."
+#~ msgstr "Advertencia: el número de versión histórico no debe sobrescribirse sin aviso."
+
+#~ msgid "11 Classes"
+#~ msgstr "11 clases"
+
+#~ msgid "10 Classes"
+#~ msgstr "10 clases"
 

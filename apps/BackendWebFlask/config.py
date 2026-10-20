@@ -48,6 +48,11 @@ class Config:
     AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', os.getenv('AUTH_URL', 'http://127.0.0.1:5001')).strip().rstrip('/')
     AUTH_BROWSER_URL = os.getenv('AUTH_BROWSER_URL', AUTH_SERVICE_URL).strip().rstrip('/')
     AUTH_SERVICE_TIMEOUT = float(os.getenv('AUTH_SERVICE_TIMEOUT', '5'))
+    # Administration microservice (apps/AdminService): catalogs, users, configuration, audit.
+    ADMIN_SERVICE_URL = os.getenv('ADMIN_SERVICE_URL', 'http://127.0.0.1:5003').strip().rstrip('/')
+    ADMIN_SERVICE_TIMEOUT = float(os.getenv('ADMIN_SERVICE_TIMEOUT', '10'))
+    # Timezone used to show dates coming from AdminService (it returns UTC).
+    ADMIN_DISPLAY_TIMEZONE = os.getenv('ADMIN_DISPLAY_TIMEZONE', 'America/Mexico_City')
     # i18n (Flask-Babel). English msgids are the source text; public locale codes are
     # i18n.SUPPORTED_LOCALES (en, es-MX), catalogs live in translations/<babel locale>/.
     BABEL_DEFAULT_LOCALE = 'en'
