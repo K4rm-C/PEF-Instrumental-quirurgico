@@ -5,14 +5,22 @@ import audit
 from database import db
 from errors import ApiError, bad_request, not_found
 from models import (
+    CaptureStation,
+    CatDiscrepancyReason,
+    CatEventType,
     CatInstrumentCycleStatus,
     CatSessionStatus,
+    CatProcedureType,
+    CountEvent,
     Discrepancy,
     Instrument,
     InstrumentCycleEvent,
     InstrumentReservation,
     InstrumentFamily,
+    Kit,
     Operation,
+    OperatingRoom,
+    User,
     WorkSession,
 )
 from services.sessions import _commit, _owned_session
@@ -26,10 +34,21 @@ def list_discrepancies(actor, *, status='', search='', page=1, per_page=20):
         raise bad_request('invalid_pagination', 'page and per_page must be integers.') from exc
 
     query = (
-        select(Discrepancy, WorkSession, InstrumentFamily)
+        select(
+            Discrepancy, WorkSession, InstrumentFamily, CatProcedureType,
+            OperatingRoom, User, Kit, CaptureStation, CatDiscrepancyReason, CatEventType.code,
+        )
         .join(WorkSession, WorkSession.id == Discrepancy.session_id)
         .join(Operation, Operation.id == WorkSession.operation_id)
         .outerjoin(InstrumentFamily, InstrumentFamily.id == Discrepancy.family_id)
+        .outerjoin(CatProcedureType, CatProcedureType.id == Operation.procedure_type_id)
+        .outerjoin(OperatingRoom, OperatingRoom.id == Operation.room_id)
+        .outerjoin(User, User.id == WorkSession.user_id)
+        .outerjoin(Kit, Kit.id == WorkSession.kit_id)
+        .outerjoin(CaptureStation, CaptureStation.id == WorkSession.station_id)
+        .outerjoin(CatDiscrepancyReason, CatDiscrepancyReason.id == Discrepancy.reason_id)
+        .outerjoin(CountEvent, CountEvent.id == Discrepancy.origin_event_id)
+        .outerjoin(CatEventType, CatEventType.id == CountEvent.event_type_id)
         .where(Operation.institution_id == actor.institution_id)
     )
     if status == 'open':
@@ -67,8 +86,12 @@ def list_discrepancies(actor, *, status='', search='', page=1, per_page=20):
             | WorkSession.id.cast(String).ilike(term)
         )
     total = int(db.scalar(total_query) or 0)
-    return {
-        'items': [{
+    items = []
+    for (
+        discrepancy, work, family, procedure, room, operator, kit, station, reason,
+        origin_event_type,
+    ) in rows:
+        items.append({
             'id': str(discrepancy.id),
             'session_id': str(work.id),
             'resolved': discrepancy.resolved,
@@ -77,8 +100,18 @@ def list_discrepancies(actor, *, status='', search='', page=1, per_page=20):
             'detected_quantity': discrepancy.detected_quantity,
             'family': {'id': str(family.id), 'code': family.code, 'name': family.name}
             if family else None,
+            'reason': {'id': str(reason.id), 'code': reason.code, 'name': reason.name} if reason else None,
+            'origin_event_type': origin_event_type,
+            'operator': {'id': str(operator.id), 'name': operator.name} if operator else None,
+            'procedure': {'id': str(procedure.id), 'code': procedure.code, 'name': procedure.name}
+            if procedure else None,
+            'room': {'id': str(room.id), 'code': room.code, 'name': room.name} if room else None,
+            'kit': {'id': str(kit.id), 'name': kit.name, 'version': kit.version} if kit else None,
+            'station': {'id': str(station.id), 'name': station.name} if station else None,
             'updated_at': discrepancy.updated_at.isoformat() if discrepancy.updated_at else None,
-        } for discrepancy, work, family in rows],
+        })
+    return {
+        'items': items,
         'page': page,
         'per_page': per_page,
         'total': total,

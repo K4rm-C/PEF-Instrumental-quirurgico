@@ -9,6 +9,7 @@ from database import db
 from errors import ApiError, bad_request, not_found
 from models import (
     CatEventType,
+    CatInstrumentCategory,
     CatInstrumentCycleStatus,
     CatOperationPhase,
     CatOperationStatus,
@@ -518,11 +519,16 @@ def list_sessions(actor, *, status='', search='', date_value='', page=1, per_pag
     except (TypeError, ValueError) as exc:
         raise bad_request('invalid_pagination', 'page and per_page must be integers.') from exc
     query = (
-        select(WorkSession, Operation, CatSessionStatus, OperatingRoom, CatProcedureType, User)
+        select(
+            WorkSession, Operation, CatSessionStatus, OperatingRoom, CatProcedureType, User,
+            Kit, CaptureStation,
+        )
         .join(Operation, Operation.id == WorkSession.operation_id)
         .join(CatSessionStatus, CatSessionStatus.id == WorkSession.status_id)
         .outerjoin(OperatingRoom, OperatingRoom.id == Operation.room_id)
         .outerjoin(CatProcedureType, CatProcedureType.id == Operation.procedure_type_id)
+        .outerjoin(Kit, Kit.id == WorkSession.kit_id)
+        .outerjoin(CaptureStation, CaptureStation.id == WorkSession.station_id)
         .join(User, User.id == WorkSession.user_id)
         .where(Operation.institution_id == actor.institution_id)
     )
@@ -563,18 +569,41 @@ def list_sessions(actor, *, status='', search='', date_value='', page=1, per_pag
             | OperatingRoom.name.ilike(term)
         )
     total = int(db.scalar(total_query) or 0)
-    items = [{
-        'id': str(work.id),
-        'session_id': str(work.id),
-        'status': state.code,
-        'scheduled_at': operation.scheduled_at.isoformat() if operation.scheduled_at else None,
-        'started_at': work.started_at.isoformat() if work.started_at else None,
-        'ended_at': work.ended_at.isoformat() if work.ended_at else None,
-        'operator': {'id': str(operator.id), 'name': operator.name},
-        'procedure': {'id': str(procedure.id), 'code': procedure.code, 'name': procedure.name}
-        if procedure else None,
-        'room': {'id': str(room.id), 'code': room.code, 'name': room.name} if room else None,
-    } for work, operation, state, room, procedure, operator in rows]
+    session_ids = [row[0].id for row in rows]
+    agreements = set(db.execute(
+        select(SessionProcessingAgreement.session_id)
+        .where(SessionProcessingAgreement.session_id.in_(session_ids))
+    ).scalars()) if session_ids else set()
+    discrepancy_counts = dict(db.execute(
+        select(Discrepancy.session_id, func.count(Discrepancy.id))
+        .where(
+            Discrepancy.session_id.in_(session_ids),
+            Discrepancy.resolved.is_(False),
+        )
+        .group_by(Discrepancy.session_id)
+    ).all()) if session_ids else {}
+    items = []
+    for work, operation, state, room, procedure, operator, kit, station in rows:
+        has_agreement = work.id in agreements
+        discrepancy_count = int(discrepancy_counts.get(work.id, 0))
+        items.append({
+            'id': str(work.id),
+            'session_id': str(work.id),
+            'status': state.code,
+            'capture_mode': work.capture_mode,
+            'has_privacy_agreement': has_agreement,
+            'discrepancy_count': discrepancy_count,
+            'updated_at': work.updated_at.isoformat() if work.updated_at else None,
+            'scheduled_at': operation.scheduled_at.isoformat() if operation.scheduled_at else None,
+            'started_at': work.started_at.isoformat() if work.started_at else None,
+            'ended_at': work.ended_at.isoformat() if work.ended_at else None,
+            'operator': {'id': str(operator.id), 'name': operator.name},
+            'procedure': {'id': str(procedure.id), 'code': procedure.code, 'name': procedure.name}
+            if procedure else None,
+            'room': {'id': str(room.id), 'code': room.code, 'name': room.name} if room else None,
+            'station': {'id': str(station.id), 'name': station.name} if station else None,
+            'kit': {'id': str(kit.id), 'name': kit.name, 'version': kit.version} if kit else None,
+        })
     return {
         'items': items,
         'page': page,
@@ -605,15 +634,18 @@ def get_session(actor, session_id):
         .order_by(Physician.name)
     ).all() if operation else []
     expected = db.execute(
-        select(ExpectedInventory, InstrumentFamily)
+        select(ExpectedInventory, InstrumentFamily, CatInstrumentCategory)
         .join(InstrumentFamily, InstrumentFamily.id == ExpectedInventory.family_id)
+        .outerjoin(CatInstrumentCategory, CatInstrumentCategory.id == InstrumentFamily.category_id)
         .where(ExpectedInventory.session_id == work.id)
         .order_by(InstrumentFamily.name)
     ).all()
     discrepancies = db.execute(
-        select(Discrepancy, InstrumentFamily, CatDiscrepancyReason)
+        select(Discrepancy, InstrumentFamily, CatDiscrepancyReason, CatEventType.code)
         .outerjoin(InstrumentFamily, InstrumentFamily.id == Discrepancy.family_id)
         .outerjoin(CatDiscrepancyReason, CatDiscrepancyReason.id == Discrepancy.reason_id)
+        .outerjoin(CountEvent, CountEvent.id == Discrepancy.origin_event_id)
+        .outerjoin(CatEventType, CatEventType.id == CountEvent.event_type_id)
         .where(Discrepancy.session_id == work.id)
         .order_by(Discrepancy.updated_at.desc())
     ).all()
@@ -628,6 +660,7 @@ def get_session(actor, session_id):
         select(SessionProcessingAgreement).where(SessionProcessingAgreement.session_id == work.id)
     )
     notice = db.get(PrivacyNoticeVersion, agreement.privacy_notice_version_id) if agreement else None
+    agreed_by = db.get(User, agreement.agreed_by_user_id) if agreement else None
     return {
         'id': str(work.id),
         'session_id': str(work.id),
@@ -650,10 +683,18 @@ def get_session(actor, session_id):
             'surgical_role': {'id': str(role.id), 'code': role.code, 'name': role.name},
         } for physician, role in team_rows],
         'expected_inventory': [{
-            'family': {'id': str(family.id), 'code': family.code, 'name': family.name},
+            'family': {
+                'id': str(family.id),
+                'code': family.code,
+                'name': family.name,
+                'category': ({
+                    'code': category.code,
+                    'name': category.name,
+                } if category else None),
+            },
             'expected_quantity': row.expected_quantity,
             'source': row.source,
-        } for row, family in expected],
+        } for row, family, category in expected],
         'discrepancies': [{
             'id': str(row.id),
             'description': row.description,
@@ -661,19 +702,25 @@ def get_session(actor, session_id):
             'resolved_at': row.resolved_at.isoformat() if row.resolved_at else None,
             'family': {'id': str(family.id), 'code': family.code, 'name': family.name} if family else None,
             'reason': {'id': str(reason.id), 'code': reason.code, 'name': reason.name} if reason else None,
+            'origin_event_type': origin_event_type,
             'expected_quantity': row.expected_quantity,
             'detected_quantity': row.detected_quantity,
-        } for row, family, reason in discrepancies],
+        } for row, family, reason, origin_event_type in discrepancies],
         'events': [{
             'id': str(event.id),
             'type': event_type.code,
             'occurred_at': event.occurred_at.isoformat(),
+            'family_id': str(event.family_id) if event.family_id else None,
+            'expected_quantity': event.expected_quantity,
+            'detected_quantity': event.detected_quantity,
             'payload': event.payload,
         } for event, event_type in events],
         'privacy_agreement': {
             'privacy_notice_version_id': str(notice.id),
             'version': notice.version,
+            'document_uri': notice.document_uri,
             'purpose_model_improvement': agreement.purpose_model_improvement,
             'agreed_at': agreement.agreed_at.isoformat(),
+            'agreed_by': agreed_by.name if agreed_by else None,
         } if agreement and notice else None,
     }

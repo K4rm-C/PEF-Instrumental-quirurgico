@@ -123,6 +123,95 @@ def test_spd_supervisor_only_reaches_catalogs(client, login, path, status):
     assert client.get(path).status_code == status
 
 
+def test_spd_catalog_operations_use_supervisor_service(client, login, supervisor_service, admin_service):
+    login(role='spd_supervisor')
+    response = client.get('/admin/instruments')
+    assert response.status_code == 200
+    assert ('GET', '/instruments') in [(method, path) for method, path, _, _ in supervisor_service.calls]
+    assert admin_service.calls == []
+
+
+def test_spd_kit_create_uses_supervisor_service(client, login, supervisor_service, admin_service):
+    login(role='spd_supervisor')
+    response = client.post('/admin/kits/new', data={
+        'name': 'SPD kit',
+        'status': 'active',
+        'instrument_family[]': [FAMILY_ID],
+        'expected_quantity[]': ['3'],
+    })
+    assert response.status_code == 302
+    method, path, _, payload = supervisor_service.calls[-1]
+    assert (method, path) == ('POST', '/kits')
+    assert payload['items'] == [{'family_id': FAMILY_ID, 'quantity': '3'}]
+    assert admin_service.calls == []
+
+
+def test_spd_schedule_posts_to_supervisor_service(client, login, supervisor_service, admin_service):
+    login(role='spd_supervisor')
+    response = client.post('/supervisor/sessions/new', data={
+        'operator_user_id': USER_ID,
+        'procedure_type_id': '33333333-3333-3333-3333-333333333333',
+        'room_id': '33333333-3333-3333-3333-333333333334',
+        'station_id': '33333333-3333-3333-3333-333333333335',
+        'kit_id': '33333333-3333-3333-3333-333333333336',
+        'scheduled_at': '2026-06-12T10:30',
+        'physician_id': '33333333-3333-3333-3333-333333333337',
+        'family_id[]': [FAMILY_ID],
+        'expected_quantity[]': ['2'],
+    })
+    assert response.status_code == 302
+    _, _, _, payload = next(
+        call for call in supervisor_service.calls if call[0] == 'POST' and call[1] == '/sessions'
+    )
+    assert payload['operator_user_id'] == USER_ID
+    assert payload['physicians'] == [{
+        'physician_id': '33333333-3333-3333-3333-333333333337',
+        'surgical_role_code': 'surgeon',
+    }]
+    assert payload['expected_lines'] == [{'family_id': FAMILY_ID, 'expected_quantity': 2}]
+    assert admin_service.calls == []
+
+
+def test_spd_session_detail_adapts_supervisor_service_payload(client, login, supervisor_service):
+    session_id = '33333333-3333-4333-8333-333333333333'
+    supervisor_service.responses[('GET', f'/sessions/{session_id}')] = {
+        'id': session_id,
+        'status': 'in_progress',
+        'capture_mode': 'vision',
+        'operator': {'id': USER_ID, 'name': 'SPD Operator'},
+        'procedure': {'id': '33333333-3333-4333-8333-333333333334',
+                      'code': 'lap_chole', 'name': 'Laparoscopic cholecystectomy'},
+        'room': {'id': '33333333-3333-4333-8333-333333333335', 'code': 'OR-1', 'name': 'Room 1'},
+        'station': {'id': '33333333-3333-4333-8333-333333333336', 'name': 'Station 1'},
+        'kit': {'id': '33333333-3333-4333-8333-333333333337', 'name': 'General kit', 'version': 1},
+        'scheduled_at': '2026-06-12T10:30:00+00:00',
+        'expected_inventory': [{
+            'family': {'id': FAMILY_ID, 'code': 'KELLY', 'name': 'Kelly forceps',
+                       'category': {'code': 'hemostasis', 'name': 'Hemostasis'}},
+            'expected_quantity': 2,
+            'source': 'kit_snapshot',
+        }],
+        'events': [{
+            'type': 'manual_count', 'occurred_at': '2026-06-12T10:45:00+00:00',
+            'family_id': FAMILY_ID, 'detected_quantity': 1,
+            'payload': {'reported_quantity': 1},
+        }],
+        'discrepancies': [],
+        'physicians': [],
+        'privacy_agreement': {'version': '1.0', 'agreed_at': '2026-06-12T10:31:00+00:00'},
+    }
+    login(role='spd_supervisor')
+    response = client.get(f'/supervisor/sessions/{session_id}')
+    page = html(response)
+    assert response.status_code == 200
+    assert 'Kelly forceps' in page
+    assert 'Laparoscopic cholecystectomy' in page
+    assert 'Shortfall' in page
+    assert ('GET', f'/sessions/{session_id}') in [
+        (method, path) for method, path, _, _ in supervisor_service.calls
+    ]
+
+
 def test_password_reset_and_deactivation_are_posts(client, login, admin_service):
     login(role='it_admin')
     client.post(f'/admin/users/{USER_ID}/password',

@@ -1,4 +1,4 @@
-from datetime import date, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import wraps
 from uuid import UUID
 
@@ -6,23 +6,29 @@ import requests
 from flask import Blueprint, abort, current_app, flash, g, jsonify, redirect, render_template, request, session, url_for
 from flask_babel import gettext, ngettext
 
+from clients import supervisor_service as supervisor_api
+from clients.supervisor_service import SupervisorServiceError
 from i18n import (
     LOCALE_COOKIE,
     LOCALE_COOKIE_MAX_AGE,
     N_,
+    discrepancy_source,
     is_supported_locale,
+    localize_discrepancy_description,
+    localize_db_label,
+    localize_db_text,
     resolve_locale,
 )
 
 from controllers.view_data import (
     PAST_OPERATOR_STATUS_CODES,
+    SESSION_STATUS_UI,
     dashboard_data,
-    discrepancies_data,
+    display_session_id,
     discrepancies_summary_data,
     operator_my_sessions,
     operator_session_detail,
     paginate_list,
-    supervisor_session_detail,
     sessions_data,
     session_discrepancies,
 )
@@ -137,6 +143,444 @@ def _context(**values):
 
 def _page(template, **values):
     return render_template(template, **_context(**values))
+
+
+def _supervisor_request(method, path, *, params=None, json=None):
+    try:
+        return supervisor_api.call(method, path, params=params, json=json)
+    except SupervisorServiceError as exc:
+        flash(exc.user_message, 'danger')
+        abort(exc.status if 400 <= exc.status < 600 else 503)
+
+
+def _supervisor_all(path, **params):
+    page = 1
+    items = []
+    while True:
+        result = _supervisor_request(
+            'GET', path, params={**params, 'page': page, 'per_page': 100},
+        )
+        items.extend(result.get('items') or [])
+        if page >= int(result.get('total_pages') or 1):
+            return items
+        page += 1
+
+
+def _supervisor_catalogs():
+    return _supervisor_request('GET', '/catalogs')
+
+
+def _supervisor_schedule_options():
+    catalogs = _supervisor_catalogs()
+    return {
+        'operators': catalogs.get('operators', []),
+        'procedures': catalogs.get('procedures', []),
+        'rooms': catalogs.get('rooms', []),
+        'stations': catalogs.get('stations', []),
+        'kits': catalogs.get('kits', []),
+        'patients': catalogs.get('patients', []),
+        'physicians': catalogs.get('physicians', []),
+        'surgical_roles': catalogs.get('surgical_roles', []),
+        'families': catalogs.get('families', []),
+        'privacy_notices': catalogs.get('privacy_notices', []),
+    }
+
+
+def _supervisor_kit_expected_lines(kit_id):
+    result = _supervisor_request('GET', f'/kits/{kit_id}/expected-inventory')
+    return result.get('items') or []
+
+
+def _display_service_datetime(raw):
+    if not raw:
+        return ''
+    try:
+        return datetime.fromisoformat(str(raw).replace('Z', '+00:00')).strftime('%Y-%m-%d %H:%M')
+    except ValueError:
+        return str(raw)
+
+
+def _supervisor_session_rows():
+    rows = []
+    for item in _supervisor_all('/sessions'):
+        status_code = item.get('status') or 'unknown'
+        status_label, status_variant = SESSION_STATUS_UI.get(
+            status_code, (N_('Unknown'), 'neutral'),
+        )
+        has_agreement = bool(item.get('has_privacy_agreement'))
+        if item.get('capture_mode') == 'vision' or (
+            item.get('capture_mode') is None and has_agreement
+        ):
+            privacy_label, privacy_variant = N_('Notice OK · Vision'), 'success'
+        else:
+            privacy_label, privacy_variant = N_('No notice · Manual'), 'warning'
+        session_id = item.get('id') or item.get('session_id')
+        open_count = int(item.get('discrepancy_count') or 0)
+        if status_code == 'correction_required' or open_count:
+            action_label, action_url = N_('Review'), f'/supervisor/discrepancies/{session_id}/review'
+        elif status_code == 'awaiting_spd_review':
+            action_label, action_url = N_('Confirm close'), f'/supervisor/sessions/{session_id}'
+        else:
+            action_label, action_url = N_('View'), f'/supervisor/sessions/{session_id}'
+        procedure = item.get('procedure') or {}
+        room = item.get('room') or {}
+        kit = item.get('kit') or {}
+        station = item.get('station') or {}
+        operator = item.get('operator') or {}
+        procedure_name = localize_db_label(
+            'procedure', procedure.get('code'), procedure.get('name'),
+        ) or N_('Unspecified procedure')
+        room_name = localize_db_text(
+            'operating_room', room.get('code'), room.get('name'),
+        ) or N_('Unspecified room')
+        kit_name = localize_db_text('kit', kit.get('id'), kit.get('name')) or N_('Unspecified kit')
+        station_name = localize_db_text(
+            'capture_station', station.get('id'), station.get('name'),
+        ) or N_('Unspecified station')
+        scheduled = _display_service_datetime(item.get('scheduled_at'))
+        started = _display_service_datetime(item.get('started_at'))
+        ended = _display_service_datetime(item.get('ended_at'))
+        updated = _display_service_datetime(item.get('updated_at'))
+        rows.append({
+            'id': session_id,
+            'session_id': display_session_id(session_id),
+            'status_code': status_code,
+            'status_label': status_label,
+            'status_variant': status_variant if not open_count else 'warning',
+            'capture_mode': item.get('capture_mode'),
+            'has_privacy_agreement': has_agreement,
+            'privacy_label': privacy_label,
+            'privacy_variant': privacy_variant,
+            'procedure_name': procedure_name,
+            'procedure_label': procedure_name,
+            'operating_room': room.get('code') or room_name,
+            'kit_name': kit_name,
+            'operator_name': operator.get('name') or N_('Unknown operator'),
+            'capture_station_name': station_name,
+            'procedure_type_id': procedure.get('id') or '',
+            'kit_id': kit.get('id') or '',
+            'station_id': station.get('id') or '',
+            'search_text': ' '.join(str(value or '') for value in (
+                session_id, procedure_name, procedure.get('code'), room_name,
+                kit_name, station_name, operator.get('name'),
+            )).lower(),
+            'created_at': scheduled or started or updated,
+            'scheduled_at': scheduled,
+            'started_at': started,
+            'closed_at': ended,
+            'submitted_at': updated,
+            'discrepancy_count': open_count,
+            'action_label': action_label,
+            'action_url': action_url,
+            'details_url': f'/supervisor/sessions/{session_id}',
+        })
+    return rows
+
+
+def _supervisor_session_detail(session_id):
+    from controllers.view_data import EXPECTED_SOURCE_LABELS
+
+    value = _supervisor_request('GET', f'/sessions/{session_id}')
+    if not value:
+        return None
+
+    status_code = value.get('status') or 'unknown'
+    status_label, status_variant = SESSION_STATUS_UI.get(status_code, (N_('Unknown'), 'neutral'))
+    operator = value.get('operator') or {}
+    procedure = value.get('procedure') or {}
+    room = value.get('room') or {}
+    kit = value.get('kit') or {}
+    station = value.get('station') or {}
+    patient = value.get('patient') or {}
+    reported_by_family = {}
+    for event in value.get('events') or []:
+        if event.get('type') not in {'manual_count', 'auto_count'}:
+            continue
+        payload = event.get('payload') if isinstance(event.get('payload'), dict) else {}
+        family_id = event.get('family_id')
+        if family_id:
+            reported_by_family[family_id] = (
+                payload.get('reported_quantity')
+                if payload.get('reported_quantity') is not None
+                else event.get('detected_quantity')
+            )
+        elif payload.get('scope') == 'board':
+            board = payload.get('board') if isinstance(payload.get('board'), dict) else {}
+            for family_row in board.get('families') or []:
+                family_id = family_row.get('family_id')
+                if family_id:
+                    reported_by_family[family_id] = (
+                        family_row.get('reported_quantity')
+                        if family_row.get('reported_quantity') is not None
+                        else family_row.get('detected_quantity')
+                    )
+    expected_items = []
+    for entry in value.get('expected_inventory') or []:
+        family = entry.get('family') or {}
+        category = family.get('category') or {}
+        source = entry.get('source') or 'manual'
+        expected_quantity = entry.get('expected_quantity')
+        reported_quantity = None
+        if family.get('id') in reported_by_family:
+            reported_quantity = reported_by_family[family['id']]
+        difference = (
+            int(reported_quantity) - int(expected_quantity)
+            if reported_quantity is not None and expected_quantity is not None else None
+        )
+        if reported_quantity is None:
+            count_label, count_variant = N_('Pending'), 'neutral'
+        elif difference == 0:
+            count_label, count_variant = N_('Match'), 'success'
+        elif difference < 0:
+            count_label, count_variant = N_('Shortfall'), 'danger'
+        else:
+            count_label, count_variant = N_('Extra'), 'warning'
+        expected_items.append({
+            'family_id': family.get('id'),
+            'family_name': localize_db_text(
+                'instrument_family', family.get('code'), family.get('name'),
+            ) or N_('Unspecified instrument'),
+            'family_code': family.get('code') or '',
+            'expected_quantity': expected_quantity,
+            'reported_quantity': reported_quantity,
+            'ai_detected_quantity': (
+                None if value.get('capture_mode') == 'manual_no_privacy' else reported_quantity
+            ),
+            'difference': difference,
+            'status_label': count_label,
+            'status_variant': count_variant,
+            'source': source,
+            'source_label': EXPECTED_SOURCE_LABELS.get(source, source),
+            'category_code': category.get('code') or '',
+            'category_label': localize_db_label(
+                'instrument_category', category.get('code'), category.get('name'),
+            ) if category.get('code') else N_('Other'),
+            'category_name': category.get('name') or N_('Other'),
+            'category_rank': (
+                ('cutting', 'dissection', 'grasping', 'hemostasis', 'retraction',
+                 'suction', 'suturing').index(category.get('code'))
+                if category.get('code') in {
+                    'cutting', 'dissection', 'grasping', 'hemostasis', 'retraction', 'suction', 'suturing',
+                } else 7
+            ),
+            'is_additional': source != 'kit_snapshot',
+        })
+    groups_by_key = {}
+    for item in expected_items:
+        key = 'additional' if item['is_additional'] else (item['category_code'] or 'other')
+        group = groups_by_key.setdefault(key, {
+            'key': key, 'label': item['category_label'],
+            'rank': 999 if item['is_additional'] else item['category_rank'], 'lines': [],
+        })
+        group['lines'].append(item)
+    discrepancies = []
+    for entry in value.get('discrepancies') or []:
+        family = entry.get('family') or {}
+        reason = entry.get('reason') or {}
+        family_name = localize_db_text(
+            'instrument_family', family.get('code'), family.get('name'),
+        ) or N_('Unspecified instrument')
+        source = discrepancy_source(entry.get('origin_event_type'))
+        expected_quantity = entry.get('expected_quantity')
+        detected_quantity = entry.get('detected_quantity')
+        discrepancies.append({
+            'id': entry.get('id'),
+            'instrument_name': family_name,
+            'family_name': family_name,
+            'expected_quantity': expected_quantity,
+            'counted_quantity': detected_quantity,
+            'detected_quantity': detected_quantity,
+            'quantity_label': N_('Reported') if source == 'reported' else N_('Detected'),
+            'difference': (detected_quantity or 0) - (expected_quantity or 0),
+            'description': entry.get('description'),
+            'display_description': localize_discrepancy_description(
+                reason_code=reason.get('code'),
+                source=source,
+                instrument=family_name,
+                expected=expected_quantity,
+                actual=detected_quantity,
+                stored_description=entry.get('description'),
+            ),
+            'reason': localize_db_label(
+                'discrepancy_reason', reason.get('code'), reason.get('name'),
+            ) if reason.get('code') else (entry.get('description') or N_('Recorded discrepancy')),
+            'reason_code': reason.get('code'),
+            'resolved': entry.get('resolved'),
+            'resolved_at': entry.get('resolved_at'),
+        })
+    open_count = sum(not item.get('resolved') for item in value.get('discrepancies') or [])
+    agreement = value.get('privacy_agreement')
+    privacy = ({
+        'has_agreement': True,
+        'version': agreement.get('version'),
+        'agreed_at': _display_service_datetime(agreement.get('agreed_at')),
+        'document_uri': agreement.get('document_uri'),
+        'purpose_model_improvement': agreement.get('purpose_model_improvement'),
+        'agreed_by': agreement.get('agreed_by') or '—',
+    } if agreement else {
+        'has_agreement': False,
+        'message': N_('No privacy notice linked. Start Session will freeze capture_mode = manual_no_privacy.'),
+    })
+    team = [{
+        'physician_id': member.get('id'),
+        'name': member.get('name'),
+        'role': localize_db_label(
+            'surgical_role',
+            (member.get('surgical_role') or {}).get('code'),
+            (member.get('surgical_role') or {}).get('name'),
+        ) or N_('Surgeon'),
+        'role_code': (member.get('surgical_role') or {}).get('code') or 'surgeon',
+    } for member in value.get('physicians') or []]
+    scheduled_at = _display_service_datetime(value.get('scheduled_at'))
+    procedure_name = localize_db_label(
+        'procedure', procedure.get('code'), procedure.get('name'),
+    ) or N_('Unspecified procedure')
+    room_name = localize_db_text(
+        'operating_room', room.get('code'), room.get('name'),
+    ) or N_('Unspecified room')
+    kit_name = localize_db_text('kit', kit.get('id'), kit.get('name')) or N_('Unspecified kit')
+    station_name = localize_db_text(
+        'capture_station', station.get('id'), station.get('name'),
+    ) or N_('Unspecified station')
+    scheduled_raw = value.get('scheduled_at') or ''
+    scheduled_local = scheduled_raw
+    if scheduled_raw:
+        try:
+            scheduled_parsed = datetime.fromisoformat(scheduled_raw.replace('Z', '+00:00'))
+            if scheduled_parsed.tzinfo is not None:
+                scheduled_parsed = scheduled_parsed.astimezone().replace(tzinfo=None)
+            scheduled_local = scheduled_parsed.strftime('%Y-%m-%dT%H:%M')
+        except ValueError:
+            pass
+    family_names = {item['family_id']: item['family_name'] for item in expected_items}
+    timeline = []
+    for event in reversed(value.get('events') or []):
+        payload = event.get('payload') if isinstance(event.get('payload'), dict) else {}
+        board = payload.get('board') if isinstance(payload.get('board'), dict) else {}
+        totals = board.get('totals') if isinstance(board.get('totals'), dict) else {}
+        event_code = event.get('type')
+        event_name = localize_db_label('event_type', event_code, event_code) if event_code else ''
+        label_bits = [event_name] if event_name else []
+        if payload.get('reason'):
+            label_bits.append(str(payload['reason']))
+        if payload.get('scope') == 'board':
+            label_bits.append('board')
+        family_id = event.get('family_id')
+        timeline.append({
+            'occurred_at': _display_service_datetime(event.get('occurred_at')),
+            'event_code': event_code,
+            'event_name': event_name,
+            'event_label': ' · '.join(label_bits),
+            'family_id': family_id,
+            'family_name': family_names.get(family_id),
+            'scope': payload.get('scope'),
+            'reason': payload.get('reason'),
+            'expected_quantity': event.get('expected_quantity'),
+            'detected_quantity': event.get('detected_quantity'),
+            'board_family_count': totals.get('family_count'),
+            'frames_processed': payload.get('frames_processed'),
+            'video_t': payload.get('video_t'),
+            'pipeline': payload.get('pipeline'),
+            'solver': (payload.get('pipeline_config') or {}).get('solver') or payload.get('solver'),
+            'model_version': payload.get('model_version'),
+            'payload': payload,
+        })
+    return {
+        'id': value.get('id'),
+        'session_id': display_session_id(value.get('id')),
+        'status_code': status_code,
+        'status_label': status_label,
+        'status_variant': status_variant,
+        'capture_mode': value.get('capture_mode'),
+        'privacy_label': N_('Notice OK · Vision') if agreement else N_('No notice · Manual'),
+        'privacy_variant': 'success' if agreement else 'warning',
+        'has_privacy_agreement': bool(agreement),
+        'discrepancy_count': open_count,
+        'procedure_name': procedure_name,
+        'procedure_type_id': procedure.get('id') or '',
+        'operating_room': room.get('code') or room_name,
+        'room_id': room.get('id') or '',
+        'kit_name': kit_name,
+        'kit_id': kit.get('id') or '',
+        'operator_name': operator.get('name') or N_('Unknown operator'),
+        'operator_user_id': operator.get('id') or '',
+        'capture_station_name': station_name,
+        'station_id': station.get('id') or '',
+        'patient_name': patient.get('name'),
+        'patient_record': str(patient.get('id') or '').replace('-', '')[:10].upper() or None,
+        'patient_id': patient.get('id'),
+        'surgical_team': team,
+        'physician_name': team[0]['name'] if team else None,
+        'scheduled_at': scheduled_at,
+        'scheduled_at_local': scheduled_local[:16] if scheduled_local else '',
+        'started_at': _display_service_datetime(value.get('started_at')),
+        'closed_at': _display_service_datetime(value.get('ended_at')),
+        'expected_items': expected_items,
+        'expected_groups': sorted(groups_by_key.values(), key=lambda group: group['rank']),
+        'timeline': timeline,
+        'discrepancies': discrepancies,
+        'privacy': privacy,
+        'can_edit_inventory': status_code in {'scheduled', 'in_progress'},
+        'can_edit_session_fields': status_code == 'scheduled',
+        'scheduled_at_raw': scheduled_raw,
+        'procedure': procedure,
+    }
+
+
+def _supervisor_discrepancies_data(search='', instrument='', status=''):
+    rows = _supervisor_all(
+        '/discrepancies', status=status or 'all',
+    )
+    search_term = (search or '').strip().lower()
+    instrument_term = (instrument or '').strip().lower()
+    values = []
+    for item in rows:
+        family = item.get('family') or {}
+        instrument_name = family.get('name') or N_('Unspecified instrument')
+        if instrument_term and instrument_term not in instrument_name.lower():
+            continue
+        resolved = bool(item.get('resolved'))
+        expected = item.get('expected_quantity') or 0
+        counted = item.get('detected_quantity') or 0
+        session_id = item.get('session_id')
+        procedure = item.get('procedure') or {}
+        room = item.get('room') or {}
+        kit = item.get('kit') or {}
+        operator = item.get('operator') or {}
+        reason = item.get('reason') or {}
+        haystack = ' '.join(str(value or '') for value in (
+            session_id, procedure.get('name'), procedure.get('code'), room.get('name'),
+            room.get('code'), kit.get('name'), operator.get('name'), family.get('code'),
+            family.get('name'), item.get('description'), reason.get('name'),
+        )).lower()
+        if search_term and search_term not in haystack:
+            continue
+        values.append({
+            'id': item.get('id'),
+            'session_uuid': session_id,
+            'session_id': display_session_id(session_id),
+            'procedure_name': localize_db_label(
+                'procedure', procedure.get('code'), procedure.get('name'),
+            ) or N_('Unspecified procedure'),
+            'operating_room': room.get('code') or N_('Unspecified room'),
+            'kit_name': kit.get('name') or N_('Unspecified kit'),
+            'operator_name': operator.get('name') or N_('Unknown operator'),
+            'instrument_name': localize_db_text(
+                'instrument_family', family.get('code'), family.get('name'),
+            ) or instrument_name,
+            'expected_quantity': expected,
+            'counted_quantity': counted,
+            'difference': counted - expected,
+            'reason': localize_db_label(
+                'discrepancy_reason', reason.get('code'), reason.get('name'),
+            ) if reason.get('code') else (item.get('description') or N_('Recorded discrepancy')),
+            'status_code': 'resolved' if resolved else 'open',
+            'status_label': N_('Resolved') if resolved else N_('Open'),
+            'status_variant': 'success' if resolved else 'warning',
+            'action_label': N_('View Details') if resolved else N_('Review'),
+            'action_url': f'/supervisor/discrepancies/{session_id}/review',
+        })
+    return values
 
 
 def _current_user():
@@ -1400,7 +1844,7 @@ def supervisor_profile():
 # Supervisor V3 (ui_reference_v3/supervisor). Each route below takes the V3 fixture branch
 # only when use_v3_fixture() allows it (demo mode for lists; explicit WS-0xx demo ids for
 # details). UUID-backed sessions with demo mode off keep the RF branch unchanged
-# (rf_details.html / rf_review.html / RF POSTs / services.rf_session). V3 demo actions are
+# (rf_details.html / rf_review.html / RF POSTs / SupervisorService). V3 demo actions are
 # navigation-only: they never write RF state.
 # ----------------------------------------------------------------------------------------
 
@@ -1441,7 +1885,25 @@ def _v3_review_url(session_id, tab, states, case=None, **extra):
 @web_bp.route('/supervisor/dashboard')
 @require_role('spd_supervisor')
 def supervisor_dashboard():
-    stats, sessions, _ = dashboard_data('supervisor')
+    service_dashboard = _supervisor_request('GET', '/dashboard')
+    sessions = _supervisor_session_rows()
+    discrepancies = _supervisor_discrepancies_data()
+    today = date.today().isoformat()
+    session_statuses = service_dashboard.get('sessions_by_status') or {}
+    stats = {
+        'sessions_today': sum(
+            1 for row in sessions
+            if any(str(row.get(key) or '').startswith(today)
+                   for key in ('scheduled_at', 'started_at', 'created_at', 'closed_at'))
+        ) or len(sessions),
+        'active_sessions': session_statuses.get('in_progress', 0)
+        or sum(row.get('status_code') not in {'closed', 'aborted'} for row in sessions),
+        'pending_reviews': sum(
+            row.get('status_code') in {'awaiting_spd_review', 'correction_required'}
+            for row in sessions
+        ) or sum(row.get('status_label') == 'Open' for row in discrepancies),
+        'open_discrepancies': service_dashboard.get('open_discrepancies', 0),
+    }
     return _v3_supervisor_page(
         'supervisor/dashboard.html', demo=False,
         dashboard=supervisor_v3_dashboard_from_rf(stats, sessions),
@@ -1453,7 +1915,8 @@ def supervisor_dashboard():
 def supervisor_sessions():
     from controllers.rf_ui import active_session_rows
 
-    rf_rows = active_session_rows(sessions_data())
+    source = _supervisor_session_rows()
+    rf_rows = active_session_rows(source)
     rows = supervisor_v3_rows_from_rf(rf_rows)
     page_data = paginate_list(rows, page=request.args.get('page', 1), per_page=request.args.get('per_page', 20))
     return _v3_supervisor_page(
@@ -1468,7 +1931,7 @@ def supervisor_sessions():
             'previous_url': url_for('web.supervisor_sessions', page=page_data['page'] - 1) if page_data['has_previous'] else None,
             'next_url': url_for('web.supervisor_sessions', page=page_data['page'] + 1) if page_data['has_next'] else None,
         },
-        filter_options=supervisor_rf_filter_options(sessions_data()),
+        filter_options=supervisor_rf_filter_options(source),
         current_page=page_data['page'],
         total_pages=page_data['total_pages'],
         previous_url=url_for('web.supervisor_sessions', page=page_data['page'] - 1) if page_data['has_previous'] else None,
@@ -1495,15 +1958,37 @@ def _vision_health_row():
     }
 
 
+def _supervisor_health_row():
+    try:
+        response = requests.get(
+            f"{current_app.config['SUPERVISOR_SERVICE_URL']}/health",
+            timeout=current_app.config['SUPERVISOR_SERVICE_TIMEOUT'],
+        )
+        payload = response.json()
+        healthy = response.ok and isinstance(payload, dict) and bool(payload.get('ok'))
+        return {
+            'name': gettext('Supervisor service'),
+            'status': 'up' if healthy else 'down',
+            'detail': gettext('Local :5004') if healthy else gettext('Health check failed'),
+        }
+    except (requests.RequestException, ValueError) as exc:
+        current_app.logger.warning('SupervisorService health check failed: %s', exc)
+        return {
+            'name': gettext('Supervisor service'),
+            'status': 'down',
+            'detail': gettext('Unreachable — start apps/SupervisorService'),
+        }
+
+
 @web_bp.route('/supervisor/services-health')
 @require_role('spd_supervisor')
 def supervisor_services_health():
-    """Future microservices health — stub for sidebar placement only."""
     return _page(
         'supervisor/services_health.html',
         services=[
             {'name': 'Auth', 'status': 'direct', 'detail': gettext('Local Auth service (no MS mesh yet)')},
-            {'name': gettext('Web / Session'), 'status': 'direct', 'detail': gettext('Monolith BackendWebFlask')},
+            {'name': gettext('Web portal'), 'status': 'up', 'detail': gettext('BackendWebFlask')},
+            _supervisor_health_row(),
             _vision_health_row(),
             {'name': gettext('Evidence worker'), 'status': 'pending', 'detail': gettext('Mongo/Garage evidence cycle — deferred')},
         ],
@@ -1516,27 +2001,18 @@ def supervisor_session_new():
     """RF-SP-02 schedule session + optional Via A privacy confirm (no V3 demo wizard)."""
     from datetime import datetime as dt
 
-    from controllers.rf_ui import initial_phase_code_for_procedure
-    from services.rf_session import (
-        RfSessionError,
-        confirm_privacy_via_a,
-        kit_expected_lines,
-        schedule_form_options,
-        schedule_session,
-    )
-
     user = _current_user()
     try:
         institution_id = UUID(user['institution_id'])
     except (TypeError, ValueError, KeyError):
         abort(400)
-    options = schedule_form_options(institution_id)
+    options = _supervisor_schedule_options()
     selected_kit = (request.values.get('kit_id') or '').strip()
     expected_lines = []
     if selected_kit:
         try:
-            expected_lines = kit_expected_lines(UUID(selected_kit))
-        except (TypeError, ValueError):
+            expected_lines = _supervisor_kit_expected_lines(selected_kit)
+        except SupervisorServiceError:
             selected_kit = ''
             expected_lines = []
 
@@ -1555,13 +2031,12 @@ def supervisor_session_new():
         try:
             if action == 'confirm_privacy':
                 session_id = request.form.get('session_id', '').strip()
-                confirm_privacy_via_a(
-                    session_id=UUID(session_id),
-                    supervisor_user_id=UUID(user['id']),
-                    institution_id=institution_id,
-                    privacy_notice_version_id=UUID(request.form.get('privacy_notice_version_id')),
-                    purpose_model_improvement=request.form.get('purpose_model_improvement') == '1',
-                    ip=request.remote_addr,
+                supervisor_api.post(
+                    f'/sessions/{session_id}/privacy-agreement',
+                    {
+                        'privacy_notice_version_id': request.form.get('privacy_notice_version_id'),
+                        'purpose_model_improvement': request.form.get('purpose_model_improvement') == '1',
+                    },
                 )
                 return redirect(url_for('web.supervisor_session_details', session_id=session_id))
 
@@ -1593,42 +2068,39 @@ def supervisor_session_new():
                     'surgical_role_code': 'surgeon',
                 }]
 
-            procedure_type_id = UUID(request.form.get('procedure_type_id'))
-            result = schedule_session(
-                supervisor_user_id=UUID(user['id']),
-                institution_id=institution_id,
-                operator_user_id=UUID(request.form.get('operator_user_id')),
-                procedure_type_id=procedure_type_id,
-                room_id=UUID(request.form.get('room_id')),
-                station_id=UUID(request.form.get('station_id')),
-                kit_id=UUID(request.form.get('kit_id')),
-                patient_id=UUID(request.form.get('patient_id')) if request.form.get('patient_id') else None,
-                physicians=physicians,
-                scheduled_at=scheduled_at,
-                phase_code=initial_phase_code_for_procedure(procedure_type_id),
-                expected_lines=lines,
-                ip=request.remote_addr,
+            result = supervisor_api.post(
+                '/sessions',
+                {
+                    'operator_user_id': request.form.get('operator_user_id'),
+                    'procedure_type_id': request.form.get('procedure_type_id'),
+                    'room_id': request.form.get('room_id'),
+                    'station_id': request.form.get('station_id'),
+                    'kit_id': request.form.get('kit_id'),
+                    'patient_id': request.form.get('patient_id') or None,
+                    'physicians': physicians,
+                    'scheduled_at': scheduled_at.isoformat(),
+                    'expected_lines': lines,
+                },
             )
             if request.form.get('confirm_privacy') == '1' and request.form.get('privacy_notice_version_id'):
                 if request.form.get('privacy_confirm_checkbox') == '1':
-                    confirm_privacy_via_a(
-                        session_id=UUID(result['session_id']),
-                        supervisor_user_id=UUID(user['id']),
-                        institution_id=institution_id,
-                        privacy_notice_version_id=UUID(request.form.get('privacy_notice_version_id')),
-                        purpose_model_improvement=request.form.get('purpose_model_improvement') == '1',
-                        ip=request.remote_addr,
+                    supervisor_api.post(
+                        f"/sessions/{result['session_id']}/privacy-agreement",
+                        {
+                            'privacy_notice_version_id': request.form.get('privacy_notice_version_id'),
+                            'purpose_model_improvement': request.form.get('purpose_model_improvement') == '1',
+                        },
                     )
             return redirect(url_for('web.supervisor_session_details', session_id=result['session_id']))
-        except (RfSessionError, ValueError, TypeError) as exc:
-            message = _error_message(exc) if isinstance(exc, RfSessionError) else str(exc)
-            status = exc.status_code if isinstance(exc, RfSessionError) else 400
+        except (SupervisorServiceError, ValueError, TypeError) as exc:
+            message = exc.user_message if isinstance(exc, SupervisorServiceError) else str(exc)
+            status = exc.status if isinstance(exc, SupervisorServiceError) else 400
             post_kit = (request.form.get('kit_id') or '').strip()
             post_lines = expected_lines
             if post_kit:
                 try:
-                    post_lines = kit_expected_lines(UUID(post_kit))
-                except (TypeError, ValueError):
+                    post_lines = _supervisor_kit_expected_lines(post_kit)
+                except SupervisorServiceError:
                     post_kit = selected_kit
                     post_lines = expected_lines
             return _page(
@@ -1653,8 +2125,6 @@ def supervisor_session_new():
 @require_role('spd_supervisor')
 def supervisor_session_stock_recheck():
     """Stock semaphore recheck for schedule qty edits (JSON or form-urlencoded)."""
-    from services.rf_session import RfSessionError, stock_recheck_lines
-
     lines = []
     try:
         payload = request.get_json(silent=True) or {}
@@ -1675,31 +2145,31 @@ def supervisor_session_stock_recheck():
                     'family_id': family_id,
                     'expected_quantity': int(qty or 0),
                 })
-        return jsonify({'lines': stock_recheck_lines(lines)})
-    except (RfSessionError, KeyError, TypeError, ValueError) as exc:
-        message = _error_message(exc) if isinstance(exc, RfSessionError) else gettext('Invalid stock recheck payload.')
-        return jsonify({'error': message}), 400
+        result = supervisor_api.call(
+            'POST', '/inventory/stock-recheck', json={'lines': lines},
+        )
+        return jsonify({'lines': result.get('lines') or []})
+    except SupervisorServiceError as exc:
+        return jsonify({'error': exc.user_message}), exc.status
+    except (KeyError, TypeError, ValueError):
+        return jsonify({'error': gettext('Invalid stock recheck payload.')}), 400
 
 
 @web_bp.route('/supervisor/sessions/<session_id>/privacy', methods=['POST'])
 @require_role('spd_supervisor')
 def supervisor_session_privacy(session_id):
-    from services.rf_session import RfSessionError, confirm_privacy_via_a
-
-    user = _current_user()
     if request.form.get('privacy_confirm_checkbox') != '1':
         return redirect(url_for('web.supervisor_session_details', session_id=session_id))
     try:
-        confirm_privacy_via_a(
-            session_id=UUID(session_id),
-            supervisor_user_id=UUID(user['id']),
-            institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
-            privacy_notice_version_id=UUID(request.form.get('privacy_notice_version_id')),
-            purpose_model_improvement=request.form.get('purpose_model_improvement') == '1',
-            ip=request.remote_addr,
+        supervisor_api.post(
+            f'/sessions/{session_id}/privacy-agreement',
+            {
+                'privacy_notice_version_id': request.form.get('privacy_notice_version_id'),
+                'purpose_model_improvement': request.form.get('purpose_model_improvement') == '1',
+            },
         )
-    except RfSessionError:
-        pass
+    except SupervisorServiceError as exc:
+        flash(exc.user_message, 'danger')
     return redirect(url_for('web.supervisor_session_details', session_id=session_id))
 
 
@@ -1708,7 +2178,7 @@ def supervisor_session_privacy(session_id):
 def supervisor_session_history():
     from controllers.rf_ui import past_session_rows
 
-    source = past_session_rows(sessions_data(), for_role='supervisor')
+    source = past_session_rows(_supervisor_session_rows(), for_role='supervisor')
     all_rows = supervisor_v3_rows_from_rf(source)
     search = (request.args.get('search') or '').strip().lower()
     review_status = (request.args.get('review_status') or '').strip()
@@ -1801,17 +2271,10 @@ def supervisor_session_details(session_id):
             tab_urls={name: url_for('web.supervisor_session_details', session_id=view['session']['session_id'], tab=name)
                       for name in V3_SESSION_DETAIL_TABS},
         )
-    detail = supervisor_session_detail(session_id)
+    detail = _supervisor_session_detail(session_id)
     if detail is None:
         abort(404)
-    from services.rf_session import schedule_form_options
-
-    user = _current_user()
-    families = []
-    try:
-        families = schedule_form_options(UUID(user['institution_id'])).get('families', [])
-    except (TypeError, ValueError, KeyError):
-        families = []
+    families = _supervisor_schedule_options().get('families', [])
     return _page(
         'supervisor/sessions/rf_details.html',
         session=detail,
@@ -1827,25 +2290,13 @@ def supervisor_session_details(session_id):
 def supervisor_session_inventory(session_id):
     from datetime import datetime as dt
 
-    from services.rf_session import (
-        RfSessionError,
-        schedule_form_options,
-        update_scheduled_session,
-        update_session_inventory,
-    )
-
-    user = _current_user()
-    detail = supervisor_session_detail(session_id)
+    detail = _supervisor_session_detail(session_id)
     if detail is None:
         abort(404)
     if not detail.get('can_edit_inventory'):
         return redirect(url_for('web.supervisor_session_details', session_id=session_id))
 
-    try:
-        institution_id = UUID(user['institution_id']) if user.get('institution_id') else None
-        options = schedule_form_options(institution_id) if institution_id else {}
-    except (TypeError, ValueError, KeyError):
-        options = {}
+    options = _supervisor_schedule_options()
 
     def _render_edit(form_error=None, status=200):
         return _page(
@@ -1888,32 +2339,29 @@ def supervisor_session_inventory(session_id):
                 scheduled_at = dt.fromisoformat(scheduled_raw)
                 if scheduled_at.tzinfo is None:
                     scheduled_at = scheduled_at.replace(tzinfo=timezone.utc)
-                update_scheduled_session(
-                    session_id=UUID(session_id),
-                    supervisor_user_id=UUID(user['id']),
-                    institution_id=institution_id,
-                    operator_user_id=UUID(request.form.get('operator_user_id')),
-                    procedure_type_id=UUID(request.form.get('procedure_type_id')),
-                    room_id=UUID(request.form.get('room_id')),
-                    station_id=UUID(request.form.get('station_id')),
-                    kit_id=UUID(request.form.get('kit_id')),
-                    patient_id=UUID(request.form.get('patient_id')) if request.form.get('patient_id') else None,
-                    physicians=physicians,
-                    scheduled_at=scheduled_at,
-                    expected_lines=lines,
-                    ip=request.remote_addr,
+                supervisor_api.put(
+                    f'/sessions/{session_id}',
+                    {
+                        'operator_user_id': request.form.get('operator_user_id'),
+                        'procedure_type_id': request.form.get('procedure_type_id'),
+                        'room_id': request.form.get('room_id'),
+                        'station_id': request.form.get('station_id'),
+                        'kit_id': request.form.get('kit_id'),
+                        'patient_id': request.form.get('patient_id') or None,
+                        'physicians': physicians,
+                        'scheduled_at': scheduled_at.isoformat(),
+                        'expected_lines': lines,
+                    },
                 )
             else:
-                update_session_inventory(
-                    session_id=UUID(session_id),
-                    supervisor_user_id=UUID(user['id']),
-                    institution_id=institution_id,
-                    lines=lines,
-                    ip=request.remote_addr,
+                supervisor_api.put(
+                    f'/sessions/{session_id}/inventory',
+                    {'expected_lines': lines},
                 )
-        except (RfSessionError, ValueError, TypeError) as exc:
-            message = _error_message(exc) if isinstance(exc, RfSessionError) else str(exc)
-            return _render_edit(form_error=message, status=400)
+        except (SupervisorServiceError, ValueError, TypeError) as exc:
+            message = exc.user_message if isinstance(exc, SupervisorServiceError) else str(exc)
+            status = exc.status if isinstance(exc, SupervisorServiceError) else 400
+            return _render_edit(form_error=message, status=status)
         return redirect(url_for('web.supervisor_session_details', session_id=session_id))
 
     return _render_edit()[0]
@@ -1922,25 +2370,19 @@ def supervisor_session_inventory(session_id):
 @web_bp.route('/supervisor/sessions/<session_id>/close', methods=['POST'])
 @require_role('spd_supervisor')
 def supervisor_session_close(session_id):
-    from services.rf_session import RfSessionError, confirm_spd_close
-
-    user = _current_user()
     try:
-        confirm_spd_close(
-            session_id=UUID(session_id),
-            supervisor_user_id=UUID(user['id']),
-            institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
-            material_recovered=request.form.get('material_recovered') == '1',
-            ip=request.remote_addr,
+        supervisor_api.post(
+            f'/sessions/{session_id}/close',
+            {'material_recovered': request.form.get('material_recovered') == '1'},
         )
-    except RfSessionError as exc:
-        detail = supervisor_session_detail(session_id)
+    except SupervisorServiceError as exc:
+        detail = _supervisor_session_detail(session_id)
         return _page(
             'supervisor/sessions/rf_details.html',
             session=detail,
             session_id=session_id,
-            form_error=_error_message(exc),
-        ), exc.status_code
+            form_error=exc.user_message,
+        ), exc.status
     return redirect(url_for('web.supervisor_session_details', session_id=session_id))
 
 
@@ -1961,12 +2403,12 @@ def supervisor_discrepancies():
         'instrument': request.args.get('instrument', ''),
         'status': request.args.get('status', ''),
     }
-    discrepancies = discrepancies_data(
+    discrepancies = _supervisor_discrepancies_data(
         search=filters['search'],
         instrument=filters['instrument'],
         status=filters['status'],
     )
-    summary = discrepancies_summary_data(discrepancies_data())
+    summary = discrepancies_summary_data(_supervisor_discrepancies_data())
     return _v3_supervisor_page(
         'supervisor/discrepancies/list.html', demo=False,
         queue_rows=supervisor_v3_queue_from_rf(discrepancies),
@@ -2052,39 +2494,35 @@ def _v3_supervisor_review(session_id):
 @web_bp.route('/supervisor/discrepancies/<session_id>/review', methods=['GET', 'POST'])
 @require_role('spd_supervisor')
 def supervisor_discrepancy_review(session_id):
-    from services.rf_session import RfSessionError, resolve_discrepancy
-
     if use_v3_fixture(session_id):
         return _v3_supervisor_review(session_id)
 
-    detail = supervisor_session_detail(session_id)
+    detail = _supervisor_session_detail(session_id)
     if detail is None:
         abort(404)
 
     if request.method == 'POST':
-        user = _current_user()
         resolution = (request.form.get('resolution_outcome') or '').strip().lower()
         mark_lost = resolution == 'lost' or request.form.get('mark_lost') == '1'
         mark_recovered = resolution == 'recovered' or request.form.get('mark_recovered') == '1'
         try:
-            resolve_discrepancy(
-                discrepancy_id=UUID(request.form.get('discrepancy_id')),
-                supervisor_user_id=UUID(user['id']),
-                institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
-                notes=request.form.get('notes') or '',
-                mark_lost=mark_lost,
-                mark_recovered=mark_recovered,
-                ip=request.remote_addr,
+            supervisor_api.post(
+                f"/discrepancies/{request.form.get('discrepancy_id')}/resolve",
+                {
+                    'notes': request.form.get('notes') or '',
+                    'mark_lost': mark_lost,
+                    'mark_recovered': mark_recovered,
+                },
             )
-        except (RfSessionError, ValueError, TypeError) as exc:
-            message = _error_message(exc) if isinstance(exc, RfSessionError) else str(exc)
-            detail = supervisor_session_detail(session_id)
+        except (SupervisorServiceError, ValueError, TypeError) as exc:
+            message = exc.user_message if isinstance(exc, SupervisorServiceError) else str(exc)
+            detail = _supervisor_session_detail(session_id)
             return _page(
                 'supervisor/sessions/rf_review.html',
                 session=detail,
                 session_id=session_id,
                 form_error=message,
-            ), 400
+            ), exc.status if isinstance(exc, SupervisorServiceError) else 400
         return redirect(url_for('web.supervisor_discrepancy_review', session_id=session_id))
 
     return _page('supervisor/sessions/rf_review.html', session=detail, session_id=session_id)
@@ -2104,10 +2542,12 @@ def supervisor_reports():
 @web_bp.route('/supervisor/indicators')
 @require_role('spd_supervisor')
 def supervisor_indicators():
-    # Minimal PG aggregates for MVP; AI-agreement / resolution-time remain n/a stubs.
+    # Minimal service-backed aggregates; AI-agreement / resolution-time remain n/a stubs.
     return _v3_supervisor_page(
         'supervisor/indicators.html', demo=False,
-        indicators=supervisor_indicators_from_rf(sessions_data(), discrepancies_data()),
+        indicators=supervisor_indicators_from_rf(
+            _supervisor_session_rows(), _supervisor_discrepancies_data(),
+        ),
     )
 
 

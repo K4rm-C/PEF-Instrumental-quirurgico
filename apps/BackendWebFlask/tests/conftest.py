@@ -97,10 +97,47 @@ class FakeAdminService:
         return {'id': '99999999-9999-9999-9999-999999999999'}
 
 
+class FakeSupervisorService:
+    """Stand-in for SupervisorService (clients/supervisor_service.call)."""
+
+    def __init__(self):
+        self.calls = []
+        self.responses = {}
+
+    def __call__(self, method, path, *, params=None, json=None):
+        from clients.supervisor_service import SupervisorServiceError
+
+        self.calls.append((method, path, params, json))
+        result = self.responses.get((method, path))
+        if isinstance(result, SupervisorServiceError):
+            raise result
+        if result is not None:
+            return result
+        if path == '/catalogs':
+            return {name: [] for name in (
+                'operators', 'procedures', 'rooms', 'stations', 'kits', 'patients',
+                'physicians', 'surgical_roles', 'families', 'privacy_notices',
+                'active_families', 'cycle_statuses', 'categories', 'phases',
+            )}
+        if method == 'GET':
+            return {'items': [], 'page': 1, 'per_page': 100, 'total': 0, 'total_pages': 1}
+        return {'id': '99999999-9999-9999-9999-999999999999',
+                'session_id': '99999999-9999-9999-9999-999999999999'}
+
+
 @pytest.fixture(autouse=True)
 def admin_service(monkeypatch):
     from clients import admin_service as client_module
 
     fake = FakeAdminService()
+    monkeypatch.setattr(client_module, 'call', fake)
+    return fake
+
+
+@pytest.fixture(autouse=True)
+def supervisor_service(monkeypatch):
+    from clients import supervisor_service as client_module
+
+    fake = FakeSupervisorService()
     monkeypatch.setattr(client_module, 'call', fake)
     return fake

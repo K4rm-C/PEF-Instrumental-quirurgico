@@ -3,6 +3,8 @@ from flask_babel import gettext
 
 from clients import admin_service as api
 from clients.admin_service import AdminServiceError
+from clients import supervisor_service as supervisor_api
+from clients.supervisor_service import SupervisorServiceError
 from controllers import admin_presenters as present
 from controllers.routes import _current_user, _page, require_role, web_bp
 from i18n import localized_search_matches
@@ -27,10 +29,10 @@ def _handle_read_error(exc):
 
 
 def _fetch(path, default=None, **params):
-    """GET from AdminService; on a service error flash it and return `default`."""
+    """GET a catalog page from the service owned by the current role."""
     try:
-        return api.get(path, **params), None
-    except AdminServiceError as exc:
+        return _catalog_api().get(path, **params), None
+    except (AdminServiceError, SupervisorServiceError) as exc:
         response = _handle_read_error(exc)
         if response is not None:
             return None, response
@@ -72,6 +74,11 @@ def _list_args(*names, status_default='active'):
 def _is_admin():
     user = _current_user() or {}
     return user.get('role_code') == ADMIN
+
+
+def _catalog_api():
+    user = _current_user() or {}
+    return supervisor_api if user.get('role_code') == SUPERVISOR else api
 
 
 # --- Dashboard ------------------------------------------------------------------------------
@@ -270,8 +277,8 @@ def admin_instrument_new():
     if request.method == 'GET':
         return _render_instrument_form('create')
     try:
-        api.post('/instruments', _instrument_payload())
-    except AdminServiceError as exc:
+        _catalog_api().post('/instruments', _instrument_payload())
+    except (AdminServiceError, SupervisorServiceError) as exc:
         message, response = _form_error(exc)
         return response or _render_instrument_form('create', values=_submitted_instrument_values(),
                                                     form_error=message, status=exc.status)
@@ -290,8 +297,8 @@ def admin_instrument_edit(instrument_id):
     if request.method == 'GET':
         return _render_instrument_form('edit', instrument=instrument, instrument_id=instrument_id)
     try:
-        api.put(f'/instruments/{instrument_id}', _instrument_payload())
-    except AdminServiceError as exc:
+        _catalog_api().put(f'/instruments/{instrument_id}', _instrument_payload())
+    except (AdminServiceError, SupervisorServiceError) as exc:
         message, response = _form_error(exc)
         return response or _render_instrument_form('edit', instrument=instrument,
                                                     values=_submitted_instrument_values(), form_error=message,
@@ -390,8 +397,8 @@ def admin_kit_new():
         return _render_kit_form('create')
     payload = _kit_payload()
     try:
-        api.post('/kits', payload)
-    except AdminServiceError as exc:
+        _catalog_api().post('/kits', payload)
+    except (AdminServiceError, SupervisorServiceError) as exc:
         message, response = _form_error(exc)
         return response or _render_kit_form('create', values=payload, form_error=message, status=exc.status)
     flash(gettext('Kit saved.'), 'success')
@@ -410,8 +417,8 @@ def admin_kit_edit(kit_id):
         return _render_kit_form('edit', kit=kit, kit_id=kit_id)
     payload = _kit_payload()
     try:
-        saved = api.put(f'/kits/{kit_id}', payload)
-    except AdminServiceError as exc:
+        saved = _catalog_api().put(f'/kits/{kit_id}', payload)
+    except (AdminServiceError, SupervisorServiceError) as exc:
         message, response = _form_error(exc)
         return response or _render_kit_form('edit', kit=kit, values=payload, form_error=message,
                                             status=exc.status, kit_id=kit_id)

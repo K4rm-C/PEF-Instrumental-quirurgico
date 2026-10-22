@@ -2,7 +2,7 @@
 
 Conteo y trazabilidad asistidos por vision de instrumental quirurgico (PEF UDEM).
 
-Stack actual: **Flask** (portal operador/SPD/admin), **Auth Service** (Flask/JWT), **AdminService** (Flask, microservicio de administración), **PostgreSQL**, **Redis**, **MongoDB**, **Garage** (S3-compatible; reemplaza MinIO porque su imagen ya no esta en Docker Hub).
+Stack actual: **Flask** (portal operador/SPD/admin), **Auth Service** (Flask/JWT), **AdminService** (Flask, microservicio de administración), **SupervisorService** (Flask, microservicio de operaciones SPD), **PostgreSQL**, **Redis**, **MongoDB**, **Garage** (S3-compatible; reemplaza MinIO porque su imagen ya no esta en Docker Hub).
 
 ## Equipo
 
@@ -23,7 +23,7 @@ Asesor: Dr. Raul Morales Salcedo.
 - Docker Desktop en ejecucion
 - Python 3.11+ en PATH
 - Git
-- Puertos libres: `5433`, `6379`, `27017`, `3900`, `3901`, `3903`, `5000`, `5001`, `5002`, `5003`
+- Puertos libres: `5433`, `6379`, `27017`, `3900`, `3901`, `3903`, `5000`, `5001`, `5002`, `5003`, `5004`
 
 ```powershell
 docker --version
@@ -46,9 +46,10 @@ copy .env.example .env
 copy .env apps\BackendAuthService\.env
 copy .env apps\BackendWebFlask\.env
 copy .env apps\AdminService\.env
+copy .env apps\SupervisorService\.env
 ```
 
-Nota: No hace falta repetir `copy` en cada terminal nueva. Auth, AdminService y Web leen el `.env` **de su carpeta** al arrancar una terminal nueva solo necesita `cd` + activar venv + `python ...`.  
+Nota: No hace falta repetir `copy` en cada terminal nueva. Auth, AdminService, SupervisorService y Web leen el `.env` **de su carpeta** al arrancar una terminal nueva solo necesita `cd` + activar venv + `python ...`.
 Volver a hacer `copy` sobrescribe esos `.env` con el de la raiz (util si editaste la raiz; malo si solo habias tocado el de un app).
 
 ### 2) Contenedores
@@ -90,7 +91,7 @@ docker exec pef_garage /garage key list
 
 El bucket `evidence` y la key `MedAdmin3` se crean solos con `--default-bucket` si `S3_SECRET_KEY` es valida.
 
-### 3) Auth, AdminService, Web y VisionWorker (cuatro terminales)
+### 3) Auth, AdminService, SupervisorService, Web y VisionWorker (cinco terminales)
 
 **Terminal A — Auth**
 
@@ -113,6 +114,18 @@ python main.py
 ```
 
 Comprueba: [http://127.0.0.1:5003/health](http://127.0.0.1:5003/health).
+
+**Terminal A3 — SupervisorService** (operaciones y catálogos del supervisor SPD)
+
+```powershell
+cd apps\SupervisorService
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python main.py
+```
+
+Comprueba: [http://127.0.0.1:5004/health](http://127.0.0.1:5004/health).
 
 **Terminal B — Web**
 
@@ -140,7 +153,7 @@ python main.py
 
 Comprueba: [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) debe reportar `"weights_present": true`.
 
-Opcional Windows: `.\start-services.ps1` (compose + abre Auth, AdminService, Web y VisionWorker).
+Opcional Windows: `.\start-services.ps1` (compose + abre Auth, AdminService, SupervisorService, Web y VisionWorker).
 
 ### 4) URLs y puertos
 
@@ -150,6 +163,7 @@ Opcional Windows: `.\start-services.ps1` (compose + abre Auth, AdminService, Web
 | Portal web    | [http://127.0.0.1:5000](http://127.0.0.1:5000)               |
 | Auth          | [http://127.0.0.1:5001](http://127.0.0.1:5001)               |
 | AdminService  | [http://127.0.0.1:5003/health](http://127.0.0.1:5003/health) |
+| SupervisorService | [http://127.0.0.1:5004/health](http://127.0.0.1:5004/health) |
 | VisionWorker  | [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) |
 | Garage S3 API | [http://127.0.0.1:3900](http://127.0.0.1:3900)               |
 | PostgreSQL    | `localhost:5433` / db `InstruMed`                            |
@@ -170,6 +184,7 @@ Opcional Windows: `.\start-services.ps1` (compose + abre Auth, AdminService, Web
 | 5001   | Auth             |
 | 5002   | VisionWorker     |
 | 5003   | AdminService     |
+| 5004   | SupervisorService |
 
 
 

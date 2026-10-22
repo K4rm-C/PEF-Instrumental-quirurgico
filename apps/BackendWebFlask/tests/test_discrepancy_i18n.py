@@ -127,8 +127,7 @@ def _review_detail(session_id):
 
 def test_review_page_and_resolution_notes(client, login, monkeypatch):
     session_id = 'c1000005-0000-4000-8000-000000000001'
-    import services.rf_session
-    monkeypatch.setattr(routes, 'supervisor_session_detail', _review_detail)
+    monkeypatch.setattr(routes, '_supervisor_session_detail', _review_detail)
 
     login(role='spd_supervisor', locale='es-MX')
     page = client.get(f'/supervisor/discrepancies/{session_id}/review').get_data(as_text=True)
@@ -142,7 +141,11 @@ def test_review_page_and_resolution_notes(client, login, monkeypatch):
 
     # Resolution notes reach the service exactly as typed and never go through gettext.
     received, translated = [], []
-    monkeypatch.setattr(services.rf_session, 'resolve_discrepancy', lambda **kw: received.append(kw['notes']))
+    monkeypatch.setattr(
+        routes.supervisor_api,
+        'post',
+        lambda path, payload: received.append(payload['notes']),
+    )
     import flask_babel
     real_gettext = flask_babel.gettext
     monkeypatch.setattr(flask_babel, 'gettext', lambda s, **kw: translated.append(s) or real_gettext(s, **kw))
