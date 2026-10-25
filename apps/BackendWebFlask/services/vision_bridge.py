@@ -18,6 +18,7 @@ from models.YoloModel import YoloModel
 
 VISION_WORKER_URL = os.getenv("VISION_WORKER_URL", "http://127.0.0.1:5002").rstrip("/")
 VISION_WORKER_TIMEOUT = float(os.getenv("VISION_WORKER_TIMEOUT", "30"))
+VISION_WORKER_WS_URL = os.getenv("VISION_WORKER_WS_URL", "ws://127.0.0.1:5002/ws")
 CONF_DISPLAY_THRESHOLD = float(os.getenv("VISION_CONF_DISPLAY_THRESHOLD", "0.70"))
 
 
@@ -161,6 +162,19 @@ def fetch_timeline(session_id: UUID, run_id: str | None = None) -> dict[str, Any
     if resp.status_code >= 400:
         raise VisionBridgeError(f"Vision timeline failed: {resp.text}", resp.status_code)
     return resp.json()
+
+
+def cancel_job(session_id: UUID) -> dict[str, Any]:
+    try:
+        resp = requests.post(
+            f"{VISION_WORKER_URL}/sessions/{session_id}/cancel",
+            timeout=min(VISION_WORKER_TIMEOUT, 8),
+        )
+    except requests.RequestException as exc:
+        raise VisionBridgeError(f"Vision worker unreachable: {exc}", 503) from exc
+    if resp.status_code >= 400:
+        raise VisionBridgeError(f"Vision cancel failed: {resp.text}", resp.status_code)
+    return resp.json() if resp.content else {"ok": True}
 
 
 def upload_video(session_id: UUID, file_storage) -> dict[str, Any]:

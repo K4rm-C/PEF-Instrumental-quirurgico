@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 from pathlib import Path
 
@@ -9,6 +11,13 @@ ROOT = Path(__file__).resolve().parent
 WEIGHTS_PATH = Path(os.getenv("VISION_WEIGHTS_PATH", str(ROOT / "weights" / "best.pt")))
 HOST = os.getenv("VISION_WORKER_HOST", "0.0.0.0")
 PORT = int(os.getenv("VISION_WORKER_PORT", "5002"))
+# HMAC ticket for browser → worker WS (must match Flask VISION_WS_SECRET).
+WS_SECRET = (os.getenv("VISION_WS_SECRET") or "pef-demo-vision-ws").strip()
+_ws_origins = os.getenv(
+    "VISION_WS_ORIGINS",
+    "http://127.0.0.1:5000,http://localhost:5000",
+)
+WS_ORIGINS = {o.strip() for o in _ws_origins.split(",") if o.strip()}
 
 # Recall (caja existe) — permisivo para demo externos
 BOX_RECALL_CONF = float(os.getenv("VISION_BOX_RECALL_CONF", "0.15"))
@@ -27,7 +36,20 @@ CONTEXT_WEIGHT = float(os.getenv("VISION_CONTEXT_WEIGHT", "0.25"))
 NMS_IOU = float(os.getenv("VISION_NMS_IOU", "0.45"))
 IMGSZ = int(os.getenv("VISION_IMGSZ", "640"))
 
-FRAME_STRIDE = max(1, int(os.getenv("VISION_FRAME_STRIDE", "5")))
+
+def _env_int(name: str) -> int | None:
+    raw = os.getenv(name)
+    if raw is None or str(raw).strip() == "":
+        return None
+    return max(1, int(raw))
+
+
+# CUDA ~60 ms/infer → stride 1 (cada frame). CPU ~750 ms → stride 5 (~6 fps @ 30 fps).
+# VISION_FRAME_STRIDE pinea ambos si esta set; VISION_FRAME_STRIDE_CUDA / _CPU ganan si existen.
+_stride_pin = _env_int("VISION_FRAME_STRIDE")
+FRAME_STRIDE_CUDA = _env_int("VISION_FRAME_STRIDE_CUDA") or _stride_pin or 1
+FRAME_STRIDE_CPU = _env_int("VISION_FRAME_STRIDE_CPU") or _stride_pin or 5
+FRAME_STRIDE = FRAME_STRIDE_CPU
 # Keep last good family tally/boxes for this many seconds of *video time*
 HOLD_SECONDS = float(os.getenv("VISION_HOLD_SECONDS", "2.5"))
 # Keep family *name* on overlay longer than count-hold (model jitter)
@@ -37,14 +59,16 @@ HOLD_MIN_SCORE = float(os.getenv("VISION_HOLD_MIN_SCORE", "0.35"))
 # When family is confirmed absent (0 live), shrink count hold to this TTL (video seconds).
 # Longer than a blink; shorter than full HOLD so removals clear faster than occlusions.
 HOLD_ABSENT_SECONDS = float(os.getenv("VISION_HOLD_ABSENT_SECONDS", "1.1"))
-# Consecutive processed frames with 0 live before applying absent TTL (hand grace).
+# Seed / absent grace: N inferences *at CPU stride*, converted to tape seconds via fps.
+# CUDA (stride 1) waits the same video time as CPU (stride 5), not 3 raw frames.
 HOLD_ABSENT_STREAK = max(1, int(os.getenv("VISION_HOLD_ABSENT_STREAK", "3")))
-# Consecutive live assignments required before seeding a new hold (anti 1-frame ghosts).
 HOLD_SEED_FRAMES = max(1, int(os.getenv("VISION_HOLD_SEED_FRAMES", "3")))
 # If any live box overlaps last hold geometry ≥ this IoU, treat as occlusion (keep long TTL).
 HOLD_ZONE_IOU = float(os.getenv("VISION_HOLD_ZONE_IOU", "0.12"))
-# Sample tallies into timeline NDJSON (+ PG video_window via backend) every N *processed* frames.
-# Default 10 ≈ 50 video frames with stride 5 (~1.7 s @ 30 fps). Set 1 for every inference (demo cost).
+# Sample tallies into timeline NDJSON (+ PG video_window) at most once per this many *video* seconds.
+# CUDA folds many inferences into that window; CPU may write almost every inference without exceeding 1 Hz of tape.
+COUNT_SAMPLE_INTERVAL_S = max(0.05, float(os.getenv("VISION_COUNT_SAMPLE_INTERVAL_S", "1.0")))
+# Deprecated alias (not used for sampling). Kept so old env files still load.
 COUNT_SAMPLE_EVERY = max(1, int(os.getenv("VISION_COUNT_SAMPLE_EVERY", "10")))
 MAX_DET = int(os.getenv("VISION_MAX_DET", "100"))
 UPLOAD_DIR = Path(os.getenv("VISION_UPLOAD_DIR", str(ROOT / "uploads")))

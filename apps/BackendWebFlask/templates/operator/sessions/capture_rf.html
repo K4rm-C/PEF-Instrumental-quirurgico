@@ -146,9 +146,11 @@
 <div class="capture-layout">
     <section class="card">
         <h2 class="card__title">{{ _("Overhead capture") }}</h2>
-        <p class="card__subtitle">{{ _("Upload a tray video. Pipeline matrix_v1 assigns detections to expected kit quotas. Overlay colors follow instrument type: saturated = type-level label, softer = named family.") }}</p>
+        <p class="card__subtitle">{{ _("Live camera is the main path. Upload a file only for demo or lab replay. Overlay colors follow instrument type: saturated = type-level label, softer = named family.") }}</p>
         <div class="capture-stage" id="capture-stage">
-            <div class="capture-stage__placeholder" id="capture-placeholder">{{ _("Waiting for video…") }}</div>
+            <div class="capture-stage__placeholder" id="capture-placeholder">{{ _("Start the camera to begin live counting.") }}</div>
+            <video id="capture-live-video" playsinline muted hidden></video>
+            <canvas id="capture-live-canvas" hidden></canvas>
             <img id="capture-frame" alt="{{ _('Annotated frame') }}" hidden>
         </div>
         <div class="capture-legend" aria-label="{{ _('Type color legend') }}">
@@ -162,13 +164,22 @@
             <span id="capture-status">{{ _("Status") }}: idle</span>
             <span id="capture-progress"></span>
             <span id="capture-model"></span>
+            <span id="capture-latency"></span>
         </div>
+        <div class="capture-upload">
+            <button type="button" class="btn btn--primary" id="capture-camera-btn">{{ _("Start camera") }}</button>
+            <select class="form-field__input" id="capture-camera-select" hidden>
+                <option value="">{{ _("Default camera") }}</option>
+            </select>
+            <button type="button" class="btn btn--secondary" id="capture-stop-file-btn" hidden>{{ _("Stop video / back to camera") }}</button>
+        </div>
+        <p id="capture-camera-error" class="text-muted" style="margin-top:.5rem;"></p>
         <form class="capture-upload" id="capture-upload-form" enctype="multipart/form-data">
             <input class="form-field__input" type="file" name="video" id="capture-video"
                    accept="video/mp4,video/x-matroska,video/quicktime,video/webm,video/x-msvideo,.mp4,.mkv,.mov,.webm,.avi,.m4v" required>
-            <button type="submit" class="btn btn--primary" id="capture-upload-btn">{{ _("Upload & run YOLO") }}</button>
+            <button type="submit" class="btn btn--secondary" id="capture-upload-btn">{{ _("Upload demo video") }}</button>
         </form>
-        <p class="text-muted" style="margin-top:.75rem;">{{ _("Formats: .mp4, .mkv, .mov, .webm, .avi. Processing uses every Nth frame (worker stride).") }}</p>
+        <p class="text-muted" style="margin-top:.75rem;">{{ _("Demo/lab: .mp4, .mkv, .mov, .webm, .avi. Live uses the camera; you can interrupt a file and return to live.") }}</p>
         <div class="page-heading__actions" style="margin-top:1rem;">
             <form method="post" action="{{ finish_url }}">
                 <button type="submit" class="btn btn--primary">{{ _("Finish counting") }}</button>
@@ -253,180 +264,32 @@
 {% endblock %}
 
 {% block page_scripts %}
-<script>
-(function () {
-    var stateUrl = {{ state_url|tojson }};
-    var uploadUrl = {{ upload_url|tojson }};
-    var phaseUrl = {{ phase_url|tojson }};
-    var img = document.getElementById("capture-frame");
-    var placeholder = document.getElementById("capture-placeholder");
-    var statusEl = document.getElementById("capture-status");
-    var progressEl = document.getElementById("capture-progress");
-    var modelEl = document.getElementById("capture-model");
-    var table = document.getElementById("capture-counts-table");
-    var uploadForm = document.getElementById("capture-upload-form");
-    var uploadBtn = document.getElementById("capture-upload-btn");
-    var phaseForm = document.getElementById("capture-phase-form");
-    var phaseMsg = document.getElementById("capture-phase-msg");
-    var timer = null;
-    var i18n = {
-        catMeta: {{ _("Expected %(expected)s · Named %(named)s · Unnamed %(unnamed)s · Detected %(detected)s")|tojson }},
-        pending: {{ _("Pending: %(items)s")|tojson }},
-        status: {{ _("Status: %(status)s")|tojson }},
-        progress: {{ _("Progress: %(percent)s%%")|tojson }},
-        model: {{ _("Model: %(model)s")|tojson }},
-        uploading: {{ _("uploading…")|tojson }},
-        processing: {{ _("processing")|tojson }},
-        error: {{ _("error · %(detail)s")|tojson }},
-        uploadFailed: {{ _("upload failed")|tojson }},
-        phaseChanged: {{ _("Phase → %(phase)s (logged; stub side-effects)")|tojson }},
-        phaseFailed: {{ _("Phase change failed")|tojson }}
-    };
-    function fill(template, values) {
-        return template.replace(/%\((\w+)\)s/g, function (match, name) {
-            return values[name] !== undefined ? String(values[name]) : match;
-        }).replace(/%%/g, "%");
-    }
-
-    function fmt(n) {
-        return n == null ? "—" : Number(n).toFixed(2);
-    }
-
-    function applyCategorySummary(summary) {
-        summary = summary || {};
-        table.querySelectorAll("tr.capture-cat-header").forEach(function (row) {
-            var cat = row.getAttribute("data-category-name");
-            var meta = summary[cat];
-            var metaEl = row.querySelector("[data-cat-meta]");
-            var pendEl = row.querySelector("[data-cat-pending]");
-            if (!metaEl) return;
-            if (!meta) {
-                metaEl.textContent = "";
-                if (pendEl) pendEl.textContent = "";
-                return;
-            }
-            metaEl.textContent = fill(i18n.catMeta, {
-                expected: meta.expected, named: meta.named,
-                unnamed: meta.unnamed, detected: meta.detected
-            });
-            if (pendEl) {
-                var pending = meta.pending || [];
-                if (!pending.length) {
-                    pendEl.textContent = "";
-                } else {
-                    pendEl.textContent = fill(i18n.pending, {items: pending.map(function (p) {
-                        return p.family_name + " (−" + p.missing + ")";
-                    }).join(", ")});
-                }
-            }
-        });
-    }
-
-    function applyState(session) {
-        if (!session) return;
-        statusEl.textContent = fill(i18n.status, {status: (session.status || "—") + (session.message ? " · " + session.message : "")});
-        if (typeof session.progress === "number") {
-            progressEl.textContent = fill(i18n.progress, {percent: Math.round(session.progress * 100)});
-        }
-        if (session.model_version) {
-            modelEl.textContent = fill(i18n.model, {model: session.model_version
-                + (session.pipeline ? " · " + session.pipeline : "")
-                + (session.assign_solver ? " / " + session.assign_solver : "")});
-        }
-        if (session.frame_jpeg_b64) {
-            img.src = "data:image/jpeg;base64," + session.frame_jpeg_b64;
-            img.hidden = false;
-            placeholder.hidden = true;
-        }
-        var counts = session.counts || {};
-        table.querySelectorAll("tr[data-family-code]").forEach(function (row) {
-            var code = row.getAttribute("data-family-code");
-            var meta = counts[code];
-            var det = row.querySelector("[data-detected]");
-            var diff = row.querySelector("[data-diff]");
-            var best = row.querySelector("[data-best]");
-            var weak = row.querySelector("[data-weak]");
-            var conf = row.querySelector("[data-conf]");
-            if (!meta) return;
-            det.textContent = String(meta.detected_quantity);
-            diff.textContent = meta.difference;
-            best.textContent = fmt(meta.best_confidence);
-            weak.textContent = fmt(meta.weakest_confidence);
-            conf.textContent = fmt(meta.avg_confidence);
-            row.setAttribute("data-detected-value", meta.detected_quantity);
-        });
-        applyCategorySummary(session.category_summary);
-        updateTotals();
-    }
-
-    // Total row: Detected sums the rows that already have counts; Diff = Detected - Expected
-    // (same convention as item.difference). Confidence is not aggregated.
-    function updateTotals() {
-        var totalRow = table.querySelector("[data-total-row]");
-        if (!totalRow) return;
-        var detected = 0;
-        var seen = false;
-        table.querySelectorAll("tr[data-family-code][data-detected-value]").forEach(function (row) {
-            var value = Number(row.getAttribute("data-detected-value"));
-            if (!isNaN(value)) {
-                detected += value;
-                seen = true;
-            }
-        });
-        var expected = Number(totalRow.getAttribute("data-total-expected")) || 0;
-        totalRow.querySelector("[data-total-detected]").textContent = seen ? detected : "—";
-        totalRow.querySelector("[data-total-diff]").textContent = seen ? detected - expected : "—";
-    }
-
-    function poll() {
-        fetch(stateUrl, { credentials: "same-origin" })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                if (data && data.session) applyState(data.session);
-            })
-            .catch(function () { /* keep polling */ });
-    }
-
-    uploadForm.addEventListener("submit", function (ev) {
-        ev.preventDefault();
-        var fileInput = document.getElementById("capture-video");
-        if (!fileInput.files || !fileInput.files[0]) return;
-        var fd = new FormData();
-        fd.append("video", fileInput.files[0]);
-        uploadBtn.disabled = true;
-        statusEl.textContent = fill(i18n.status, {status: i18n.uploading});
-        fetch(uploadUrl, { method: "POST", body: fd, credentials: "same-origin" })
-            .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
-            .then(function (res) {
-                if (!res.ok) {
-                    statusEl.textContent = fill(i18n.status, {status: fill(i18n.error, {detail: res.j.error || i18n.uploadFailed})});
-                    return;
-                }
-                statusEl.textContent = fill(i18n.status, {status: i18n.processing});
-                if (res.j.session) applyState(res.j.session);
-            })
-            .catch(function (err) {
-                statusEl.textContent = fill(i18n.status, {status: fill(i18n.error, {detail: err})});
-            })
-            .finally(function () { uploadBtn.disabled = false; });
-    });
-
-    phaseForm.addEventListener("submit", function (ev) {
-        ev.preventDefault();
-        var fd = new FormData(phaseForm);
-        fetch(phaseUrl, { method: "POST", body: fd, credentials: "same-origin" })
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                phaseMsg.textContent = data.ok
-                    ? fill(i18n.phaseChanged, {phase: data.phase_code})
-                    : (data.error || i18n.phaseFailed);
-            })
-            .catch(function (err) { phaseMsg.textContent = String(err); });
-    });
-
-    poll();
-    timer = setInterval(poll, 1500);
-    window.addEventListener("beforeunload", function () { if (timer) clearInterval(timer); });
-})();
-</script>
+<script
+    src="{{ url_for('static', filename='js/pages/capture-rf.js') }}"
+    data-state-url="{{ state_url }}"
+    data-upload-url="{{ upload_url }}"
+    data-phase-url="{{ phase_url }}"
+    data-cancel-url="{{ cancel_url }}"
+    data-ticket-url="{{ ws_ticket_url }}"
+    data-session-id="{{ session_id }}"
+    data-i18n-cat-meta="{{ _('Expected %(expected)s · Named %(named)s · Unnamed %(unnamed)s · Detected %(detected)s') }}"
+    data-i18n-pending="{{ _('Pending: %(items)s') }}"
+    data-i18n-status="{{ _('Status: %(status)s') }}"
+    data-i18n-progress="{{ _('Progress: %(percent)s%%') }}"
+    data-i18n-model="{{ _('Model: %(model)s') }}"
+    data-i18n-uploading="{{ _('uploading…') }}"
+    data-i18n-processing="{{ _('processing') }}"
+    data-i18n-error="{{ _('error · %(detail)s') }}"
+    data-i18n-upload-failed="{{ _('upload failed') }}"
+    data-i18n-phase-changed="{{ _('Phase → %(phase)s (logged; stub side-effects)') }}"
+    data-i18n-phase-failed="{{ _('Phase change failed') }}"
+    data-i18n-latency="{{ _('Latency: %(total)s ms (YOLO %(yolo)s · post %(post)s) · avg %(avg)s · max %(max)s · n=%(n)s') }}"
+    data-i18n-cam-denied="{{ _('Camera permission denied. Allow the camera or use a demo video.') }}"
+    data-i18n-cam-missing="{{ _('No camera found. Plug one in or use a demo video.') }}"
+    data-i18n-cam-busy="{{ _('Camera is in use by another app.') }}"
+    data-i18n-cam-start="{{ _('Start camera') }}"
+    data-i18n-cam-stop="{{ _('Stop camera') }}"
+    data-i18n-live="{{ _('live camera') }}"
+    defer
+></script>
 {% endblock %}

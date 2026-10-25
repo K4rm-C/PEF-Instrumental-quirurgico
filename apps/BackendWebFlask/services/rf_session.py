@@ -444,6 +444,27 @@ _BOARD_METRIC_KEYS = (
     "family_match_rate_raw",
     "family_match_rate_refined",
 )
+_LATENCY_PAYLOAD_KEYS = (
+    "latency_ms",
+    "last_yolo_ms",
+    "last_post_ms",
+    "latency_avg_ms",
+    "yolo_avg_ms",
+    "post_avg_ms",
+    "latency_max_ms",
+    "latency_n",
+    "model_device",
+)
+
+
+def _latency_payload_from_meta(meta_extra: dict | None) -> dict:
+    meta = meta_extra or {}
+    out = {}
+    for key in _LATENCY_PAYLOAD_KEYS:
+        value = meta.get(key)
+        if value is not None:
+            out[key] = value
+    return out
 
 
 def _compact_box_audit(box: dict) -> dict:
@@ -540,13 +561,16 @@ def build_board_payload_from_counts(
         "pipeline_config": {
             "pipeline": pipeline,
             "solver": solver,
+            "count_sample_interval_s": meta_extra.get("count_sample_interval_s"),
             "count_sample_every": meta_extra.get("count_sample_every"),
+            "frame_stride": meta_extra.get("frame_stride"),
             "conf_threshold": meta_extra.get("conf_threshold"),
         },
         "run_id": meta_extra.get("run_id"),
         "frame_index": meta_extra.get("frame_index"),
         "frames_processed": meta_extra.get("frames_processed"),
         "video_t": meta_extra.get("video_t"),
+        "latency": _latency_payload_from_meta(meta_extra),
         "board": {
             "families": families,
             "totals": {
@@ -559,6 +583,8 @@ def build_board_payload_from_counts(
     }
     if isinstance(am, dict) and am:
         payload["assignment_metrics"] = {k: am.get(k) for k in _BOARD_METRIC_KEYS if k in am}
+    if not payload["latency"]:
+        payload.pop("latency", None)
     return payload, expected_total, detected_total
 
 
@@ -575,8 +601,8 @@ def persist_board_auto_count(
 ) -> int:
     """Insert one auto_count row for a vision board snapshot (family_id NULL).
 
-    Dense telemetry stays in worker NDJSON / future Mongo (DS06). PG stores observables:
-    raw tallies, compact top-k boxes (optional), and exposed final table — not the score matrix.
+    Dense series stay in worker NDJSON / future Mongo (DS06). PG stores sampled observables:
+    raw tallies, compact top-k boxes (optional), latency of that sample, and the exposed table.
     """
     flush_key = once_key or f"{session_id}:{reason}"
     if flush_key in _AUTO_COUNT_FLUSHED and reason != "detection_close":
@@ -674,8 +700,19 @@ def persist_vision_timeline_windows(
                 "assign_solver": sample.get("assign_solver"),
                 "model_version": sample.get("model_version"),
                 "assignment_metrics": sample.get("assignment_metrics") or {},
+                "count_sample_interval_s": sample.get("count_sample_interval_s"),
                 "count_sample_every": sample.get("count_sample_every"),
+                "frame_stride": sample.get("frame_stride"),
                 "conf_threshold": sample.get("conf_threshold"),
+                "latency_ms": sample.get("latency_ms"),
+                "last_yolo_ms": sample.get("last_yolo_ms"),
+                "last_post_ms": sample.get("last_post_ms"),
+                "latency_avg_ms": sample.get("latency_avg_ms"),
+                "yolo_avg_ms": sample.get("yolo_avg_ms"),
+                "post_avg_ms": sample.get("post_avg_ms"),
+                "latency_max_ms": sample.get("latency_max_ms"),
+                "latency_n": sample.get("latency_n"),
+                "model_device": sample.get("model_device"),
             },
         )
         total += written
@@ -718,7 +755,10 @@ def finish_vision_counting(
             "model_version": worker_session.get("model_version"),
             "assignment_metrics": worker_session.get("assignment_metrics") or {},
             "conf_threshold": worker_session.get("conf_threshold"),
+            "count_sample_interval_s": worker_session.get("count_sample_interval_s"),
             "count_sample_every": worker_session.get("count_sample_every"),
+            "frame_stride": worker_session.get("frame_stride"),
+            "video_t": worker_session.get("video_t"),
         },
     )
     snapshot = {

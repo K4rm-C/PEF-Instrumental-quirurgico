@@ -936,6 +936,8 @@ def operator_session_capture(session_id):
         finish_url=url_for('web.operator_session_capture_finish', session_id=session_id),
         phase_url=url_for('web.operator_session_capture_phase', session_id=session_id),
         report_url=url_for('web.operator_session_manual_report', session_id=session_id),
+        cancel_url=url_for('web.operator_session_capture_cancel', session_id=session_id),
+        ws_ticket_url=url_for('web.operator_session_capture_ws_ticket', session_id=session_id),
     )
 
 
@@ -962,40 +964,64 @@ def operator_session_capture_state(session_id):
     status = session_state.get('status')
     run_id = session_state.get('run_id')
     frames_processed = session_state.get('frames_processed')
-    sample_every = max(1, int(session_state.get('count_sample_every') or 10))
+    last_sample_fp = session_state.get('last_timeline_frames_processed')
     sample_meta_base = {
         'run_id': run_id,
         'frame_index': session_state.get('frame_index'),
         'frames_processed': frames_processed,
+        'video_t': session_state.get('video_t') or session_state.get('last_timeline_video_t'),
         'pipeline': session_state.get('pipeline'),
         'assign_solver': session_state.get('assign_solver'),
         'model_version': session_state.get('model_version'),
         'assignment_metrics': session_state.get('assignment_metrics') or {},
-        'count_sample_every': sample_every,
+        'frame_stride': session_state.get('frame_stride'),
+        'count_sample_interval_s': session_state.get('count_sample_interval_s'),
         'conf_threshold': session_state.get('conf_threshold'),
+        'latency_ms': session_state.get('latency_ms'),
+        'last_yolo_ms': session_state.get('last_yolo_ms'),
+        'last_post_ms': session_state.get('last_post_ms'),
+        'latency_avg_ms': session_state.get('latency_avg_ms'),
+        'yolo_avg_ms': session_state.get('yolo_avg_ms'),
+        'post_avg_ms': session_state.get('post_avg_ms'),
+        'latency_max_ms': session_state.get('latency_max_ms'),
+        'latency_n': session_state.get('latency_n'),
+        'model_device': session_state.get('model_device'),
     }
 
-    # Live window: one board event if UI polls on a sample boundary (idempotent once_key).
-    if (
-        status == 'processing'
-        and session_state.get('counts')
-        and run_id
-        and frames_processed
-        and int(frames_processed) % sample_every == 0
-    ):
-        try:
-            persist_board_auto_count(
-                session_id=UUID(session_id),
-                operator_user_id=UUID(user['id']),
-                counts=session_state.get('counts') or {},
-                model_version=session_state.get('model_version'),
-                reason='video_window',
-                once_key=f"{session_id}:video_window:{run_id}:{frames_processed}",
-                include_boxes=False,
-                sample_meta=sample_meta_base,
-            )
-        except Exception:
-            pass
+    # File: opportunistic persist if the poll lands on the sampled frame.
+    # Live never reaches `ready`, so backfill NDJSON windows (1/s, idempotent once_key).
+    source = session_state.get('capture_source')
+    if status == 'processing' and run_id:
+        if source == 'live':
+            try:
+                timeline = fetch_timeline(UUID(session_id), run_id=run_id)
+                persist_vision_timeline_windows(
+                    session_id=UUID(session_id),
+                    operator_user_id=UUID(user['id']),
+                    samples=timeline.get('samples') or [],
+                    model_version=session_state.get('model_version'),
+                )
+            except Exception:
+                pass
+        elif (
+            session_state.get('counts')
+            and last_sample_fp
+            and frames_processed is not None
+            and int(frames_processed) == int(last_sample_fp)
+        ):
+            try:
+                persist_board_auto_count(
+                    session_id=UUID(session_id),
+                    operator_user_id=UUID(user['id']),
+                    counts=session_state.get('counts') or {},
+                    model_version=session_state.get('model_version'),
+                    reason='video_window',
+                    once_key=f"{session_id}:video_window:{run_id}:{frames_processed}",
+                    include_boxes=False,
+                    sample_meta=sample_meta_base,
+                )
+            except Exception:
+                pass
 
     # On ready: backfill board windows from worker NDJSON, then final video_ready (with boxes).
     if status == 'ready' and session_state.get('counts'):
@@ -1047,11 +1073,44 @@ def operator_session_capture_upload(session_id):
     return jsonify(result), 202
 
 
+@web_bp.route('/operator/sessions/<session_id>/capture/ws-ticket')
+@require_role('station_operator')
+def operator_session_capture_ws_ticket(session_id):
+    from services.vision_ws_ticket import issue_ws_ticket
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
+        return jsonify({'ok': False, 'error': gettext('Session not in vision capture')}), 409
+    issued = issue_ws_ticket(session_id)
+    return jsonify({'ok': True, **issued})
+
+
+@web_bp.route('/operator/sessions/<session_id>/capture/cancel', methods=['POST'])
+@require_role('station_operator')
+def operator_session_capture_cancel(session_id):
+    from services.vision_bridge import VisionBridgeError, cancel_job
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'in_progress' or detail.get('capture_mode') != 'vision':
+        return jsonify({'ok': False, 'error': gettext('Session not in vision capture')}), 409
+    try:
+        result = cancel_job(UUID(session_id))
+    except VisionBridgeError as exc:
+        return jsonify({'ok': False, 'error': _error_message(exc)}), exc.status_code
+    return jsonify(result)
+
+
 @web_bp.route('/operator/sessions/<session_id>/capture/finish', methods=['POST'])
 @require_role('station_operator')
 def operator_session_capture_finish(session_id):
-    from services.rf_session import RfSessionError, finish_vision_counting
-    from services.vision_bridge import VisionBridgeError, fetch_state
+    from services.rf_session import RfSessionError, finish_vision_counting, persist_vision_timeline_windows
+    from services.vision_bridge import VisionBridgeError, fetch_state, fetch_timeline
 
     user = _current_user()
     detail = operator_session_detail(session_id, user['id'])
@@ -1061,10 +1120,21 @@ def operator_session_capture_finish(session_id):
         return redirect(url_for('web.operator_session_details', session_id=session_id))
     try:
         data = fetch_state(UUID(session_id))
+        worker_session = data.get('session') or {}
+        try:
+            timeline = fetch_timeline(UUID(session_id), run_id=worker_session.get('run_id'))
+            persist_vision_timeline_windows(
+                session_id=UUID(session_id),
+                operator_user_id=UUID(user['id']),
+                samples=timeline.get('samples') or [],
+                model_version=worker_session.get('model_version'),
+            )
+        except Exception:
+            pass
         finish_vision_counting(
             session_id=UUID(session_id),
             operator_user_id=UUID(user['id']),
-            worker_session=data.get('session') or {},
+            worker_session=worker_session,
         )
     except (VisionBridgeError, RfSessionError) as exc:
         flash(_error_message(exc), 'warning')

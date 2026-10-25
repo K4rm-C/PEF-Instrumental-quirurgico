@@ -357,24 +357,30 @@ Umbrales por defecto (override con env `VISION_*`):
 | `VISION_REASSIGN_MIN_SCORE`     | `0.45`      | Piso para reasignar a otra familia esperada                                                                        |
 | `VISION_REASSIGN_MAX_GAP`       | `0.15`      | Cercania al score top-1 raw (scores sigmoid)                                                                       |
 | `VISION_ASSIGN_SOLVER`          | `hungarian` | Matching sobre la matriz: `hungarian` | `greedy`                                                                   |
-| `VISION_FRAME_STRIDE`           | `5`         | Inferir cada N frames (~6 fps a 30 fps)                                                                            |
-| `VISION_COUNT_SAMPLE_EVERY`     | `10`        | Muestrear tallies a timeline NDJSON (+ `count_event` `video_window` al ready). `1` = cada inferencia (mas costoso) |
+| `VISION_FRAME_STRIDE_CUDA`      | `1`         | Inferir cada N frames en CUDA (~cada frame a ~60 ms)                                                               |
+| `VISION_FRAME_STRIDE_CPU`       | `5`         | Inferir cada N frames en CPU (~6 fps a 30 fps). Fallback si no hay GPU                                             |
+| `VISION_FRAME_STRIDE`           | (unset)     | Si se setea, pinea CUDA y CPU al mismo N (salvo que exista `_CUDA` / `_CPU`)                                       |
+| `VISION_COUNT_SAMPLE_INTERVAL_S`| `1.0`       | Tope de `count_event` `video_window`: 1 por segundo de cinta (`video_t`) o de reloj en live                         |
+| `VISION_WORKER_WS_URL`          | `ws://127.0.0.1:5002/ws` | URL que el navegador usa para el WS (Flask solo emite el ticket)                                      |
+| `VISION_WS_SECRET`              | demo        | HMAC compartido Flask ↔ worker. Cambiar fuera de demo.                                                             |
+| `VISION_WS_ORIGINS`             | localhost:5000 | Orígenes permitidos en el handshake WS                                                                          |
 | `VISION_HOLD_SECONDS`           | `2.5`       | Hold largo mientras hay caja / oclusion en zona                                                                    |
 | `VISION_NAME_HOLD_SECONDS`      | `4.0`       | Sticky naming: no degradar familia→tipo si nadie lo supera                                                         |
 | `VISION_HOLD_MIN_SCORE`         | `0.35`      | No sembrar/refrescar hold con fantasmas debiles                                                                    |
-| `VISION_HOLD_SEED_FRAMES`       | `3`         | Inferencias live seguidas antes de sembrar hold (anti fantasma 1 frame)                                            |
-| `VISION_HOLD_ABSENT_STREAK`     | `3`         | Frames en 0 live antes de acortar TTL (gracia a mano)                                                              |
+| `VISION_HOLD_SEED_FRAMES`       | `3`         | Calibrado a stride CPU: se convierte a segundos de cinta (`N × stride_cpu / fps`). CUDA espera el mismo tiempo, no 3 frames |
+| `VISION_HOLD_ABSENT_STREAK`     | `3`         | Igual, gracia de ausencia en tiempo de cinta. Un parpadeo 1-frame no reinicia el reloj ni extiende el hold largo   |
 | `VISION_HOLD_ABSENT_SECONDS`    | `1.1`       | TTL corto cuando se confirma ausencia (sin overlap en zona)                                                        |
 | `VISION_HOLD_ZONE_IOU`          | `0.12`      | Si alguna caja live solapa el hold, se trata como oclusion (TTL largo)                                             |
 
 
 1. SPD: **New session** con privacy Via A (aviso placeholder) → OP ve **Notice OK · Vision**.
 2. OP (`operator@…` u `operador2@…`): Review & Start → Capture.
-3. En Capture: subir video `.mp4` / `.mkv` / etc. El worker procesa frames (stride), construye matriz caja×familia, asigna (Hungarian/greedy) hasta cupo esperado, aplica hold/sticky **interno** (sin texto hold/sticky al operador), dibuja cajas con **color por tipo** (saturado = tipo, suave = familia) y el panel lateral resalta cada seccion de tipo.
-4. **Auditoria temporal:** cada `VISION_COUNT_SAMPLE_EVERY` inferencias → NDJSON local (`*_timeline.ndjson`) con observables (raw/refined, boxes+topk). En PG: **un** `count_event` por sample (`family_id` null, `scope=board`, `reason=video_window`) + un board final `video_ready` (con boxes). Discrepancias siguen llevando `family_id` propio y pueden apuntar al board como `origin_event_id`. Serie densa a largo plazo → Mongo DS06. Smoke: `python scripts/smoke_vision_board_events.py`.
+3. En Capture: **Start camera** (gesto) pide `getUserMedia` solo video y abre WS directo al worker (`ws://127.0.0.1:5002/ws`) con ticket HMAC de Flask. El cliente pauta JPEG según `latency_ms` (slot 1, latest-wins; sin cola YOLO). El overlay llega por WS; el poll HTTP ~2.5 s solo persiste `count_event` (máx. 1/s de reloj). Upload de archivo queda para demo/lab; se puede **interrumpir y volver a cámara**. `getUserMedia` en `http://127.0.0.1` / `localhost` (LAN requiere HTTPS después).
+3b. Alternativa archivo: subir `.mp4` / `.mkv` / etc. El worker procesa frames (stride CUDA=1 / CPU=5), construye matriz caja×familia, asigna (Hungarian/greedy) hasta cupo esperado, aplica hold/sticky **interno**, dibuja cajas con **color por tipo**. El overlay del archivo se pide al ritmo de `latency_ms`.
+4. **Auditoria temporal:** como máximo 1 sample por segundo de video (`VISION_COUNT_SAMPLE_INTERVAL_S`) → NDJSON local (`*_timeline.ndjson`) con observables (raw/refined, boxes+topk) y latencia de esa ventana. En PG: **un** `count_event` por sample (`family_id` null, `scope=board`, `reason=video_window`) + un board final `video_ready` (con boxes). Discrepancias siguen llevando `family_id` propio y pueden apuntar al board como `origin_event_id`. Serie densa a largo plazo → Mongo DS06. Smoke: `python scripts/smoke_vision_board_events.py`.
 5. **Finish counting** → resumen AI (incluye Raw vs refined) → **Human validation** (AI locked; validated editable). El cierre usa la ruta de conteo manual (discrepancias solo si validated ≠ expected). El worker se desliga al cerrar.
 6. Cambio de fase en Capture es real en PG (`phase_change`) pero stub respecto a Mongo/Garage.
-7. Fuera de alcance en este ciclo: Electron/camara live, evidencia Mongo/Garage, disc. automaticas por ausencia temporal. Matching: Hungarian default; greedy via env para A/B.
+7. Fuera de alcance en este ciclo: Electron, evidencia Mongo/Garage, GIF de evidencia, disc. automaticas por ausencia temporal. Matching: Hungarian default; greedy via env para A/B. Ticket WS: `VISION_WS_SECRET` (mismo valor en Flask y worker). Smoke WS: `python scripts/smoke_vision_ws.py` con el worker arriba.
 
 **5) Smokes CLI (opcionales; ensucian seed)**
 

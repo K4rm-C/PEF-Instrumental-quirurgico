@@ -134,6 +134,58 @@ def main() -> None:
     assert until_zone >= until0 - 0.01 or until_zone >= 1.0 + 1.0
     assert out["FOERSTER"].get("held") is True
 
+    # CUDA stride 1: 3 inferences (~0.1 s of tape) must not seed; ~0.5 s must.
+    state_cu = SessionState(session_id="smoke-hold-cuda")
+    state_cu.expected = state.expected
+    state_cu.frame_stride = 1
+    state_cu.video_fps = 30.0
+    state_cu.hold_seed_frames = 3
+    state_cu.hold_absent_streak = 3
+    state_cu.hold_absent_seconds = 1.1
+    state_cu.hold_seconds = 2.5
+    state_cu.hold_min_score = 0.35
+    for t in (0.0, 0.033, 0.066):
+        _apply_hold(
+            state_cu,
+            counts=_counts("FOERSTER", 1),
+            public_boxes=[_box("FOERSTER", xy)],
+            video_t=t,
+        )
+        assert "FOERSTER" not in state_cu._hold_by_family
+    _apply_hold(
+        state_cu,
+        counts=_counts("FOERSTER", 1),
+        public_boxes=[_box("FOERSTER", xy)],
+        video_t=0.5,
+    )
+    assert "FOERSTER" in state_cu._hold_by_family
+    until_cu = float(state_cu._hold_by_family["FOERSTER"]["until"])
+
+    # Pickup + 1-frame flicker must not restore the 2.5 s TTL.
+    _apply_hold(
+        state_cu,
+        counts=_counts("FOERSTER", 0),
+        public_boxes=[],
+        video_t=0.55,
+    )
+    _apply_hold(
+        state_cu,
+        counts=_counts("FOERSTER", 1),
+        public_boxes=[_box("FOERSTER", xy)],
+        video_t=0.58,
+    )
+    until_flicker = float(state_cu._hold_by_family["FOERSTER"]["until"])
+    assert until_flicker <= until_cu + 0.01
+
+    _apply_hold(
+        state_cu,
+        counts=_counts("FOERSTER", 0),
+        public_boxes=[],
+        video_t=1.05,
+    )
+    until_short_cu = float(state_cu._hold_by_family["FOERSTER"]["until"])
+    assert until_short_cu <= 1.05 + 1.11 + 1e-6
+
     print("OK smoke_hold_gates")
 
 
