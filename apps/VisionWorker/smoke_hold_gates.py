@@ -40,7 +40,7 @@ def main() -> None:
     state.hold_seconds = 2.5
     state.name_hold_seconds = 4.0
     state.hold_min_score = 0.35
-    state.hold_zone_iou = 0.12
+    state.hold_zone_iou = 0.15
 
     xy = [100.0, 100.0, 200.0, 300.0]
 
@@ -98,14 +98,14 @@ def main() -> None:
     assert int(out["FOERSTER"]["detected_quantity"]) == 0
     assert not out["FOERSTER"].get("held")
 
-    # Re-seed and test zone occlusion keeps long TTL
+    # Re-seed and test zone occlusion: delays shrink, does not restart the clock.
     state2 = SessionState(session_id="smoke-hold-zone")
     state2.expected = state.expected
     state2.hold_seed_frames = 3
     state2.hold_absent_streak = 3
     state2.hold_absent_seconds = 1.1
     state2.hold_seconds = 2.5
-    state2.hold_zone_iou = 0.12
+    state2.hold_zone_iou = 0.15
     for t in (0.0, 0.2, 0.4):
         _apply_hold(
             state2,
@@ -131,8 +131,16 @@ def main() -> None:
             video_t=t,
         )
     until_zone = float(state2._hold_by_family["FOERSTER"]["until"])
-    assert until_zone >= until0 - 0.01 or until_zone >= 1.0 + 1.0
+    assert abs(until_zone - until0) < 1e-6
     assert out["FOERSTER"].get("held") is True
+    # Original timeout still wins even with overlap
+    out, _ = _apply_hold(
+        state2,
+        counts=_counts("FOERSTER", 0),
+        public_boxes=[type_box],
+        video_t=until0 + 0.05,
+    )
+    assert not out["FOERSTER"].get("held")
 
     # CUDA stride 1: 3 inferences (~0.1 s of tape) must not seed; ~0.5 s must.
     state_cu = SessionState(session_id="smoke-hold-cuda")

@@ -370,7 +370,7 @@ Umbrales por defecto (override con env `VISION_*`):
 | `VISION_HOLD_SEED_FRAMES`       | `3`         | Calibrado a stride CPU: se convierte a segundos de cinta (`N × stride_cpu / fps`). CUDA espera el mismo tiempo, no 3 frames |
 | `VISION_HOLD_ABSENT_STREAK`     | `3`         | Igual, gracia de ausencia en tiempo de cinta. Un parpadeo 1-frame no reinicia el reloj ni extiende el hold largo   |
 | `VISION_HOLD_ABSENT_SECONDS`    | `1.1`       | TTL corto cuando se confirma ausencia (sin overlap en zona)                                                        |
-| `VISION_HOLD_ZONE_IOU`          | `0.12`      | Si alguna caja live solapa el hold, se trata como oclusion (TTL largo)                                             |
+| `VISION_HOLD_ZONE_IOU`          | `0.15`      | Overlap para tratar oclusion (retrasa el hold corto; no reinicia el timeout de 2.5 s)                              |
 
 
 1. SPD: **New session** con privacy Via A (aviso placeholder) → OP ve **Notice OK · Vision**.

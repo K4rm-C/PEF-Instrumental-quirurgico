@@ -362,7 +362,7 @@ def _hold_zone_occluded(
     *,
     min_iou: float,
 ) -> bool:
-    """True if any live box (named or type) still overlaps last hold geometry."""
+    """True if any live box (named or type) still overlaps last hold geometry (IoU)."""
     hold_boxes = hold.get("boxes") or []
     if not hold_boxes or not live_boxes:
         return False
@@ -452,8 +452,9 @@ def _apply_hold(
     """
     Count-hold + sticky naming with production-minded gates:
     - Seed / refresh long TTL only after sustained live (CPU-stride-equivalent tape time).
-    - Long TTL while sustained live or while a box still overlaps hold zone (hand/occlusion).
+    - Hold clock is a timeout from last sustained live; zone overlap does not restart it.
     - After the same tape-time of absence without zone overlap, shrink to HOLD_ABSENT_SECONDS.
+    - Zone overlap only delays that shrink (hand still in the tray slot).
     - A 1-frame flicker does not reset the absence clock nor extend the long hold.
     """
     ttl = max(0.0, float(state.hold_seconds))
@@ -515,13 +516,10 @@ def _apply_hold(
                     counts[code].get("family_name") or (prev or {}).get("family_name")
                 ),
             }
-        elif prev is not None:
-            if live_best >= min_score or live_named:
-                prev["until"] = max(float(prev.get("until") or 0), video_t + ttl * 0.5)
-            if live_named:
-                prev["named"] = True
-                prev["name_until"] = video_t + name_ttl
-                prev["best_score"] = max(float(prev.get("best_score") or 0), live_best)
+        elif prev is not None and live_named:
+            prev["named"] = True
+            prev["name_until"] = video_t + name_ttl
+            prev["best_score"] = max(float(prev.get("best_score") or 0), live_best)
 
     # Absent path: tape-time since last sustained live, then short TTL unless zone occupied.
     for code in list(state.expected.keys()):
@@ -536,8 +534,7 @@ def _apply_hold(
         if (video_t - float(last_good)) < absent_s:
             continue
         if _hold_zone_occluded(hold, public_boxes, min_iou=zone_iou):
-            # Something still in the tray zone → keep long occlusion budget.
-            hold["until"] = max(float(hold.get("until") or 0), video_t + ttl * 0.5)
+            # Hand/type box in the slot: do not shrink yet, but do not restart until.
             continue
         # Confirmed gone: shrink remaining hold/name windows.
         hold["until"] = min(float(hold.get("until") or 0), video_t + absent_ttl)

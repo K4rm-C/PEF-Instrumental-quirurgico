@@ -63,8 +63,9 @@ HOLD_ABSENT_SECONDS = float(os.getenv("VISION_HOLD_ABSENT_SECONDS", "1.1"))
 # CUDA (stride 1) waits the same video time as CPU (stride 5), not 3 raw frames.
 HOLD_ABSENT_STREAK = max(1, int(os.getenv("VISION_HOLD_ABSENT_STREAK", "3")))
 HOLD_SEED_FRAMES = max(1, int(os.getenv("VISION_HOLD_SEED_FRAMES", "3")))
-# If any live box overlaps last hold geometry ≥ this IoU, treat as occlusion (keep long TTL).
-HOLD_ZONE_IOU = float(os.getenv("VISION_HOLD_ZONE_IOU", "0.12"))
+# If any live box overlaps last hold geometry ≥ this IoU, treat as occlusion
+# (delay absent shrink; do not refresh the hold clock).
+HOLD_ZONE_IOU = float(os.getenv("VISION_HOLD_ZONE_IOU", "0.15"))
 # Sample tallies into timeline NDJSON (+ PG video_window) at most once per this many *video* seconds.
 # CUDA folds many inferences into that window; CPU may write almost every inference without exceeding 1 Hz of tape.
 COUNT_SAMPLE_INTERVAL_S = max(0.05, float(os.getenv("VISION_COUNT_SAMPLE_INTERVAL_S", "1.0")))
