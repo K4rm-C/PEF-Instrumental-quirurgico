@@ -20,14 +20,14 @@ _ws_origins = os.getenv(
 WS_ORIGINS = {o.strip() for o in _ws_origins.split(",") if o.strip()}
 
 # Recall (caja existe) — permisivo para demo externos
-BOX_RECALL_CONF = float(os.getenv("VISION_BOX_RECALL_CONF", "0.15"))
+BOX_RECALL_CONF = float(os.getenv("VISION_BOX_RECALL_CONF", "0.12"))
 # Overlay: familia vs Type (kept_raw / naming principal)
 CONF_DISPLAY_THRESHOLD = float(os.getenv("VISION_CONF_DISPLAY_THRESHOLD", "0.70"))
 # Overlay naming for reassigned: raw top-1 >= display AND assigned visual >= this
 CONF_DISPLAY_REASSIGN = float(os.getenv("VISION_CONF_DISPLAY_REASSIGN", "0.60"))
 # Reassign: piso absoluto + cercanía al raw top-1 (scores sigmoid independientes)
 REASSIGN_MIN_SCORE = float(os.getenv("VISION_REASSIGN_MIN_SCORE", "0.45"))
-REASSIGN_MAX_GAP = float(os.getenv("VISION_REASSIGN_MAX_GAP", "0.15"))
+REASSIGN_MAX_GAP = float(os.getenv("VISION_REASSIGN_MAX_GAP", "0.35"))
 TOPK = max(1, int(os.getenv("VISION_TOPK", "5")))
 # Compact audit trail in payloads / metrics (class row after NMS, not 8400 anchors)
 TOPK_PERSIST = max(1, min(TOPK, int(os.getenv("VISION_TOPK_PERSIST", "4"))))
@@ -35,6 +35,13 @@ VISUAL_WEIGHT = float(os.getenv("VISION_VISUAL_WEIGHT", "0.75"))
 CONTEXT_WEIGHT = float(os.getenv("VISION_CONTEXT_WEIGHT", "0.25"))
 NMS_IOU = float(os.getenv("VISION_NMS_IOU", "0.45"))
 IMGSZ = int(os.getenv("VISION_IMGSZ", "640"))
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or str(raw).strip() == "":
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _env_int(name: str) -> int | None:
@@ -81,3 +88,11 @@ WORKER_PIPELINE = "matrix_v1"
 # Matching solver over the same edge matrix: hungarian (default) | greedy
 _ASSIGN = (os.getenv("VISION_ASSIGN_SOLVER", "hungarian") or "hungarian").strip().lower()
 ASSIGN_SOLVER = _ASSIGN if _ASSIGN in {"greedy", "hungarian"} else "hungarian"
+# Temporal memory (IoU tracks + EMA + prior). Rollback: VISION_TRACK_MEMORY=0
+TRACK_MEMORY = _env_flag("VISION_TRACK_MEMORY", True)
+TRACK_EMA_ALPHA = min(1.0, max(0.05, float(os.getenv("VISION_TRACK_EMA_ALPHA", "0.35"))))
+TRACK_IOU = min(0.95, max(0.05, float(os.getenv("VISION_TRACK_IOU", "0.30"))))
+TRACK_MISS_SECONDS = max(0.1, float(os.getenv("VISION_TRACK_MISS_SECONDS", "0.50")))
+TRACK_PRIOR = min(1.0, max(0.0, float(os.getenv("VISION_TRACK_PRIOR", "0.20"))))
+# Floor to open an edge toward a *free* family when this frame's top is already taken.
+TRACK_CONTENTION_MIN = min(1.0, max(0.05, float(os.getenv("VISION_TRACK_CONTENTION_MIN", "0.25"))))

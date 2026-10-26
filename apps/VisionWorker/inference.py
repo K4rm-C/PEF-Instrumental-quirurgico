@@ -32,10 +32,12 @@ from config import (
     HOLD_ZONE_IOU,
     METRICS_DIR,
     NAME_HOLD_SECONDS,
+    TRACK_MEMORY,
     WORKER_PIPELINE,
     WEIGHTS_PATH,
 )
 from infer_pipeline import detect_with_class_scores
+from tracks import commit_track_families, update_box_tracks
 
 _model = None
 _model_device = "cpu"
@@ -165,6 +167,8 @@ class SessionState:
     _live_since: dict[str, float] = field(default_factory=dict)
     # family_code -> video_t of last *sustained* live (seed-gate met)
     _last_good_live_t: dict[str, float] = field(default_factory=dict)
+    # IoU tracks for EMA / assignment prior (VISION_TRACK_MEMORY)
+    _tracks: list[dict[str, Any]] = field(default_factory=list)
 
     def to_public(self) -> dict[str, Any]:
         return {
@@ -356,40 +360,59 @@ def _xyxy_iou(a: list[float] | tuple[float, ...], b: list[float] | tuple[float, 
     return inter / denom if denom > 0 else 0.0
 
 
-def _hold_zone_occluded(
+def _box_family_code(box: dict[str, Any] | None) -> str | None:
+    if not box:
+        return None
+    raw = box.get("family_code")
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    return text or None
+
+
+def _max_iou_with_hold(hold: dict[str, Any], box: dict[str, Any]) -> float:
+    lxy = (box or {}).get("xyxy")
+    if not lxy:
+        return 0.0
+    best = 0.0
+    for hb in hold.get("boxes") or []:
+        hxy = hb.get("xyxy")
+        if not hxy:
+            continue
+        best = max(best, _xyxy_iou(hxy, lxy))
+    return best
+
+
+def _occupying_boxes(
     hold: dict[str, Any],
     live_boxes: list[dict[str, Any]],
     *,
     min_iou: float,
-) -> bool:
-    """True if any live box (named or type) still overlaps last hold geometry (IoU)."""
-    hold_boxes = hold.get("boxes") or []
-    if not hold_boxes or not live_boxes:
-        return False
-    for hb in hold_boxes:
-        hxy = hb.get("xyxy")
-        if not hxy:
-            continue
-        for lb in live_boxes:
-            lxy = lb.get("xyxy")
-            if not lxy:
-                continue
-            if _xyxy_iou(hxy, lxy) >= min_iou:
-                return True
-    return False
+) -> list[dict[str, Any]]:
+    """Live YOLO boxes that still overlap last hold geometry."""
+    if not (hold.get("boxes") or []) or not live_boxes:
+        return []
+    return [lb for lb in live_boxes if _max_iou_with_hold(hold, lb) >= min_iou]
 
 
-def _apply_sticky_name(box: dict[str, Any], hold: dict[str, Any], video_t: float) -> dict[str, Any]:
-    """If hold recently had a named family, keep family label despite live category degrade."""
+def _apply_sticky_name(
+    box: dict[str, Any],
+    hold: dict[str, Any],
+    video_t: float,
+    *,
+    hold_code: str | None = None,
+) -> dict[str, Any]:
+    """Keep last good family label while YOLO still has a box in that slot."""
     if not hold:
         return box
     if video_t > float(hold.get("name_until") or 0):
         return box
     if not hold.get("named"):
         return box
-    if not box.get("family_code"):
+    box_code = _box_family_code(box)
+    if box_code and hold_code and box_code != hold_code:
         return box
-    if box.get("high_confidence"):
+    if box.get("high_confidence") and (not hold_code or box_code == hold_code):
         return box
     family_name = box.get("family_name") or hold.get("family_name")
     if not family_name:
@@ -397,6 +420,9 @@ def _apply_sticky_name(box: dict[str, Any], hold: dict[str, Any], video_t: float
     out = copy.deepcopy(box)
     out["label"] = family_name
     out["sticky_name"] = True
+    out["family_name"] = family_name
+    if hold_code and not box_code:
+        out["family_code"] = hold_code
     return out
 
 
@@ -451,10 +477,11 @@ def _apply_hold(
 ) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
     """
     Count-hold + sticky naming with production-minded gates:
-    - Seed / refresh long TTL only after sustained live (CPU-stride-equivalent tape time).
-    - Hold clock is a timeout from last sustained live; zone overlap does not restart it.
-    - After the same tape-time of absence without zone overlap, shrink to HOLD_ABSENT_SECONDS.
-    - Zone overlap only delays that shrink (hand still in the tray slot).
+    - Seed / refresh long *count* TTL only after sustained live (CPU-stride-equivalent tape time).
+    - Count clock is a timeout from last sustained live; zone overlap does not restart it.
+    - While YOLO still emits a box for that family (even conf < 0.70), keep sticky *name*.
+    - Unassigned type box in the same slot also keeps the name; another family does not.
+    - After tape-time of absence without same-slot occupancy, shrink to HOLD_ABSENT_SECONDS.
     - A 1-frame flicker does not reset the absence clock nor extend the long hold.
     """
     ttl = max(0.0, float(state.hold_seconds))
@@ -493,9 +520,8 @@ def _apply_hold(
         if _should_refresh_hold(
             prev=prev, live_best=live_best, live_named=live_named, min_score=min_score
         ):
-            named = live_named or bool(
-                prev and prev.get("named") and video_t <= float(prev.get("name_until") or 0)
-            )
+            # Still-live family keeps its last good name even below display 0.70.
+            named = live_named or bool(prev and prev.get("named"))
             store_boxes = copy.deepcopy(fam_boxes)
             if named and not live_named:
                 for b in store_boxes:
@@ -516,12 +542,15 @@ def _apply_hold(
                     counts[code].get("family_name") or (prev or {}).get("family_name")
                 ),
             }
-        elif prev is not None and live_named:
-            prev["named"] = True
-            prev["name_until"] = video_t + name_ttl
-            prev["best_score"] = max(float(prev.get("best_score") or 0), live_best)
+        elif prev is not None:
+            if live_named:
+                prev["named"] = True
+                prev["best_score"] = max(float(prev.get("best_score") or 0), live_best)
+            if prev.get("named") or live_named:
+                prev["name_until"] = video_t + name_ttl
 
-    # Absent path: tape-time since last sustained live, then short TTL unless zone occupied.
+    # Absent path: tape-time since last sustained live, then short TTL unless
+    # YOLO still occupies *this* slot (unassigned/type or same family).
     for code in list(state.expected.keys()):
         if code in live_codes:
             continue
@@ -531,10 +560,21 @@ def _apply_hold(
         last_good = state._last_good_live_t.get(code)
         if last_good is None:
             last_good = 0.0
-        if (video_t - float(last_good)) < absent_s:
+        occupying = _occupying_boxes(hold, public_boxes, min_iou=zone_iou)
+        foreign = [
+            b for b in occupying
+            if (_box_family_code(b) is not None and _box_family_code(b) != code)
+        ]
+        same_or_orphan = [
+            b for b in occupying
+            if _box_family_code(b) in (None, code)
+        ]
+        if same_or_orphan and not foreign:
+            # YOLO still has a box here (Type / conf < 0.70): keep name, not count TTL.
+            if hold.get("named"):
+                hold["name_until"] = video_t + name_ttl
             continue
-        if _hold_zone_occluded(hold, public_boxes, min_iou=zone_iou):
-            # Hand/type box in the slot: do not shrink yet, but do not restart until.
+        if (video_t - float(last_good)) < absent_s:
             continue
         # Confirmed gone: shrink remaining hold/name windows.
         hold["until"] = min(float(hold.get("until") or 0), video_t + absent_ttl)
@@ -546,9 +586,35 @@ def _apply_hold(
 
     sticky_boxes: list[dict[str, Any]] = []
     for box in public_boxes:
-        code = box.get("family_code")
-        hold = state._hold_by_family.get(code) if code else None
-        sticky_boxes.append(_apply_sticky_name(box, hold or {}, video_t))
+        code = _box_family_code(box)
+        if code:
+            hold = state._hold_by_family.get(code)
+            sticky_boxes.append(_apply_sticky_name(box, hold or {}, video_t, hold_code=code))
+            continue
+        best_code: str | None = None
+        best_iou = zone_iou - 1e-9
+        for hcode, hold in state._hold_by_family.items():
+            if not hold.get("named") or video_t > float(hold.get("name_until") or 0):
+                continue
+            iou = _max_iou_with_hold(hold, box)
+            if iou > best_iou:
+                best_iou = iou
+                best_code = hcode
+        if best_code:
+            live_n = int((counts.get(best_code) or {}).get("detected_quantity") or 0)
+            if live_n > 0:
+                sticky_boxes.append(box)
+            else:
+                sticky_boxes.append(
+                    _apply_sticky_name(
+                        box,
+                        state._hold_by_family[best_code],
+                        video_t,
+                        hold_code=best_code,
+                    )
+                )
+        else:
+            sticky_boxes.append(box)
 
     out_counts = copy.deepcopy(counts)
     held_boxes: list[dict[str, Any]] = []
@@ -589,6 +655,39 @@ def _apply_hold(
             held_boxes.append(hb)
 
     return out_counts, sticky_boxes + held_boxes
+
+
+def _overlay_quota_boxes(
+    boxes: list[dict[str, Any]],
+    counts: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Cap *family names* to table counts; still draw Type-degraded extras (Grasping, etc.)."""
+    by_fam: dict[str, list[dict[str, Any]]] = {}
+    type_extras: list[dict[str, Any]] = []
+    for box in boxes:
+        code = _box_family_code(box)
+        if not code:
+            type_extras.append(box)
+            continue
+        by_fam.setdefault(code, []).append(box)
+    out: list[dict[str, Any]] = []
+    for code, fam_boxes in by_fam.items():
+        cap = int((counts.get(code) or {}).get("detected_quantity") or 0)
+        if cap <= 0:
+            continue
+
+        def _rank(b: dict[str, Any]) -> tuple:
+            return (
+                0 if b.get("held") else 1,
+                1 if b.get("high_confidence") else 0,
+                1 if b.get("sticky_name") else 0,
+                float(b.get("confidence") or 0.0),
+            )
+
+        ranked = sorted(fam_boxes, key=_rank, reverse=True)
+        out.extend(ranked[:cap])
+    out.extend(type_extras)
+    return out
 
 
 def _category_summary(
@@ -931,6 +1030,7 @@ def reset_hold_state(state: SessionState) -> None:
     state._hold_by_family = {}
     state._live_since = {}
     state._last_good_live_t = {}
+    state._tracks = []
 
 
 def decode_jpeg_b64(data: str) -> np.ndarray | None:
@@ -999,30 +1099,36 @@ def run_frame(
     t_all = time.perf_counter()
     raw, yolo_ms = detect_with_class_scores(model, frame_bgr)
     _enrich_class_map_from_names(raw, state)
+    state._tracks = update_box_tracks(
+        state._tracks, raw, video_t=video_t, enabled=TRACK_MEMORY
+    )
 
     refined, counts, metrics = assign_boxes(
         raw,
         expected=state.expected,
         class_map=state.class_map,
         conf_display=state.conf_threshold,
+        memory=TRACK_MEMORY,
     )
+    commit_track_families(state._tracks, refined, enabled=TRACK_MEMORY)
     public_boxes = [_public_box(box) for box in refined]
     held_counts, held_boxes = _apply_hold(
         state, counts=counts, public_boxes=public_boxes, video_t=video_t
     )
+    overlay_boxes = _overlay_quota_boxes(held_boxes, held_counts)
 
-    state.boxes = held_boxes
+    state.boxes = overlay_boxes
     state.counts = held_counts
     state.raw_counts = _raw_counts_from_boxes(
         raw, expected=state.expected, class_map=state.class_map
     )
     state.assignment_metrics = metrics
     state.category_summary = _category_summary(
-        expected=state.expected, counts=held_counts, boxes=held_boxes
+        expected=state.expected, counts=held_counts, boxes=overlay_boxes
     )
     state.pipeline = WORKER_PIPELINE
     state.assign_solver = str((metrics or {}).get("solver") or ASSIGN_SOLVER)
-    annotated = _draw_boxes(frame_bgr, held_boxes)
+    annotated = _draw_boxes(frame_bgr, overlay_boxes)
     state.frame_jpeg_b64 = _encode_jpeg_b64(annotated)
     post_ms = max(0.0, (time.perf_counter() - t_all) * 1000.0 - float(yolo_ms))
     _record_frame_latency(state, yolo_ms=yolo_ms, post_ms=post_ms)

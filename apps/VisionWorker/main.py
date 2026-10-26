@@ -28,6 +28,7 @@ from config import (
     PORT,
     REASSIGN_MAX_GAP,
     REASSIGN_MIN_SCORE,
+    TRACK_MEMORY,
     UPLOAD_DIR,
     WEIGHTS_PATH,
     WORKER_PIPELINE,
@@ -87,6 +88,7 @@ def health():
         "hold_seed_frames": HOLD_SEED_FRAMES,
         "hold_zone_iou": HOLD_ZONE_IOU,
         "count_sample_interval_s": COUNT_SAMPLE_INTERVAL_S,
+        "track_memory": TRACK_MEMORY,
         "ws_path": "/ws",
     })
 
@@ -240,4 +242,5 @@ if __name__ == "__main__":
         f"Stride: cuda={FRAME_STRIDE_CUDA} cpu={FRAME_STRIDE_CPU} "
         f"(count sample every {COUNT_SAMPLE_INTERVAL_S:g}s of video)"
     )
+    print(f"Track memory: {'on' if TRACK_MEMORY else 'off'} (rollback: VISION_TRACK_MEMORY=0)")
     app.run(host=HOST, port=PORT, debug=False, threaded=True)

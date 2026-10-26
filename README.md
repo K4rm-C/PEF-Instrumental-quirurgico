@@ -351,11 +351,11 @@ Umbrales por defecto (override con env `VISION_*`):
 
 | Variable                        | Default     | Rol                                                                                                                |
 | ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------ |
-| `VISION_BOX_RECALL_CONF`        | `0.15`      | Piso para que una caja exista (permisivo)                                                                          |
+| `VISION_BOX_RECALL_CONF`        | `0.12`      | Piso para que una caja exista (permisivo)                                                                          |
 | `VISION_CONF_DISPLAY_THRESHOLD` | `0.70`      | Overlay naming (kept_raw): familia vs tipo                                                                         |
 | `VISION_CONF_DISPLAY_REASSIGN`  | `0.60`      | Naming si reassigned: además exige raw top-1 ≥ 0.70                                                                |
 | `VISION_REASSIGN_MIN_SCORE`     | `0.45`      | Piso para reasignar a otra familia esperada                                                                        |
-| `VISION_REASSIGN_MAX_GAP`       | `0.15`      | Cercania al score top-1 raw (scores sigmoid)                                                                       |
+| `VISION_REASSIGN_MAX_GAP`       | `0.35`      | Cercania al score top-1 raw (scores sigmoid); lookalikes pueden competir por cupo libre                            |
 | `VISION_ASSIGN_SOLVER`          | `hungarian` | Matching sobre la matriz: `hungarian` | `greedy`                                                                   |
 | `VISION_FRAME_STRIDE_CUDA`      | `1`         | Inferir cada N frames en CUDA (~cada frame a ~60 ms)                                                               |
 | `VISION_FRAME_STRIDE_CPU`       | `5`         | Inferir cada N frames en CPU (~6 fps a 30 fps). Fallback si no hay GPU                                             |
@@ -365,12 +365,18 @@ Umbrales por defecto (override con env `VISION_*`):
 | `VISION_WS_SECRET`              | demo        | HMAC compartido Flask ↔ worker. Cambiar fuera de demo.                                                             |
 | `VISION_WS_ORIGINS`             | localhost:5000 | Orígenes permitidos en el handshake WS                                                                          |
 | `VISION_HOLD_SECONDS`           | `2.5`       | Hold largo mientras hay caja / oclusion en zona                                                                    |
-| `VISION_NAME_HOLD_SECONDS`      | `4.0`       | Sticky naming: no degradar familia→tipo si nadie lo supera                                                         |
+| `VISION_NAME_HOLD_SECONDS`      | `4.0`       | Sticky naming: mientras YOLO siga viendo caja en el hueco (aunque conf < 0.70) se renueva; sin caja, caduca        |
 | `VISION_HOLD_MIN_SCORE`         | `0.35`      | No sembrar/refrescar hold con fantasmas debiles                                                                    |
 | `VISION_HOLD_SEED_FRAMES`       | `3`         | Calibrado a stride CPU: se convierte a segundos de cinta (`N × stride_cpu / fps`). CUDA espera el mismo tiempo, no 3 frames |
 | `VISION_HOLD_ABSENT_STREAK`     | `3`         | Igual, gracia de ausencia en tiempo de cinta. Un parpadeo 1-frame no reinicia el reloj ni extiende el hold largo   |
 | `VISION_HOLD_ABSENT_SECONDS`    | `1.1`       | TTL corto cuando se confirma ausencia (sin overlap en zona)                                                        |
 | `VISION_HOLD_ZONE_IOU`          | `0.15`      | Overlap para tratar oclusion (retrasa el hold corto; no reinicia el timeout de 2.5 s)                              |
+| `VISION_TRACK_MEMORY`           | `1`         | Pistas IoU + EMA de scores + prior de familia. Rollback: `0` (vuelve al matching frame-a-frame)                    |
+| `VISION_TRACK_EMA_ALPHA`        | `0.35`      | Peso del frame actual en el promedio (CUDA ~0.2 s de memoria)                                                      |
+| `VISION_TRACK_IOU`              | `0.30`      | IoU minimo para asociar la caja con la pista anterior                                                              |
+| `VISION_TRACK_MISS_SECONDS`     | `0.50`      | Sin match, la pista caduca (no es el hold de 2.5 s)                                                                |
+| `VISION_TRACK_PRIOR`            | `0.20`      | Bonus de contexto hacia la familia que ya tenia esa pista                                                          |
+| `VISION_TRACK_CONTENTION_MIN`   | `0.25`      | Si el top-1 ya esta en otra caja, abre arista al siguiente del top con cupo libre                                  |
 
 
 1. SPD: **New session** con privacy Via A (aviso placeholder) → OP ve **Notice OK · Vision**.

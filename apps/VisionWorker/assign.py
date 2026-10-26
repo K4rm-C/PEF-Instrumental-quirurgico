@@ -13,7 +13,11 @@ from config import (
     CONTEXT_WEIGHT,
     REASSIGN_MAX_GAP,
     REASSIGN_MIN_SCORE,
+    TOPK,
     TOPK_PERSIST,
+    TRACK_CONTENTION_MIN,
+    TRACK_MEMORY,
+    TRACK_PRIOR,
     VISUAL_WEIGHT,
     WORKER_PIPELINE,
 )
@@ -22,19 +26,31 @@ from config import (
 _INVALID_COST = 1.0e3
 
 
-def _score_for_family(box: dict[str, Any], family_code: str, class_map: dict[int, dict]) -> float | None:
+def _score_for_family(
+    box: dict[str, Any],
+    family_code: str,
+    class_map: dict[int, dict],
+    scores: list[float] | None = None,
+) -> float | None:
     """Best class score on this box that maps to family_code."""
     best: float | None = None
-    scores = box.get("scores_by_class") or []
+    row = scores if scores is not None else (box.get("scores_by_class") or [])
     for class_id, meta in class_map.items():
         if meta.get("family_code") != family_code:
             continue
-        if class_id < 0 or class_id >= len(scores):
+        if class_id < 0 or class_id >= len(row):
             continue
-        s = float(scores[class_id])
+        s = float(row[class_id])
         if best is None or s > best:
             best = s
     return best
+
+
+def _match_scores(box: dict[str, Any]) -> list[float]:
+    ema = box.get("ema_scores")
+    if ema:
+        return [float(v) for v in ema]
+    return [float(v) for v in (box.get("scores_by_class") or [])]
 
 
 def _topk_audit(box: dict[str, Any], class_map: dict[int, dict], *, n: int = TOPK_PERSIST) -> list[dict[str, Any]]:
@@ -99,6 +115,43 @@ def _naming_high(
     return visual >= conf_display
 
 
+def _best_box_per_family(
+    universe_boxes: list[dict[str, Any]],
+    *,
+    expected: dict[str, dict[str, Any]],
+    class_map: dict[int, dict[str, Any]],
+) -> dict[str, tuple[float, int]]:
+    """This-frame winner box per family (raw scores, not EMA)."""
+    best: dict[str, tuple[float, int]] = {}
+    for bi, box in enumerate(universe_boxes):
+        raw = [float(v) for v in (box.get("scores_by_class") or [])]
+        for code in expected:
+            s = _score_for_family(box, code, class_map, scores=raw)
+            if s is None:
+                continue
+            prev = best.get(code)
+            if prev is None or s > prev[0]:
+                best[code] = (s, bi)
+    return best
+
+
+def _ranked_family_scores(
+    box: dict[str, Any],
+    *,
+    expected: dict[str, dict[str, Any]],
+    class_map: dict[int, dict[str, Any]],
+    scores: list[float],
+) -> list[tuple[str, float]]:
+    ranked: list[tuple[str, float]] = []
+    for code in expected:
+        s = _score_for_family(box, code, class_map, scores=scores)
+        if s is None:
+            continue
+        ranked.append((code, s))
+    ranked.sort(key=lambda t: t[1], reverse=True)
+    return ranked
+
+
 def _build_edges(
     universe_boxes: list[dict[str, Any]],
     *,
@@ -109,22 +162,59 @@ def _build_edges(
     reassign_max_gap: float,
     visual_w: float,
     context_w: float,
+    memory: bool,
+    track_prior: float,
+    contention_min: float,
 ) -> list[tuple[float, float, float, int, str]]:
     """Return edges (final, visual, context, box_idx, family_code)."""
+    frame_best = _best_box_per_family(
+        universe_boxes, expected=expected, class_map=class_map
+    ) if memory else {}
+    top_n = max(2, min(TOPK, 4))
     edges: list[tuple[float, float, float, int, str]] = []
     for bi, box in enumerate(universe_boxes):
         raw_code = box["raw_family_code"]
         raw_conf = float(box["raw_confidence"])
         raw_cat = box.get("raw_category_name") or "Type"
+        prev_family = box.get("prev_family") if memory else None
+        frame_scores = [float(v) for v in (box.get("scores_by_class") or [])]
+        match_scores = _match_scores(box) if memory else frame_scores
+        ranked = _ranked_family_scores(
+            box, expected=expected, class_map=class_map, scores=frame_scores
+        )
+        top_codes = {code for code, _s in ranked[:top_n]}
+        top1_code = ranked[0][0] if ranked else None
+        top1_taken = bool(
+            memory
+            and top1_code
+            and frame_best.get(top1_code)
+            and frame_best[top1_code][1] != bi
+        )
         for code, exp_meta in expected.items():
-            visual = _score_for_family(box, code, class_map)
-            if visual is None:
+            visual = _score_for_family(box, code, class_map, scores=match_scores)
+            frame_s = _score_for_family(box, code, class_map, scores=frame_scores)
+            if visual is None and frame_s is None:
                 continue
+            visual = float(visual if visual is not None else frame_s or 0.0)
+            frame_s = float(frame_s if frame_s is not None else visual)
             is_raw = code == raw_code
+            claimed = frame_best.get(code)
+            claimed_by_other = bool(
+                memory and claimed and claimed[1] != bi and claimed[0] >= frame_s + 0.02
+            )
+            open_alt = bool(
+                memory
+                and top1_taken
+                and code != top1_code
+                and code in top_codes
+                and not claimed_by_other
+            )
             if not is_raw:
-                if visual < reassign_min:
+                if open_alt and frame_s >= contention_min:
+                    visual = max(visual, frame_s)
+                elif visual < reassign_min:
                     continue
-                if visual < raw_conf - reassign_max_gap:
+                elif visual < raw_conf - reassign_max_gap:
                     continue
 
             context = 0.0
@@ -137,6 +227,10 @@ def _build_edges(
                 context += 0.2
             elif abs(raw_conf - visual) <= reassign_max_gap:
                 context += 0.2
+            if memory and prev_family and prev_family == code:
+                context += track_prior
+            if open_alt:
+                context += 0.25
             context = min(1.0, context)
             final = visual_w * float(visual) + context_w * context
             edges.append((final, float(visual), context, bi, code))
@@ -249,6 +343,9 @@ def assign_boxes(
     visual_w: float = VISUAL_WEIGHT,
     context_w: float = CONTEXT_WEIGHT,
     solver: str | None = None,
+    memory: bool | None = None,
+    track_prior: float = TRACK_PRIOR,
+    contention_min: float = TRACK_CONTENTION_MIN,
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]], dict[str, Any]]:
     """
     Filter to expected universe, match quotas (greedy|hungarian), Type degrade.
@@ -258,6 +355,7 @@ def assign_boxes(
     solver_name = (solver or ASSIGN_SOLVER or "hungarian").strip().lower()
     if solver_name not in {"greedy", "hungarian"}:
         solver_name = "hungarian"
+    use_memory = TRACK_MEMORY if memory is None else bool(memory)
 
     universe_boxes: list[dict[str, Any]] = []
     for box in raw_boxes:
@@ -300,6 +398,9 @@ def assign_boxes(
         reassign_max_gap=reassign_max_gap,
         visual_w=visual_w,
         context_w=context_w,
+        memory=use_memory,
+        track_prior=track_prior,
+        contention_min=contention_min,
     )
 
     if solver_name == "greedy":
@@ -366,6 +467,7 @@ def assign_boxes(
                 "category_name": box.get("raw_category_name"),
                 "resolution_reason": "type_degraded",
                 "audit": audit,
+                "track_id": box.get("track_id"),
             })
             type_only += 1
             continue
@@ -428,6 +530,7 @@ def assign_boxes(
             "category_name": exp.get("category_name"),
             "resolution_reason": reason,
             "audit": audit,
+            "track_id": box.get("track_id"),
         })
 
     counts: dict[str, dict[str, Any]] = {}
@@ -487,5 +590,6 @@ def assign_boxes(
         "boxes_raw_universe": len(universe_boxes),
         "boxes_refined_named": sum(1 for b in refined_boxes if b.get("family_code")),
         "type_degraded_boxes": type_degraded_audits,
+        "track_memory": use_memory,
     }
     return refined_boxes, counts, metrics
