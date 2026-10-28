@@ -1,0 +1,11 @@
+# Interpreter of the E2E scripts (and of `isolated.py --web-python`): the portal's dependencies, because
+# e2e_session.py and e2e_mongo_ds06.py import the app, plus what the scripts use directly.
+-r ../../apps/BackendWebFlask/requirements.txt
+# The `evidence-unit` suite runs EvidenceService's pytest (real Garage included).
+-r ../../apps/EvidenceService/requirements-dev.txt
+PyJWT>=2.8,<3
+redis>=5.0,<6
+psycopg[binary]>=3.2,<4
+lxml>=5.0,<7
+pymongo>=4.6,<5
+requests>=2.31,<3

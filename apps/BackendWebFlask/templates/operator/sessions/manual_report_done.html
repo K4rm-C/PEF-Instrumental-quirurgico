@@ -21,9 +21,19 @@
     <p>{{ macros.status_badge(session.status_label, session.status_variant) }}</p>
     <p>{{ _("Result status code:") }} <code>{{ result_status }}</code></p>
     <p>{{ _("Open discrepancies:") }} {{ session.discrepancy_count }}</p>
+    {% if session.capture_mode == 'vision' %}
+    {% if not operator_close or not operator_close.eligible %}
+    <p class="text-muted">{{ _("The session was sent to the SPD Supervisor for review and close.") }}</p>
+    {% endif %}
+    {% else %}
     <p class="text-muted">{{ _("No camera or AI evidence was captured for this session. SPD will complete administrative close.") }}</p>
+    {% endif %}
     <div class="page-heading__actions" style="margin-top:1rem;">
         <a class="btn btn--secondary" href="{{ url_for('web.operator_session_details', session_id=session.id) }}">{{ _("Go to session details") }}</a>
     </div>
 </section>
+
+{% if operator_close %}
+{% include "operator/sessions/_operator_close.html" %}
+{% endif %}
 {% endblock %}

@@ -26,10 +26,17 @@
     <a class="btn btn--secondary" href="{{ capture_url }}">{{ _("Back to capture") }}</a>
 </div>
 
-<p class="text-muted">{{ _("Suggestions only — proceed to human validation. No Mongo/Garage evidence is stored in this demo cycle.") }}</p>
+<p class="text-muted">{{ _("Suggestions only — proceed to human validation. The frames of the initial and final counts are kept as evidence checkpoints.") }}</p>
+
+{% if snapshot.reference_total is defined %}
+<div class="alert {% if snapshot.matches_reference %}alert--success{% else %}alert--warning{% endif %}" role="status">
+    {{ _("Initial count (first frame): %(initial)s · Final count (last frame): %(final)s · Reference: %(reference)s.", initial=snapshot.initial_total, final=snapshot.final_total, reference=snapshot.reference_total) }}
+    {% if not snapshot.matches_reference %}{{ _("The totals differ: this difference will be documented for Supervisor review.") }}{% endif %}
+</div>
+{% endif %}
 
 <section class="card">
-    <h2 class="card__title">{{ _("Last annotated frame") }}</h2>
+    <h2 class="card__title">{% if snapshot.final_frame_index is not none and snapshot.final_frame_index is defined %}{{ _("Last valid frame (#%(frame)s)", frame=snapshot.final_frame_index) }}{% else %}{{ _("Last annotated frame") }}{% endif %}</h2>
     <div class="summary-frame">
         {% if snapshot.frame_jpeg_b64 %}
         <img src="data:image/jpeg;base64,{{ snapshot.frame_jpeg_b64 }}" alt="{{ _('YOLO overlay') }}">

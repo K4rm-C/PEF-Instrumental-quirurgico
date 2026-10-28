@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
@@ -16,6 +18,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.engine import Engine
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from api_v1 import register_api
 from token_store import RedisTokenStore, build_token_store
 
 
@@ -69,6 +72,9 @@ app.config.update(
 	SPD_ACCESS_TOKEN_MINUTES=seconds_from_env("SPD_ACCESS_TOKEN_MINUTES", 15),
 	SPD_REFRESH_TOKEN_HOURS=seconds_from_env("SPD_REFRESH_TOKEN_HOURS", 8),
 	RETURN_RESET_TOKEN=os.getenv("AUTH_RETURN_RESET_TOKEN", "true").lower() == "true",
+	# Unauthenticated self-registration skips every Administration rule (roles, audit, active
+	# institution); accounts are created by an administrator (POST /api/v1/auth/users).
+	ENABLE_PUBLIC_REGISTER=os.getenv("AUTH_ENABLE_PUBLIC_REGISTER", "false").lower() == "true",
 	COOKIE_DOMAIN=os.getenv("AUTH_COOKIE_DOMAIN") or None,
 	COOKIE_SECURE=os.getenv("AUTH_COOKIE_SECURE", "true").lower() == "true",
 	COOKIE_SAMESITE=os.getenv("AUTH_COOKIE_SAMESITE", "None"),
@@ -76,6 +82,12 @@ app.config.update(
 
 if app.config["JWT_SECRET_KEY"] == "change-this-secret" and not app.debug:
 	raise RuntimeError("JWT_SECRET_KEY must be configured outside debug mode")
+
+# Tokens are signed with a shared secret. Only one algorithm is ever accepted on decode:
+# exactly JWT_ALGORITHM (never the whole HS* family, never "none"). Same rule as CatalogService.
+SUPPORTED_JWT_ALGORITHMS = {"HS256", "HS384", "HS512"}
+if app.config["JWT_ALGORITHM"] not in SUPPORTED_JWT_ALGORITHMS:
+	raise RuntimeError(f"JWT_ALGORITHM must be one of {sorted(SUPPORTED_JWT_ALGORITHMS)}")
 
 engine: Engine = create_engine(build_database_url(), pool_pre_ping=True, future=True)
 token_store: RedisTokenStore = build_token_store()
@@ -313,6 +325,58 @@ def revoke_token(jti: str) -> None:
 	token_store.revoke_token(jti)
 
 
+class TokenRejected(Exception):
+	"""A token failed one of the shared validation rules (always HTTP 401)."""
+
+	def __init__(self, message: str):
+		super().__init__(message)
+		self.message = message
+
+
+def decode_token(raw_token: str) -> dict[str, Any]:
+	"""Signature + expiry with exactly the configured algorithm; required claims present."""
+	return jwt.decode(
+		raw_token,
+		app.config["JWT_SECRET_KEY"],
+		algorithms=[app.config["JWT_ALGORITHM"]],
+		options={"require": ["exp", "sub", "jti", "type"]},
+	)
+
+
+def verify_token(raw_token: str, token_type: str | None) -> tuple[dict[str, Any], dict[str, Any]]:
+	"""Shared rules for legacy routes and /api/v1/auth: JWT, Redis session, active user.
+
+	Returns (claims, stored Redis session). Raises TokenRejected; RedisError and
+	SQLAlchemyError propagate so each caller keeps its own response format.
+	"""
+	try:
+		claims = decode_token(raw_token)
+	except jwt.InvalidTokenError:
+		raise TokenRejected("Invalid or expired token") from None
+	if token_type and claims.get("type") != token_type:
+		raise TokenRejected("Invalid token type")
+	stored = token_store.get_token(claims["jti"])
+	if not stored or stored.get("revoked"):
+		raise TokenRejected("Token is revoked or user is inactive")
+	if stored.get("token_type") != claims.get("type"):
+		raise TokenRejected("Invalid token type")
+	if not stored.get("user_id") or str(stored["user_id"]) != str(claims["sub"]):
+		raise TokenRejected("Invalid or expired token")
+	with engine.connect() as connection:
+		# Account and institution must still be active: deactivating either one ends every
+		# session on the next request, even a token issued before the change.
+		user = connection.execute(
+			text(
+				"SELECT active, (SELECT i.active FROM institution i WHERE i.id = u.institution_id) "
+				"FROM \"user\" u WHERE u.id = :id"
+			),
+			{"id": stored["user_id"]},
+		).first()
+	if not user or not user[0] or not user[1]:
+		raise TokenRejected("Token is revoked or user is inactive")
+	return claims, stored
+
+
 def token_required(token_type: str | None = "access"):
 	def decorator(function: Callable):
 		@wraps(function)
@@ -321,32 +385,16 @@ def token_required(token_type: str | None = "access"):
 			if not raw_token:
 				return error("Bearer token is required", 401)
 			try:
-				claims = jwt.decode(
-					raw_token,
-					app.config["JWT_SECRET_KEY"],
-					algorithms=[app.config["JWT_ALGORITHM"]],
-				)
-				if token_type and claims.get("type") != token_type:
-					return error("Invalid token type", 401)
-				stored = token_store.get_token(claims["jti"])
-				if not stored or stored.get("revoked"):
-					return error("Token is revoked or user is inactive", 401)
-				if stored.get("token_type") != claims.get("type"):
-					return error("Invalid token type", 401)
-				with engine.connect() as connection:
-					user = connection.execute(
-						text("SELECT active FROM \"user\" WHERE id = :id"),
-						{"id": stored["user_id"]},
-					).first()
-				if not user or not user[0]:
-					return error("Token is revoked or user is inactive", 401)
-				g.auth_claims = claims
-				g.auth_user_id = stored["user_id"]
-				g.auth_institution_id = stored.get("institution_id")
+				claims, stored = verify_token(raw_token, token_type)
+			except TokenRejected as exc:
+				return error(exc.message, 401)
 			except RedisError:
 				return error("Session store unavailable", 503)
-			except (jwt.InvalidTokenError, KeyError, SQLAlchemyError):
+			except SQLAlchemyError:
 				return error("Invalid or expired token", 401)
+			g.auth_claims = claims
+			g.auth_user_id = stored["user_id"]
+			g.auth_institution_id = stored.get("institution_id")
 			return function(*args, **kwargs)
 
 		return wrapped
@@ -383,15 +431,6 @@ def health():
 	return jsonify({"ok": status == 200, "checks": checks}), status
 
 
-@app.get("/health/redis")
-def health_redis():
-	try:
-		ok = token_store.ping()
-	except RedisError:
-		ok = False
-	return jsonify({"ok": ok}), 200 if ok else 503
-
-
 @app.route("/login", methods=["OPTIONS"])
 @app.route("/logout", methods=["OPTIONS"])
 @app.route("/refresh", methods=["OPTIONS"])
@@ -402,6 +441,8 @@ def cors_preflight():
 
 @app.post("/register")
 def register():
+	if not app.config["ENABLE_PUBLIC_REGISTER"]:
+		return error("Not found", 404)
 	payload = request_json()
 	name = str(payload.get("name", "")).strip()
 	email = str(payload.get("email", "")).strip().lower()
@@ -427,19 +468,63 @@ def register():
 		return error("Email or institution is already in use or invalid", 409)
 
 
-@app.post("/login")
-def login():
-	payload = request_json()
-	email = str(payload.get("email", "")).strip().lower()
-	password = str(payload.get("password", ""))
-	client_ip = (request.headers.get("X-Forwarded-For") or request.remote_addr or "unknown").split(",")[0].strip()
-	fail_identity = email or client_ip
+class LoginRejected(Exception):
+	def __init__(self, reason: str, message: str, status: int):
+		super().__init__(message)
+		self.reason = reason
+		self.message = message
+		self.status = status
 
+
+# --- Sign-in audit (PEF-DS07 access_audit; read through AuditService) ---------------------------
+
+_CORRELATION = re.compile(r"^[A-Za-z0-9._:\-]{1,64}$")
+AUDIT_INSERT = text(
+	"""
+	INSERT INTO access_audit (id, occurred_at, actor_type, actor_user_id, action, resource_type, resource_id,
+	                          institution_id, outcome, correlation_id, ip)
+	VALUES (CAST(:id AS uuid), now(), 'user', CAST(:user_id AS uuid), :action, 'user', CAST(:user_id AS uuid),
+	        CAST(:institution_id AS uuid), :outcome, :correlation_id, CAST(:ip AS inet))
+	"""
+)
+
+
+def _audit_values(user_id, institution_id, action: str, outcome: str) -> dict[str, Any]:
+	import ipaddress
+
+	incoming = request.headers.get("X-Correlation-ID", "")
+	try:   # the connection's address, never a client-supplied X-Forwarded-For
+		ip = str(ipaddress.ip_address((request.remote_addr or "").strip()))
+	except ValueError:
+		ip = None
+	return {"id": str(uuid.uuid4()), "user_id": str(user_id), "institution_id": str(institution_id), "action": action,
+			"outcome": outcome, "ip": ip,
+			"correlation_id": incoming if _CORRELATION.fullmatch(incoming) else uuid.uuid4().hex}
+
+
+def record_sign_in_event(user_id, institution_id, action: str, outcome: str = "success") -> None:
+	"""LOGIN_FAILED / LOGOUT in their own transaction: an audit failure never blocks signing in or out."""
 	try:
-		if token_store.is_login_blocked(fail_identity) or token_store.is_login_blocked(client_ip):
-			return error("Too many failed login attempts. Try again later.", 429)
-	except RedisError:
-		return error("Session store unavailable", 503)
+		with engine.begin() as connection:
+			connection.execute(AUDIT_INSERT, _audit_values(user_id, institution_id, action, outcome))
+	except SQLAlchemyError:
+		app.logger.warning("could not record %s for user %s", action, user_id)
+
+
+def client_ip_from_request() -> str:
+	return (request.headers.get("X-Forwarded-For") or request.remote_addr or "unknown").split(",")[0].strip()
+
+
+def authenticate_credentials(email: str, password: str, client_ip: str):
+	"""Shared credential check for legacy /login and /api/v1/auth/login.
+
+	Rate limit, user + institution active, password hash, fail counters, last_login_at.
+	Returns (user row, role rows with code/description/institution_id).
+	Raises LoginRejected; RedisError / SQLAlchemyError propagate.
+	"""
+	fail_identity = email or client_ip
+	if token_store.is_login_blocked(fail_identity) or token_store.is_login_blocked(client_ip):
+		raise LoginRejected("rate_limited", "Too many failed login attempts. Try again later.", 429)
 
 	with engine.connect() as connection:
 		user = connection.execute(
@@ -461,34 +546,48 @@ def login():
 		or not user["institution_active"]
 		or not check_password_hash(user["password_hash"], password)
 	):
-		try:
-			token_store.register_login_failure(fail_identity)
-			token_store.register_login_failure(client_ip)
-		except RedisError:
-			return error("Session store unavailable", 503)
-		return error("Invalid credentials", 401)
+		token_store.register_login_failure(fail_identity)
+		token_store.register_login_failure(client_ip)
+		if user:
+			# A failed attempt on a known account (wrong password, inactive user or institution).
+			record_sign_in_event(user["id"], user["institution_id"], "LOGIN_FAILED", "denied")
+		raise LoginRejected("invalid_credentials", "Invalid credentials", 401)
 
-	try:
-		token_store.clear_login_failures(fail_identity)
-		token_store.clear_login_failures(client_ip)
-	except RedisError:
-		return error("Session store unavailable", 503)
+	token_store.clear_login_failures(fail_identity)
+	token_store.clear_login_failures(client_ip)
 
 	with engine.begin() as connection:
 		connection.execute(text("UPDATE \"user\" SET last_login_at = now() WHERE id = :id"), {"id": user["id"]})
+		# Same transaction as last_login_at: a sign-in is recorded exactly once.
+		connection.execute(AUDIT_INSERT, _audit_values(user["id"], user["institution_id"], "LOGIN", "success"))
 	with engine.connect() as connection:
 		role_rows = connection.execute(
 			text(
 				"""
-				SELECT r.code, r.description
+				SELECT r.code, r.description, r.institution_id
 				FROM user_role ur
 				JOIN role r ON r.id = ur.role_id
 				WHERE ur.user_id = :id
+				  AND r.institution_id = :institution_id
 				ORDER BY r.code
 				"""
 			),
-			{"id": user["id"]},
+			{"id": user["id"], "institution_id": user["institution_id"]},
 		).mappings().all()
+	return user, role_rows
+
+
+@app.post("/login")
+def login():
+	payload = request_json()
+	email = str(payload.get("email", "")).strip().lower()
+	password = str(payload.get("password", ""))
+	try:
+		user, role_rows = authenticate_credentials(email, password, client_ip_from_request())
+	except LoginRejected as exc:
+		return error(exc.message, exc.status)
+	except RedisError:
+		return error("Session store unavailable", 503)
 
 	institution_id = str(user["institution_id"])
 	ui_preferences = normalize_ui_preferences(user["ui_preferences"])
@@ -507,13 +606,78 @@ def login():
 			"email": user["email"],
 			"institution_id": institution_id,
 			"ui_preferences": ui_preferences,
-			"roles": [dict(role) for role in role_rows],
+			"roles": [{"code": role["code"], "description": role["description"]} for role in role_rows],
 		},
 	})
 	return set_auth_cookies(
 		response, access, refresh_tok,
 		access_max_age=access_age, refresh_max_age=refresh_age,
 	)
+
+
+class RefreshDenied(Exception):
+	"""Refresh refused by session policy; the presented refresh token is already revoked."""
+
+	def __init__(self, message: str):
+		super().__init__(message)
+		self.message = message
+
+
+def _claim_time(claims: dict[str, Any], name: str, fallback: datetime) -> datetime:
+	raw = claims.get(name)
+	try:
+		return datetime.fromtimestamp(int(raw), tz=timezone.utc) if raw else fallback
+	except (TypeError, ValueError, OSError):
+		return fallback
+
+
+def rotate_refresh(
+	claims: dict[str, Any],
+	user_id: str,
+	institution_id: str | None,
+	role_code: str,
+	*,
+	touch_activity: bool,
+) -> tuple[str, str, int, int]:
+	"""Shared refresh rules (legacy /refresh and /api/v1/auth/refresh).
+
+	Enforces max session wall-clock and idle timeout (OP exempt while a surgery is in
+	progress), revokes the presented refresh token and issues a new access/refresh pair.
+	"""
+	policy = _token_policy(role_code)
+	now = utc_now()
+	sas = _claim_time(claims, "sas", now)
+
+	def deny(message: str) -> RefreshDenied:
+		revoke_token(claims["jti"])
+		return RefreshDenied(message)
+
+	# Absolute max auth session.
+	if (now - sas).total_seconds() > policy["max_session"]:
+		raise deny("Maximum session duration exceeded; sign in again.")
+
+	# SPD / admin idle timeout. OP skips idle while surgery still in_progress
+	# (until the session is submitted for SPD review).
+	surgery_active = role_code == "station_operator" and _operator_has_active_surgery(user_id)
+	if policy["idle"] and not surgery_active:
+		if (now - _claim_time(claims, "la", sas)).total_seconds() > policy["idle"]:
+			raise deny("Signed out due to inactivity.")
+
+	# Preserve prior last-activity when this is a silent renew.
+	prior_activity = _claim_time(claims, "la", sas)
+
+	revoke_token(claims["jti"])
+	try:
+		return _issue_pair_for_user(
+			user_id,
+			institution_id,
+			role_code,
+			auth_session_started=sas,
+			last_activity=prior_activity,
+			touch_activity=touch_activity,
+		)
+	except PermissionError:
+		raise deny("Maximum session duration exceeded; sign in again.") from None
 
 
 @app.post("/refresh")
@@ -529,6 +693,7 @@ def refresh():
 				SELECT r.code
 				FROM user_role ur
 				JOIN role r ON r.id = ur.role_id
+				JOIN "user" u ON u.id = ur.user_id AND u.institution_id = r.institution_id
 				WHERE ur.user_id = CAST(:id AS uuid)
 				ORDER BY r.code
 				"""
@@ -538,58 +703,17 @@ def refresh():
 	if role_rows:
 		role_code = _primary_role_code(role_rows)
 
-	policy = _token_policy(role_code)
-	now = utc_now()
-	sas_ts = claims.get("sas")
-	try:
-		sas = datetime.fromtimestamp(int(sas_ts), tz=timezone.utc) if sas_ts else now
-	except (TypeError, ValueError, OSError):
-		sas = now
-
-	def _deny_refresh(message: str):
-		revoke_token(claims["jti"])
-		body, status = error(message, 401)
-		return clear_auth_cookies(body), status
-
-	# Absolute max auth session.
-	if (now - sas).total_seconds() > policy["max_session"]:
-		return _deny_refresh("Maximum session duration exceeded; sign in again.")
-
-	# SPD / admin idle timeout. OP skips idle while surgery still in_progress
-	# (until the session is submitted for SPD review).
-	surgery_active = role_code == "station_operator" and _operator_has_active_surgery(g.auth_user_id)
-	if policy["idle"] and not surgery_active:
-		la_ts = claims.get("la")
-		try:
-			last_activity = datetime.fromtimestamp(int(la_ts), tz=timezone.utc) if la_ts else sas
-		except (TypeError, ValueError, OSError):
-			last_activity = sas
-		if (now - last_activity).total_seconds() > policy["idle"]:
-			return _deny_refresh("Signed out due to inactivity.")
-
 	# Heartbeat may pass touch=0 so SPD idle is not reset by a silent timer.
 	touch_raw = request.args.get("touch", request.headers.get("X-Auth-Touch", "1"))
 	touch_activity = str(touch_raw).strip().lower() not in {"0", "false", "no"}
 
-	# Preserve prior last-activity when this is a silent renew.
-	la_ts = claims.get("la")
 	try:
-		prior_activity = datetime.fromtimestamp(int(la_ts), tz=timezone.utc) if la_ts else sas
-	except (TypeError, ValueError, OSError):
-		prior_activity = sas
-
-	revoke_token(claims["jti"])
-	try:
-		access, new_refresh, access_age, refresh_age = _issue_pair_for_user(
-			g.auth_user_id,
-			g.auth_institution_id,
-			role_code,
-			auth_session_started=sas,
-			last_activity=prior_activity,
-			touch_activity=touch_activity,
+		access, new_refresh, access_age, refresh_age = rotate_refresh(
+			claims, g.auth_user_id, g.auth_institution_id, role_code, touch_activity=touch_activity,
 		)
-	except PermissionError:
-		return _deny_refresh("Maximum session duration exceeded; sign in again.")
+	except RefreshDenied as exc:
+		body, status = error(exc.message, 401)
+		return clear_auth_cookies(body), status
 
 	return set_auth_cookies(
 		jsonify({"token_type": "Bearer"}),
@@ -604,6 +728,8 @@ def refresh():
 @token_required(None)
 def logout():
 	revoke_token(g.auth_claims["jti"])
+	if g.auth_institution_id:
+		record_sign_in_event(g.auth_user_id, g.auth_institution_id, "LOGOUT")
 	# Also revoke the sibling cookie when both are present.
 	for cookie_name in ("access_token", "refresh_token"):
 		raw = request.cookies.get(cookie_name)
@@ -633,7 +759,7 @@ def verify():
 				       r.code AS role_code, r.description AS role_description
 				FROM "user" u
 				LEFT JOIN user_role ur ON ur.user_id = u.id
-				LEFT JOIN role r ON r.id = ur.role_id
+				LEFT JOIN role r ON r.id = ur.role_id AND r.institution_id = u.institution_id
 				WHERE u.id = :id
 				ORDER BY r.code
 				"""
@@ -755,6 +881,11 @@ def password_change():
 		connection.execute(text("UPDATE \"user\" SET password_hash = :hash, password_updated_at = now() WHERE id = :id"),
 						   {"hash": generate_password_hash(new_password), "id": g.auth_user_id})
 	return jsonify({"message": "Password changed successfully"})
+
+
+# Versioned API for Android/Desktop (/api/v1/auth/*) + DS09 health checks, built on the
+# shared rules above. Registered last so it can reference every helper of this module.
+register_api(app, sys.modules[__name__])
 
 
 if __name__ == "__main__":

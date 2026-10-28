@@ -8,72 +8,46 @@ import json
 import threading
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
 import cv2
 import numpy as np
-import torch
 
 from assign import assign_boxes
 from category_colors import overlay_bgr
 from config import (
     ASSIGN_SOLVER,
     CONF_DISPLAY_THRESHOLD,
-    COUNT_SAMPLE_INTERVAL_S,
-    FRAME_STRIDE_CPU,
-    FRAME_STRIDE_CUDA,
+    COUNT_SAMPLE_EVERY,
+    EDGE_FRAME_SCAN,
+    FRAME_MAX_BRIGHTNESS,
+    FRAME_MIN_BRIGHTNESS,
+    FRAME_MIN_CONTRAST,
+    FRAME_STRIDE,
     HOLD_ABSENT_SECONDS,
     HOLD_ABSENT_STREAK,
+    HOLD_DEDUPE_IOU,
     HOLD_MIN_SCORE,
     HOLD_SECONDS,
     HOLD_SEED_FRAMES,
     HOLD_ZONE_IOU,
     METRICS_DIR,
     NAME_HOLD_SECONDS,
-    TRACK_MEMORY,
     WORKER_PIPELINE,
     WEIGHTS_PATH,
 )
 from infer_pipeline import detect_with_class_scores
-from tracks import commit_track_families, update_box_tracks
+from telemetry import TELEMETRY, utc_now
 
 _model = None
-_model_device = "cpu"
 _model_lock = threading.Lock()
 
 
-def _wanted_device() -> torch.device:
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
-
-
-def device_info() -> dict[str, Any]:
-    """Runtime device report (does not load weights)."""
-    cuda_ok = bool(torch.cuda.is_available())
-    name = None
-    if cuda_ok:
-        try:
-            name = torch.cuda.get_device_name(0)
-        except Exception:  # noqa: BLE001
-            name = None
-    return {
-        "cuda_available": cuda_ok,
-        "cuda_device_count": int(torch.cuda.device_count()) if cuda_ok else 0,
-        "cuda_device_name": name,
-        "model_loaded": _model is not None,
-        "model_device": _model_device if _model is not None else None,
-        "frame_stride_cuda": FRAME_STRIDE_CUDA,
-        "frame_stride_cpu": FRAME_STRIDE_CPU,
-        "frame_stride": effective_frame_stride(loaded_only=True),
-    }
-
-
 def get_model():
-    """Load YOLO once; prefer CUDA, fall back to CPU if CUDA is missing or .to() fails."""
-    global _model, _model_device
+    global _model
     with _model_lock:
         if _model is None:
             if not WEIGHTS_PATH.is_file():
@@ -83,34 +57,8 @@ def get_model():
                 )
             from ultralytics import YOLO
 
-            model = YOLO(str(WEIGHTS_PATH))
-            wanted = _wanted_device()
-            try:
-                model.to(wanted)
-            except Exception:
-                model.to("cpu")
-            try:
-                placed = str(next(model.model.parameters()).device)
-            except Exception:
-                placed = "cpu"
-            if wanted.type == "cuda" and not placed.startswith("cuda"):
-                model.to("cpu")
-                placed = "cpu"
-            _model_device = placed
-            _model = model
+            _model = YOLO(str(WEIGHTS_PATH))
         return _model
-
-
-def effective_frame_stride(*, loaded_only: bool = False) -> int:
-    """Stride for the device the weights actually sit on (CUDA fallback → CPU)."""
-    if _model is None:
-        if loaded_only:
-            return FRAME_STRIDE_CUDA if torch.cuda.is_available() else FRAME_STRIDE_CPU
-        get_model()
-    device = (_model_device or "cpu").lower()
-    if device.startswith("cuda"):
-        return FRAME_STRIDE_CUDA
-    return FRAME_STRIDE_CPU
 
 
 @dataclass
@@ -119,7 +67,6 @@ class SessionState:
     expected: dict[str, dict[str, Any]] = field(default_factory=dict)
     class_map: dict[int, dict[str, Any]] = field(default_factory=dict)
     status: str = "idle"  # idle | processing | ready | error
-    capture_source: str | None = None  # file | live
     message: str = ""
     progress: float = 0.0
     frame_jpeg_b64: str | None = None
@@ -128,6 +75,8 @@ class SessionState:
     raw_counts: dict[str, dict[str, Any]] = field(default_factory=dict)
     assignment_metrics: dict[str, Any] = field(default_factory=dict)
     category_summary: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Detections of families outside the kit (unassigned, counted in the total, human review).
+    out_of_kit: list[dict[str, Any]] = field(default_factory=list)
     model_version: str = "yolo26l-demo"
     conf_threshold: float = CONF_DISPLAY_THRESHOLD
     frame_index: int = 0
@@ -144,37 +93,27 @@ class SessionState:
     hold_absent_streak: int = HOLD_ABSENT_STREAK
     hold_seed_frames: int = HOLD_SEED_FRAMES
     hold_zone_iou: float = HOLD_ZONE_IOU
-    video_fps: float = 30.0
-    frame_stride: int = FRAME_STRIDE_CPU
-    count_sample_interval_s: float = COUNT_SAMPLE_INTERVAL_S
+    count_sample_every: int = COUNT_SAMPLE_EVERY
     timeline_samples: int = 0
     timeline_path: str | None = None
-    video_t: float | None = None
-    last_timeline_video_t: float | None = None
-    last_timeline_frames_processed: int | None = None
-    # Last inferred frame: YOLO detect vs worker post (assign + hold + JPEG).
-    latency_ms: float | None = None
-    last_yolo_ms: float | None = None
-    last_post_ms: float | None = None
-    latency_avg_ms: float | None = None
-    yolo_avg_ms: float | None = None
-    post_avg_ms: float | None = None
-    latency_max_ms: float | None = None
-    latency_n: int = 0
+    # One uploaded video per session, used for both edge counts (first / last valid frame).
+    video_id: str | None = None
+    video_path: str | None = None
+    video_meta: dict[str, Any] = field(default_factory=dict)
+    # Single-frame analyses of the edge frames: never touched by run_frame (intermediate frames).
+    initial_frame: dict[str, Any] | None = None
+    final_frame: dict[str, Any] | None = None
+    error_stage: str | None = None  # first_frame | processing | last_frame
     # family_code -> hold snapshot
     _hold_by_family: dict[str, dict[str, Any]] = field(default_factory=dict)
-    # family_code -> video_t when the current live run started
-    _live_since: dict[str, float] = field(default_factory=dict)
-    # family_code -> video_t of last *sustained* live (seed-gate met)
-    _last_good_live_t: dict[str, float] = field(default_factory=dict)
-    # IoU tracks for EMA / assignment prior (VISION_TRACK_MEMORY)
-    _tracks: list[dict[str, Any]] = field(default_factory=list)
+    # family_code -> consecutive live / absent processed-frame streaks
+    _live_streak: dict[str, int] = field(default_factory=dict)
+    _absent_streak: dict[str, int] = field(default_factory=dict)
 
     def to_public(self) -> dict[str, Any]:
         return {
             "session_id": self.session_id,
             "status": self.status,
-            "capture_source": self.capture_source,
             "message": self.message,
             "progress": self.progress,
             "frame_jpeg_b64": self.frame_jpeg_b64,
@@ -183,6 +122,7 @@ class SessionState:
             "raw_counts": self.raw_counts,
             "assignment_metrics": self.assignment_metrics,
             "category_summary": self.category_summary,
+            "out_of_kit": self.out_of_kit,
             "pipeline": self.pipeline,
             "assign_solver": self.assign_solver,
             "model_version": self.model_version,
@@ -196,25 +136,14 @@ class SessionState:
             "hold_absent_seconds": self.hold_absent_seconds,
             "hold_absent_streak": self.hold_absent_streak,
             "hold_seed_frames": self.hold_seed_frames,
-            "hold_seed_s": _hold_gate_s(self, self.hold_seed_frames),
-            "hold_absent_grace_s": _hold_gate_s(self, self.hold_absent_streak),
-            "video_fps": self.video_fps,
-            "frame_stride": self.frame_stride,
-            "count_sample_interval_s": self.count_sample_interval_s,
-            "video_t": self.video_t,
-            "last_timeline_video_t": self.last_timeline_video_t,
-            "last_timeline_frames_processed": self.last_timeline_frames_processed,
+            "count_sample_every": self.count_sample_every,
             "timeline_samples": self.timeline_samples,
             "timeline_path": self.timeline_path,
-            "latency_ms": self.latency_ms,
-            "last_yolo_ms": self.last_yolo_ms,
-            "last_post_ms": self.last_post_ms,
-            "latency_avg_ms": self.latency_avg_ms,
-            "yolo_avg_ms": self.yolo_avg_ms,
-            "post_avg_ms": self.post_avg_ms,
-            "latency_max_ms": self.latency_max_ms,
-            "latency_n": self.latency_n,
-            "model_device": device_info().get("model_device"),
+            "video_id": self.video_id,
+            "video": dict(self.video_meta) if self.video_id else None,
+            "initial_frame": self.initial_frame,
+            "final_frame": self.final_frame,
+            "error_stage": self.error_stage,
             "expected": {
                 code: {
                     "family_id": meta.get("family_id"),
@@ -324,6 +253,7 @@ def _public_box(box: dict[str, Any], *, held: bool = False, sticky_name: bool = 
         "raw": box.get("raw"),
         "refined": box.get("refined"),
         "audit": box.get("audit"),
+        "out_of_kit": box.get("out_of_kit"),
         "held": held,
         "sticky_name": sticky_name,
     }
@@ -360,59 +290,40 @@ def _xyxy_iou(a: list[float] | tuple[float, ...], b: list[float] | tuple[float, 
     return inter / denom if denom > 0 else 0.0
 
 
-def _box_family_code(box: dict[str, Any] | None) -> str | None:
-    if not box:
-        return None
-    raw = box.get("family_code")
-    if raw is None:
-        return None
-    text = str(raw).strip()
-    return text or None
-
-
-def _max_iou_with_hold(hold: dict[str, Any], box: dict[str, Any]) -> float:
-    lxy = (box or {}).get("xyxy")
-    if not lxy:
-        return 0.0
-    best = 0.0
-    for hb in hold.get("boxes") or []:
-        hxy = hb.get("xyxy")
-        if not hxy:
-            continue
-        best = max(best, _xyxy_iou(hxy, lxy))
-    return best
-
-
-def _occupying_boxes(
+def _hold_zone_occluded(
     hold: dict[str, Any],
     live_boxes: list[dict[str, Any]],
     *,
     min_iou: float,
-) -> list[dict[str, Any]]:
-    """Live YOLO boxes that still overlap last hold geometry."""
-    if not (hold.get("boxes") or []) or not live_boxes:
-        return []
-    return [lb for lb in live_boxes if _max_iou_with_hold(hold, lb) >= min_iou]
+) -> bool:
+    """True if any live box (named or type) still overlaps last hold geometry."""
+    hold_boxes = hold.get("boxes") or []
+    if not hold_boxes or not live_boxes:
+        return False
+    for hb in hold_boxes:
+        hxy = hb.get("xyxy")
+        if not hxy:
+            continue
+        for lb in live_boxes:
+            lxy = lb.get("xyxy")
+            if not lxy:
+                continue
+            if _xyxy_iou(hxy, lxy) >= min_iou:
+                return True
+    return False
 
 
-def _apply_sticky_name(
-    box: dict[str, Any],
-    hold: dict[str, Any],
-    video_t: float,
-    *,
-    hold_code: str | None = None,
-) -> dict[str, Any]:
-    """Keep last good family label while YOLO still has a box in that slot."""
+def _apply_sticky_name(box: dict[str, Any], hold: dict[str, Any], video_t: float) -> dict[str, Any]:
+    """If hold recently had a named family, keep family label despite live category degrade."""
     if not hold:
         return box
     if video_t > float(hold.get("name_until") or 0):
         return box
     if not hold.get("named"):
         return box
-    box_code = _box_family_code(box)
-    if box_code and hold_code and box_code != hold_code:
+    if not box.get("family_code"):
         return box
-    if box.get("high_confidence") and (not hold_code or box_code == hold_code):
+    if box.get("high_confidence"):
         return box
     family_name = box.get("family_name") or hold.get("family_name")
     if not family_name:
@@ -420,9 +331,6 @@ def _apply_sticky_name(
     out = copy.deepcopy(box)
     out["label"] = family_name
     out["sticky_name"] = True
-    out["family_name"] = family_name
-    if hold_code and not box_code:
-        out["family_code"] = hold_code
     return out
 
 
@@ -446,28 +354,6 @@ def _should_refresh_hold(
     return live_best + 0.02 >= prev_best
 
 
-def _video_fps(state: SessionState) -> float:
-    return max(1.0, float(getattr(state, "video_fps", None) or 30.0))
-
-
-def _infer_dt(state: SessionState) -> float:
-    """Seconds of tape between inferences at the current stride."""
-    return max(1e-3, float(state.frame_stride or 1) / _video_fps(state))
-
-
-def _hold_gate_s(state: SessionState, need_frames: int) -> float:
-    """Tape seconds equal to `need_frames` inferences at CPU-reference stride.
-
-    HOLD_SEED_FRAMES / HOLD_ABSENT_STREAK were calibrated at stride 5. Counting
-    raw inferences would make CUDA (stride 1) 5× more twitchy and let 1-frame
-    flicker keep refreshing the long TTL (ghost boxes after a pickup).
-    """
-    fps = _video_fps(state)
-    ref = float(FRAME_STRIDE_CPU)
-    need = max(1, int(need_frames or 1))
-    return need * ref / fps
-
-
 def _apply_hold(
     state: SessionState,
     *,
@@ -477,12 +363,9 @@ def _apply_hold(
 ) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
     """
     Count-hold + sticky naming with production-minded gates:
-    - Seed / refresh long *count* TTL only after sustained live (CPU-stride-equivalent tape time).
-    - Count clock is a timeout from last sustained live; zone overlap does not restart it.
-    - While YOLO still emits a box for that family (even conf < 0.70), keep sticky *name*.
-    - Unassigned type box in the same slot also keeps the name; another family does not.
-    - After tape-time of absence without same-slot occupancy, shrink to HOLD_ABSENT_SECONDS.
-    - A 1-frame flicker does not reset the absence clock nor extend the long hold.
+    - Seed hold only after HOLD_SEED_FRAMES consecutive live assignments.
+    - Long TTL while live or while a box still overlaps hold zone (hand/occlusion).
+    - After HOLD_ABSENT_STREAK frames at 0 live without zone overlap, shrink to HOLD_ABSENT_SECONDS.
     """
     ttl = max(0.0, float(state.hold_seconds))
     name_ttl = max(ttl, float(state.name_hold_seconds))
@@ -491,9 +374,6 @@ def _apply_hold(
     seed_need = max(1, int(state.hold_seed_frames))
     absent_need = max(1, int(state.hold_absent_streak))
     zone_iou = float(state.hold_zone_iou)
-    seed_s = _hold_gate_s(state, seed_need)
-    absent_s = _hold_gate_s(state, absent_need)
-    dt = _infer_dt(state)
 
     live_codes = {
         code for code, meta in counts.items()
@@ -502,26 +382,26 @@ def _apply_hold(
 
     for code in list(state.expected.keys()):
         if code in live_codes:
-            if code not in state._live_since:
-                state._live_since[code] = video_t
+            state._live_streak[code] = int(state._live_streak.get(code) or 0) + 1
+            state._absent_streak[code] = 0
         else:
-            state._live_since.pop(code, None)
+            state._absent_streak[code] = int(state._absent_streak.get(code) or 0) + 1
+            state._live_streak[code] = 0
 
     for code in live_codes:
         fam_boxes = [b for b in public_boxes if b.get("family_code") == code]
         live_best, live_named = _family_live_stats(public_boxes, code)
         prev = state._hold_by_family.get(code)
-        live_since = state._live_since.get(code)
-        live_dur = 0.0 if live_since is None else max(0.0, video_t - float(live_since))
-        sustained = (live_dur + dt) >= seed_s
-        if not sustained:
+        live_streak = int(state._live_streak.get(code) or 0)
+        seeded = prev is not None or live_streak >= seed_need
+        if not seeded:
             continue
-        state._last_good_live_t[code] = video_t
         if _should_refresh_hold(
             prev=prev, live_best=live_best, live_named=live_named, min_score=min_score
         ):
-            # Still-live family keeps its last good name even below display 0.70.
-            named = live_named or bool(prev and prev.get("named"))
+            named = live_named or bool(
+                prev and prev.get("named") and video_t <= float(prev.get("name_until") or 0)
+            )
             store_boxes = copy.deepcopy(fam_boxes)
             if named and not live_named:
                 for b in store_boxes:
@@ -543,38 +423,26 @@ def _apply_hold(
                 ),
             }
         elif prev is not None:
+            if live_best >= min_score or live_named:
+                prev["until"] = max(float(prev.get("until") or 0), video_t + ttl * 0.5)
             if live_named:
                 prev["named"] = True
-                prev["best_score"] = max(float(prev.get("best_score") or 0), live_best)
-            if prev.get("named") or live_named:
                 prev["name_until"] = video_t + name_ttl
+                prev["best_score"] = max(float(prev.get("best_score") or 0), live_best)
 
-    # Absent path: tape-time since last sustained live, then short TTL unless
-    # YOLO still occupies *this* slot (unassigned/type or same family).
+    # Absent path: grace streak, then short TTL unless zone still occupied.
     for code in list(state.expected.keys()):
         if code in live_codes:
             continue
         hold = state._hold_by_family.get(code)
         if not hold:
             continue
-        last_good = state._last_good_live_t.get(code)
-        if last_good is None:
-            last_good = 0.0
-        occupying = _occupying_boxes(hold, public_boxes, min_iou=zone_iou)
-        foreign = [
-            b for b in occupying
-            if (_box_family_code(b) is not None and _box_family_code(b) != code)
-        ]
-        same_or_orphan = [
-            b for b in occupying
-            if _box_family_code(b) in (None, code)
-        ]
-        if same_or_orphan and not foreign:
-            # YOLO still has a box here (Type / conf < 0.70): keep name, not count TTL.
-            if hold.get("named"):
-                hold["name_until"] = video_t + name_ttl
+        absent_streak = int(state._absent_streak.get(code) or 0)
+        if absent_streak < absent_need:
             continue
-        if (video_t - float(last_good)) < absent_s:
+        if _hold_zone_occluded(hold, public_boxes, min_iou=zone_iou):
+            # Something still in the tray zone → keep long occlusion budget.
+            hold["until"] = max(float(hold.get("until") or 0), video_t + ttl * 0.5)
             continue
         # Confirmed gone: shrink remaining hold/name windows.
         hold["until"] = min(float(hold.get("until") or 0), video_t + absent_ttl)
@@ -586,35 +454,9 @@ def _apply_hold(
 
     sticky_boxes: list[dict[str, Any]] = []
     for box in public_boxes:
-        code = _box_family_code(box)
-        if code:
-            hold = state._hold_by_family.get(code)
-            sticky_boxes.append(_apply_sticky_name(box, hold or {}, video_t, hold_code=code))
-            continue
-        best_code: str | None = None
-        best_iou = zone_iou - 1e-9
-        for hcode, hold in state._hold_by_family.items():
-            if not hold.get("named") or video_t > float(hold.get("name_until") or 0):
-                continue
-            iou = _max_iou_with_hold(hold, box)
-            if iou > best_iou:
-                best_iou = iou
-                best_code = hcode
-        if best_code:
-            live_n = int((counts.get(best_code) or {}).get("detected_quantity") or 0)
-            if live_n > 0:
-                sticky_boxes.append(box)
-            else:
-                sticky_boxes.append(
-                    _apply_sticky_name(
-                        box,
-                        state._hold_by_family[best_code],
-                        video_t,
-                        hold_code=best_code,
-                    )
-                )
-        else:
-            sticky_boxes.append(box)
+        code = box.get("family_code")
+        hold = state._hold_by_family.get(code) if code else None
+        sticky_boxes.append(_apply_sticky_name(box, hold or {}, video_t))
 
     out_counts = copy.deepcopy(counts)
     held_boxes: list[dict[str, Any]] = []
@@ -632,8 +474,6 @@ def _apply_hold(
         if video_t > float(hold["until"]):
             if video_t > float(hold.get("name_until") or 0):
                 state._hold_by_family.pop(code, None)
-                state._last_good_live_t.pop(code, None)
-                state._live_since.pop(code, None)
             continue
         if float(hold.get("best_score") or 0) < min_score and not hold.get("named"):
             continue
@@ -647,6 +487,10 @@ def _apply_hold(
         )
         out_counts[code] = restored
         for b in hold.get("boxes") or []:
+            if any(_xyxy_iou(b.get("xyxy") or [], live.get("xyxy") or []) >= HOLD_DEDUPE_IOU
+                   for live in sticky_boxes):
+                # Same object, live under another label this frame: never a second instrument.
+                continue
             hb = copy.deepcopy(b)
             hb["held"] = True
             if hold.get("named"):
@@ -657,37 +501,27 @@ def _apply_hold(
     return out_counts, sticky_boxes + held_boxes
 
 
-def _overlay_quota_boxes(
-    boxes: list[dict[str, Any]],
-    counts: dict[str, dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Cap *family names* to table counts; still draw Type-degraded extras (Grasping, etc.)."""
-    by_fam: dict[str, list[dict[str, Any]]] = {}
-    type_extras: list[dict[str, Any]] = []
+def _out_of_kit_summary(boxes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Unassigned detections of families outside the kit, grouped by YOLO's family guess."""
+    groups: dict[str, dict[str, Any]] = {}
     for box in boxes:
-        code = _box_family_code(box)
-        if not code:
-            type_extras.append(box)
+        if box.get("resolution_reason") != "out_of_kit":
             continue
-        by_fam.setdefault(code, []).append(box)
-    out: list[dict[str, Any]] = []
-    for code, fam_boxes in by_fam.items():
-        cap = int((counts.get(code) or {}).get("detected_quantity") or 0)
-        if cap <= 0:
-            continue
-
-        def _rank(b: dict[str, Any]) -> tuple:
-            return (
-                0 if b.get("held") else 1,
-                1 if b.get("high_confidence") else 0,
-                1 if b.get("sticky_name") else 0,
-                float(b.get("confidence") or 0.0),
-            )
-
-        ranked = sorted(fam_boxes, key=_rank, reverse=True)
-        out.extend(ranked[:cap])
-    out.extend(type_extras)
-    return out
+        guess = box.get("out_of_kit") or {}
+        key = str(guess.get("family_code") or "unknown")
+        row = groups.setdefault(key, {
+            "family_code": guess.get("family_code"),
+            "family_id": guess.get("family_id"),
+            "family_name": guess.get("family_name"),
+            "category_name": box.get("category_name"),
+            "count": 0,
+            "best_confidence": None,
+        })
+        row["count"] += 1
+        conf = box.get("confidence")
+        if conf is not None and (row["best_confidence"] is None or conf > row["best_confidence"]):
+            row["best_confidence"] = round(float(conf), 4)
+    return sorted(groups.values(), key=lambda r: str(r.get("family_code") or ""))
 
 
 def _category_summary(
@@ -724,6 +558,8 @@ def _category_summary(
             })
 
     for box in boxes:
+        if box.get("resolution_reason") == "out_of_kit":
+            continue  # not part of any kit quota (reported in out_of_kit)
         cat = box.get("category_name") or "Type"
         if cat not in cats:
             continue
@@ -757,19 +593,8 @@ def _metrics_payload(state: SessionState) -> dict[str, Any]:
         "frames_processed": state.frames_processed,
         "hold_seconds": state.hold_seconds,
         "name_hold_seconds": state.name_hold_seconds,
-        "frame_stride": state.frame_stride,
-        "count_sample_interval_s": state.count_sample_interval_s,
-        "video_t": state.video_t,
+        "count_sample_every": state.count_sample_every,
         "timeline_samples": state.timeline_samples,
-        "latency_ms": state.latency_ms,
-        "last_yolo_ms": state.last_yolo_ms,
-        "last_post_ms": state.last_post_ms,
-        "latency_avg_ms": state.latency_avg_ms,
-        "yolo_avg_ms": state.yolo_avg_ms,
-        "post_avg_ms": state.post_avg_ms,
-        "latency_max_ms": state.latency_max_ms,
-        "latency_n": state.latency_n,
-        "model_device": device_info().get("model_device"),
         "written_at": datetime.now(timezone.utc).isoformat(),
         "assignment_metrics": state.assignment_metrics,
         "category_summary": state.category_summary,
@@ -887,23 +712,15 @@ def _timeline_path_for(state: SessionState):
     return METRICS_DIR / f"{state.session_id}_{state.run_id}_timeline.ndjson"
 
 
-def _should_sample_timeline(
-    state: SessionState,
-    *,
-    video_t: float = 0.0,
-    final: bool = False,
-) -> bool:
+def _should_sample_timeline(state: SessionState, *, final: bool = False) -> bool:
     if state.frames_processed <= 0:
         return False
-    interval = max(0.05, float(state.count_sample_interval_s or COUNT_SAMPLE_INTERVAL_S))
-    last = state.last_timeline_video_t
-    if last is None:
-        return True
-    if abs(float(video_t) - float(last)) < 1e-6:
-        return False
+    every = max(1, int(state.count_sample_every or COUNT_SAMPLE_EVERY))
+    on_boundary = state.frames_processed % every == 0
     if final:
-        return True
-    return (float(video_t) - float(last)) >= interval
+        # run_frame already wrote the boundary sample; only fill the gap to last frame.
+        return not on_boundary
+    return on_boundary
 
 
 def _append_timeline_sample(
@@ -912,7 +729,7 @@ def _append_timeline_sample(
     video_t: float = 0.0,
     final: bool = False,
 ) -> None:
-    if not _should_sample_timeline(state, video_t=video_t, final=final):
+    if not _should_sample_timeline(state, final=final):
         return
     path = _timeline_path_for(state)
     if path is None:
@@ -929,17 +746,7 @@ def _append_timeline_sample(
         "assign_solver": state.assign_solver,
         "model_version": state.model_version,
         "conf_threshold": state.conf_threshold,
-        "frame_stride": state.frame_stride,
-        "count_sample_interval_s": state.count_sample_interval_s,
-        "latency_ms": state.latency_ms,
-        "last_yolo_ms": state.last_yolo_ms,
-        "last_post_ms": state.last_post_ms,
-        "latency_avg_ms": state.latency_avg_ms,
-        "yolo_avg_ms": state.yolo_avg_ms,
-        "post_avg_ms": state.post_avg_ms,
-        "latency_max_ms": state.latency_max_ms,
-        "latency_n": state.latency_n,
-        "model_device": device_info().get("model_device"),
+        "count_sample_every": state.count_sample_every,
         "written_at": datetime.now(timezone.utc).isoformat(),
         "assignment_metrics": _compact_metrics(state.assignment_metrics),
         "counts": _compact_counts_for_timeline(state.counts),
@@ -952,8 +759,6 @@ def _append_timeline_sample(
             fh.write(json.dumps(sample, separators=(",", ":")) + "\n")
         state.timeline_path = str(path.name)
         state.timeline_samples = int(state.timeline_samples or 0) + 1
-        state.last_timeline_video_t = round(float(video_t), 3)
-        state.last_timeline_frames_processed = int(state.frames_processed)
     except OSError:
         pass
 
@@ -991,104 +796,6 @@ def read_timeline_samples(session_id: str, run_id: str | None = None) -> list[di
     return samples
 
 
-def _record_frame_latency(state: SessionState, *, yolo_ms: float, post_ms: float) -> None:
-    """Track last / rolling avg / max for YOLO detect vs worker postprocess."""
-    total = yolo_ms + post_ms
-    n = int(state.latency_n or 0) + 1
-    prev = n - 1
-    state.last_yolo_ms = round(yolo_ms, 1)
-    state.last_post_ms = round(post_ms, 1)
-    state.latency_ms = round(total, 1)
-    state.yolo_avg_ms = round(((state.yolo_avg_ms or 0.0) * prev + yolo_ms) / n, 1)
-    state.post_avg_ms = round(((state.post_avg_ms or 0.0) * prev + post_ms) / n, 1)
-    state.latency_avg_ms = round(((state.latency_avg_ms or 0.0) * prev + total) / n, 1)
-    state.latency_max_ms = round(max(float(state.latency_max_ms or 0.0), total), 1)
-    state.latency_n = n
-
-
-def _reset_latency(state: SessionState) -> None:
-    state.latency_ms = None
-    state.last_yolo_ms = None
-    state.last_post_ms = None
-    state.latency_avg_ms = None
-    state.yolo_avg_ms = None
-    state.post_avg_ms = None
-    state.latency_max_ms = None
-    state.latency_n = 0
-
-
-def _reset_timeline(state: SessionState) -> None:
-    state.timeline_samples = 0
-    state.timeline_path = None
-    state.video_t = None
-    state.last_timeline_video_t = None
-    state.last_timeline_frames_processed = None
-
-
-def reset_hold_state(state: SessionState) -> None:
-    """Drop hold/sticky clocks. File video_t and live wall clock must not mix."""
-    state._hold_by_family = {}
-    state._live_since = {}
-    state._last_good_live_t = {}
-    state._tracks = []
-
-
-def decode_jpeg_b64(data: str) -> np.ndarray | None:
-    """JPEG base64 → BGR. None if empty or corrupt."""
-    if not data:
-        return None
-    try:
-        raw = base64.b64decode(data)
-    except Exception:
-        return None
-    if not raw:
-        return None
-    arr = np.frombuffer(raw, dtype=np.uint8)
-    frame = cv2.imdecode(arr, cv2.IMREAD_COLOR)
-    return frame
-
-
-def prepare_live_run(state: SessionState) -> None:
-    """Start (or restart) live camera inference. Hold uses wall clock via run_frame."""
-    reset_hold_state(state)
-    state.capture_source = "live"
-    state.status = "processing"
-    state.message = "live camera"
-    state.progress = 0.0
-    state.cancel = False
-    state.last_error = None
-    state.run_id = uuid.uuid4().hex[:12]
-    state.frames_processed = 0
-    state.frame_index = 0
-    _reset_timeline(state)
-    _reset_latency(state)
-    get_model()
-    # Client already paces; every submitted JPEG is inferred.
-    state.frame_stride = 1
-    state.video_fps = 30.0
-    state.count_sample_interval_s = COUNT_SAMPLE_INTERVAL_S
-    state.hold_seconds = HOLD_SECONDS
-    state.name_hold_seconds = NAME_HOLD_SECONDS
-    state.hold_min_score = HOLD_MIN_SCORE
-    state.hold_absent_seconds = HOLD_ABSENT_SECONDS
-    state.hold_absent_streak = HOLD_ABSENT_STREAK
-    state.hold_seed_frames = HOLD_SEED_FRAMES
-    state.hold_zone_iou = HOLD_ZONE_IOU
-    state.category_summary = {}
-
-
-def cancel_capture(state: SessionState) -> None:
-    """Stop file loop and/or live WS. Always reset hold so the next mode starts clean."""
-    state.cancel = True
-    reset_hold_state(state)
-    if state.capture_source == "live" or state.status == "processing":
-        # File loop also watches state.cancel and will exit; live has no loop.
-        if state.capture_source == "live":
-            state.status = "idle"
-            state.message = "Cancelled"
-            state.capture_source = None
-
-
 def run_frame(
     frame_bgr: np.ndarray,
     state: SessionState,
@@ -1096,63 +803,204 @@ def run_frame(
     video_t: float = 0.0,
 ) -> None:
     model = get_model()
-    t_all = time.perf_counter()
-    raw, yolo_ms = detect_with_class_scores(model, frame_bgr)
+    raw = detect_with_class_scores(model, frame_bgr)
     _enrich_class_map_from_names(raw, state)
-    state._tracks = update_box_tracks(
-        state._tracks, raw, video_t=video_t, enabled=TRACK_MEMORY
-    )
 
     refined, counts, metrics = assign_boxes(
         raw,
         expected=state.expected,
         class_map=state.class_map,
         conf_display=state.conf_threshold,
-        memory=TRACK_MEMORY,
     )
-    commit_track_families(state._tracks, refined, enabled=TRACK_MEMORY)
     public_boxes = [_public_box(box) for box in refined]
     held_counts, held_boxes = _apply_hold(
         state, counts=counts, public_boxes=public_boxes, video_t=video_t
     )
-    overlay_boxes = _overlay_quota_boxes(held_boxes, held_counts)
 
-    state.boxes = overlay_boxes
+    state.boxes = held_boxes
     state.counts = held_counts
     state.raw_counts = _raw_counts_from_boxes(
         raw, expected=state.expected, class_map=state.class_map
     )
     state.assignment_metrics = metrics
     state.category_summary = _category_summary(
-        expected=state.expected, counts=held_counts, boxes=overlay_boxes
+        expected=state.expected, counts=held_counts, boxes=held_boxes
     )
+    state.out_of_kit = _out_of_kit_summary(held_boxes)
     state.pipeline = WORKER_PIPELINE
     state.assign_solver = str((metrics or {}).get("solver") or ASSIGN_SOLVER)
-    annotated = _draw_boxes(frame_bgr, overlay_boxes)
+    annotated = _draw_boxes(frame_bgr, held_boxes)
     state.frame_jpeg_b64 = _encode_jpeg_b64(annotated)
-    post_ms = max(0.0, (time.perf_counter() - t_all) * 1000.0 - float(yolo_ms))
-    _record_frame_latency(state, yolo_ms=yolo_ms, post_ms=post_ms)
-    state.video_t = round(float(video_t), 3)
     state.frames_processed += 1
     _write_metrics_snapshot(state)
     _append_timeline_sample(state, video_t=video_t, final=False)
 
 
+def frame_quality(frame_bgr: np.ndarray | None) -> dict[str, Any]:
+    """Whether a decoded frame can show the tray: not empty, not black, not washed out or uniform.
+
+    Cheap global statistics only; it rejects frames no count may come from (fade-in/out, lens cap,
+    blank encoder frames). Whether the tray itself is in view is checked by the Operator.
+    """
+    if frame_bgr is None or not getattr(frame_bgr, "size", 0):
+        return {"ok": False, "reason": "not_decodable"}
+    gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY) if frame_bgr.ndim == 3 else frame_bgr
+    mean, std = cv2.meanStdDev(gray)
+    brightness, contrast = float(mean[0][0]), float(std[0][0])
+    metrics = {"brightness": round(brightness, 2), "contrast": round(contrast, 2)}
+    if brightness < FRAME_MIN_BRIGHTNESS:
+        return {"ok": False, "reason": "too_dark", **metrics}
+    if brightness > FRAME_MAX_BRIGHTNESS:
+        return {"ok": False, "reason": "overexposed", **metrics}
+    if contrast < FRAME_MIN_CONTRAST:
+        return {"ok": False, "reason": "uniform", **metrics}
+    return {"ok": True, "reason": None, **metrics}
+
+
+def analyze_single_frame(
+    frame_bgr: np.ndarray,
+    state: SessionState,
+    *,
+    frame_index: int,
+    video_t: float,
+    position: str,
+) -> dict[str, Any]:
+    """YOLO + matrix_v1 on ONE frame, without the video hold: the count of that frame only.
+
+    Used for the edge frames (position first | last). It never reads or writes the live run
+    state (counts, boxes, holds), so intermediate frames cannot change it.
+    """
+    model = get_model()
+    raw = detect_with_class_scores(model, frame_bgr)
+    _enrich_class_map_from_names(raw, state)
+    refined, counts, metrics = assign_boxes(
+        raw,
+        expected=state.expected,
+        class_map=state.class_map,
+        conf_display=state.conf_threshold,
+    )
+    boxes = [_public_box(box) for box in refined]
+    return {
+        "ok": True,
+        "position": position,
+        "video_id": state.video_id,
+        "run_id": state.run_id if position == "last" else None,
+        "frame_index": int(frame_index),
+        "video_t": round(float(video_t), 3),
+        "analyzed_at": datetime.now(timezone.utc).isoformat(),
+        "model_version": state.model_version,
+        "pipeline": WORKER_PIPELINE,
+        "assign_solver": str((metrics or {}).get("solver") or ASSIGN_SOLVER),
+        "conf_threshold": state.conf_threshold,
+        "quality": frame_quality(frame_bgr),
+        "boxes": boxes,
+        "total": len(boxes),
+        "counts": counts,
+        "raw_counts": _raw_counts_from_boxes(raw, expected=state.expected, class_map=state.class_map),
+        "assignment_metrics": metrics,
+        "category_summary": _category_summary(expected=state.expected, counts=counts, boxes=boxes),
+        "out_of_kit": _out_of_kit_summary(boxes),
+        "frame_jpeg_b64": _encode_jpeg_b64(_draw_boxes(frame_bgr, boxes)),
+    }
+
+
+def _edge_failure(position: str, reason: str, detail: str, **extra: Any) -> dict[str, Any]:
+    return {"ok": False, "position": position, "reason": reason, "error": detail, **extra}
+
+
+def analyze_first_frame(path: str, state: SessionState) -> None:
+    """Upload step: analyse frame zero only; never starts the full run or skips a bad first frame."""
+    state.status = "loading"
+    state.message = "Analysing the first frame"
+    state.error_stage = None
+    state.last_error = None
+    cap = cv2.VideoCapture(path)
+    try:
+        if not cap.isOpened():
+            raise _EdgeError(_edge_failure("first", "not_decodable", "Could not open video file"))
+        fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0) or 30.0
+        state.video_meta.update({
+            "frame_count": int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0),
+            "fps": round(fps, 3),
+            "width": int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0),
+            "height": int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0),
+        })
+        if state.video_meta["frame_count"]:
+            state.video_meta["duration_s"] = round(state.video_meta["frame_count"] / fps, 3)
+        rejected = []
+        # The initial count belongs to frame zero. A fade-in is an error to review,
+        # never permission to silently choose a later tray configuration.
+        for idx in range(1):
+            ok, frame = cap.read()
+            if not ok:
+                break
+            quality = frame_quality(frame)
+            if not quality["ok"]:
+                rejected.append({"frame_index": idx, **quality})
+                continue
+            result = analyze_single_frame(frame, state, frame_index=idx, video_t=idx / fps, position="first")
+            result["skipped_frames"] = rejected
+            state.initial_frame = result
+            state.frame_jpeg_b64 = result["frame_jpeg_b64"]
+            state.status = "awaiting_initial"
+            state.message = "First frame analysed; waiting for the initial count"
+            return
+        if not rejected:
+            raise _EdgeError(_edge_failure("first", "no_frames", "The video has no decodable frame"))
+        raise _EdgeError(_edge_failure("first", "no_valid_frame",
+                                       f"No usable frame in the first {len(rejected)} frames", skipped_frames=rejected))
+    except _EdgeError as exc:
+        state.initial_frame = exc.result
+        state.status = "error"
+        state.error_stage = "first_frame"
+        state.last_error = exc.result["error"]
+        state.message = state.last_error
+    except Exception as exc:  # noqa: BLE001 — surface to UI, never a fictitious count
+        state.initial_frame = _edge_failure("first", "inference_error", f"Inference error: {exc}")
+        state.status = "error"
+        state.error_stage = "first_frame"
+        state.last_error = str(exc)
+        state.message = f"Inference error: {exc}"
+    finally:
+        cap.release()
+
+
+class _EdgeError(Exception):
+    def __init__(self, result: dict[str, Any]):
+        super().__init__(result.get("error"))
+        self.result = result
+
+
+def _analyze_last_frame(state: SessionState, tail: deque, fps: float) -> dict[str, Any]:
+    """Last valid frame of the run: the newest decoded frame of the tail that passes the quality gate."""
+    rejected = []
+    for idx, frame in reversed(tail):
+        quality = frame_quality(frame)
+        if quality["ok"]:
+            result = analyze_single_frame(frame, state, frame_index=idx, video_t=idx / fps, position="last")
+            result["skipped_frames"] = rejected
+            return result
+        rejected.append({"frame_index": idx, **quality})
+    if not rejected:
+        return _edge_failure("last", "no_frames", "The video has no decodable frame")
+    return _edge_failure("last", "no_valid_frame",
+                         f"No usable frame in the last {len(rejected)} frames", skipped_frames=rejected)
+
+
 def process_video_file(path: str, state: SessionState) -> None:
-    state.capture_source = "file"
     state.status = "processing"
     state.message = "Processing video (matrix_v1)"
     state.progress = 0.0
     state.cancel = False
     state.last_error = None
     state.run_id = uuid.uuid4().hex[:12]
-    reset_hold_state(state)
+    state._hold_by_family = {}
+    state._live_streak = {}
+    state._absent_streak = {}
     state.frames_processed = 0
-    _reset_timeline(state)
-    _reset_latency(state)
-    get_model()
-    state.frame_stride = effective_frame_stride()
-    state.count_sample_interval_s = COUNT_SAMPLE_INTERVAL_S
+    state.timeline_samples = 0
+    state.timeline_path = None
+    state.count_sample_every = COUNT_SAMPLE_EVERY
     state.hold_seconds = HOLD_SECONDS
     state.name_hold_seconds = NAME_HOLD_SECONDS
     state.hold_min_score = HOLD_MIN_SCORE
@@ -1161,44 +1009,96 @@ def process_video_file(path: str, state: SessionState) -> None:
     state.hold_seed_frames = HOLD_SEED_FRAMES
     state.hold_zone_iou = HOLD_ZONE_IOU
     state.category_summary = {}
+    # A new run never shows the tallies or boxes of an earlier one (e.g. after an error).
+    state.counts = {}
+    state.raw_counts = {}
+    state.boxes = []
+    state.out_of_kit = []
+    state.assignment_metrics = {}
+    state.frame_jpeg_b64 = None
+    state.frame_index = 0
+    state.final_frame = None
+    state.error_stage = None
     # Truncate prior timeline for this new run id (file is new per run_id).
     cap = cv2.VideoCapture(path)
     if not cap.isOpened():
         state.status = "error"
+        state.error_stage = "processing"
         state.last_error = "Could not open video file"
         state.message = state.last_error
         return
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0) or 30.0
-    state.video_fps = fps
     idx = 0
     last_video_t = 0.0
+    # Newest decoded frames (references, no copies): the last valid one is the final count.
+    tail: deque = deque(maxlen=EDGE_FRAME_SCAN)
+    # DS06 session_telemetry, measured on this run: one sample per COUNT_SAMPLE_EVERY analysed
+    # frames (+ the remainder at the end). fps_avg = analysed frames per wall-clock second,
+    # latency_ms = mean run_frame time, drops = frames read but not analysed (FRAME_STRIDE).
+    window = {"start": time.perf_counter(), "frames": 0, "latency": 0.0, "drops": 0}
+
+    def _emit_window() -> None:
+        if not window["frames"]:
+            return
+        elapsed = max(time.perf_counter() - window["start"], 1e-6)
+        TELEMETRY.emit(session_id=state.session_id, ts=utc_now(),
+                       fps_avg=round(window["frames"] / elapsed, 3),
+                       latency_ms=round(window["latency"] / window["frames"] * 1000.0, 3),
+                       drops=int(window["drops"]))
+        window.update(start=time.perf_counter(), frames=0, latency=0.0, drops=0)
+
     try:
         while True:
             if state.cancel:
                 state.status = "idle"
                 state.message = "Cancelled"
-                state.capture_source = None
                 break
             ok, frame = cap.read()
             if not ok:
                 break
+            tail.append((idx, frame))
             state.frame_index = idx
             last_video_t = idx / fps
-            if idx % state.frame_stride == 0:
+            if idx % FRAME_STRIDE == 0:
+                started = time.perf_counter()
                 run_frame(frame, state, video_t=last_video_t)
+                window["latency"] += time.perf_counter() - started
+                window["frames"] += 1
+                if window["frames"] >= max(1, COUNT_SAMPLE_EVERY):
+                    _emit_window()
+            else:
+                window["drops"] += 1
             if total > 0:
                 state.progress = min(0.99, (idx + 1) / total)
             idx += 1
+        _emit_window()
         if state.status == "processing":
-            state.progress = 1.0
-            state.status = "ready"
-            state.message = "Video processing complete"
+            if total > 0 and idx < total - 1:
+                raise RuntimeError("Video decoding ended before the declared final frames; "
+                                   "no final count was generated. Check the video file.")
             _write_metrics_snapshot(state, final=True)
             # Ensure final tally is on the timeline even if not on a sample boundary.
             _append_timeline_sample(state, video_t=last_video_t, final=True)
+            # The run only becomes ready once the last valid frame has its own analysis.
+            state.message = "Analysing the last frame"
+            try:
+                final = _analyze_last_frame(state, tail, fps)
+            except Exception as exc:  # noqa: BLE001 — never a fictitious final count
+                final = _edge_failure("last", "inference_error", f"Inference error: {exc}")
+            state.final_frame = final
+            if final.get("ok"):
+                state.progress = 1.0
+                state.status = "ready"
+                state.message = "Video processing complete"
+            else:
+                state.status = "error"
+                state.error_stage = "last_frame"
+                state.last_error = final.get("error")
+                state.message = state.last_error
     except Exception as exc:  # noqa: BLE001 — surface to UI
         state.status = "error"
+        state.error_stage = state.error_stage or "processing"
         state.last_error = str(exc)
         state.message = f"Inference error: {exc}"
     finally:

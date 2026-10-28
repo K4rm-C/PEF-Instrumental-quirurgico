@@ -3,10 +3,23 @@
 
 {#
     Supervisor Audit Log (V3 — ui_reference_v3/supervisor/supervisor-audit-log.png).
-    audit_rows: view_data.supervisor_v3_audit_log(), built from the centralized WS-026
-    timeline (DISCREPANCIES_ESCALATED before SESSION_CLOSED, SUPERVISOR_REVIEW_STARTED last).
-    Filters are presentation-only.
+    RF: audit_rows from view_data.supervisor_audit_log_data() — real access_audit rows of the
+    Supervisor's institution (sessions, instruments, kits); filters and pagination are server-side.
+    Demo mode (FRONTEND_DEMO_MODE) only: rows from the centralized WS-026 timeline
+    (view_data.supervisor_v3_audit_log()) with the presentation-only option lists.
 #}
+{% set af = audit_filters|default({'search': '', 'user': '', 'event': '', 'session': '', 'date': ''}, true) %}
+{% if filter_options.audit_user_options is defined %}
+    {% set user_options = filter_options.audit_user_options %}
+    {% set event_options = filter_options.audit_event_options %}
+    {% set session_options = filter_options.audit_session_options %}
+    {% set date_options = filter_options.audit_date_options %}
+{% else %}
+    {% set user_options = [] %}{% for user in filter_options.audit_users %}{% set _ignored = user_options.append({'value': user, 'label': user}) %}{% endfor %}
+    {% set event_options = audit_rows|map(attribute='event')|list %}
+    {% set session_options = [] %}{% for item in filter_options.audit_sessions %}{% set _ignored = session_options.append({'value': item, 'label': item}) %}{% endfor %}
+    {% set date_options = [] %}{% for date in filter_options.dates %}{% set _ignored = date_options.append({'value': date, 'label': date}) %}{% endfor %}
+{% endif %}
 
 {% block title %}{{ _("Audit Log") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
 
@@ -37,21 +50,21 @@
     </div>
 
     <section class="card">
-        <form class="v3-filter-grid v3-filter-grid--search" action="{{ url_for('web.supervisor_audit_log') }}" method="get" role="search">
+        <form class="v3-filter-grid v3-filter-grid--search" action="{{ url_for('web.supervisor_audit_log') }}" method="get" role="search" data-live-filter-form>
             <div class="form-field">
                 <label class="visually-hidden" for="audit-search">{{ _("Search audit events") }}</label>
                 <div class="form-field__input-wrapper">
                     <span class="form-field__icon">{{ macros.icon_search() }}</span>
-                    <input class="form-field__input" type="search" id="audit-search" name="search"
+                    <input class="form-field__input" type="search" id="audit-search" name="search" value="{{ af.search }}" data-live-filter
                            placeholder="{{ _('Search audit events...') }}">
                 </div>
             </div>
             <div class="form-field">
                 <label class="form-field__label" for="audit-user">{{ _("User") }}</label>
                 <div class="form-field__input-wrapper">
-                    <select class="form-field__input form-field__input--plain form-field__select" id="audit-user" name="user">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="audit-user" name="user" data-live-filter>
                         <option value="">{{ _("All Users") }}</option>
-                        {% for user in filter_options.audit_users %}<option value="{{ user }}">{{ _(user) }}</option>{% endfor %}
+                        {% for item in user_options %}<option value="{{ item.value }}" {% if af.user == item.value %}selected{% endif %}>{{ _(item.label) }}</option>{% endfor %}
                     </select>
                     <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
                 </div>
@@ -59,9 +72,9 @@
             <div class="form-field">
                 <label class="form-field__label" for="audit-event">{{ _("Event Type") }}</label>
                 <div class="form-field__input-wrapper">
-                    <select class="form-field__input form-field__input--plain form-field__select" id="audit-event" name="event">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="audit-event" name="event" data-live-filter>
                         <option value="">{{ _("All Events") }}</option>
-                        {% for row in audit_rows %}<option value="{{ row.event }}">{{ row.event }}</option>{% endfor %}
+                        {% for item in event_options %}<option value="{{ item }}" {% if af.event == item %}selected{% endif %}>{{ item }}</option>{% endfor %}
                     </select>
                     <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
                 </div>
@@ -69,9 +82,9 @@
             <div class="form-field">
                 <label class="form-field__label" for="audit-session">{{ _("Session") }}</label>
                 <div class="form-field__input-wrapper">
-                    <select class="form-field__input form-field__input--plain form-field__select" id="audit-session" name="session">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="audit-session" name="session" data-live-filter>
                         <option value="">{{ _("All Sessions") }}</option>
-                        {% for item in filter_options.audit_sessions %}<option value="{{ item }}">{{ item }}</option>{% endfor %}
+                        {% for item in session_options %}<option value="{{ item.value }}" {% if af.session == item.value %}selected{% endif %}>{{ item.label }}</option>{% endfor %}
                     </select>
                     <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
                 </div>
@@ -79,8 +92,8 @@
             <div class="form-field">
                 <label class="form-field__label" for="audit-date">{{ _("Date") }}</label>
                 <div class="form-field__input-wrapper">
-                    <select class="form-field__input form-field__input--plain form-field__select" id="audit-date" name="date">
-                        {% for date in filter_options.dates %}<option value="{{ date }}">{{ _(date) }}</option>{% endfor %}
+                    <select class="form-field__input form-field__input--plain form-field__select" id="audit-date" name="date" data-live-filter>
+                        {% for item in date_options %}<option value="{{ item.value }}" {% if af.date == item.value %}selected{% endif %}>{{ _(item.label) }}</option>{% endfor %}
                     </select>
                     <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
                 </div>
@@ -112,7 +125,7 @@
                         <td><code>{{ row.event }}</code></td>
                         <td class="text-primary"><strong>{{ _(row.entity) }}</strong></td>
                         <td>{{ row.record }}</td>
-                        <td class="text-success"><strong>{{ row.result }}</strong></td>
+                        <td class="{{ 'text-danger' if row.result_variant|default('success') == 'danger' else 'text-success' }}"><strong>{{ _(row.result) }}</strong></td>
                         <td>{{ _(row.details) }}</td>
                     </tr>
                     {% else %}
@@ -125,11 +138,29 @@
         <nav class="pagination" aria-label="{{ _('Pagination') }}">
             <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s events", shown=audit_rows|length, total=list_meta.total) }}</p>
             <div class="pagination__controls">
-                <a class="btn btn--secondary btn--small" href="#" aria-disabled="true">{{ _("Previous") }}</a>
-                <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=1, total=list_meta.pages) }}</span>
-                <a class="btn btn--secondary btn--small" href="#">{{ _("Next") }}</a>
+                <a class="btn btn--secondary btn--small" href="{{ previous_url or '#' }}" {% if not previous_url %}aria-disabled="true"{% endif %}>{{ _("Previous") }}</a>
+                <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=list_meta.page|default(1), total=list_meta.pages) }}</span>
+                <a class="btn btn--secondary btn--small" href="{{ next_url or '#' }}" {% if not next_url %}aria-disabled="true"{% endif %}>{{ _("Next") }}</a>
             </div>
         </nav>
     </section>
 </div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+    // Same live-filter behaviour as the Supervisor discrepancy queue.
+    var form = document.querySelector("[data-live-filter-form]");
+    if (!form) return;
+    var timer = null;
+    form.querySelectorAll("[data-live-filter]").forEach(function (field) {
+        field.addEventListener("input", function () {
+            window.clearTimeout(timer);
+            timer = window.setTimeout(function () { form.requestSubmit(); }, 280);
+        });
+        field.addEventListener("change", function () { form.requestSubmit(); });
+    });
+})();
+</script>
 {% endblock %}

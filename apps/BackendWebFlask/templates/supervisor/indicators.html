@@ -3,9 +3,10 @@
 
 {#
     Supervisor Indicators (V3 — ui_reference_v3/supervisor/supervisor-indicators.png).
-    indicators: view_data.supervisor_v3_indicators() (bar fill percentages are precomputed).
+    Live (live=True): indicators from SessionService's report summary for the selected calendar month
+    (controllers/report_routes.supervisor_indicators); a null indicator is shown as "no data".
+    Demo: view_data.supervisor_v3_indicators() (bar fill percentages are precomputed).
     The reporting-period selector lives in this page's heading, not in the shared header.
-    No analytics backend exists yet: the selector is presentation-only.
 #}
 
 {% block title %}{{ _("Indicators") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
@@ -46,7 +47,7 @@
 {% endmacro %}
 
 {% block page_content %}
-{% set kpis = indicators.kpis %}
+{% set kpis = indicators.kpis if indicators else {} %}
 <div class="v3-page">
     <div class="page-heading">
         <div>
@@ -56,9 +57,11 @@
         <form action="{{ url_for('web.supervisor_indicators') }}" method="get">
             <label class="visually-hidden" for="indicators-period">{{ _("Reporting period") }}</label>
             <div class="form-field__input-wrapper v3-period-select">
-                <select class="form-field__input form-field__input--plain form-field__select" id="indicators-period" name="period">
-                    {% for period in indicators.periods %}
-                    <option value="{{ period }}" {% if period == indicators.period %}selected{% endif %}>{{ _(period) }}</option>
+                <select class="form-field__input form-field__input--plain form-field__select" id="indicators-period" name="period" onchange="this.form.submit()">
+                    {% set selected_period = indicators.period if indicators else period %}
+                    {% for item in (indicators.periods if indicators else periods) %}
+                    {% set value = item.value if item is mapping else item %}
+                    <option value="{{ value }}" {% if value == selected_period %}selected{% endif %}>{{ item.label if item is mapping else _(item) }}</option>
                     {% endfor %}
                 </select>
                 <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
@@ -66,16 +69,28 @@
         </form>
     </div>
 
+    {% if indicators_dev_notice %}
+    <div class="alert alert--info" role="status" data-indicators-local><span class="alert__message">{{ indicators_dev_notice }}</span></div>
+    {% endif %}
+    {% if indicators_notice %}
+    <div class="alert alert--warning" role="status" data-report-unavailable><span class="alert__message">{{ indicators_notice }}</span></div>
+    {% endif %}
+
+    {% if indicators %}
     <section class="stat-card-grid v3-kpi-grid--five" aria-label="{{ _('Key indicators') }}">
         {{ macros.stat_card(_("Total Sessions"), kpis.total_sessions, 'neutral') }}
         {{ macros.stat_card(_("Total Discrepancies"), kpis.total_discrepancies, 'success') }}
         <div class="stat-card stat-card--warning">
             <p class="stat-card__label">{{ _("AI–Human Agreement") }}</p>
-            <p class="stat-card__value">{{ kpis.ai_human_agreement }}</p>
+            <p class="stat-card__value" data-metric="agreement">{{ kpis.ai_human_agreement if kpis.ai_human_agreement is not none else _("Insufficient data") }}</p>
+            {% if live %}
+            <p class="stat-card__description">{{ _("%(pairs)s validated rows (minimum %(min)s)", pairs=kpis.ai_pairs, min=kpis.ai_min_pairs) }}</p>
+            {% else %}
             <p class="stat-card__description">{{ _("Target %(target)s", target=kpis.ai_human_agreement_target) }}</p>
+            {% endif %}
         </div>
         {{ macros.stat_card(_("Reviewed – Unresolved"), kpis.reviewed_unresolved, 'warning') }}
-        {{ macros.stat_card(_("Average Resolution Time"), kpis.average_resolution_time, 'success') }}
+        {{ macros.stat_card(_("Average Resolution Time"), kpis.average_resolution_time if kpis.average_resolution_time is not none else _("No data"), 'success') }}
     </section>
 
     <section class="v3-columns">
@@ -95,20 +110,26 @@
             </div>
         </div>
         <div class="card">
+            {% if live %}
+            <h2 class="card__title">{{ _("Discrepancies by Status") }}</h2>
+            {{ progress_list(indicators.discrepancies_by_status) }}
+            {% else %}
             <h2 class="card__title">{{ _("Discrepancies by Instrument") }}</h2>
             {{ progress_list(indicators.discrepancies_by_instrument) }}
+            {% endif %}
         </div>
     </section>
 
     <section class="v3-columns">
         <div class="card">
             <h2 class="card__title">{{ _("Discrepancies by Instrument Family") }}</h2>
-            {{ progress_list(indicators.discrepancies_by_family) }}
+            {% if indicators.discrepancies_by_family %}{{ progress_list(indicators.discrepancies_by_family) }}{% else %}<p class="v3-empty-state">{{ _("No discrepancies in the selected period.") }}</p>{% endif %}
         </div>
         <div class="card">
             <h2 class="card__title">{{ _("Discrepancies by Type") }}</h2>
-            {{ progress_list(indicators.discrepancies_by_type) }}
+            {% if indicators.discrepancies_by_type %}{{ progress_list(indicators.discrepancies_by_type) }}{% else %}<p class="v3-empty-state">{{ _("No discrepancies in the selected period.") }}</p>{% endif %}
         </div>
     </section>
+    {% endif %}
 </div>
 {% endblock %}

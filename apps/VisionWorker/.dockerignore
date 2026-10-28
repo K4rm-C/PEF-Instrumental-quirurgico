@@ -1,0 +1,14 @@
+.env
+.env.*
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+tests
+# The model is mounted read-only at run time, never copied into the image.
+weights
+*.pt
+# Uploaded videos, metrics and the telemetry spool live in the vision_data volume.
+uploads
+smoke_hold_gates.py

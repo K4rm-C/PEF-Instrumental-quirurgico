@@ -1,0 +1,17 @@
+# Host-process development mode (explicit): the portal and VisionWorker run with Python on the host,
+# every other component in Docker.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.hostdev.yml up -d
+#
+# - web and vision are moved to the `containerized` profile, so this mode does not start them;
+# - the monitoring collector checks the host processes through host.docker.internal.
+# The host processes then use the published ports (see GUIA_DOCKER_INTEGRAL.md, "Modo de desarrollo").
+services:
+  web:
+    profiles: ["containerized"]
+  vision:
+    profiles: ["containerized"]
+  monitoring-collector:
+    environment:
+      MONITORING_TARGET_WEB_URL: ${MONITORING_TARGET_WEB_URL:-http://host.docker.internal:5000}
+      MONITORING_TARGET_VISION_URL: ${MONITORING_TARGET_VISION_URL:-http://host.docker.internal:5002}

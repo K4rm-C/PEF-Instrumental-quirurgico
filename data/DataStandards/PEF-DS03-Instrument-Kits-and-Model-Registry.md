@@ -1,13 +1,13 @@
 ---
 id: PEF-DS03
 title: Instrument Kits and Model Registry
-version: "0.2.0"
+version: "0.2.1"
 status: draft
 owner: PEF Core / Visión
 applies_to: [WP, BE, Worker, MS]
 stores: [PostgreSQL]
 related: [PEF-DS02, PEF-DS04, PEF-DS05]
-last_updated: 2026-09-06
+last_updated: 2026-10-14
 ---
 
 # PEF-DS03 · Instrument Kits and Model Registry
@@ -353,6 +353,32 @@ UNIQUE (`instrument_id`, `procedure_type_id`, `context_id`).
 
 ---
 
+#### 1.3.9.1 Ciclo de vida de pieza usado por Session API v1 (v0.2.1)
+
+Esta sección formaliza **solo** las transiciones que escribe Session API v1 (PEF-DS09 §1.3.4, `resolve` y `close`). El resto del ciclo (p. ej. `sterilization` → `available`, `maintenance`, `retired`) pertenece a flujos futuros y no se define aquí. No cambia tablas ni catálogos.
+
+**Identidad física.** Una pieza es una fila `instrument`; su identidad canónica es `instrument.id` (PK). `internal_code` es una etiqueta opcional por institución y la familia es solo un tipo: ninguna regla de este estándar elige una pieza a partir de la familia.
+
+**Códigos reales de `cat_instrument_cycle_status`:** `available`, `reserved`, `in_use`, `sterilization`, `maintenance`, `retired`, `lost`.
+
+**`active`:** “pieza en inventario usable”. Las consultas de stock solo cuentan piezas `active = TRUE` (disponibles = además `available`). Las piezas fuera de inventario (`lost`, `retired`) tienen `active = FALSE` (seed demo); las piezas en `maintenance` o `sterilization` siguen siendo inventario (`active = TRUE`).
+
+| Transición | Origen permitido | Resultado | Reservas | Evento de ciclo |
+| :--- | :--- | :--- | :--- | :--- |
+| **lost** (`resolve`, `outcome = lost`, pieza indicada por `instrument_id`) | `active = TRUE` y estado `available`, `reserved` o `in_use` | estado `lost`, `active = FALSE` | se libera la reserva activa **de esa pieza** (`active = FALSE`, `released_at`), solo si su operación es de la misma institución; nunca otras piezas de la familia | 1 |
+| **recovered** (`resolve`, `outcome = recovered`, pieza indicada por `instrument_id`) | estado `lost` | estado `available`, `active = TRUE` | no se crea ninguna reserva | 1 |
+| **sterilization** (`close`) | pieza con reserva activa de la operación de la sesión, de la misma institución, `active = TRUE` y estado `available`, `reserved` o `in_use` | estado `sterilization`, `active` sin cambio (`TRUE`) | la reserva se libera | 1 |
+
+Cualquier otro origen no transiciona: `lost` no transiciona con un origen fuera de la tabla (→ conflicto, sin cambios); `recovered` exige `lost`. En `close`, una pieza reservada que está `lost`, inactiva, `retired`, `maintenance` o ya en `sterilization` conserva su estado y no genera evento (su reserva sí se libera, porque la operación terminó).
+
+**Validación de la pieza indicada:** debe existir, pertenecer a la institución de la sesión y a la familia de la discrepancia; si no, se rechaza sin revelar a qué institución pertenece.
+
+**`instrument_cycle_event` por transición (exactamente uno):** `instrument_id` = la pieza; `cycle_status_id` = estado **resultante** (el esquema no guarda el estado de origen: el anterior es el evento previo de la pieza); `occurred_at` = instante de la operación; `session_id` y `operation_id` = la sesión y su operación; `notes` = texto canónico corto no traducido (`SPD discrepancy resolution: lost`, `SPD discrepancy resolution: recovered`, `SPD close: reprocessing started`). El actor no tiene columna aquí: queda en `access_audit` (`discrepancy.resolve` / `session.spd_close`).
+
+**Orden de bloqueo** (evita deadlocks entre `resolve` y `close`): `work_session` → `discrepancy` → `instrument` (por `id`) → `instrument_reservation` (por `id`). Todo en la misma transacción que la escritura de Session y su auditoría.
+
+---
+
 #### 1.3.10 Tabla `kit`
 
 **Para qué:** receta versionada por institución.
@@ -675,7 +701,7 @@ Hay que separar tres ideas que la gente mezcla: 1 tipo de instrumento, 2 pieza f
 | ----------------- | --------------------------------------------------------- |
 | Código            | PEF-DS03                                                  |
 | Título            | Instrument Kits and Model Registry                        |
-| Versión           | 0.2.0                                                     |
+| Versión           | 0.2.1 (0.2.1: ciclo de vida de pieza usado por Session API v1, §1.3.9.1) |
 | Estado            | draft                                                     |
 | Almacén           | PostgreSQL (§5.6 + catálogos de instrumental/fase)        |
 | Fuera de alcance  | `expected_inventory`, `count_event`, bytes object storage |

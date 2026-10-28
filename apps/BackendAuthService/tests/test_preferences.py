@@ -40,7 +40,7 @@ class FakeConnection:
 	def execute(self, statement, params=None):
 		sql = str(statement)
 		if "SELECT active" in sql:
-			return FakeResult((True,))
+			return FakeResult((True, True))  # user active, institution active
 		if "SELECT ui_preferences" in sql:
 			assert "FOR UPDATE" in sql
 			return FakeResult((dict(self.db.preferences),) if self.db.exists else None)

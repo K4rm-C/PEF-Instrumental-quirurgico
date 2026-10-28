@@ -23,6 +23,9 @@ def database_url():
 
 def _with_connection_timeout(url):
     parsed = urlsplit(url)
+    # connect_timeout is a libpq option; rebuilding other URLs (e.g. sqlite:///C:/...) breaks them.
+    if not parsed.scheme.startswith('postgresql'):
+        return url
     query = dict(parse_qsl(parsed.query, keep_blank_values=True))
     query.setdefault('connect_timeout', os.getenv('DB_CONNECT_TIMEOUT', '5'))
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
@@ -45,9 +48,14 @@ class Config:
     }
     # Development-only view-data fallback. Authentication always uses the auth service.
     FRONTEND_DEMO_MODE = os.getenv('FRONTEND_DEMO_MODE', 'false').strip().lower() == 'true'
+    # Development only: without SESSION_SERVICE_URL, Supervisor Indicators may show the old partial local
+    # aggregates (clearly labeled). Off by default: a missing or failing SessionService shows a notice.
+    SUPERVISOR_INDICATORS_LOCAL_FALLBACK = os.getenv('SUPERVISOR_INDICATORS_LOCAL_FALLBACK', 'false').strip().lower() == 'true'
     AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', os.getenv('AUTH_URL', 'http://127.0.0.1:5001')).strip().rstrip('/')
     AUTH_BROWSER_URL = os.getenv('AUTH_BROWSER_URL', AUTH_SERVICE_URL).strip().rstrip('/')
     AUTH_SERVICE_TIMEOUT = float(os.getenv('AUTH_SERVICE_TIMEOUT', '5'))
+    # Timezone used to show dates coming from Administration (it returns UTC).
+    ADMIN_DISPLAY_TIMEZONE = os.getenv('ADMIN_DISPLAY_TIMEZONE', 'America/Mexico_City')
     # i18n (Flask-Babel). English msgids are the source text; public locale codes are
     # i18n.SUPPORTED_LOCALES (en, es-MX), catalogs live in translations/<babel locale>/.
     BABEL_DEFAULT_LOCALE = 'en'

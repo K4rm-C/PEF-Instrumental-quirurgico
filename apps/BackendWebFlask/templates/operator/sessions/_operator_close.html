@@ -1,0 +1,64 @@
+{# Operator close panel (vision sessions after human validation). `operator_close` comes from
+   routes._operator_close_view; the server re-validates every condition on submit. #}
+{% import "components/macros.html" as macros %}
+{% set summary = operator_close.summary %}
+<section class="card" data-operator-close style="margin-top:1rem;">
+    <h2 class="card__title">{{ _("Close Session") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <tbody>
+                <tr><th scope="row">{{ _("Required by the kit") }}</th><td class="data-table__numeric-column">{{ summary.expected_total }}</td></tr>
+                <tr><th scope="row">{{ _("Initial count (first frame)") }}</th><td class="data-table__numeric-column">{{ summary.initial_total if summary.initial_total is not none else '—' }}{% if summary.added_total %} + {{ summary.added_total }}{% endif %}</td></tr>
+                <tr><th scope="row">{{ _("Final count (last frame)") }}</th><td class="data-table__numeric-column">{{ summary.final_total if summary.final_total is not none else '—' }}</td></tr>
+                <tr><th scope="row">{{ _("Validated by the Operator") }}</th><td class="data-table__numeric-column">{{ summary.validated_total }}</td></tr>
+                <tr><th scope="row">{{ _("Discrepancies") }}</th><td class="data-table__numeric-column">{{ summary.discrepancies }}</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="table-wrapper" style="margin-top:.75rem;">
+        <table class="data-table">
+            <thead><tr><th>{{ _("Instrument") }}</th><th class="data-table__numeric-column">{{ _("Expected") }}</th><th class="data-table__numeric-column">{{ _("Validated") }}</th><th>{{ _("Result") }}</th></tr></thead>
+            <tbody>
+                {% for family in summary.families %}
+                <tr>
+                    <td>{{ family.family_name }}</td>
+                    <td class="data-table__numeric-column">{{ family.expected }}</td>
+                    <td class="data-table__numeric-column">{{ family.validated if family.validated is not none else '—' }}</td>
+                    <td>{% if family.validated == family.expected %}{{ macros.status_badge(_("Match"), "success") }}{% else %}{{ macros.status_badge(_("Mismatch"), "danger") }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if operator_close.eligible %}
+    <div class="alert alert--success" role="status" style="margin-top:1rem;">
+        {{ _("Counts are reconciled family by family and nothing is pending. You can close this session yourself; Supervisor approval is not required.") }}
+    </div>
+    <form method="post" action="{{ operator_close.close_url }}" id="operator-close-form"
+          data-app-confirm="{{ _('The session will be closed definitively as a safe close (all instruments accounted for). Reserved instruments are released and sent to reprocessing. This cannot be undone; the Supervisor can still consult the session.') }}"
+          data-app-confirm-title="{{ _('Close this session?') }}"
+          data-app-confirm-ok="{{ _('Close Session') }}">
+        <label class="form-field" style="display:flex;gap:.5rem;align-items:flex-start;">
+            <input type="checkbox" name="physical_integrity_confirmed" value="1" required>
+            <span>{{ _("I physically checked the tray: the instrument set is complete.") }}</span>
+        </label>
+        <label class="form-field" style="display:flex;gap:.5rem;align-items:flex-start;">
+            <input type="checkbox" name="material_recovered" value="1" required>
+            <span>{{ _("Material recovered; reprocessing started.") }}</span>
+        </label>
+        <div class="form-actions">
+            {# A repeated submit is answered idempotently by the server (no second close). #}
+            <button type="submit" class="btn btn--primary">{{ _("Close Session") }}</button>
+        </div>
+    </form>
+    {% else %}
+    <div class="alert alert--warning" role="status" style="margin-top:1rem;">
+        <strong>{{ _("Supervisor review required.") }}</strong>
+        {{ _("This session cannot be closed by the Operator:") }}
+        <ul>
+            {% for blocker in operator_close.blockers %}<li>{{ blocker }}</li>{% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</section>

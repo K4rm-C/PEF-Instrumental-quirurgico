@@ -1,0 +1,257 @@
+openapi: 3.0.3
+info:
+  title: PEF Notifications Service — API v1
+  version: 1.0.0
+  description: |
+    Internal notifications of the authenticated user (PEF-DS09 §1.3.6 complement). Notifications are
+    produced only by the service's outbox worker from real, persisted business events — there is no
+    creation endpoint.
+
+    - **Types:** `session_scheduled` (to the assigned operator, from access_audit `session.scheduled`),
+      `discrepancy_pending` (to the supervisor who scheduled the session — or every active SPD
+      supervisor of the institution if unknown — from count_event `manual_close` with
+      `next_status = correction_required`), `correction_required` (to the assigned operator, same event),
+      `discrepancy_resolved` (to the assigned operator, from access_audit `discrepancy.resolve`),
+      `session_closed` (to the assigned operator and the scheduling supervisor, except whoever closed it,
+      from count_event `session_close`).
+    - **Statuses:** `unread` → `read` (one way; `read_at` is set once, marking again changes nothing).
+    - **Content:** session label (WS-XXXXXXXX), and the scheduled time or number of open discrepancies
+      where they exist. Never patient, physician or free-text data.
+    - **Auth:** `Authorization: Bearer <access_token>` of Auth Service: signature with exactly
+      JWT_ALGORITHM, expiry, `type=access`, Redis session `auth:jwt:{jti}` not revoked, user and
+      institution active. The recipient is ALWAYS the token's user and only notifications of the
+      user's current institution are visible: another user's notification is 404.
+    - **Delivery:** the producers (portal, SessionService) never call this service. Database triggers
+      write each relevant event to `notification_outbox` in the producer's own transaction; the
+      worker turns them into notifications, idempotently (one per event, recipient and type). If the
+      service is down, events wait in the outbox and are processed on restart.
+    - **Formats:** JSON or XML (`Accept: application/xml`); XML documents and the only XML request
+      body (`read_all_request`) are described by `GET /api/v1/notifications/schemas/notifications.xsd`.
+    - **Correlation:** `X-Correlation-ID` echoed (or generated).
+servers:
+  - url: http://127.0.0.1:5007
+tags:
+  - name: notifications
+  - name: health
+  - name: docs
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/notifications:
+    get:
+      tags: [notifications]
+      summary: The user's notifications (paginated, newest first)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [unread, read] } }
+        - { name: type, in: query, schema: { $ref: '#/components/schemas/NotificationType' } }
+        - { name: from, in: query, schema: { type: string }, description: 'Created at or after (ISO-8601 date or date-time).' }
+        - { name: to, in: query, schema: { type: string }, description: 'Created before (date-time) or during (date). Must be later than from.' }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: sort, in: query, schema: { type: string, enum: ['-created_at', created_at], default: '-created_at' } }
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Page of notifications (`unread` = unread total of the user, whatever the filters)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/NotificationPage' }
+              example:
+                items:
+                  - id: 3f5b2e7a-1a3c-4c1e-9a1e-2b0b9c1d2e3f
+                    type: session_scheduled
+                    status: unread
+                    title: Session scheduled
+                    message: Counting session WS-89166294 has been scheduled for you.
+                    session_id: 89166294-c1ff-43d7-9408-9bacee49cd65
+                    data: { session_label: WS-89166294, scheduled_at: '2026-11-03T09:30:00Z' }
+                    created_at: '2026-10-21T17:40:02Z'
+                    read_at: null
+                page: 1
+                per_page: 20
+                total: 1
+                total_pages: 1
+                unread: 1
+                sort: -created_at
+            application/xml:
+              schema: { $ref: '#/components/schemas/NotificationPage' }
+              example: |
+                <?xml version='1.0' encoding='utf-8'?>
+                <notification_page><items><notification><id>3f5b2e7a-1a3c-4c1e-9a1e-2b0b9c1d2e3f</id><type>correction_required</type><status>unread</status><title>Correction required</title><message>Counting session WS-89166294 requires correction: its discrepancies are under SPD review.</message><session_id>89166294-c1ff-43d7-9408-9bacee49cd65</session_id><data><session_label>WS-89166294</session_label><open_discrepancies>1</open_discrepancies></data><created_at>2026-10-21T17:40:02Z</created_at><read_at xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true"/></notification></items><page>1</page><per_page>20</per_page><total>1</total><total_pages>1</total_pages><unread>1</unread><sort>-created_at</sort></notification_page>
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/notifications/unread-count:
+    get:
+      tags: [notifications]
+      summary: Number of unread notifications of the user
+      parameters: [{ $ref: '#/components/parameters/CorrelationId' }, { $ref: '#/components/parameters/Accept' }]
+      responses:
+        '200':
+          description: Count
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/UnreadCount' }, example: { unread: 3 } }
+            application/xml: { schema: { $ref: '#/components/schemas/UnreadCount' }, example: '<unread_count><unread>3</unread></unread_count>' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/notifications/read-all:
+    patch:
+      tags: [notifications]
+      summary: Mark the user's unread notifications as read (optionally only one type / older than a date)
+      parameters: [{ $ref: '#/components/parameters/CorrelationId' }, { $ref: '#/components/parameters/Accept' }]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReadAllRequest' }
+            example: { type: correction_required }
+          application/xml:
+            schema: { $ref: '#/components/schemas/ReadAllRequest' }
+            example: '<read_all_request><type>correction_required</type></read_all_request>'
+      responses:
+        '200':
+          description: How many changed and how many remain unread (idempotent)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ReadAllResult' }, example: { updated: 1, unread: 2 } }
+            application/xml: { schema: { $ref: '#/components/schemas/ReadAllResult' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/notifications/{id}:
+    get:
+      tags: [notifications]
+      summary: One notification of the user
+      parameters: [{ $ref: '#/components/parameters/NotificationId' }, { $ref: '#/components/parameters/CorrelationId' }, { $ref: '#/components/parameters/Accept' }]
+      responses:
+        '200':
+          description: Notification
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Notification' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Notification' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/notifications/{id}/read:
+    patch:
+      tags: [notifications]
+      summary: Mark one notification as read (idempotent; read_at is kept from the first time)
+      parameters: [{ $ref: '#/components/parameters/NotificationId' }, { $ref: '#/components/parameters/CorrelationId' }, { $ref: '#/components/parameters/Accept' }]
+      responses:
+        '200':
+          description: Notification (status read)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Notification' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Notification' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /health:
+    get:
+      tags: [health]
+      security: []
+      summary: PostgreSQL and Redis; header X-Outbox-Pending = events waiting for the worker
+      responses:
+        '200': { description: ok }
+        '503': { description: unavailable }
+  /health/live:
+    get: { tags: [health], security: [], summary: Process alive, responses: { '200': { description: live } } }
+  /health/ready:
+    get: { tags: [health], security: [], summary: Dependencies reachable, responses: { '200': { description: ready }, '503': { description: not_ready } } }
+  /api/v1/notifications/openapi.yaml:
+    get: { tags: [docs], security: [], summary: This document, responses: { '200': { description: OpenAPI 3.0 YAML } } }
+  /api/v1/notifications/docs:
+    get: { tags: [docs], security: [], summary: Swagger UI (Authorize with a Bearer access token), responses: { '200': { description: HTML } } }
+  /api/v1/notifications/schemas/notifications.xsd:
+    get: { tags: [docs], security: [], summary: XML Schema, responses: { '200': { description: XSD } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    NotificationId: { name: id, in: path, required: true, schema: { type: string, format: uuid }, description: 'Unknown, malformed, another user''s or another institution''s → 404.' }
+    CorrelationId: { name: X-Correlation-ID, in: header, schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' } }
+    Accept: { name: Accept, in: header, schema: { type: string, enum: [application/json, application/xml, '*/*'] } }
+  schemas:
+    NotificationType:
+      type: string
+      enum: [session_scheduled, discrepancy_pending, correction_required, discrepancy_resolved, session_closed]
+    Notification:
+      type: object
+      xml: { name: notification }
+      required: [id, type, status, title, message, session_id, data, created_at, read_at]
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/NotificationType' }
+        status: { type: string, enum: [unread, read] }
+        title: { type: string, description: Neutral English title (clients may localize by type) }
+        message: { type: string }
+        session_id: { type: string, format: uuid, nullable: true }
+        data:
+          type: object
+          properties:
+            session_label: { type: string, example: WS-89166294 }
+            scheduled_at: { type: string, format: date-time, nullable: true }
+            open_discrepancies: { type: integer, minimum: 0 }
+        created_at: { type: string, format: date-time }
+        read_at: { type: string, format: date-time, nullable: true }
+    NotificationPage:
+      type: object
+      xml: { name: notification_page }
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Notification' }, xml: { wrapped: true, name: items } }
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+        unread: { type: integer }
+        sort: { type: string }
+    UnreadCount:
+      type: object
+      xml: { name: unread_count }
+      properties: { unread: { type: integer } }
+    ReadAllRequest:
+      type: object
+      xml: { name: read_all_request }
+      additionalProperties: false
+      properties:
+        type: { $ref: '#/components/schemas/NotificationType' }
+        before: { type: string, format: date-time, description: Only notifications created before this instant }
+    ReadAllResult:
+      type: object
+      xml: { name: read_all_result }
+      properties: { updated: { type: integer }, unread: { type: integer } }
+    Error:
+      type: object
+      xml: { name: error_response }
+      properties:
+        error: { type: string, enum: [invalid_request, unauthorized, not_found, method_not_allowed, payload_too_large, internal_error, dependency_unavailable] }
+        message: { type: string }
+        correlation_id: { type: string, nullable: true }
+        details: { type: object }
+  responses:
+    InvalidRequest:
+      description: 'Invalid or unknown parameter (details.field / details.unknown_parameters), malformed body, unknown body fields, or XML not conforming to the XSD (details.reason = xsd_validation_failed).'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: invalid_request, message: status must be unread or read, correlation_id: corr-1, details: { field: status, allowed: [unread, read] } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unauthorized:
+      description: Missing, invalid, expired or revoked token; no Redis session; inactive user or institution.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: unauthorized, message: Session is no longer valid, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    NotFound:
+      description: Notification not found among the user's own.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: not_found, message: Notification not found, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    DependencyUnavailable:
+      description: PostgreSQL or Redis unavailable.
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }

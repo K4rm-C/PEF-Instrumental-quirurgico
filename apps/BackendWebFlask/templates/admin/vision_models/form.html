@@ -23,17 +23,9 @@
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
-{% set vision_model = vision_model|default({'version_tag': 'v0.4.2', 'model_asset_reference': 'yolo_model.weights', 'active': true, 'checksum': '7f82c4e1a9b2d3c4e5f6a7b8c9d0e1f2a3b4c5d6e7f8', 'published_at': '2026-09-10'} if is_edit else {'version_tag': '', 'model_asset_reference': '', 'active': true, 'checksum': '', 'published_at': ''}, true) %}
-{% set instrument_families = instrument_families|default([
-    {'value': 'kelly-clamp', 'label': _('Kelly Clamp')},
-    {'value': 'mayo-hegar-needle-holder', 'label': _('Mayo-Hegar Needle Holder')},
-    {'value': 'allis-tissue-forceps', 'label': _('Allis Tissue Forceps')}
-], true) %}
-{% set model_classes = model_classes|default([
-    {'yolo_class_id': 0, 'instrument_family_value': 'kelly-clamp', 'instrument_family_label': _('Kelly Clamp')},
-    {'yolo_class_id': 1, 'instrument_family_value': 'mayo-hegar-needle-holder', 'instrument_family_label': _('Mayo-Hegar Needle Holder')},
-    {'yolo_class_id': 2, 'instrument_family_value': 'allis-tissue-forceps', 'instrument_family_label': _('Allis Tissue Forceps')}
-], true) %}
+{% set vision_model = vision_model|default({'version_tag': '', 'model_asset_reference': '', 'active': false, 'checksum': '', 'published_at': ''}, true) %}
+{% set instrument_families = instrument_families|default([], true) %}
+{% set model_classes = model_classes|default([], true) %}
 {% set page_title = _("Edit Vision Model") if is_edit else _("New Vision Model") %}
 {% set page_subtitle = _("Update model settings and instrument class mappings.") if is_edit else _("Register a computer vision model version and its instrument class mappings.") %}
 
@@ -67,9 +59,12 @@
     {{ macros.icon_info() }}
     <div class="alert__content">
         <p class="alert__title">{{ _("Current Active Model") }}</p>
-        <p class="alert__description text-warning">{{ _("Warning: the historical version number must not be silently overwritten.") }}</p>
+        <p class="alert__description text-warning">{{ _("The class mapping of the active model cannot be changed. Register a new version instead.") }}</p>
     </div>
 </div>
+{% endif %}
+{% if form_error %}
+<p class="form-field__helper form-field__helper--error" role="alert">{{ form_error }}</p>
 {% endif %}
 
 <form class="form" id="vision-model-form" action="{{ save_url|default('#') }}" method="post">
@@ -81,7 +76,7 @@
                 {% if is_edit %}
                 <input class="form-field__input form-field__input--plain" type="text" id="vision-model-version-tag" value="{{ vision_model.version_tag }}" readonly aria-readonly="true">
                 {% else %}
-                <input class="form-field__input form-field__input--plain" type="text" id="vision-model-version-tag" name="version_tag" value="{{ vision_model.version_tag }}" required>
+                <input class="form-field__input form-field__input--plain" type="text" id="vision-model-version-tag" name="version_tag" value="{{ vision_model.version_tag }}" maxlength="32" required>
                 {% endif %}
             </div>
             {% if is_edit %}
@@ -91,8 +86,8 @@
             </div>
             {% else %}
             <div class="form-field">
-                <label class="form-field__label" for="vision-model-asset-reference">{{ _("Model Asset Reference") }} *</label>
-                <input class="form-field__input form-field__input--plain" type="text" id="vision-model-asset-reference" name="model_asset_reference" value="{{ vision_model.model_asset_reference }}" required>
+                <label class="form-field__label" for="vision-model-asset-reference">{{ _("Model Asset Reference") }}</label>
+                <input class="form-field__input form-field__input--plain" type="text" id="vision-model-asset-reference" name="model_asset_reference" value="{{ vision_model.model_asset_reference }}" placeholder="weights/best.pt">
             </div>
             {% endif %}
         </div>
@@ -111,7 +106,7 @@
             {% if not is_edit %}
             <div class="form-field">
                 <label class="form-field__label" for="vision-model-checksum">{{ _("Checksum") }}</label>
-                <input class="form-field__input form-field__input--plain" type="text" id="vision-model-checksum" name="checksum" value="{{ vision_model.checksum }}">
+                <input class="form-field__input form-field__input--plain" type="text" id="vision-model-checksum" name="checksum" value="{{ vision_model.checksum }}" maxlength="64" pattern="[0-9a-fA-F]{64}" placeholder="SHA-256">
             </div>
             {% endif %}
         </div>
@@ -172,16 +167,22 @@
         </div>
         <div class="form-field">
             <label class="form-field__label" for="vision-model-checksum">{{ _("Checksum") }}</label>
-            <input class="form-field__input form-field__input--plain" type="text" id="vision-model-checksum" name="checksum" value="{{ vision_model.checksum }}">
+            <input class="form-field__input form-field__input--plain" type="text" id="vision-model-checksum" name="checksum" value="{{ vision_model.checksum }}" maxlength="64" pattern="[0-9a-fA-F]{64}" placeholder="SHA-256">
         </div>
     </section>
     {% endif %}
 
     <div class="form-actions">
         <a class="btn btn--secondary" href="{{ cancel_url|default('#') }}">{{ _("Cancel") }}</a>
+        {% if is_edit and not vision_model.active and activate_url %}
+        <button type="submit" class="btn btn--secondary" form="activate-vision-model-form">{{ _("Activate Model") }}</button>
+        {% endif %}
         <button type="submit" class="btn btn--primary">{{ _("Save Vision Model") if not is_edit else _("Save Changes") }}</button>
     </div>
 </form>
+{% if is_edit and not vision_model.active and activate_url %}
+<form id="activate-vision-model-form" action="{{ activate_url }}" method="post" hidden></form>
+{% endif %}
 {% endblock %}
 
 {% block page_scripts %}

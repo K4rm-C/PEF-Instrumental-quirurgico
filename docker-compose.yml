@@ -1,87 +1,494 @@
+# PEF integral deployment (GUIA_DOCKER_INTEGRAL.md): PostgreSQL/Redis/Mongo/Garage + the seven services
+# (Auth, Catalog, Session, Evidence, Audit, Notifications, Monitoring) + their workers + the portal (web)
+# + VisionWorker (vision). One command from the repository root:  docker compose up -d --build
+# Containers reach each other by service name on pef-network; the browser only uses published ports
+# (web, auth for the login script, garage for signed evidence URLs); every other published port
+# (databases, service APIs, VisionWorker) is bound to 127.0.0.1 for local diagnostics and tests only.
+# Host-process development (portal / VisionWorker started with Python): add docker-compose.hostdev.yml.
+# No fixed container_name: Compose names containers <project>-<service>-N, so this copy can
+# coexist with other local checkouts and with the isolated test project pef_e2e.
 services:
   postgres:
     image: postgres:16
-    container_name: pef_postgres
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT}:5432"
+    - 127.0.0.1:${POSTGRES_PORT}:5432
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./data/migrations/001_init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
-      - ./data/seeds/002_seed_catalogs.sql:/docker-entrypoint-initdb.d/02_seed_catalogs.sql:ro
-      - ./data/seeds/003_seed_demo.sql:/docker-entrypoint-initdb.d/03_seed_demo.sql:ro
+    - postgres_data:/var/lib/postgresql/data
+    - ./data/migrations/001_init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    - ./data/seeds/002_seed_catalogs.sql:/docker-entrypoint-initdb.d/02_seed_catalogs.sql:ro
+    - ./data/seeds/003_seed_demo.sql:/docker-entrypoint-initdb.d/03_seed_demo.sql:ro
+    - ./data/migrations/004_media_asset_session.sql:/docker-entrypoint-initdb.d/04_media_asset_session.sql:ro
+    - ./data/migrations/005_count_reference_events.sql:/docker-entrypoint-initdb.d/05_count_reference_events.sql:ro
+    - ./data/migrations/006_notifications.sql:/docker-entrypoint-initdb.d/06_notifications.sql:ro
+    - ./data/migrations/007_monitoring.sql:/docker-entrypoint-initdb.d/07_monitoring.sql:ro
     networks:
-      - pef-network
+    - pef-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB
       interval: 10s
       timeout: 5s
       retries: 10
-
   redis:
     image: redis:7-alpine
-    container_name: pef_redis
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    # AOF (fsync every second): sessions and REVOCATIONS of auth:jwt:{jti} survive a Redis restart.
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes --appendfsync everysec
     ports:
-      - "${REDIS_PORT}:6379"
+    - 127.0.0.1:${REDIS_PORT}:6379
     volumes:
-      - redis_data:/data
+    - redis_data:/data
     networks:
-      - pef-network
+    - pef-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test:
+      - CMD
+      - redis-cli
+      - -a
+      - ${REDIS_PASSWORD}
+      - ping
       interval: 10s
       timeout: 3s
       retries: 10
-
   mongo:
     image: mongo:7
-    container_name: pef_mongo
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
     ports:
-      - "${MONGO_PORT}:27017"
+    - 127.0.0.1:${MONGO_PORT}:27017
     volumes:
-      - mongo_data:/data/db
+    - mongo_data:/data/db
     networks:
-      - pef-network
+    - pef-network
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "-u", "${MONGO_USER}", "-p", "${MONGO_PASSWORD}", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping').ok"]
+      test:
+      - CMD
+      - mongosh
+      - --quiet
+      - -u
+      - ${MONGO_USER}
+      - -p
+      - ${MONGO_PASSWORD}
+      - --authenticationDatabase
+      - admin
+      - --eval
+      - db.adminCommand('ping').ok
       interval: 10s
       timeout: 5s
       retries: 10
-
   garage:
     image: dxflrs/garage:v2.4.1
-    container_name: pef_garage
-    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    command:
+    - /garage
+    - server
+    - --single-node
+    - --default-bucket
     environment:
       GARAGE_DEFAULT_ACCESS_KEY: ${S3_ACCESS_KEY}
       GARAGE_DEFAULT_SECRET_KEY: ${S3_SECRET_KEY}
       GARAGE_DEFAULT_BUCKET: ${S3_BUCKET_EVIDENCE}
     ports:
-      - "${S3_API_PORT}:3900"
-      - "3901:3901"
-      - "3903:3903"
+    - ${S3_API_PORT}:3900
+    - 127.0.0.1:${GARAGE_RPC_PORT:-3901}:3901
+    - 127.0.0.1:${GARAGE_ADMIN_PORT:-3903}:3903
     volumes:
-      - ./infra/garage.toml:/etc/garage.toml:ro
-      - garage_meta:/var/lib/garage/meta
-      - garage_data:/var/lib/garage/data
+    - ./infra/garage.toml:/etc/garage.toml:ro
+    - garage_meta:/var/lib/garage/meta
+    - garage_data:/var/lib/garage/data
     networks:
-      - pef-network
+    - pef-network
     restart: unless-stopped
-
+  auth:
+    build: ./apps/BackendAuthService
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-15}
+      REFRESH_TOKEN_HOURS: ${REFRESH_TOKEN_HOURS:-8}
+      RESET_TOKEN_MINUTES: ${RESET_TOKEN_MINUTES:-30}
+      SPD_ACCESS_TOKEN_MINUTES: ${SPD_ACCESS_TOKEN_MINUTES:-15}
+      SPD_REFRESH_TOKEN_HOURS: ${SPD_REFRESH_TOKEN_HOURS:-8}
+      SPD_IDLE_TIMEOUT_MINUTES: ${SPD_IDLE_TIMEOUT_MINUTES:-30}
+      SPD_MAX_SESSION_HOURS: ${SPD_MAX_SESSION_HOURS:-12}
+      OP_ACCESS_TOKEN_MINUTES: ${OP_ACCESS_TOKEN_MINUTES:-15}
+      OP_REFRESH_TOKEN_HOURS: ${OP_REFRESH_TOKEN_HOURS:-24}
+      OP_MAX_SESSION_HOURS: ${OP_MAX_SESSION_HOURS:-24}
+      AUTH_LOGIN_FAIL_TTL_SECONDS: ${AUTH_LOGIN_FAIL_TTL_SECONDS:-900}
+      AUTH_LOGIN_FAIL_MAX: ${AUTH_LOGIN_FAIL_MAX:-8}
+      AUTH_RETURN_RESET_TOKEN: ${AUTH_RETURN_RESET_TOKEN:-false}
+      AUTH_ENABLE_PUBLIC_REGISTER: ${AUTH_ENABLE_PUBLIC_REGISTER:-false}
+      AUTH_ALLOWED_ORIGINS: ${AUTH_ALLOWED_ORIGINS:-http://localhost:5000,http://127.0.0.1:5000}
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:-}
+      AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      AUTH_COOKIE_SAMESITE: ${AUTH_COOKIE_SAMESITE:-Lax}
+      AUTH_PORT: '5001'
+    ports:
+    - ${AUTH_PORT:-5001}:5001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+    - pef-network
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/health/ready',
+        timeout=4)
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+  catalog:
+    build: ./apps/CatalogService
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      CATALOG_PORT: '5003'
+    ports:
+    - 127.0.0.1:${CATALOG_PORT:-5003}:5003
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+    - pef-network
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5003/health/ready',
+        timeout=4)
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+  session:
+    build: ./apps/SessionService
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      SESSION_PORT: '5004'
+      # Legacy Operator writes (start / vision-counts / count-report): the Operator flow runs in the portal.
+      SESSION_OPERATOR_WRITES_ENABLED: ${SESSION_OPERATOR_WRITES_ENABLED:-false}
+    ports:
+    - 127.0.0.1:${SESSION_PORT:-5004}:5004
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+    - pef-network
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5004/health/ready',
+        timeout=4)
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+  audit:
+    build: ./apps/AuditService
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      AUDIT_PORT: '5006'
+    ports:
+    - 127.0.0.1:${AUDIT_PORT:-5006}:5006
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+    - pef-network
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5006/health/ready',
+        timeout=4)
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+  notifications:
+    # Read API of the user's notifications. Applies data/migrations/006_notifications.sql (idempotent)
+    # at start-up, so existing databases get the outbox triggers without being recreated.
+    build: ./apps/NotificationsService
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      NOTIFICATIONS_PORT: '5007'
+    ports:
+    - 127.0.0.1:${NOTIFICATIONS_PORT:-5007}:5007
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+    - pef-network
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5007/health/ready',
+        timeout=4)
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+  notifications-worker:
+    # Outbox consumer: turns captured business events into notifications (logs: docker compose logs
+    # -f notifications-worker). While it is stopped, events wait in notification_outbox.
+    build: ./apps/NotificationsService
+    command:
+    - python
+    - worker.py
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      NOTIFICATIONS_WORKER_POLL_SECONDS: ${NOTIFICATIONS_WORKER_POLL_SECONDS:-2}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+    - pef-network
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+  monitoring:
+    # Read API of the monitoring history (admin: technical detail; supervisor: availability summary).
+    # Applies data/migrations/007_monitoring.sql (idempotent) at start-up.
+    build: ./apps/MonitoringService
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      MONITORING_PORT: '5008'
+      MONITORING_INTERVAL_SECONDS: ${MONITORING_INTERVAL_SECONDS:-30}
+    ports:
+    - 127.0.0.1:${MONITORING_PORT:-5008}:5008
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+    - pef-network
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5008/health/ready',
+        timeout=4)
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
+  monitoring-collector:
+    # Checks every component once per interval and stores the results (logs: docker compose logs -f
+    # monitoring-collector). Targets use the compose DNS names, web and vision included
+    # (docker-compose.hostdev.yml points them at host.docker.internal for host processes).
+    # An empty target = component reported `unknown`.
+    build: ./apps/MonitoringService
+    command:
+    - python
+    - collector.py
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      MONITORING_MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
+      MONITORING_INTERVAL_SECONDS: ${MONITORING_INTERVAL_SECONDS:-30}
+      MONITORING_CHECK_TIMEOUT_SECONDS: ${MONITORING_CHECK_TIMEOUT_SECONDS:-3}
+      MONITORING_RETENTION_DAYS: ${MONITORING_RETENTION_DAYS:-7}
+      MONITORING_TARGET_WEB_URL: ${MONITORING_TARGET_WEB_URL:-http://web:5000}
+      MONITORING_TARGET_AUTH_URL: ${MONITORING_TARGET_AUTH_URL:-http://auth:5001}
+      MONITORING_TARGET_CATALOG_URL: ${MONITORING_TARGET_CATALOG_URL:-http://catalog:5003}
+      MONITORING_TARGET_SESSION_URL: ${MONITORING_TARGET_SESSION_URL:-http://session:5004}
+      MONITORING_TARGET_EVIDENCE_URL: ${MONITORING_TARGET_EVIDENCE_URL:-http://evidence:5005}
+      MONITORING_TARGET_AUDIT_URL: ${MONITORING_TARGET_AUDIT_URL:-http://audit:5006}
+      MONITORING_TARGET_NOTIFICATIONS_URL: ${MONITORING_TARGET_NOTIFICATIONS_URL:-http://notifications:5007}
+      MONITORING_TARGET_VISION_URL: ${MONITORING_TARGET_VISION_URL:-http://vision:5002}
+      MONITORING_TARGET_GARAGE_URL: ${MONITORING_TARGET_GARAGE_URL:-http://garage:3903}
+    extra_hosts:
+    - host.docker.internal:host-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+    - pef-network
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+  web:
+    # Portal RF (Operator, Supervisor, Administration) under gunicorn. Startup needs only PostgreSQL and
+    # Redis being healthy: Auth, VisionWorker, Catalog, Session, Audit, Notifications, Monitoring, Mongo and
+    # Evidence are reached at request time, each with its own controlled degradation, so none of them can
+    # keep the portal (and the Operator's counting) from starting.
+    build: ./apps/BackendWebFlask
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:?SESSION_SECRET_KEY must be set (see .env.example)}
+      AUTH_SERVICE_URL: http://auth:5001
+      # Used by the browser (login script): the published Auth port on the host the user opens.
+      AUTH_BROWSER_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:5001}
+      VISION_WORKER_URL: http://vision:5002
+      CATALOG_SERVICE_URL: http://catalog:5003
+      SESSION_SERVICE_URL: http://session:5004
+      EVIDENCE_SERVICE_URL: http://evidence:5005
+      AUDIT_SERVICE_URL: http://audit:5006
+      NOTIFICATIONS_SERVICE_URL: http://notifications:5007
+      MONITORING_SERVICE_URL: http://monitoring:5008
+      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
+      MONGO_DB: ${MONGO_DB:-pef}
+      PEF_OUTBOX_DIR: /data/outbox
+      FRONTEND_DEMO_MODE: 'false'
+      ADMIN_DISPLAY_TIMEZONE: ${ADMIN_DISPLAY_TIMEZONE:-America/Mexico_City}
+      WEB_PORT: '5000'
+    ports:
+    - ${WEB_PORT:-5000}:5000
+    volumes:
+    # Durable MongoDB / Evidence checkpoint outbox: pending checkpoints survive container recreation.
+    - web_outbox:/data/outbox
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+    - pef-network
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/health/ready',
+        timeout=4)
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    restart: unless-stopped
+  vision:
+    # VisionWorker (YOLO, CPU). best.pt is never copied into the image: the weights directory of the
+    # repository is mounted READ-ONLY. Without the file, /health reports weights_present=false and the
+    # portal shows its controlled "vision unavailable" path.
+    build: ./apps/VisionWorker
+    environment:
+      VISION_WORKER_PORT: '5002'
+      VISION_WEIGHTS_PATH: /models/best.pt
+      VISION_UPLOAD_DIR: /data/uploads
+      TELEMETRY_SPOOL_DIR: /data/telemetry_spool
+      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
+      MONGO_DB: ${MONGO_DB:-pef}
+    ports:
+    # Not needed by the browser (the portal calls it on pef-network): published on loopback only.
+    - 127.0.0.1:${VISION_PORT:-5002}:5002
+    volumes:
+    - ./apps/VisionWorker/weights:/models:ro
+    # Uploaded test videos, metrics and the durable telemetry spool (MongoDB down: samples wait here).
+    - vision_data:/data
+    networks:
+    - pef-network
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5002/health',
+        timeout=4)
+      interval: 20s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    restart: unless-stopped
+  evidence:
+    build: ./apps/EvidenceService
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      S3_INTERNAL_ENDPOINT: http://garage:3900
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:3900}
+      S3_REGION: ${S3_REGION:-garage}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET_EVIDENCE: ${S3_BUCKET_EVIDENCE}
+      EVIDENCE_SIGNED_URL_TTL_SECONDS: ${EVIDENCE_SIGNED_URL_TTL_SECONDS:-300}
+      EVIDENCE_JPEG_MAX_BYTES: ${EVIDENCE_JPEG_MAX_BYTES:-2097152}
+      EVIDENCE_GIF_MAX_BYTES: ${EVIDENCE_GIF_MAX_BYTES:-5242880}
+      EVIDENCE_PURGE_BATCH_SIZE: ${EVIDENCE_PURGE_BATCH_SIZE:-100}
+      EVIDENCE_ORPHAN_GRACE_SECONDS: ${EVIDENCE_ORPHAN_GRACE_SECONDS:-3600}
+      EVIDENCE_PORT: '5005'
+    ports:
+    - 127.0.0.1:${EVIDENCE_PORT:-5005}:5005
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      garage:
+        condition: service_started
+    networks:
+    - pef-network
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://127.0.0.1:5005/health/ready',
+        timeout=4)
+      interval: 15s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+    restart: unless-stopped
 volumes:
-  postgres_data:
-  redis_data:
-  mongo_data:
-  garage_meta:
-  garage_data:
-
+  postgres_data: null
+  redis_data: null
+  mongo_data: null
+  garage_meta: null
+  garage_data: null
+  web_outbox: null
+  vision_data: null
 networks:
   pef-network:
     driver: bridge

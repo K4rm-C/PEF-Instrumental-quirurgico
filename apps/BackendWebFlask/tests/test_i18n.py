@@ -128,7 +128,7 @@ AUTH_PAGES = [
 @pytest.mark.parametrize('role, path, english, spanish', AUTH_PAGES)
 def test_authenticated_pages_render_in_both_languages(client, login, monkeypatch, role, path, english, spanish):
     import services.rf_session
-    monkeypatch.setattr(routes, 'operator_session_detail', lambda sid, uid: _operator_detail(sid))
+    monkeypatch.setattr(routes, 'operator_session_detail', lambda sid, uid, inst=None: _operator_detail(sid))
     monkeypatch.setattr(services.rf_session, 'schedule_form_options', _schedule_options)
 
     login(role=role, locale='en')
@@ -145,7 +145,7 @@ def test_authenticated_pages_render_in_both_languages(client, login, monkeypatch
 
 
 def test_status_labels_are_translated_but_codes_are_not(client, login, monkeypatch):
-    monkeypatch.setattr(routes, 'operator_session_detail', lambda sid, uid: _operator_detail(sid))
+    monkeypatch.setattr(routes, 'operator_session_detail', lambda sid, uid, inst=None: _operator_detail(sid))
     login(locale='es-MX')
     page = html(client.get('/operator/sessions/33333333-3333-3333-3333-333333333333'))
     assert 'En progreso' in page and 'Aviso OK · Visión' in page

@@ -1,0 +1,371 @@
+openapi: 3.0.3
+info:
+  title: PEF Audit / Event Service — API v1
+  version: 1.0.0
+  description: |
+    Read API over the existing PEF audit and event trail (PEF-DS09 §1.3.6; data: PEF-DS07
+    `access_audit`, PEF-DS04 `count_event`). No second log: the producers (AuthService,
+    CatalogService, SessionService, EvidenceService, the portal's Administration and Operator flow)
+    keep writing their own rows inside their transactions; this service only reads them, inside
+    PostgreSQL READ ONLY transactions. History is immutable: there is no write endpoint, and a
+    correction is always a new event written by its producer.
+
+    - **Record types:** `access_audit` (what users did: security and business actions) and
+      `count_event` (operational facts of a counting session: `session_open`, `auto_count`
+      initial/final, `close_blocked`, `manual_count`, `manual_close`, `instruments_added`,
+      `session_close`, …).
+    - **category:** `security` (identity, sign-in, access, denials), `business` (catalog,
+      configuration, Supervisor session decisions) or `operation` (the counting flow, evidence
+      capture). **source_service:** the owner of the domain of the row (`auth`, `catalog`,
+      `session`, `evidence`, `web`, `audit`) — neither table records which process wrote it.
+    - **Auth:** `Authorization: Bearer <access_token>` issued by Auth Service. Validated here:
+      signature with exactly JWT_ALGORITHM, expiry, `type=access`; Redis session
+      `auth:jwt:{jti}` present and not revoked; user and institution active; effective roles of
+      the user's institution. Identity headers are ignored.
+    - **Scope (applied by the service, whatever the client sends):** `it_admin` → every event of
+      the caller's institution; `spd_supervisor` → operational trail of the institution
+      (resources `work_session`, `instrument`, `kit`, and every count event); any other role →
+      403, recorded as `DENIED_GET_AUDIT_EVENT`. `institution_id` of another institution → 403
+      `out_of_scope`. An event outside the scope → 404 (same as unknown).
+    - **Privacy:** never passwords, hashes, tokens, request bodies, patient data or free text typed
+      by the Operator. The actor's e-mail only for `it_admin`.
+    - **Formats:** `Accept: application/xml` → XML (described by `GET /api/v1/audit/schemas/audit.xsd`);
+      otherwise JSON. There are no request bodies (read only).
+    - **Correlation:** `X-Correlation-ID` echoed when it matches `^[A-Za-z0-9._:-]{1,64}$`,
+      otherwise a UUID is generated; returned in the header, error bodies and logs.
+servers:
+  - url: http://127.0.0.1:5006
+    description: Local docker compose (port is a deployment choice)
+tags:
+  - name: audit
+  - name: health
+  - name: docs
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/audit/events:
+    get:
+      tags: [audit]
+      summary: Search events of the caller's scope (paginated)
+      description: Newest first by default (`sort=-occurred_at`), ties by id. Unknown query parameters → 400.
+      parameters:
+        - $ref: '#/components/parameters/InstitutionId'
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/Action'
+        - $ref: '#/components/parameters/Category'
+        - $ref: '#/components/parameters/Outcome'
+        - $ref: '#/components/parameters/SourceService'
+        - $ref: '#/components/parameters/RecordType'
+        - $ref: '#/components/parameters/ResourceType'
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationIdFilter'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/Sort'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: One page of events
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventPage' }
+              example:
+                items:
+                  - id: 7b0e3a59-58a8-4d5e-9c2f-0d43e8f1c1a2
+                    record_type: access_audit
+                    occurred_at: '2026-10-21T08:00:05.103Z'
+                    category: business
+                    source_service: session
+                    action: session.scheduled
+                    outcome: success
+                    actor: { type: user, user_id: 22222222-2222-2222-2222-222222222222, name: SPD Supervisor, email: null, role_codes: [spd_supervisor] }
+                    institution_id: 11111111-1111-1111-1111-111111111111
+                    resource: { type: work_session, id: 89166294-c1ff-43d7-9408-9bacee49cd65, label: WS-89166294 }
+                    session_id: 89166294-c1ff-43d7-9408-9bacee49cd65
+                    correlation_id: 91a59cbbba0f4c7296e312fcd5d6cb88
+                    ip: 172.19.0.1
+                    details: null
+                page: 1
+                per_page: 20
+                total: 1
+                total_pages: 1
+                sort: -occurred_at
+            application/xml:
+              schema: { $ref: '#/components/schemas/EventPage' }
+              example: |
+                <?xml version='1.0' encoding='utf-8'?>
+                <event_page><items><event><id>7b0e3a59-58a8-4d5e-9c2f-0d43e8f1c1a2</id><record_type>count_event</record_type><occurred_at>2026-10-21T08:01:10Z</occurred_at><category>operation</category><source_service>web</source_service><action>auto_count</action><outcome>success</outcome><actor xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true"/><institution_id>11111111-1111-1111-1111-111111111111</institution_id><resource><type>work_session</type><id>89166294-c1ff-43d7-9408-9bacee49cd65</id><label>WS-89166294</label></resource><session_id>89166294-c1ff-43d7-9408-9bacee49cd65</session_id><correlation_id xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true"/><ip xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true"/><details><expected_quantity>14</expected_quantity><detected_quantity>5</detected_quantity><family_id xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true"/><family_code xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true"/><trigger>initial</trigger><scope>board</scope></details></event></items><page>1</page><per_page>20</per_page><total>1</total><total_pages>1</total_pages><sort>-occurred_at</sort></event_page>
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/audit/events/summary:
+    get:
+      tags: [audit]
+      summary: Aggregates of the events matching the same filters (no pagination)
+      description: Totals by category, source service, outcome, record type, action, resource type, user and session (latest 200 sessions). Same scope rules.
+      parameters:
+        - $ref: '#/components/parameters/InstitutionId'
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/Action'
+        - $ref: '#/components/parameters/Category'
+        - $ref: '#/components/parameters/Outcome'
+        - $ref: '#/components/parameters/SourceService'
+        - $ref: '#/components/parameters/RecordType'
+        - $ref: '#/components/parameters/ResourceType'
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationIdFilter'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+        - $ref: '#/components/parameters/Q'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EventSummary' }
+              example:
+                total: 7
+                first_at: '2026-10-20T12:02:00Z'
+                last_at: '2026-10-20T12:07:00Z'
+                by_category: [{ value: operation, count: 5 }, { value: business, count: 1 }, { value: security, count: 1 }]
+                by_source_service: [{ value: web, count: 5 }, { value: session, count: 2 }]
+                by_outcome: [{ value: success, count: 5 }, { value: blocked, count: 1 }, { value: denied, count: 1 }]
+                by_record_type: [{ value: count_event, count: 4 }, { value: access_audit, count: 3 }]
+                by_action: [{ value: auto_count, count: 1 }]
+                by_resource_type: [{ value: work_session, count: 7 }]
+                by_user: [{ user_id: 22222222-2222-2222-2222-222222222221, name: Operador Demo, email: null, count: 4 }]
+                by_session: [{ session_id: 89166294-c1ff-43d7-9408-9bacee49cd65, label: WS-89166294, last_at: '2026-10-20T12:07:00Z', count: 7 }]
+            application/xml:
+              schema: { $ref: '#/components/schemas/EventSummary' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/audit/events/{id}:
+    get:
+      tags: [audit]
+      summary: One event (access_audit or count_event row)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Event UUID. Malformed, unknown, of another institution or outside the Supervisor's scope → 404.
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Event
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Event' }
+              example:
+                id: 0a8b6f0c-4f0e-46a3-9f33-0b7d4ad5d2e1
+                record_type: count_event
+                occurred_at: '2026-10-21T08:03:40Z'
+                category: operation
+                source_service: web
+                action: close_blocked
+                outcome: blocked
+                actor: { type: user, user_id: 22222222-2222-2222-2222-222222222221, name: Operador Demo, email: null, role_codes: [station_operator] }
+                institution_id: 11111111-1111-1111-1111-111111111111
+                resource: { type: work_session, id: 89166294-c1ff-43d7-9408-9bacee49cd65, label: WS-89166294 }
+                session_id: 89166294-c1ff-43d7-9408-9bacee49cd65
+                correlation_id: null
+                ip: null
+                details: { expected_quantity: 6, detected_quantity: 5, family_id: null, family_code: null, reason: final_count_mismatch }
+            application/xml:
+              schema: { $ref: '#/components/schemas/Event' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /health:
+    get:
+      tags: [health]
+      security: []
+      summary: Aggregate health (PostgreSQL and Redis)
+      responses:
+        '200': { description: ok, content: { application/json: { schema: { $ref: '#/components/schemas/Health' }, example: { status: ok, checks: { database: ok, redis: ok }, correlation_id: corr-1 } } } }
+        '503': { description: unavailable, content: { application/json: { schema: { $ref: '#/components/schemas/Health' } } } }
+  /health/live:
+    get: { tags: [health], security: [], summary: Process alive, responses: { '200': { description: live } } }
+  /health/ready:
+    get: { tags: [health], security: [], summary: PostgreSQL and Redis reachable, responses: { '200': { description: ready }, '503': { description: not_ready } } }
+  /api/v1/audit/openapi.yaml:
+    get: { tags: [docs], security: [], summary: This document, responses: { '200': { description: OpenAPI 3.0 YAML } } }
+  /api/v1/audit/docs:
+    get: { tags: [docs], security: [], summary: Swagger UI (Authorize with a Bearer access token to try the API), responses: { '200': { description: HTML } } }
+  /api/v1/audit/schemas/audit.xsd:
+    get: { tags: [docs], security: [], summary: XML Schema of every XML document the service answers, responses: { '200': { description: XSD } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    InstitutionId: { name: institution_id, in: query, schema: { type: string, format: uuid }, description: 'Must be the caller''s institution (another one → 403 out_of_scope).' }
+    UserId: { name: user_id, in: query, schema: { type: string, format: uuid }, description: Actor user. }
+    Action: { name: action, in: query, schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' }, description: 'Event type, e.g. LOGIN, CREATE_INSTRUMENT_FAMILY, session.scheduled, auto_count.' }
+    Category: { name: category, in: query, schema: { type: string, enum: [security, business, operation] } }
+    Outcome: { name: outcome, in: query, schema: { type: string, enum: [success, denied, blocked] } }
+    SourceService: { name: source_service, in: query, schema: { type: string, enum: [auth, catalog, session, evidence, web, audit] } }
+    RecordType: { name: record_type, in: query, schema: { type: string, enum: [access_audit, count_event] } }
+    ResourceType: { name: resource_type, in: query, schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' }, description: 'work_session, instrument_family, instrument, kit, user, role, …' }
+    SessionId: { name: session_id, in: query, schema: { type: string, format: uuid }, description: Surgical counting session (work_session). }
+    CorrelationIdFilter: { name: correlation_id, in: query, schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' } }
+    From: { name: from, in: query, schema: { type: string }, description: 'Inclusive lower bound: ISO-8601 date-time (Z/offset; naive = UTC) or date (its start).' }
+    To: { name: to, in: query, schema: { type: string }, description: 'Exclusive upper bound: ISO-8601 date-time or date (the whole day included). Must be later than from.' }
+    Q: { name: q, in: query, schema: { type: string, maxLength: 100 }, description: 'Text search in action, resource type, actor name / e-mail, resource id, WS-xxxxxxxx label and correlation id.' }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    PerPage: { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    Sort: { name: sort, in: query, schema: { type: string, enum: ['-occurred_at', occurred_at], default: '-occurred_at' } }
+    CorrelationId: { name: X-Correlation-ID, in: header, schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' } }
+    Accept: { name: Accept, in: header, schema: { type: string, enum: [application/json, application/xml, '*/*'] } }
+  headers:
+    CorrelationId: { description: Correlation id of this request., schema: { type: string } }
+  schemas:
+    Actor:
+      type: object
+      nullable: true
+      properties:
+        type: { type: string, enum: [user, system] }
+        user_id: { type: string, format: uuid }
+        name: { type: string, nullable: true }
+        email: { type: string, nullable: true, description: Only for it_admin. }
+        role_codes: { type: array, items: { type: string }, xml: { wrapped: true, name: role_codes } }
+    Resource:
+      type: object
+      properties:
+        type: { type: string }
+        id: { type: string, format: uuid }
+        label: { type: string, nullable: true }
+    CountDetails:
+      type: object
+      nullable: true
+      description: Only for count_event records; never boxes, frames, notes or free text.
+      properties:
+        expected_quantity: { type: integer, nullable: true }
+        detected_quantity: { type: integer, nullable: true }
+        family_id: { type: string, format: uuid, nullable: true }
+        family_code: { type: string, nullable: true }
+        trigger: { type: string }
+        reason: { type: string }
+        scope: { type: string }
+        capture_mode: { type: string }
+        next_status: { type: string }
+        open_discrepancies: { type: integer }
+        operator_close_path: { type: string }
+        reference_before: { type: integer }
+        confirmed_by_role: { type: string }
+        model_version: { type: string }
+    Event:
+      type: object
+      xml: { name: event }
+      properties:
+        id: { type: string, format: uuid }
+        record_type: { type: string, enum: [access_audit, count_event] }
+        occurred_at: { type: string, format: date-time }
+        category: { type: string, enum: [security, business, operation] }
+        source_service: { type: string, enum: [auth, catalog, session, evidence, web, audit] }
+        action: { type: string }
+        outcome: { type: string, enum: [success, denied, blocked] }
+        actor: { $ref: '#/components/schemas/Actor' }
+        institution_id: { type: string, format: uuid, nullable: true }
+        resource: { $ref: '#/components/schemas/Resource' }
+        session_id: { type: string, format: uuid, nullable: true }
+        correlation_id: { type: string, nullable: true }
+        ip: { type: string, nullable: true }
+        details: { $ref: '#/components/schemas/CountDetails' }
+    EventPage:
+      type: object
+      xml: { name: event_page }
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Event' }, xml: { wrapped: true, name: items } }
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+        sort: { type: string }
+    Group:
+      type: object
+      xml: { name: group }
+      properties: { value: { type: string }, count: { type: integer } }
+    EventSummary:
+      type: object
+      xml: { name: event_summary }
+      properties:
+        total: { type: integer }
+        first_at: { type: string, format: date-time, nullable: true }
+        last_at: { type: string, format: date-time, nullable: true }
+        by_category: { type: array, items: { $ref: '#/components/schemas/Group' } }
+        by_source_service: { type: array, items: { $ref: '#/components/schemas/Group' } }
+        by_outcome: { type: array, items: { $ref: '#/components/schemas/Group' } }
+        by_record_type: { type: array, items: { $ref: '#/components/schemas/Group' } }
+        by_action: { type: array, items: { $ref: '#/components/schemas/Group' } }
+        by_resource_type: { type: array, items: { $ref: '#/components/schemas/Group' } }
+        by_user:
+          type: array
+          items: { type: object, properties: { user_id: { type: string }, name: { type: string }, email: { type: string, nullable: true }, count: { type: integer } } }
+        by_session:
+          type: array
+          items: { type: object, properties: { session_id: { type: string }, label: { type: string }, last_at: { type: string, format: date-time }, count: { type: integer } } }
+    Error:
+      type: object
+      xml: { name: error_response }
+      required: [error, message, correlation_id, details]
+      properties:
+        error: { type: string, enum: [invalid_request, unauthorized, forbidden, not_found, method_not_allowed, internal_error, dependency_unavailable] }
+        message: { type: string }
+        correlation_id: { type: string, nullable: true }
+        details: { type: object }
+    Health:
+      type: object
+      properties:
+        status: { type: string }
+        checks: { type: object }
+        correlation_id: { type: string }
+  responses:
+    InvalidRequest:
+      description: 'Invalid parameter (`invalid_request`, details.field; enumerations add details.allowed) or unknown parameters (details.unknown_parameters).'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: invalid_request, message: 'per_page must be between 1 and 100', correlation_id: corr-1, details: { field: per_page } }
+        application/xml:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: "<error_response><error>invalid_request</error><message>per_page must be between 1 and 100</message><correlation_id>corr-1</correlation_id><details><field>per_page</field></details></error_response>"
+    Unauthorized:
+      description: Missing, malformed, expired, wrongly signed or revoked token; no Redis session; inactive user or institution (`unauthorized`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: unauthorized, message: Session is no longer valid, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Forbidden:
+      description: Role without audit access (recorded as DENIED_GET_AUDIT_EVENT), or institution_id of another institution (details.reason = out_of_scope).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: forbidden, message: You do not have permission to perform this action, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    NotFound:
+      description: Unknown, malformed or out-of-scope event (`not_found`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: not_found, message: Event not found, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    DependencyUnavailable:
+      description: PostgreSQL or Redis unavailable (`dependency_unavailable`, details.dependency).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: dependency_unavailable, message: Redis is unavailable, correlation_id: corr-1, details: { dependency: redis } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }

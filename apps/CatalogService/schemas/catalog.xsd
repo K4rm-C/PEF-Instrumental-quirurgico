@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PEF Catalog Service - XML representation (PEF-DS09 §1.3.3, complement v0.1.2).
+
+  Same document roots for requests and responses (element names = JSON field names).
+  Requests: <family> (POST/PUT /families), <instrument> (POST/PUT /instruments), <kit> (POST/PUT /kits).
+  Responses: the same roots plus the list containers families/family, instruments/instrument,
+  kits/kit, categories/category, cycle_statuses/cycle_status and error_response.
+  xs:all: field order is not significant. Fields only present in some operations are optional;
+  the service enforces which ones each operation requires (400/422, see openapi.yaml).
+  null = empty element with xsi:nil="true"; booleans true/false (1/0 accepted in requests).
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+
+  <xs:simpleType name="uuid">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="code64">
+    <xs:restriction base="xs:string"><xs:maxLength value="64"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="name160">
+    <xs:restriction base="xs:string"><xs:maxLength value="160"/></xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="quantity">
+    <xs:restriction base="xs:int"><xs:minInclusive value="1"/><xs:maxInclusive value="32767"/></xs:restriction>
+  </xs:simpleType>
+
+  <!-- Reference catalog entry (category, cycle status) and linked procedure -->
+  <xs:complexType name="CodeName">
+    <xs:all>
+      <xs:element name="id" type="uuid"/>
+      <xs:element name="code" type="code64"/>
+      <xs:element name="name" type="xs:string"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Family">
+    <xs:all>
+      <xs:element name="id" type="uuid" minOccurs="0"/>
+      <xs:element name="code" type="code64" minOccurs="0"/>
+      <xs:element name="name" type="name160" minOccurs="0"/>
+      <xs:element name="category_code" type="code64" minOccurs="0"/>
+      <xs:element name="active" type="xs:boolean" minOccurs="0"/>
+      <xs:element name="category_id" type="uuid" minOccurs="0"/>
+      <xs:element name="category_name" type="xs:string" minOccurs="0"/>
+      <xs:element name="identify_text" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="classify_text" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="function_text" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="available_count" type="xs:int" minOccurs="0"/>
+      <xs:element name="kits_using" type="xs:int" minOccurs="0"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="CycleEvent">
+    <xs:all>
+      <xs:element name="occurred_at" type="xs:dateTime"/>
+      <xs:element name="cycle_status_code" type="code64"/>
+      <xs:element name="cycle_status_name" type="xs:string"/>
+      <xs:element name="notes" type="xs:string" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Instrument">
+    <xs:all>
+      <xs:element name="id" type="uuid" minOccurs="0"/>
+      <xs:element name="internal_code" type="code64" minOccurs="0" nillable="true"/>
+      <xs:element name="family_id" type="uuid" minOccurs="0"/>
+      <xs:element name="family_code" type="code64" minOccurs="0"/>
+      <xs:element name="cycle_status_code" type="code64" minOccurs="0"/>
+      <xs:element name="institution_id" type="uuid" minOccurs="0"/>
+      <xs:element name="active" type="xs:boolean" minOccurs="0"/>
+      <xs:element name="change_reason" minOccurs="0" nillable="true">
+        <xs:simpleType><xs:restriction base="xs:string"><xs:maxLength value="500"/></xs:restriction></xs:simpleType>
+      </xs:element>
+      <xs:element name="family_name" type="xs:string" minOccurs="0"/>
+      <xs:element name="category_code" type="code64" minOccurs="0"/>
+      <xs:element name="category_name" type="xs:string" minOccurs="0"/>
+      <xs:element name="cycle_status_name" type="xs:string" minOccurs="0"/>
+      <xs:element name="cycle_events" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="cycle_event" type="CycleEvent" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="KitItem">
+    <xs:all>
+      <xs:element name="family_id" type="uuid"/>
+      <xs:element name="family_code" type="code64" minOccurs="0"/>
+      <xs:element name="quantity" type="quantity"/>
+      <xs:element name="family_name" type="xs:string" minOccurs="0"/>
+      <xs:element name="family_active" type="xs:boolean" minOccurs="0"/>
+      <xs:element name="category_code" type="code64" minOccurs="0"/>
+      <xs:element name="category_name" type="xs:string" minOccurs="0"/>
+      <xs:element name="available_count" type="xs:int" minOccurs="0"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Kit">
+    <xs:all>
+      <xs:element name="id" type="uuid" minOccurs="0"/>
+      <xs:element name="name" type="name160" minOccurs="0"/>
+      <xs:element name="version" type="xs:int" minOccurs="0"/>
+      <xs:element name="active" type="xs:boolean" minOccurs="0"/>
+      <xs:element name="institution_id" type="uuid" minOccurs="0"/>
+      <xs:element name="created_at" type="xs:dateTime" minOccurs="0" nillable="true"/>
+      <xs:element name="family_count" type="xs:int" minOccurs="0"/>
+      <xs:element name="total_expected" type="xs:int" minOccurs="0"/>
+      <xs:element name="superseded_kit_id" type="uuid" minOccurs="0"/>
+      <xs:element name="procedures" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="procedure" type="CodeName" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="items" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="item" type="KitItem" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all>
+  </xs:complexType>
+
+  <!-- Document roots -->
+  <xs:element name="family" type="Family"/>
+  <xs:element name="instrument" type="Instrument"/>
+  <xs:element name="kit" type="Kit"/>
+  <xs:element name="families">
+    <xs:complexType><xs:sequence>
+      <xs:element name="family" type="Family" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:element name="instruments">
+    <xs:complexType><xs:sequence>
+      <xs:element name="instrument" type="Instrument" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:element name="kits">
+    <xs:complexType><xs:sequence>
+      <xs:element name="kit" type="Kit" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:element name="categories">
+    <xs:complexType><xs:sequence>
+      <xs:element name="category" type="CodeName" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:element name="cycle_statuses">
+    <xs:complexType><xs:sequence>
+      <xs:element name="cycle_status" type="CodeName" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+  <xs:element name="error_response">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="error" type="xs:string"/>
+        <xs:element name="message" type="xs:string"/>
+        <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+        <xs:element name="details">
+          <xs:complexType><xs:sequence>
+            <xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

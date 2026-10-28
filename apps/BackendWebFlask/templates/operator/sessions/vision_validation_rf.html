@@ -24,23 +24,32 @@
 </div>
 
 <p class="text-muted">
-    {{ _("AI detected counts are locked. Adjust validated counts if needed. Closing uses the manual count path (discrepancies only when validated ≠ expected) — no auto discrepancy from the uploaded video itself.") }}
+    {{ _("YOLO counts are locked and kept as evidence. Confirm or correct the validated count of each family; a correction needs a reason and is recorded with your user and time. Validated counts different from the kit, or a YOLO difference between the first and last frame, are documented as discrepancies for the Supervisor.") }}
 </p>
+
+{% set initial_counts = snapshot.initial_counts|default({}, true) %}
+{% if snapshot.reference_total is defined %}
+<div class="alert {% if snapshot.matches_reference %}alert--success{% else %}alert--warning{% endif %}" role="status">
+    {{ _("Initial count (first frame): %(initial)s · Final count (last frame): %(final)s · Reference: %(reference)s.", initial=snapshot.initial_total, final=snapshot.final_total, reference=snapshot.reference_total) }}
+    {% if not snapshot.matches_reference %}{{ _("The totals differ: this difference will be documented for Supervisor review.") }}{% endif %}
+</div>
+{% endif %}
 
 {% if form_error %}
 <div class="alert alert--warning" role="alert">{{ form_error }}</div>
 {% endif %}
 
 <form method="post" class="card" id="vision-validation-form"
-      data-app-confirm="{{ _('This closes counting with the manual-count path and unbinds the vision worker.') }}"
+      data-app-confirm="{{ _('Your validated counts are recorded next to the YOLO counts (which are not changed). If everything is reconciled you can close the session on the next screen; otherwise it goes to the Supervisor.') }}"
       data-app-confirm-title="{{ _('Submit validation?') }}"
-      data-app-confirm-ok="{{ _('Submit and close') }}">
+      data-app-confirm-ok="{{ _('Submit validation') }}">
     <div class="table-wrapper">
         <table class="data-table">
             <thead>
                 <tr>
                     <th>{{ _("Instrument") }}</th>
                     <th class="data-table__numeric-column">{{ _("Expected") }}</th>
+                    {% if initial_counts %}<th class="data-table__numeric-column">{{ _("Initial (first frame)") }}</th>{% endif %}
                     <th class="data-table__numeric-column">{{ _("AI detected") }}</th>
                     <th class="data-table__numeric-column">{{ _("Validated") }}</th>
                     <th>{{ _("Reason (if Diff ≠ 0)") }}</th>
@@ -57,6 +66,7 @@
                     data-expected="{{ item.expected_quantity }}">
                     <td>{{ item.family_name }}</td>
                     <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                    {% if initial_counts %}<td class="data-table__numeric-column">{{ initial_counts.get(item.family_id, 0) }}</td>{% endif %}
                     <td class="data-table__numeric-column"><strong>{{ ai_val }}</strong></td>
                     <td class="data-table__numeric-column">
                         <input class="form-field__input form-field__input--plain" type="number" min="0"
@@ -82,8 +92,26 @@
             </tbody>
         </table>
     </div>
-    <div class="form-actions">
-        <button type="submit" class="btn btn--primary">{{ _("Submit validation and close counting") }}</button>
+    {% set ev = extra_values|default({'extra_instruments': '0', 'extra_notes': ''}) %}
+    <div class="v3-panel" data-out-of-kit>
+        <h2 class="card__title">{{ _("Detections outside the kit") }}</h2>
+        {% if snapshot.out_of_kit|default([]) %}
+        <ul>
+            {% for item in snapshot.out_of_kit %}
+            <li>{{ item.family_name or item.family_code or _("Unknown") }} × {{ item.count }}</li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">{{ _("YOLO detected no instruments outside the kit.") }}</p>
+        {% endif %}
+        <div class="form-field">
+            <label class="form-field__label" for="extra-instruments">{{ _("Instruments outside the kit confirmed on the tray") }}</label>
+            <input class="form-field__input" type="number" min="0" id="extra-instruments" name="extra_instruments" value="{{ ev.extra_instruments }}">
+            <input class="form-field__input" name="extra_notes" value="{{ ev.extra_notes }}" maxlength="300" placeholder="{{ _('Which instruments') }}">
+        </div>
+    </div>
+<div class="form-actions">
+        <button type="submit" class="btn btn--primary">{{ _("Submit validation") }}</button>
     </div>
 </form>
 {% endblock %}

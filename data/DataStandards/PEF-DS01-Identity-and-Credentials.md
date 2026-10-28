@@ -268,6 +268,7 @@ Redis guarda estado **temporal** de login. No sustituye `user`.
 | ------------------------------- | --------------------------------------------------------- | ----------------------- | ---------------------------------- |
 | `auth:jwt:{jti}`                | JSON o flag: `{ "user_id", "institution_id", "revoked" }` | Igual a la vida del JWT | Validar / revocar token por `jti`. |
 | `auth:login_fail:{email_or_ip}` | Entero (contador)                                         | Minutos (p. ej. 15)     | Rate limit ante fuerza bruta.      |
+| `auth:user_tokens:{user_id}`    | Set de `jti` emitidos al usuario                          | El del token más largo  | Revocar todas las sesiones de una cuenta (desactivación, cambio de institución, restablecimiento de contraseña). Complementa, no sustituye, la comprobación de usuario activo en PostgreSQL. |
 
 
 **Ejemplo completo de valor en `auth:jwt:{jti}`**

@@ -2,6 +2,7 @@ import os
 from collections import Counter
 from copy import deepcopy
 from datetime import datetime
+from types import SimpleNamespace
 from uuid import UUID as _UUID
 
 from flask import current_app, url_for
@@ -11,6 +12,8 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from controllers import demo_data
 from extensions import db
+from services import session_snapshot
+from services.session_snapshot import parse_iso
 from i18n import (
     N_,
     discrepancy_source,
@@ -194,11 +197,24 @@ def _discrepancy_view(disc, family, reason_code, origin_event_code):
         # detected_quantity holds a reported count when the origin is a manual report.
         'quantity_label': N_('Reported') if source == 'reported' else N_('Detected'),
         'resolved': disc.resolved,
+        # A confirmed missing instrument: never resolved by notes alone, never a safe close.
+        'physical_shortage': reason_code == 'shortage',
         'family_name': family_name or '—',
         'expected_quantity': disc.expected_quantity,
         'detected_quantity': disc.detected_quantity,
         'resolved_at': _fmt_dt(disc.resolved_at),
     }
+
+
+def _discrepancy_view_from_snapshot(item):
+    """_discrepancy_view of a discrepancy snapshot (services/session_snapshot.py)."""
+    disc = SimpleNamespace(
+        id=item['id'], description=item['description'], expected_quantity=item.get('expected_quantity'),
+        detected_quantity=item.get('detected_quantity'), resolved=item['resolved'],
+        resolved_at=parse_iso(item.get('resolved_at')),
+    )
+    family = _ns(item.get('family'))
+    return _discrepancy_view(disc, family, item.get('reason_code'), item.get('origin_event_code'))
 
 
 def _users():
@@ -989,69 +1005,77 @@ def operating_room_form_data(room_id=None):
 def _fmt_dt(value):
     if not value:
         return ''
+    if isinstance(value, str):
+        value = parse_iso(value)
     if value.tzinfo is None:
         return value.strftime('%Y-%m-%d %H:%M')
     return value.strftime('%Y-%m-%d %H:%M')
 
 
-def _build_session_row(item, *, status_by_id, operations, users, kits, stations, procedures, rooms,
-                       open_discrepancy_counts, agreement_session_ids, for_role='supervisor'):
-    operation = operations.get(item.operation_id)
-    status = status_by_id.get(item.status_id)
-    status_code = status.code if status else 'unknown'
+def _ns(data):
+    """Snapshot reference ({id, code, name...}) as an object for the label helpers above."""
+    return SimpleNamespace(**data) if data else None
+
+
+def _build_session_row(snap, for_role='supervisor'):
+    """RF list row of one session snapshot (services/session_snapshot.py; local or SessionService)."""
+    status = snap.get('status') or {}
+    status_code = status.get('code') or 'unknown'
     status_label, status_variant = SESSION_STATUS_UI.get(
         status_code,
-        (localize_db_label('session_status', status_code, status.name) if status else N_('Unknown'), 'neutral'),
+        (localize_db_label('session_status', status_code, status.get('name')) if status else N_('Unknown'), 'neutral'),
     )
-    open_discrepancies = open_discrepancy_counts.get(item.id, 0)
-    has_agreement = item.id in agreement_session_ids
-    if item.capture_mode == 'vision' or (item.capture_mode is None and has_agreement):
+    open_discrepancies = snap.get('open_discrepancies') or 0
+    has_agreement = bool(snap.get('has_privacy_agreement'))
+    capture_mode = snap.get('capture_mode')
+    if capture_mode == 'vision' or (capture_mode is None and has_agreement):
         privacy_label = N_('Notice OK · Vision')
         privacy_variant = 'success'
     else:
         privacy_label = N_('No notice · Manual')
         privacy_variant = 'warning'
 
-    room_code = '—'
-    if operation and operation.room_id:
-        room = rooms.get(operation.room_id)
-        room_code = room.code if room else '—'
+    operation = snap.get('operation') or {}
+    room = operation.get('room')
+    room_code = room['code'] if room else '—'
 
-    scheduled_at = _fmt_dt(getattr(operation, 'scheduled_at', None)) if operation else ''
-    created_at = scheduled_at or _fmt_dt(item.started_at) or _fmt_dt(item.updated_at)
+    scheduled_at = _fmt_dt(operation.get('scheduled_at')) if operation else ''
+    created_at = scheduled_at or _fmt_dt(snap.get('started_at')) or _fmt_dt(snap.get('updated_at'))
 
-    procedure = procedures.get(getattr(operation, 'procedure_type_id', None))
-    kit = kits.get(item.kit_id)
-    station = stations.get(item.station_id)
+    procedure = _ns(operation.get('procedure_type'))
+    kit = _ns(snap.get('kit'))
+    station = _ns(snap.get('station'))
     procedure_name = _procedure_label(procedure) or gettext('Unspecified procedure')
     kit_name = _kit_label(kit) or gettext('Unspecified kit')
     station_name = _station_label(station) or gettext('Unspecified station')
+    session_id = snap['id']
 
     if for_role == 'operator':
         if status_code == 'scheduled':
-            action_label, action_url = N_('Begin'), f'/operator/sessions/{item.id}/begin'
+            action_label, action_url = N_('Begin'), f'/operator/sessions/{session_id}/begin'
         elif status_code == 'in_progress':
-            if item.capture_mode == 'manual_no_privacy':
-                action_label, action_url = N_('Continue'), f'/operator/sessions/{item.id}/manual'
+            if capture_mode == 'manual_no_privacy':
+                action_label, action_url = N_('Continue'), f'/operator/sessions/{session_id}/manual'
             else:
-                action_label, action_url = N_('Continue'), f'/operator/sessions/{item.id}/capture'
+                action_label, action_url = N_('Continue'), f'/operator/sessions/{session_id}/capture'
         else:
-            action_label, action_url = N_('View details'), f'/operator/sessions/{item.id}'
-        details_url = f'/operator/sessions/{item.id}'
+            action_label, action_url = N_('View details'), f'/operator/sessions/{session_id}'
+        details_url = f'/operator/sessions/{session_id}'
     else:
         if status_code == 'correction_required' or open_discrepancies > 0:
-            action_label, action_url = N_('Review'), f'/supervisor/discrepancies/{item.id}/review'
+            action_label, action_url = N_('Review'), f'/supervisor/discrepancies/{session_id}/review'
         elif status_code == 'awaiting_spd_review':
-            action_label, action_url = N_('Confirm close'), f'/supervisor/sessions/{item.id}'
+            action_label, action_url = N_('Confirm close'), f'/supervisor/sessions/{session_id}'
         else:
-            action_label, action_url = N_('View'), f'/supervisor/sessions/{item.id}'
-        details_url = f'/supervisor/sessions/{item.id}'
+            action_label, action_url = N_('View'), f'/supervisor/sessions/{session_id}'
+        details_url = f'/supervisor/sessions/{session_id}'
 
+    operator = snap.get('operator') or {}
     return {
-        'id': str(item.id),
-        'session_id': display_session_id(item.id),
+        'id': session_id,
+        'session_id': display_session_id(session_id),
         'status_code': status_code,
-        'capture_mode': item.capture_mode,
+        'capture_mode': capture_mode,
         'has_privacy_agreement': has_agreement,
         'privacy_label': privacy_label,
         'privacy_variant': privacy_variant,
@@ -1059,23 +1083,23 @@ def _build_session_row(item, *, status_by_id, operations, users, kits, stations,
         'procedure_label': procedure_name,
         'operating_room': room_code,
         'kit_name': kit_name,
-        'operator_name': users.get(item.user_id, N_('Unknown operator')),
+        'operator_name': operator.get('name') or N_('Unknown operator'),
         'capture_station_name': station_name,
         # Stable filter values (display names change with the UI language).
-        'procedure_type_id': str(procedure.id) if procedure else '',
-        'kit_id': str(item.kit_id) if item.kit_id else '',
-        'station_id': str(item.station_id) if item.station_id else '',
+        'procedure_type_id': procedure.id if procedure else '',
+        'kit_id': kit.id if kit else '',
+        'station_id': station.id if station else '',
         # Search matches what is shown, what is stored and the catalog code.
         'search_text': search_text(
-            display_session_id(item.id), procedure_name, getattr(procedure, 'name', ''),
+            display_session_id(session_id), procedure_name, getattr(procedure, 'name', ''),
             getattr(procedure, 'code', ''), kit_name, getattr(kit, 'name', ''),
             station_name, getattr(station, 'name', ''),
         ),
         'created_at': created_at,
         'scheduled_at': scheduled_at,
-        'started_at': _fmt_dt(item.started_at),
-        'closed_at': _fmt_dt(item.ended_at),
-        'submitted_at': _fmt_dt(getattr(item, 'updated_at', None)),
+        'started_at': _fmt_dt(snap.get('started_at')),
+        'closed_at': _fmt_dt(snap.get('ended_at')),
+        'submitted_at': _fmt_dt(snap.get('updated_at')),
         'status_label': status_label,
         'status_variant': status_variant if open_discrepancies == 0 else 'warning',
         'discrepancy_count': open_discrepancies,
@@ -1085,129 +1109,104 @@ def _build_session_row(item, *, status_by_id, operations, users, kits, stations,
     }
 
 
-def _session_lookup_maps():
-    statuses = {item.id: item for item in db.session.execute(select(CatSessionStatus)).scalars()}
-    operations = {item.id: item for item in db.session.execute(select(Operation)).scalars()}
-    users = {item.id: item.name for item in db.session.execute(select(User)).scalars()}
-    kits = {item.id: item for item in db.session.execute(select(Kit)).scalars()}
-    stations = {item.id: item for item in db.session.execute(select(CaptureStation)).scalars()}
-    procedures = {item.id: item for item in db.session.execute(select(CatProcedureType)).scalars()}
-    rooms = {item.id: item for item in db.session.execute(select(OperatingRoom)).scalars()}
-    open_discrepancy_counts = dict(db.session.execute(
-        select(Discrepancy.session_id, func.count(Discrepancy.id))
-        .where(Discrepancy.resolved.is_(False))
-        .group_by(Discrepancy.session_id)
-    ).all())
-    agreement_session_ids = {
-        row[0] for row in db.session.execute(select(SessionProcessingAgreement.session_id)).all()
-    }
-    return statuses, operations, users, kits, stations, procedures, rooms, open_discrepancy_counts, agreement_session_ids
+def _tenant_uuid(institution_id):
+    """Normalize the authenticated user's institution id; None means "no tenant" (deny)."""
+    if institution_id is None:
+        return None
+    try:
+        return _UUID(str(institution_id))
+    except (TypeError, ValueError):
+        return None
 
 
-def _session_rows(for_role='supervisor', user_id=None):
-    query = select(WorkSession)
-    if user_id is not None:
-        query = query.where(WorkSession.user_id == user_id)
-    query = query.order_by(WorkSession.updated_at.desc())
-    rows = db.session.execute(query).scalars().all()
-    (
-        statuses, operations, users, kits, stations, procedures, rooms,
-        open_discrepancy_counts, agreement_session_ids,
-    ) = _session_lookup_maps()
-    return [
-        _build_session_row(
-            item,
-            status_by_id=statuses,
-            operations=operations,
-            users=users,
-            kits=kits,
-            stations=stations,
-            procedures=procedures,
-            rooms=rooms,
-            open_discrepancy_counts=open_discrepancy_counts,
-            agreement_session_ids=agreement_session_ids,
-            for_role=for_role,
-        )
-        for item in rows
-    ]
+def _session_in_tenant(item, institution_id):
+    """tenant(session) = operation.institution_id (sessions without operation have no tenant)."""
+    if item is None or item.operation_id is None or institution_id is None:
+        return False
+    operation = db.session.get(Operation, item.operation_id)
+    return operation is not None and operation.institution_id == institution_id
 
 
-def sessions_data():
-    return _read(lambda: _session_rows(for_role='supervisor'), [])
+def _tenant_session_ids(institution_id):
+    return (
+        select(WorkSession.id)
+        .join(Operation, Operation.id == WorkSession.operation_id)
+        .where(Operation.institution_id == institution_id)
+    )
 
 
-def operator_my_sessions(user_id):
+def _session_rows(for_role='supervisor', user_id=None, *, institution_id):
+    tenant = _tenant_uuid(institution_id)
+    if tenant is None:
+        return []
+    return session_rows_from_snapshots(session_snapshot.list_sessions(tenant, user_id), for_role=for_role)
+
+
+def session_rows_from_snapshots(snapshots, for_role='supervisor'):
+    return [_build_session_row(snap, for_role=for_role) for snap in snapshots]
+
+
+def sessions_data(institution_id):
+    return _read(lambda: _session_rows(for_role='supervisor', institution_id=institution_id), [])
+
+
+def operator_my_sessions(user_id, institution_id):
     from uuid import UUID
     try:
         parsed = UUID(str(user_id))
     except (TypeError, ValueError):
         return []
-    return _read(lambda: _session_rows(for_role='operator', user_id=parsed), [])
-
-
-def _session_detail_payload(item, *, for_role, users):
-    (
-        statuses, operations, _users, kits, stations, procedures, rooms,
-        open_discrepancy_counts, agreement_session_ids,
-    ) = _session_lookup_maps()
-    row = _build_session_row(
-        item,
-        status_by_id=statuses,
-        operations=operations,
-        users=users or _users,
-        kits=kits,
-        stations=stations,
-        procedures=procedures,
-        rooms=rooms,
-        open_discrepancy_counts=open_discrepancy_counts,
-        agreement_session_ids=agreement_session_ids,
-        for_role=for_role,
+    return _read(
+        lambda: _session_rows(for_role='operator', user_id=parsed, institution_id=institution_id),
+        [],
     )
-    phase = db.session.get(CatOperationPhase, item.current_phase_id) if item.current_phase_id else None
+
+
+def session_detail_from_snapshot(snap, *, for_role):
+    """RF detail payload of a session snapshot (same output for the local and remote sources)."""
+    row = _build_session_row(snap, for_role=for_role)
+    phase = _ns(snap.get('phase'))
     row['phase_code'] = phase.code if phase else None
     row['phase_label'] = _phase_label(phase)
-    categories = {
-        cat.id: cat for cat in db.session.execute(select(CatInstrumentCategory)).scalars()
-    }
-    expected = db.session.execute(
-        select(ExpectedInventory, InstrumentFamily)
-        .join(InstrumentFamily, InstrumentFamily.id == ExpectedInventory.family_id)
-        .where(ExpectedInventory.session_id == item.id)
-        .order_by(InstrumentFamily.name)
-    ).all()
-    reported_by_family = {}
-    events = db.session.execute(
-        select(CountEvent, CatEventType)
-        .join(CatEventType, CatEventType.id == CountEvent.event_type_id)
-        .where(CountEvent.session_id == item.id)
-        .order_by(CountEvent.occurred_at)
-    ).all()
-    for event, event_type in events:
-        payload = event.payload if isinstance(event.payload, dict) else {}
-        if event_type.code not in {'manual_count', 'auto_count'}:
-            continue
-        # Per-family facts (manual close / legacy auto_count rows).
-        if event.family_id:
+    capture_mode = snap.get('capture_mode')
+    # Three separate facts per family: expected (expected_inventory), AI (auto_count) and
+    # human (manual_count). "reported" keeps its previous meaning: the human count, or the
+    # latest AI tally while no human count exists (legacy sessions closed without a report).
+    human_by_family = {}
+    ai_by_family = {}
+    final_ai_by_family = None
+    events = snap.get('events') or []
+    for event in events:
+        payload = event.get('payload') or {}
+        code = event['event_code']
+        if code == 'manual_count' and event.get('family_id'):
             reported = payload.get('reported_quantity')
             if reported is None:
-                reported = event.detected_quantity
-            reported_by_family[str(event.family_id)] = reported
-            continue
-        # Board-scoped vision snapshot: last wins per family from payload.board.families.
-        if payload.get('scope') == 'board':
+                reported = event.get('detected_quantity')
+            human_by_family[event['family_id']] = reported
+        elif code == 'auto_count' and event.get('family_id'):
+            # Legacy per-family AI rows.
+            ai_by_family[event['family_id']] = event.get('detected_quantity')
+        elif code == 'auto_count' and payload.get('scope') == 'board':
+            # Board-scoped vision snapshot: last wins per family from payload.board.families.
+            lot = {}
             for fam in (payload.get('board') or {}).get('families') or []:
-                fid = fam.get('family_id')
-                if not fid:
-                    continue
-                # Prefer human-reported if present; else exposed refined tally.
-                reported = fam.get('reported_quantity')
-                if reported is None:
-                    reported = fam.get('detected_quantity')
-                reported_by_family[str(fid)] = reported
+                if fam.get('family_id'):
+                    lot[str(fam['family_id'])] = fam.get('detected_quantity')
+            ai_by_family.update(lot)
+            if payload.get('trigger') == 'final' or payload.get('reason') == 'detection_close':
+                final_ai_by_family = lot
+    reported_by_family = {**ai_by_family, **human_by_family}
+    if final_ai_by_family is not None:
+        # DS04: the AI suggestion is the final lot; families missing from it count 0.
+        ai_by_family = final_ai_by_family
     row['expected_items'] = []
-    for inv, family in expected:
-        reported = reported_by_family.get(str(inv.family_id))
-        diff = None if reported is None else int(reported) - inv.expected_quantity
+    for inv in snap.get('expected_inventory') or []:
+        family = SimpleNamespace(code=inv['family_code'], name=inv['family_name'])
+        family_id = inv['family_id']
+        expected_quantity = inv['expected_quantity']
+        reported = reported_by_family.get(family_id)
+        diff = None if reported is None else int(reported) - expected_quantity
         if reported is None:
             status_label, status_variant = N_('Pending'), 'neutral'
         elif diff == 0:
@@ -1216,16 +1215,20 @@ def _session_detail_payload(item, *, for_role, users):
             status_label, status_variant = N_('Shortfall'), 'danger'
         else:
             status_label, status_variant = N_('Extra'), 'warning'
-        category = categories.get(family.category_id)
+        category = _ns(inv.get('category'))
         category_code = category.code if category else ''
-        source = inv.source or 'manual'
+        source = inv.get('source') or 'manual'
         row['expected_items'].append({
-            'family_id': str(inv.family_id),
+            'family_id': family_id,
             'family_name': _family_label(family),
             'family_code': family.code,
-            'expected_quantity': inv.expected_quantity,
+            'expected_quantity': expected_quantity,
             'reported_quantity': reported,
-            'ai_detected_quantity': None if item.capture_mode == 'manual_no_privacy' else reported,
+            'ai_detected_quantity': (
+                None if capture_mode == 'manual_no_privacy'
+                else ai_by_family.get(family_id, 0 if final_ai_by_family is not None else None)
+            ),
+            'human_quantity': human_by_family.get(family_id),
             'difference': diff,
             'status_label': status_label,
             'status_variant': status_variant,
@@ -1261,33 +1264,34 @@ def _session_detail_payload(item, *, for_role, users):
         bucket['lines'].append(entry)
     row['expected_groups'] = sorted(inventory_groups.values(), key=lambda g: (g['rank'], g['label']))
     family_name_by_id = {
-        str(family.id): _family_label(family) for _inv, family in expected
+        inv['family_id']: _family_label(SimpleNamespace(code=inv['family_code'], name=inv['family_name']))
+        for inv in snap.get('expected_inventory') or []
     }
     row['timeline'] = []
-    for event, event_type in events:
-        payload = event.payload if isinstance(event.payload, dict) else {}
+    for event in events:
+        payload = event.get('payload') or {}
         board = payload.get('board') if isinstance(payload.get('board'), dict) else {}
         totals = board.get('totals') if isinstance(board.get('totals'), dict) else {}
         reason = payload.get('reason')
         scope = payload.get('scope')
-        event_name = localize_db_label('event_type', event_type.code, event_type.name)
+        event_name = localize_db_label('event_type', event['event_code'], event.get('event_name'))
         label_bits = [event_name]
         if reason:
             label_bits.append(str(reason))
         if scope == 'board':
             label_bits.append('board')
-        fid = str(event.family_id) if event.family_id else None
+        fid = event.get('family_id')
         row['timeline'].append({
-            'occurred_at': _fmt_dt(event.occurred_at),
-            'event_code': event_type.code,
+            'occurred_at': _fmt_dt(event.get('occurred_at')),
+            'event_code': event['event_code'],
             'event_name': event_name,
             'event_label': ' · '.join(label_bits),
             'family_id': fid,
             'family_name': family_name_by_id.get(fid) if fid else None,
             'scope': scope,
             'reason': reason,
-            'expected_quantity': event.expected_quantity,
-            'detected_quantity': event.detected_quantity,
+            'expected_quantity': event.get('expected_quantity'),
+            'detected_quantity': event.get('detected_quantity'),
             'board_family_count': totals.get('family_count'),
             'frames_processed': payload.get('frames_processed'),
             'video_t': payload.get('video_t'),
@@ -1296,34 +1300,17 @@ def _session_detail_payload(item, *, for_role, users):
             'model_version': payload.get('model_version'),
             'payload': payload,
         })
-    open_discs = db.session.execute(
-        select(Discrepancy, InstrumentFamily, CatDiscrepancyReason.code, CatEventType.code)
-        .outerjoin(InstrumentFamily, InstrumentFamily.id == Discrepancy.family_id)
-        .outerjoin(CatDiscrepancyReason, CatDiscrepancyReason.id == Discrepancy.reason_id)
-        .outerjoin(CountEvent, CountEvent.id == Discrepancy.origin_event_id)
-        .outerjoin(CatEventType, CatEventType.id == CountEvent.event_type_id)
-        .where(Discrepancy.session_id == item.id)
-        .order_by(Discrepancy.resolved, InstrumentFamily.name)
-    ).all()
-    row['discrepancies'] = [
-        _discrepancy_view(disc, family, reason_code, origin_event_code)
-        for disc, family, reason_code, origin_event_code in open_discs
-    ]
-    agreement = db.session.execute(
-        select(SessionProcessingAgreement)
-        .where(SessionProcessingAgreement.session_id == item.id)
-    ).scalar_one_or_none()
-    name_users = users or _users
-    if agreement:
-        notice = db.session.get(PrivacyNoticeVersion, agreement.privacy_notice_version_id)
+    row['discrepancies'] = [_discrepancy_view_from_snapshot(item) for item in snap.get('discrepancies') or []]
+    privacy = snap.get('privacy')
+    if privacy:
         row['privacy'] = {
             'has_agreement': True,
-            'version': notice.version if notice else '—',
-            'document_uri': notice.document_uri if notice else None,
-            'agreed_at': _fmt_dt(agreement.agreed_at),
-            'purpose_quality_ops': agreement.purpose_quality_ops,
-            'purpose_model_improvement': agreement.purpose_model_improvement,
-            'agreed_by': name_users.get(agreement.agreed_by_user_id, '—'),
+            'version': privacy.get('version') or '—',
+            'document_uri': privacy.get('document_uri'),
+            'agreed_at': _fmt_dt(privacy.get('agreed_at')),
+            'purpose_quality_ops': privacy.get('purpose_quality_ops'),
+            'purpose_model_improvement': privacy.get('purpose_model_improvement'),
+            'agreed_by': (privacy.get('agreed_by') or {}).get('name') or '—',
         }
     else:
         row['privacy'] = {
@@ -1331,51 +1318,31 @@ def _session_detail_payload(item, *, for_role, users):
             'message': N_('No privacy notice linked. Start Session will freeze capture_mode = manual_no_privacy.'),
         }
 
-    operation = operations.get(item.operation_id)
-    patient_name = None
-    patient_record = None
-    op_patient = None
-    surgical_team = []
-    if operation:
-        op_patient = db.session.scalar(
-            select(OperationPatient).where(OperationPatient.operation_id == operation.id).limit(1)
-        )
-        if op_patient:
-            patient = db.session.get(Patient, op_patient.patient_id)
-            if patient:
-                patient_name = patient.display_name
-                patient_record = str(patient.id).replace('-', '')[:10].upper()
-        team_rows = db.session.execute(
-            select(OperationPhysician, Physician, CatSurgicalRole)
-            .join(Physician, Physician.id == OperationPhysician.physician_id)
-            .join(CatSurgicalRole, CatSurgicalRole.id == OperationPhysician.surgical_role_id)
-            .where(OperationPhysician.operation_id == operation.id)
-            .order_by(CatSurgicalRole.name, Physician.name)
-        ).all()
-        surgical_team = [
-            {
-                'physician_id': str(physician.id),
-                'name': physician.name,
-                'role': localize_db_label('surgical_role', role.code, role.name),
-                'role_code': role.code,
-            }
-            for _, physician, role in team_rows
-        ]
-    row['patient_name'] = patient_name
-    row['patient_record'] = patient_record
-    row['patient_id'] = str(op_patient.patient_id) if op_patient else None
+    operation = snap.get('operation') or {}
+    patient = snap.get('patient')
+    surgical_team = [
+        {
+            'physician_id': member['physician_id'],
+            'name': member['name'],
+            'role': localize_db_label('surgical_role', member['role_code'], member['role_name']),
+            'role_code': member['role_code'],
+        }
+        for member in snap.get('surgical_team') or []
+    ]
+    row['patient_name'] = patient.get('display_name') if patient else None
+    row['patient_record'] = (patient['id'].replace('-', '')[:10].upper()
+                             if patient and patient.get('display_name') is not None else None)
+    row['patient_id'] = patient['id'] if patient else None
     row['surgical_team'] = surgical_team
     row['physician_name'] = surgical_team[0]['name'] if surgical_team else None
-    row['operator_user_id'] = str(item.user_id) if item.user_id else ''
-    row['procedure_type_id'] = str(operation.procedure_type_id) if operation and operation.procedure_type_id else ''
-    row['room_id'] = str(operation.room_id) if operation and operation.room_id else ''
-    row['station_id'] = str(item.station_id) if item.station_id else ''
-    row['kit_id'] = str(item.kit_id) if item.kit_id else ''
-    if operation and operation.scheduled_at:
-        scheduled = operation.scheduled_at
-        if scheduled.tzinfo is not None:
-            scheduled = scheduled.astimezone().replace(tzinfo=None)
-        row['scheduled_at_local'] = scheduled.strftime('%Y-%m-%dT%H:%M')
+    row['operator_user_id'] = (snap.get('operator') or {}).get('id') or ''
+    row['procedure_type_id'] = (operation.get('procedure_type') or {}).get('id') or ''
+    row['room_id'] = (operation.get('room') or {}).get('id') or ''
+    row['station_id'] = (snap.get('station') or {}).get('id') or ''
+    row['kit_id'] = (snap.get('kit') or {}).get('id') or ''
+    scheduled = parse_iso(operation.get('scheduled_at'))
+    if scheduled is not None:
+        row['scheduled_at_local'] = scheduled.astimezone().replace(tzinfo=None).strftime('%Y-%m-%dT%H:%M')
     else:
         row['scheduled_at_local'] = ''
     row['can_edit_inventory'] = row.get('status_code') in {'scheduled', 'in_progress'}
@@ -1383,7 +1350,8 @@ def _session_detail_payload(item, *, for_role, users):
     return row
 
 
-def operator_session_detail(session_id, user_id):
+def operator_session_detail(session_id, user_id, institution_id):
+    """Operator screens: always the local snapshot (PostgreSQL), never SessionService."""
     from uuid import UUID
 
     def query():
@@ -1392,16 +1360,20 @@ def operator_session_detail(session_id, user_id):
             parsed_user = UUID(str(user_id))
         except (TypeError, ValueError):
             return None
-        item = db.session.get(WorkSession, parsed_session)
-        if item is None or item.user_id != parsed_user:
+        tenant = _tenant_uuid(institution_id)
+        if tenant is None:
             return None
-        users = {u.id: u.name for u in db.session.execute(select(User)).scalars()}
-        return _session_detail_payload(item, for_role='operator', users=users)
+        snap = session_snapshot.session_detail(parsed_session, tenant)
+        # Assigned to this operator AND inside the operator's tenant; otherwise "not found".
+        if snap is None or (snap.get('operator') or {}).get('id') != str(parsed_user):
+            return None
+        return session_detail_from_snapshot(snap, for_role='operator')
 
     return _read(query, None)
 
 
-def supervisor_session_detail(session_id):
+def supervisor_session_detail(session_id, institution_id):
+    """Local snapshot of a session (Supervisor screens use controllers/supervisor_view.py)."""
     from uuid import UUID
 
     def query():
@@ -1409,77 +1381,82 @@ def supervisor_session_detail(session_id):
             parsed_session = UUID(str(session_id))
         except (TypeError, ValueError):
             return None
-        item = db.session.get(WorkSession, parsed_session)
-        if item is None:
+        tenant = _tenant_uuid(institution_id)
+        if tenant is None:
             return None
-        users = {u.id: u.name for u in db.session.execute(select(User)).scalars()}
-        return _session_detail_payload(item, for_role='supervisor', users=users)
+        snap = session_snapshot.session_detail(parsed_session, tenant)
+        return session_detail_from_snapshot(snap, for_role='supervisor') if snap else None
 
     return _read(query, None)
 
 
-def discrepancies_data(search='', instrument='', status=''):
+def discrepancy_rows_from_snapshots(items, session_rows, search='', instrument='', status=''):
+    """Supervisor discrepancy queue rows from discrepancy snapshots + the session list rows."""
+    sessions = {row['id']: row for row in session_rows}
+    search_term = (search or '').strip().lower()
+    instrument_term = (instrument or '').strip().lower()
+    status_filter = (status or '').strip().lower()
+    values = []
+    for item in items:
+        session_row = sessions.get(item['session_id'], {})
+        display_id = session_row.get('session_id', display_session_id(item['session_id']))
+        family = _ns(item.get('family'))
+        instrument_name = _family_label(family) or gettext('Unspecified instrument')
+        reason_code = item.get('reason_code')
+        reason_label = (localize_db_label('discrepancy_reason', reason_code, item.get('reason_name')) if reason_code
+                        else gettext('Recorded discrepancy'))
+        status_label = N_('Resolved') if item['resolved'] else N_('Open')
+        status_code = 'resolved' if item['resolved'] else 'open'
+        if status_filter in {'open', 'resolved'} and status_code != status_filter:
+            continue
+        if instrument_term and instrument_term not in (instrument_name or '').lower():
+            continue
+        if search_term:
+            haystack = search_text(
+                display_id, item['session_id'], session_row.get('search_text', ''),
+                instrument_name, getattr(family, 'name', ''), getattr(family, 'code', ''),
+                status_label, gettext(status_label),
+            )
+            if search_term not in haystack:
+                continue
+        values.append({
+            'id': item['id'],
+            'session_uuid': item['session_id'],
+            'session_id': display_id,
+            'procedure_name': session_row.get('procedure_name', N_('Unspecified procedure')),
+            'operating_room': session_row.get('operating_room', N_('Unspecified room')),
+            'kit_name': session_row.get('kit_name', N_('Unspecified kit')),
+            'operator_name': session_row.get('operator_name', N_('Unknown operator')),
+            'instrument_name': instrument_name,
+            'expected_quantity': item.get('expected_quantity') or 0,
+            'counted_quantity': item.get('detected_quantity') or 0,
+            'difference': (item.get('detected_quantity') or 0) - (item.get('expected_quantity') or 0),
+            'reason': reason_label,
+            'status_code': status_code,
+            'status_label': status_label,
+            'status_variant': 'success' if item['resolved'] else 'warning',
+            'action_label': N_('Review'),
+            'action_url': f'/supervisor/discrepancies/{item["session_id"]}/review',
+        })
+    return values
+
+
+def discrepancies_data(institution_id, search='', instrument='', status=''):
     def query():
-        query = select(Discrepancy)
-        if hasattr(Discrepancy, 'updated_at'):
-            query = query.order_by(Discrepancy.updated_at.desc())
-        rows = db.session.execute(query).scalars().all()
-        families = {item.id: item for item in db.session.execute(select(InstrumentFamily)).scalars()}
-        reasons = {item.id: item for item in db.session.execute(select(CatDiscrepancyReason)).scalars()}
-        sessions = {item['id']: item for item in _session_rows()}
-        search_term = (search or '').strip().lower()
-        instrument_term = (instrument or '').strip().lower()
-        status_filter = (status or '').strip().lower()
-        values = []
-        for item in rows:
-            session_row = sessions.get(str(item.session_id), {})
-            display_id = session_row.get('session_id', display_session_id(item.session_id))
-            family = families.get(item.family_id)
-            instrument_name = _family_label(family) or gettext('Unspecified instrument')
-            reason = reasons.get(item.reason_id)
-            reason_label = (localize_db_label('discrepancy_reason', reason.code, reason.name) if reason
-                            else gettext('Recorded discrepancy'))
-            status_label = N_('Resolved') if item.resolved else N_('Open')
-            status_code = 'resolved' if item.resolved else 'open'
-            if status_filter in {'open', 'resolved'} and status_code != status_filter:
-                continue
-            if instrument_term and instrument_term not in (instrument_name or '').lower():
-                continue
-            if search_term:
-                haystack = search_text(
-                    display_id, str(item.session_id), session_row.get('search_text', ''),
-                    instrument_name, getattr(family, 'name', ''), getattr(family, 'code', ''),
-                    status_label, gettext(status_label),
-                )
-                if search_term not in haystack:
-                    continue
-            values.append({
-                'id': str(item.id),
-                'session_uuid': str(item.session_id),
-                'session_id': display_id,
-                'procedure_name': session_row.get('procedure_name', N_('Unspecified procedure')),
-                'operating_room': session_row.get('operating_room', N_('Unspecified room')),
-                'kit_name': session_row.get('kit_name', N_('Unspecified kit')),
-                'operator_name': session_row.get('operator_name', N_('Unknown operator')),
-                'instrument_name': instrument_name,
-                'expected_quantity': item.expected_quantity or 0,
-                'counted_quantity': item.detected_quantity or 0,
-                'difference': (item.detected_quantity or 0) - (item.expected_quantity or 0),
-                'reason': reason_label,
-                'status_code': status_code,
-                'status_label': status_label,
-                'status_variant': 'success' if item.resolved else 'warning',
-                'action_label': N_('Review'),
-                'action_url': f'/supervisor/discrepancies/{item.session_id}/review',
-            })
-        return values
+        tenant = _tenant_uuid(institution_id)
+        if tenant is None:
+            return []
+        return discrepancy_rows_from_snapshots(
+            session_snapshot.list_discrepancies(tenant), _session_rows(institution_id=tenant),
+            search=search, instrument=instrument, status=status,
+        )
     return _read(query, [])
 
 
-def session_discrepancies(session_id):
+def session_discrepancies(session_id, institution_id):
     return _read(
         lambda: [
-            item for item in discrepancies_data()
+            item for item in discrepancies_data(institution_id)
             if item['session_id'] == str(session_id)[:8].upper()
             or item.get('session_id') == str(session_id)
         ],
@@ -1499,11 +1476,12 @@ def discrepancies_summary_data(discrepancies):
     }
 
 
-def dashboard_data(role):
+def dashboard_data(role, institution_id, *, sessions=None, discrepancies=None):
+    """Dashboard stats; the Supervisor passes the rows it got from SessionService."""
     from datetime import date as date_cls
 
-    sessions = sessions_data()
-    discrepancies = discrepancies_data()
+    sessions = sessions_data(institution_id) if sessions is None else sessions
+    discrepancies = discrepancies_data(institution_id) if discrepancies is None else discrepancies
     today = date_cls.today().isoformat()
 
     def _is_today(row):
@@ -1550,7 +1528,7 @@ def dashboard_data(role):
     return stats, sessions, discrepancies
 
 
-def admin_dashboard_overview():
+def admin_dashboard_overview(institution_id):
     """
     Secondary KPI cards, Catalog/System Overview panels, and Operational Metrics for the
     Administrator Dashboard. Counts backed by real models are computed here; AI-Human
@@ -1572,9 +1550,15 @@ def admin_dashboard_overview():
             db.session.scalar(select(func.count(ModelClass.id)).where(ModelClass.model_id == active_vision_model.id))
             if active_vision_model else 0
         )
-        human_corrections_count = db.session.scalar(select(func.count(HumanCorrection.id)))
-        sessions = sessions_data()
-        discrepancies = discrepancies_data()
+        # Session-derived metrics are limited to the administrator's own institution.
+        tenant = _tenant_uuid(institution_id)
+        human_corrections_count = db.session.scalar(
+            select(func.count(HumanCorrection.id))
+            .join(CountEvent, CountEvent.id == HumanCorrection.count_event_id)
+            .where(CountEvent.session_id.in_(_tenant_session_ids(tenant)))
+        ) if tenant else 0
+        sessions = sessions_data(tenant)
+        discrepancies = discrepancies_data(tenant)
 
         return {
             'secondary_stats': {
@@ -1961,6 +1945,133 @@ def supervisor_v3_audit_log():
             'details': event['detail'],
         })
     return rows
+
+
+# --- Supervisor Audit Log (RF, access_audit) ----------------------------------------------
+# Operational traceability only: what an SPD Supervisor works on (counting sessions and the
+# instruments / kits SPD may edit). Security and administration events (users, roles,
+# vision models, configuration) stay in the Administrator audit log.
+SUPERVISOR_AUDIT_RESOURCES = ('work_session', 'instrument', 'kit')
+SUPERVISOR_AUDIT_ENTITY_LABELS = {
+    'work_session': N_('Counting Session'),
+    'instrument': N_('Instrument'),
+    'kit': N_('Kit'),
+}
+SUPERVISOR_AUDIT_ROLE_LABELS = {
+    'it_admin': N_('Administrator'),
+    'spd_supervisor': N_('SPD Supervisor'),
+    'station_operator': N_('Station Operator'),
+}
+SUPERVISOR_AUDIT_DATES = (
+    ('', N_('All Dates')),
+    ('today', N_('Today')),
+    ('7d', N_('Last 7 Days')),
+    ('30d', N_('Last 30 Days')),
+)
+_SUPERVISOR_AUDIT_DAYS = {'today': 0, '7d': 6, '30d': 29}
+
+
+def supervisor_audit_log_data(institution_id, *, search='', user='', event='', session='', date='',
+                              page=1, per_page=20):
+    """Real access_audit rows of the caller's institution for the Supervisor Audit Log."""
+    from sqlalchemy import text as sql
+
+    per_page = _normalize_per_page(per_page, allowed=(10, 20, 50), default=20)
+    empty = {'rows': [], 'total': 0, 'page': 1, 'pages': 1, 'per_page': per_page,
+             'options': {'users': [], 'events': [], 'sessions': []}}
+    if institution_id is None:
+        return empty
+    tz = current_app.config.get('ADMIN_DISPLAY_TIMEZONE') or 'UTC'
+    scope = 'a.institution_id = :inst AND a.resource_type IN :resources'
+    params = {'inst': institution_id, 'resources': SUPERVISOR_AUDIT_RESOURCES, 'tz': tz}
+    conditions = [scope]
+    user_id = _uuid_or_none(user)
+    if user_id:
+        conditions.append('a.actor_user_id = :user_id')
+        params['user_id'] = user_id
+    if event:
+        conditions.append('a.action = :event')
+        params['event'] = event
+    session_id = _uuid_or_none(session)
+    if session_id:
+        conditions.append("a.resource_type = 'work_session' AND a.resource_id = :session_id")
+        params['session_id'] = session_id
+    if date in _SUPERVISOR_AUDIT_DAYS:
+        conditions.append("(a.occurred_at AT TIME ZONE :tz)::date >= (now() AT TIME ZONE :tz)::date - :days")
+        params['days'] = _SUPERVISOR_AUDIT_DAYS[date]
+    if search:
+        conditions.append(
+            "(a.action ILIKE :search OR u.name ILIKE :search OR u.email ILIKE :search "
+            "OR a.resource_id::text ILIKE :search "
+            "OR ('WS-' || upper(left(replace(a.resource_id::text, '-', ''), 8))) ILIKE :search)"
+        )
+        params['search'] = f'%{search.strip()}%'
+    where = ' AND '.join(conditions)
+
+    def statement(query):
+        from sqlalchemy import bindparam
+        return sql(query).bindparams(bindparam('resources', expanding=True))
+
+    def query():
+        total = db.session.execute(statement(
+            f'SELECT count(*) FROM access_audit a LEFT JOIN "user" u ON u.id = a.actor_user_id WHERE {where}'
+        ), params).scalar() or 0
+        pages = max(1, (total + per_page - 1) // per_page)
+        current = _clamp_page(page, pages)
+        rows = db.session.execute(statement(f"""
+            SELECT a.occurred_at, to_char(a.occurred_at AT TIME ZONE :tz, 'YYYY-MM-DD HH24:MI:SS') AS occurred_local,
+                   a.action, a.resource_type, a.resource_id, a.outcome, host(a.ip) AS ip,
+                   u.name AS user_name,
+                   (SELECT string_agg(r.code, ',' ORDER BY r.code) FROM user_role ur JOIN role r ON r.id = ur.role_id
+                     WHERE ur.user_id = a.actor_user_id) AS role_codes,
+                   CASE a.resource_type
+                       WHEN 'work_session' THEN 'WS-' || upper(left(replace(a.resource_id::text, '-', ''), 8))
+                       WHEN 'instrument' THEN (SELECT COALESCE(i.internal_code, i.id::text) FROM instrument i WHERE i.id = a.resource_id)
+                       WHEN 'kit' THEN (SELECT k.name || ' v' || k.version FROM kit k WHERE k.id = a.resource_id)
+                   END AS record_label
+            FROM access_audit a LEFT JOIN "user" u ON u.id = a.actor_user_id
+            WHERE {where}
+            ORDER BY a.occurred_at DESC, a.id
+            LIMIT :limit OFFSET :offset
+        """), {**params, 'limit': per_page, 'offset': (current - 1) * per_page}).mappings().all()
+        scope_params = {key: params[key] for key in ('inst', 'resources')}
+        options = {
+            'users': [{'value': str(r[0]), 'label': r[1] or r[2]} for r in db.session.execute(statement(
+                'SELECT DISTINCT u.id, u.name, u.email FROM access_audit a JOIN "user" u ON u.id = a.actor_user_id '
+                f'WHERE {scope} ORDER BY u.name'), scope_params).all()],
+            'events': [r[0] for r in db.session.execute(statement(
+                f'SELECT DISTINCT a.action FROM access_audit a WHERE {scope} ORDER BY 1'), scope_params).all()],
+            'sessions': [{'value': str(r[0]), 'label': display_session_id(r[0])} for r in db.session.execute(statement(
+                f"SELECT a.resource_id, max(a.occurred_at) FROM access_audit a WHERE {scope} "
+                "AND a.resource_type = 'work_session' GROUP BY a.resource_id ORDER BY 2 DESC LIMIT 200"),
+                scope_params).all()],
+        }
+        values = []
+        for row in rows:
+            roles = [code for code in (row['role_codes'] or '').split(',') if code]
+            denied = row['outcome'] == 'denied'
+            values.append({
+                'time': row['occurred_local'],
+                'user': row['user_name'] or N_('System'),
+                'role': ', '.join(gettext(SUPERVISOR_AUDIT_ROLE_LABELS.get(code, code)) for code in roles) or '—',
+                'event': row['action'],
+                'entity': SUPERVISOR_AUDIT_ENTITY_LABELS.get(row['resource_type'], row['resource_type']),
+                'record': row['record_label'] or str(row['resource_id'])[:8].upper(),
+                'result': 'DENIED' if denied else 'SUCCESS',
+                'result_variant': 'danger' if denied else 'success',
+                'details': row['ip'] or '',
+            })
+        return {'rows': values, 'total': total, 'page': current, 'pages': pages, 'per_page': per_page,
+                'options': options}
+
+    return _read(query, empty)
+
+
+def _uuid_or_none(value):
+    try:
+        return _UUID(str(value)) if value else None
+    except (TypeError, ValueError):
+        return None
 
 
 def supervisor_v3_list_meta(list_name):

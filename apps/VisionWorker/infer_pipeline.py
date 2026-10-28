@@ -2,18 +2,12 @@
 
 from __future__ import annotations
 
-import time
 from typing import Any
 
 import numpy as np
 import torch
 
 from config import BOX_RECALL_CONF, IMGSZ, MAX_DET, NMS_IOU, TOPK
-
-
-def _sync_if_cuda(device) -> None:
-    if getattr(device, "type", None) == "cuda" and torch.cuda.is_available():
-        torch.cuda.synchronize()
 
 
 def _letterbox(image_bgr: np.ndarray, imgsz: int = IMGSZ) -> tuple[np.ndarray, float, tuple[int, int]]:
@@ -90,12 +84,13 @@ def detect_with_class_scores(
     recall_conf: float = BOX_RECALL_CONF,
     iou_thres: float = NMS_IOU,
     topk: int = TOPK,
-) -> tuple[list[dict[str, Any]], float]:
+) -> list[dict[str, Any]]:
     """
     Run YOLO26 detect forward and NMS, keeping the full class-score row per kept box.
 
-    Returns (detections, infer_ms) where infer_ms is the CUDA-synced forward only.
-    Letterbox, H2D, GPU→CPU and NMS are not included in infer_ms.
+    Returns list of:
+      xyxy, class_id, confidence, scores_by_class (list[float] len nc),
+      topk (list[{class_id, score}])
     """
     device = next(model.model.parameters()).device
     padded, r, pad = _letterbox(frame_bgr, IMGSZ)
@@ -104,12 +99,8 @@ def detect_with_class_scores(
     im = im.to(device)
 
     model.model.eval()
-    _sync_if_cuda(device)
-    t_inf = time.perf_counter()
     with torch.no_grad():
         out = model.model(im)
-    _sync_if_cuda(device)
-    infer_ms = (time.perf_counter() - t_inf) * 1000.0
 
     # Ultralytics DetectionModel: (y, preds) when not export; y = (1, 4+nc, A)
     if isinstance(out, (list, tuple)) and len(out) >= 1 and torch.is_tensor(out[0]):
@@ -125,7 +116,7 @@ def detect_with_class_scores(
     pred = y[0].detach().float().cpu().numpy()  # (4+nc, A)
     nc = pred.shape[0] - 4
     if nc < 1:
-        return [], infer_ms
+        return []
 
     boxes_xywh = pred[:4, :].T  # (A, 4)
     cls_scores = pred[4:, :].T  # (A, nc)
@@ -136,7 +127,7 @@ def detect_with_class_scores(
     top1_cls = cls_scores.argmax(axis=1)
     mask = top1_conf >= recall_conf
     if not np.any(mask):
-        return [], infer_ms
+        return []
 
     boxes_xyxy = boxes_xyxy[mask]
     cls_scores = cls_scores[mask]
@@ -145,7 +136,7 @@ def detect_with_class_scores(
 
     keep = _nms_xyxy(boxes_xyxy, top1_conf, iou_thres)
     if not keep:
-        return [], infer_ms
+        return []
 
     boxes_xyxy = _scale_boxes_to_orig(
         boxes_xyxy[keep], r=r, pad=pad, orig_shape=frame_bgr.shape[:2]
@@ -176,4 +167,4 @@ def detect_with_class_scores(
             "topk": topk_list,
             "model_name": names.get(int(top1_cls[i]), str(int(top1_cls[i]))),
         })
-    return results, infer_ms
+    return results

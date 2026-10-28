@@ -1,0 +1,757 @@
+openapi: 3.0.3
+info:
+  title: PEF Catalog Service
+  version: 1.0.0
+  description: |
+    Catalog microservice of PEF (contracts owned by PEF-DS09 §1.3.3; fields by PEF-DS03).
+
+    - **Formats:** every endpoint answers `application/json` (default, also for missing
+      `Accept` or `*/*`) or `application/xml` when the client prefers it in `Accept`.
+      `POST /families` accepts both `Content-Type: application/json` and `application/xml`.
+      JSON and XML carry the same fields with the same names.
+    - **XML conventions:** element names equal JSON field names; a list is a container
+      element with one child per entry (`families/family`, `instruments/instrument`,
+      `kits/kit`, `items/item`); booleans are `true`/`false`; `null` is an empty element
+      with `xsi:nil="true"`. DTDs / entity declarations are rejected.
+    - **Auth:** `Authorization: Bearer <access_token>` issued by Auth Service. The service
+      validates signature, algorithm, expiry, `type=access`, `sub`, `jti`, the Redis session
+      `auth:jwt:{jti}` (present, not revoked, `token_type=access`) and that the user is still
+      active in PostgreSQL. Tenant = `user.institution_id`; roles = effective `user_role` rows.
+    - **Management (DS09 §1.3.3 complement v0.1.2):** family detail/update, instrument
+      detail/create/update, kit create/update (versioned), reference catalogs and an opt-in
+      `expand=detail` representation of the lists. The original five contracts are unchanged.
+      Writes: families → `it_admin`; instruments and kits → `it_admin` or `spd_supervisor`.
+      Denied management attempts are recorded in `access_audit` (`DENIED_<METHOD>_<RESOURCE>`);
+      every change writes its audit entry in the same transaction. Validation errors carry
+      `details.reason` (stable machine code). XML schema: `GET /api/v1/catalog/schemas/catalog.xsd`.
+    - **XML request bodies** are validated against `GET /api/v1/catalog/schemas/catalog-requests.xsd`
+      (after the well-formedness, root, duplicate and type checks). A non-conforming document is
+      `400 invalid_request` with `details.reason = xsd_validation_failed`, `details.schema`,
+      `details.errors[] {line, message}` and, for elements the resource does not accept,
+      `details.unknown_fields[]`. Business rules (422) are the same for JSON and XML.
+    - **Inactive kits** exist only for `it_admin`: any other role (the SPD supervisor included)
+      lists only active kits and gets `404` for an inactive kit, on GET and PUT.
+    - **Correlation:** `X-Correlation-ID` is echoed (or generated as a UUID when missing or
+      not matching `^[A-Za-z0-9._:-]{1,64}$`; longer ids are replaced, never truncated — DS09 v0.1.5)
+      in the response header, in error bodies and in the logs.
+servers:
+  - url: http://127.0.0.1:5003
+    description: Local docker compose (port is a deployment choice, not part of the contract)
+tags:
+  - name: catalog
+  - name: health
+  - name: docs
+paths:
+  /api/v1/catalog/families:
+    get:
+      tags: [catalog]
+      summary: List instrument families (global catalog)
+      description: All families, ordered by `code` ascending (byte order). No pagination or filters.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Expand'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Family list
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/FamilyItem' } }
+            application/xml:
+              schema:
+                type: array
+                xml: { name: families, wrapped: true }
+                items: { $ref: '#/components/schemas/FamilyItem' }
+              example: |
+                <families>
+                  <family>
+                    <id>f1000001-0000-4000-8000-000000000001</id>
+                    <code>mayo_hegar_needle_holder</code>
+                    <name>Portaagujas Mayo-Hegar</name>
+                    <category_code>suturing</category_code>
+                    <active>true</active>
+                  </family>
+                </families>
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    post:
+      tags: [catalog]
+      summary: Create an instrument family (it_admin only)
+      description: |
+        Requires the effective role `it_admin` in the caller's institution (resolved from
+        `user_role`/`role`, not from the JWT `role` claim). Transactional: the family is
+        created entirely or not at all. Unknown fields (e.g. `category_id`) are rejected.
+        Strings are trimmed; blank optional texts are stored as `null`.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FamilyCreate' }
+          application/xml:
+            schema: { $ref: '#/components/schemas/FamilyCreate' }
+            example: |
+              <family>
+                <code>mayo_hegar_needle_holder</code>
+                <name>Portaagujas Mayo-Hegar</name>
+                <category_code>suturing</category_code>
+                <identify_text>Texto opcional</identify_text>
+                <active>true</active>
+              </family>
+      responses:
+        '201':
+          description: Family created
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FamilyItem' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/FamilyItem' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/catalog/categories:
+    get:
+      tags: [catalog]
+      summary: Instrument categories (DS03 catalog)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/CorrelationId' }, { $ref: '#/components/parameters/Accept' }]
+      responses:
+        '200':
+          description: Categories ordered by code (`categories/category` in XML)
+          content:
+            application/json: { schema: { type: array, items: { $ref: '#/components/schemas/CodeName' } } }
+            application/xml: { schema: { type: array, xml: { name: categories, wrapped: true }, items: { $ref: '#/components/schemas/CodeName' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/catalog/cycle-statuses:
+    get:
+      tags: [catalog]
+      summary: Instrument cycle statuses (DS03 catalog)
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/CorrelationId' }, { $ref: '#/components/parameters/Accept' }]
+      responses:
+        '200':
+          description: Cycle statuses ordered by code (`cycle_statuses/cycle_status` in XML)
+          content:
+            application/json: { schema: { type: array, items: { $ref: '#/components/schemas/CodeName' } } }
+            application/xml: { schema: { type: array, xml: { name: cycle_statuses, wrapped: true }, items: { $ref: '#/components/schemas/CodeName' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/catalog/families/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/Accept'
+    get:
+      tags: [catalog]
+      summary: Family detail (texts, category, kits of the caller's institution using it)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Family detail
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/FamilyDetail' } }
+            application/xml: { schema: { $ref: '#/components/schemas/FamilyDetail' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [catalog]
+      summary: Update a family (it_admin). `code` is immutable.
+      description: Records UPDATE_INSTRUMENT_FAMILY (fields changed) and ACTIVATE_/DEACTIVATE_ (status flip).
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/FamilyUpdate' } }
+          application/xml: { schema: { $ref: '#/components/schemas/FamilyUpdate' } }
+      responses:
+        '200':
+          description: Updated family
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/FamilyDetail' } }
+            application/xml: { schema: { $ref: '#/components/schemas/FamilyDetail' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/catalog/instruments:
+    get:
+      tags: [catalog]
+      summary: List instruments (physical pieces) of the caller's institution
+      description: |
+        Only rows with `institution_id` = the authenticated user's institution. Any
+        institution sent in the query is ignored. Ordered by `family_code`, `internal_code`
+        (nulls last), `id`.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Expand'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Instrument list
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/InstrumentItem' } }
+            application/xml:
+              schema:
+                type: array
+                xml: { name: instruments, wrapped: true }
+                items: { $ref: '#/components/schemas/InstrumentItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    post:
+      tags: [catalog]
+      summary: Register an instrument (it_admin, spd_supervisor)
+      description: |
+        Institution = the caller's. Writes the first cycle event (`registered`) and CREATE_INSTRUMENT.
+        409 `instrument_code_exists` when the internal code exists in the institution;
+        422 `invalid_family_or_cycle` for an unknown family or cycle status.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/CorrelationId' }, { $ref: '#/components/parameters/Accept' }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/InstrumentCreate' } }
+          application/xml: { schema: { $ref: '#/components/schemas/InstrumentCreate' } }
+      responses:
+        '201':
+          description: Created instrument
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/InstrumentDetail' } }
+            application/xml: { schema: { $ref: '#/components/schemas/InstrumentDetail' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/catalog/instruments/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - $ref: '#/components/parameters/CorrelationId'
+      - $ref: '#/components/parameters/Accept'
+    get:
+      tags: [catalog]
+      summary: Instrument detail with its last 10 cycle events (404 for another institution)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Instrument detail
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/InstrumentDetail' } }
+            application/xml: { schema: { $ref: '#/components/schemas/InstrumentDetail' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [catalog]
+      summary: Update an instrument (it_admin, spd_supervisor). `internal_code` is immutable.
+      description: |
+        `change_reason` is required (422 `change_reason_required`) when the cycle status or the
+        active status changes; that change also writes a cycle event with the reason.
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/InstrumentUpdate' } }
+          application/xml: { schema: { $ref: '#/components/schemas/InstrumentUpdate' } }
+      responses:
+        '200':
+          description: Updated instrument
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/InstrumentDetail' } }
+            application/xml: { schema: { $ref: '#/components/schemas/InstrumentDetail' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/catalog/kits:
+    get:
+      tags: [catalog]
+      summary: List kits of the caller's institution (without items)
+      description: |
+        Ordered by `name`, `version`, `id`. Items are obtained with `GET /kits/{id}`.
+        `it_admin` gets active and inactive kits; every other role only the active ones.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Expand'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Kit list
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/KitItem' } }
+            application/xml:
+              schema:
+                type: array
+                xml: { name: kits, wrapped: true }
+                items: { $ref: '#/components/schemas/KitItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    post:
+      tags: [catalog]
+      summary: Create a kit (it_admin, spd_supervisor); version = next for (institution, name)
+      description: |
+        Composition rules (422 `details.reason`): `empty_composition`, `invalid_quantity` (1..32767),
+        `duplicate_family`, `invalid_family`. Writes CREATE_KIT.
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/CorrelationId' }, { $ref: '#/components/parameters/Accept' }]
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/KitWrite' } }
+          application/xml: { schema: { $ref: '#/components/schemas/KitWrite' } }
+      responses:
+        '201':
+          description: Created kit
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/KitDetailExpanded' } }
+            application/xml: { schema: { $ref: '#/components/schemas/KitDetailExpanded' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/catalog/kits/{id}:
+    get:
+      tags: [catalog]
+      summary: Kit detail with items
+      description: |
+        Returns 404 when the id is not a UUID, does not exist, belongs to another
+        institution, or is inactive and the caller is not `it_admin` (indistinguishable cases).
+        Items ordered by `family_code`.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/Expand'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Kit detail (`KitDetailExpanded` with expand=detail)
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KitDetail' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/KitDetail' }
+              example: |
+                <kit>
+                  <id>k1000001-0000-4000-8000-000000000001</id>
+                  <name>Kit hernia inguinal abierta</name>
+                  <version>1</version>
+                  <active>true</active>
+                  <institution_id>11111111-1111-1111-1111-111111111111</institution_id>
+                  <items>
+                    <item>
+                      <family_id>f1000001-0000-4000-8000-000000000001</family_id>
+                      <family_code>mayo_hegar_needle_holder</family_code>
+                      <quantity>2</quantity>
+                    </item>
+                  </items>
+                </kit>
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    put:
+      tags: [catalog]
+      summary: Change a kit — creates a NEW version (it_admin, spd_supervisor)
+      description: |
+        Nothing changed → 200 with the same kit. Otherwise → 201 with the new version
+        (`superseded_kit_id` = the edited one): the edited version is kept, deactivated, and its
+        procedure links (procedure_kit) move to the new version. Writes UPDATE_KIT (new) and
+        SUPERSEDE_KIT (old, when it was active).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/KitWrite' } }
+          application/xml: { schema: { $ref: '#/components/schemas/KitWrite' } }
+      responses:
+        '200':
+          description: No change (same kit)
+          content: { application/json: { schema: { $ref: '#/components/schemas/KitDetailExpanded' } } }
+        '201':
+          description: New version created
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/KitDetailExpanded' } }
+            application/xml: { schema: { $ref: '#/components/schemas/KitDetailExpanded' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/catalog/openapi.yaml:
+    get: { tags: [docs], summary: This OpenAPI document, responses: { '200': { description: OpenAPI 3.0 YAML } } }
+  /api/v1/catalog/docs:
+    get: { tags: [docs], summary: Swagger UI (Authorize with a Bearer access token to try the API), responses: { '200': { description: HTML } } }
+  /api/v1/catalog/schemas/catalog.xsd:
+    get: { tags: [docs], summary: XML Schema of the XML representation, responses: { '200': { description: XSD } } }
+  /api/v1/catalog/schemas/catalog-requests.xsd:
+    get: { tags: [docs], summary: XML Schema every XML request body is validated against, responses: { '200': { description: XSD } } }
+  /health/live:
+    get:
+      tags: [health]
+      summary: Process is alive (no dependency checks)
+      responses:
+        '200':
+          description: Alive
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: live, checks: {}, correlation_id: corr-health-1 }
+  /health/database:
+    get:
+      tags: [health]
+      summary: PostgreSQL reachable (SELECT 1)
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /health/redis:
+    get:
+      tags: [health]
+      summary: Redis reachable (PING)
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Ready for traffic only if PostgreSQL and Redis are OK
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: ready, checks: { database: ok, redis: ok }, correlation_id: corr-health-1 }
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: not_ready, checks: { database: ok, redis: error }, correlation_id: corr-health-1 }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      description: Echoed back; generated (UUID) when missing or invalid.
+      schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' }
+    Expand:
+      name: expand
+      in: query
+      required: false
+      description: "`detail` selects the richer representation (FamilyDetail / InstrumentDetail / KitSummary / KitDetailExpanded). Any other value → 400."
+      schema: { type: string, enum: [detail] }
+    Accept:
+      name: Accept
+      in: header
+      required: false
+      schema: { type: string, enum: [application/json, application/xml, '*/*'] }
+  headers:
+    CorrelationId:
+      description: Correlation id of this request.
+      schema: { type: string }
+  schemas:
+    FamilyItem:
+      type: object
+      xml: { name: family }
+      required: [id, code, name, category_code, active]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, maxLength: 64 }
+        name: { type: string, maxLength: 160 }
+        category_code: { type: string, maxLength: 64 }
+        active: { type: boolean }
+    FamilyCreate:
+      type: object
+      xml: { name: family }
+      additionalProperties: false
+      required: [code, name, category_code]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 64, description: Globally unique family code. }
+        name: { type: string, minLength: 1, maxLength: 160 }
+        category_code: { type: string, minLength: 1, maxLength: 64, description: Must exist in cat_instrument_category.code. }
+        identify_text: { type: string, nullable: true }
+        classify_text: { type: string, nullable: true }
+        function_text: { type: string, nullable: true }
+        active: { type: boolean, default: true }
+    InstrumentItem:
+      type: object
+      xml: { name: instrument }
+      required: [id, internal_code, family_id, family_code, cycle_status_code, institution_id, active]
+      properties:
+        id: { type: string, format: uuid }
+        internal_code: { type: string, nullable: true, maxLength: 64 }
+        family_id: { type: string, format: uuid }
+        family_code: { type: string }
+        cycle_status_code: { type: string }
+        institution_id: { type: string, format: uuid }
+        active: { type: boolean }
+    KitItem:
+      type: object
+      xml: { name: kit }
+      required: [id, name, version, active, institution_id]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        version: { type: integer, minimum: 1 }
+        active: { type: boolean }
+        institution_id: { type: string, format: uuid }
+    KitLine:
+      type: object
+      xml: { name: item }
+      required: [family_id, family_code, quantity]
+      properties:
+        family_id: { type: string, format: uuid }
+        family_code: { type: string }
+        quantity: { type: integer, minimum: 1 }
+    KitDetail:
+      allOf:
+        - $ref: '#/components/schemas/KitItem'
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              xml: { name: items, wrapped: true }
+              items: { $ref: '#/components/schemas/KitLine' }
+    CodeName:
+      type: object
+      required: [id, code, name]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+    FamilyDetail:
+      allOf:
+        - $ref: '#/components/schemas/FamilyItem'
+        - type: object
+          properties:
+            category_id: { type: string, format: uuid }
+            category_name: { type: string }
+            identify_text: { type: string, nullable: true }
+            classify_text: { type: string, nullable: true }
+            function_text: { type: string, nullable: true }
+            available_count: { type: integer, description: Active pieces of the caller's institution in cycle status `available`. }
+            kits_using: { type: integer, description: "Active kits of the caller's institution using the family (GET/PUT /families/{id} only)." }
+    FamilyUpdate:
+      type: object
+      xml: { name: family }
+      additionalProperties: false
+      required: [name, category_code]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        category_code: { type: string, minLength: 1, maxLength: 64 }
+        identify_text: { type: string, nullable: true }
+        classify_text: { type: string, nullable: true }
+        function_text: { type: string, nullable: true }
+        active: { type: boolean, default: true }
+    CycleEvent:
+      type: object
+      xml: { name: cycle_event }
+      properties:
+        occurred_at: { type: string, format: date-time }
+        cycle_status_code: { type: string }
+        cycle_status_name: { type: string }
+        notes: { type: string, nullable: true }
+    InstrumentDetail:
+      allOf:
+        - $ref: '#/components/schemas/InstrumentItem'
+        - type: object
+          properties:
+            family_name: { type: string }
+            category_code: { type: string }
+            category_name: { type: string }
+            cycle_status_name: { type: string }
+            cycle_events:
+              type: array
+              description: Last 10 cycle events, newest first (detail, create and update responses).
+              xml: { name: cycle_events, wrapped: true }
+              items: { $ref: '#/components/schemas/CycleEvent' }
+    InstrumentCreate:
+      type: object
+      xml: { name: instrument }
+      additionalProperties: false
+      required: [internal_code, family_id, cycle_status_code]
+      properties:
+        internal_code: { type: string, minLength: 1, maxLength: 64 }
+        family_id: { type: string, format: uuid }
+        cycle_status_code: { type: string }
+        active: { type: boolean, default: true }
+    InstrumentUpdate:
+      type: object
+      xml: { name: instrument }
+      additionalProperties: false
+      required: [family_id, cycle_status_code]
+      properties:
+        family_id: { type: string, format: uuid }
+        cycle_status_code: { type: string }
+        active: { type: boolean, default: true }
+        change_reason: { type: string, nullable: true, maxLength: 500 }
+    KitSummary:
+      allOf:
+        - $ref: '#/components/schemas/KitItem'
+        - type: object
+          properties:
+            created_at: { type: string, format: date-time, nullable: true }
+            family_count: { type: integer }
+            total_expected: { type: integer }
+            procedures:
+              type: array
+              xml: { name: procedures, wrapped: true }
+              items: { allOf: [{ $ref: '#/components/schemas/CodeName' }], xml: { name: procedure } }
+    KitDetailExpanded:
+      allOf:
+        - $ref: '#/components/schemas/KitSummary'
+        - type: object
+          properties:
+            superseded_kit_id: { type: string, format: uuid, description: PUT that created a new version only. }
+            items:
+              type: array
+              xml: { name: items, wrapped: true }
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/KitLine'
+                  - type: object
+                    properties:
+                      family_name: { type: string }
+                      family_active: { type: boolean }
+                      category_code: { type: string }
+                      category_name: { type: string }
+                      available_count: { type: integer }
+    KitWrite:
+      type: object
+      xml: { name: kit }
+      additionalProperties: false
+      required: [name, items]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 160 }
+        active: { type: boolean, default: true }
+        items:
+          type: array
+          minItems: 1
+          xml: { name: items, wrapped: true }
+          items:
+            type: object
+            xml: { name: item }
+            required: [family_id, quantity]
+            properties:
+              family_id: { type: string, format: uuid }
+              quantity: { type: integer, minimum: 1, maximum: 32767 }
+    Error:
+      type: object
+      xml: { name: error_response }
+      required: [error, message, correlation_id, details]
+      properties:
+        error:
+          type: string
+          enum: [invalid_request, unauthorized, forbidden, not_found, method_not_allowed, conflict,
+                 payload_too_large, validation_error, invalid_reference, internal_error, dependency_unavailable]
+        message: { type: string }
+        correlation_id: { type: string }
+        details: { type: object, additionalProperties: true }
+    Health:
+      type: object
+      xml: { name: health }
+      required: [status, checks, correlation_id]
+      properties:
+        status: { type: string, enum: [live, ok, unavailable, ready, not_ready] }
+        checks:
+          type: object
+          additionalProperties: { type: string, enum: [ok, error] }
+        correlation_id: { type: string }
+  responses:
+    InvalidRequest:
+      description: Malformed body, wrong types, missing or unknown fields, unsupported Content-Type (`invalid_request`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: invalid_request, message: Unknown fields in request body, correlation_id: corr-1, details: { unknown_fields: [category_id] } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unauthorized:
+      description: Missing/invalid/expired token, revoked or absent Redis session, inactive user (`unauthorized`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: unauthorized, message: Bearer access token is required, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Forbidden:
+      description: Authenticated user lacks the required role (`forbidden`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    NotFound:
+      description: Resource not found or not visible to the caller's institution (`not_found`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Conflict:
+      description: Duplicate family code, instrument internal code (per institution) or kit name+version (`conflict`, `details.reason`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: conflict, message: An instrument family with this code already exists, correlation_id: corr-1, details: { field: code, value: POZZI } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    PayloadTooLarge:
+      description: Body larger than CATALOG_MAX_CONTENT_LENGTH (`payload_too_large`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unprocessable:
+      description: |
+        `validation_error` (empty value after trim, value longer than the column) or
+        `invalid_reference` (`category_code`, family or cycle status does not exist). Management
+        endpoints add `details.reason` (e.g. `change_reason_required`, `empty_composition`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: invalid_reference, message: category_code does not exist, correlation_id: corr-1, details: { field: category_code, value: nope } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    DependencyUnavailable:
+      description: PostgreSQL or Redis unavailable (`dependency_unavailable`, `details.dependency`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: dependency_unavailable, message: Redis is unavailable, correlation_id: corr-1, details: { dependency: redis } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    HealthOk:
+      description: Dependency OK
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Health' }
+          example: { status: ok, checks: { database: ok }, correlation_id: corr-health-1 }
+    HealthFailed:
+      description: Dependency unavailable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Health' }
+          example: { status: unavailable, checks: { database: error }, correlation_id: corr-health-1 }

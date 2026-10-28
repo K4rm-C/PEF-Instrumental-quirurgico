@@ -18,7 +18,6 @@ from models.YoloModel import YoloModel
 
 VISION_WORKER_URL = os.getenv("VISION_WORKER_URL", "http://127.0.0.1:5002").rstrip("/")
 VISION_WORKER_TIMEOUT = float(os.getenv("VISION_WORKER_TIMEOUT", "30"))
-VISION_WORKER_WS_URL = os.getenv("VISION_WORKER_WS_URL", "ws://127.0.0.1:5002/ws")
 CONF_DISPLAY_THRESHOLD = float(os.getenv("VISION_CONF_DISPLAY_THRESHOLD", "0.70"))
 
 
@@ -146,6 +145,18 @@ def fetch_state(session_id: UUID) -> dict[str, Any]:
     return resp.json()
 
 
+def fetch_state_quick(session_id: UUID, timeout: float = 1.5) -> dict[str, Any] | None:
+    """Current worker run (with a processed frame) for a checkpoint, or None; never raises."""
+    try:
+        resp = requests.get(f"{VISION_WORKER_URL}/sessions/{session_id}/state", timeout=timeout)
+        state = (resp.json() or {}).get("session") or {} if resp.status_code == 200 else {}
+    except (requests.RequestException, ValueError):
+        return None
+    if state.get("status") not in {"ready", "processing"} or not state.get("frames_processed"):
+        return None
+    return state
+
+
 def fetch_timeline(session_id: UUID, run_id: str | None = None) -> dict[str, Any]:
     """Sampled tallies written by the worker during video processing."""
     params = {}
@@ -164,17 +175,45 @@ def fetch_timeline(session_id: UUID, run_id: str | None = None) -> dict[str, Any
     return resp.json()
 
 
-def cancel_job(session_id: UUID) -> dict[str, Any]:
+def _worker_error(resp, default: str) -> VisionBridgeError:
+    detail = None
+    if resp.headers.get("content-type", "").startswith("application/json"):
+        detail = (resp.json() or {}).get("error")
+    return VisionBridgeError(detail or resp.text or default, resp.status_code)
+
+
+def store_video(session_id: UUID, file_storage) -> dict[str, Any]:
+    """Single-video flow: store the video; the worker analyses only its first valid frame."""
     try:
-        resp = requests.post(
-            f"{VISION_WORKER_URL}/sessions/{session_id}/cancel",
-            timeout=min(VISION_WORKER_TIMEOUT, 8),
-        )
+        files = {"video": (file_storage.filename, file_storage.stream,
+                           file_storage.mimetype or "application/octet-stream")}
+        resp = requests.post(f"{VISION_WORKER_URL}/sessions/{session_id}/video", files=files,
+                             timeout=max(VISION_WORKER_TIMEOUT, 120))
+    except requests.RequestException as exc:
+        raise VisionBridgeError(f"Vision upload failed: {exc}", 503) from exc
+    if resp.status_code >= 400:
+        raise _worker_error(resp, "Vision upload failed")
+    return resp.json()
+
+
+def process_stored_video(session_id: UUID, video_id: str) -> dict[str, Any]:
+    """Single-video flow: full run of the stored video (after the initial count)."""
+    try:
+        resp = requests.post(f"{VISION_WORKER_URL}/sessions/{session_id}/video/{video_id}/process",
+                             timeout=min(VISION_WORKER_TIMEOUT, 15))
     except requests.RequestException as exc:
         raise VisionBridgeError(f"Vision worker unreachable: {exc}", 503) from exc
     if resp.status_code >= 400:
-        raise VisionBridgeError(f"Vision cancel failed: {resp.text}", resp.status_code)
-    return resp.json() if resp.content else {"ok": True}
+        raise _worker_error(resp, "Vision processing could not start")
+    return resp.json()
+
+
+def discard_video(session_id: UUID) -> None:
+    """Drop the uploaded video (best effort)."""
+    try:
+        requests.delete(f"{VISION_WORKER_URL}/sessions/{session_id}/video", timeout=min(VISION_WORKER_TIMEOUT, 8))
+    except requests.RequestException:
+        pass
 
 
 def upload_video(session_id: UUID, file_storage) -> dict[str, Any]:

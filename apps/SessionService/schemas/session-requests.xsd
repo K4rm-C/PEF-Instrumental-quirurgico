@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PEF Session Service - XML request bodies (PEF-DS09 §1.3.4, complement v0.2.0).
+
+  Every XML body is validated against this schema after the well-formedness / root / duplicate
+  checks. A document that does not conform is answered 400 invalid_request with
+  details.reason = "xsd_validation_failed", details.schema and details.errors (line, message).
+  Top-level elements the operation does not accept are reported first as details.unknown_fields
+  (same answer as for JSON).
+
+  The schema fixes structure only: which elements each request accepts, the list containers and
+  their item elements, no attributes other than xsi:nil, no mixed content. Leaves are xs:string so
+  types and business rules (UUIDs, integers, booleans true/false/1/0, ranges, references, states) are
+  validated by the service and answered with the same errors for JSON and XML.
+  null = empty element with xsi:nil="true".
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+
+  <xs:complexType name="ExpectedLine">
+    <xs:all>
+      <xs:element name="family_id" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="expected_quantity" type="xs:string" minOccurs="0" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+  <xs:complexType name="ExpectedLines">
+    <xs:sequence>
+      <xs:element name="line" type="ExpectedLine" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+  <xs:complexType name="Physician">
+    <xs:all>
+      <xs:element name="physician_id" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="surgical_role_code" type="xs:string" minOccurs="0" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+  <xs:complexType name="Physicians">
+    <xs:sequence>
+      <xs:element name="physician" type="Physician" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- POST /sessions/schedule (operation + team + session + inventory, optional privacy) -->
+  <xs:element name="schedule_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="operator_user_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="procedure_type_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="room_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="station_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="kit_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="patient_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="scheduled_at" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="phase_code" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="physicians" type="Physicians" minOccurs="0"/>
+        <xs:element name="expected_lines" type="ExpectedLines" minOccurs="0"/>
+        <xs:element name="privacy_notice_version_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="purpose_model_improvement" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- PUT /sessions/{id} (full edit while scheduled) -->
+  <xs:element name="session_update_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="operator_user_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="procedure_type_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="room_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="station_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="kit_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="patient_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="scheduled_at" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="physicians" type="Physicians" minOccurs="0"/>
+        <xs:element name="expected_lines" type="ExpectedLines" minOccurs="0"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- PUT /sessions/{id}/privacy-agreement -->
+  <xs:element name="privacy_agreement_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="privacy_notice_version_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="purpose_model_improvement" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- POST /sessions (session on an existing operation, DS09 v0.1.7) -->
+  <xs:element name="session_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="operation_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="user_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="station_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="kit_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="phase_code" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="expected_lines" type="ExpectedLines" minOccurs="0"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- PUT /sessions/{id}/expected-inventory -->
+  <xs:element name="expected_inventory_update">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="lines" type="ExpectedLines" minOccurs="0"/>
+        <xs:element name="physically_added" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- POST /sessions/{id}/discrepancies/{discrepancy_id}/resolve -->
+  <xs:element name="resolve_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="notes" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="outcome" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="instrument_id" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- POST /sessions/{id}/close -->
+  <xs:element name="close_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="material_recovered" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="contingency_reviewed" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="unreconciled_shortage_acknowledged" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- POST /sessions/{id}/operator-close (station_operator, reconciled vision session) -->
+  <xs:element name="operator_close_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="physical_integrity_confirmed" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="material_recovered" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- Legacy Operator writes (disabled unless SESSION_OPERATOR_WRITES_ENABLED=true) -->
+  <xs:element name="start_request">
+    <xs:complexType><xs:sequence/></xs:complexType>
+  </xs:element>
+  <xs:element name="vision_counts">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="client_event_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="occurred_at" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="model_version" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="trigger" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="counts" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="count" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:all>
+                    <xs:element name="family_id" type="xs:string" minOccurs="0" nillable="true"/>
+                    <xs:element name="detected_quantity" type="xs:string" minOccurs="0" nillable="true"/>
+                  </xs:all>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="count_report">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="reports" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="report" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:all>
+                    <xs:element name="family_id" type="xs:string" minOccurs="0" nillable="true"/>
+                    <xs:element name="suggested_quantity" type="xs:string" minOccurs="0" nillable="true"/>
+                    <xs:element name="reported_quantity" type="xs:string" minOccurs="0" nillable="true"/>
+                    <xs:element name="reason_code" type="xs:string" minOccurs="0" nillable="true"/>
+                    <xs:element name="notes" type="xs:string" minOccurs="0" nillable="true"/>
+                  </xs:all>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

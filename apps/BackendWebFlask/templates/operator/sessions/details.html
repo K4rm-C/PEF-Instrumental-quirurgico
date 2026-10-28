@@ -44,6 +44,10 @@
     </div>
 </div>
 
+{% if operator_close %}
+{% include "operator/sessions/_operator_close.html" %}
+{% endif %}
+
 <div class="v3-stack" data-v3-tabs data-v3-tabs-hash>
     <div class="v3-tabs" role="tablist" aria-label="{{ _('Session details sections') }}">
         {% for key, label in detail_tabs %}

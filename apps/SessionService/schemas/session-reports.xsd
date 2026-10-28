@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PEF Session Service — XML responses of the Supervisor reports (DS09 §1.3.4 complement v0.3.0).
+     GET /api/v1/sessions/reports/{summary|kits|operators|options} with Accept: application/xml.
+     Null metrics are xsi:nil="true" (a metric without data is not 0). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+  <xs:complexType name="Filters">
+    <xs:all>
+      <xs:element name="from" type="xs:dateTime"/>
+      <xs:element name="to" type="xs:dateTime"/>
+      <xs:element name="tz" type="xs:string"/>
+      <xs:element name="kit_id" type="xs:string" nillable="true"/>
+      <xs:element name="operator_id" type="xs:string" nillable="true"/>
+      <xs:element name="status" type="xs:string" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Breakdown">
+    <xs:all>
+      <xs:element name="family_id" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="code" type="xs:string" nillable="true"/>
+      <xs:element name="name" type="xs:string" nillable="true"/>
+      <xs:element name="total" type="xs:integer"/>
+      <xs:element name="open" type="xs:integer"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:element name="report_summary">
+    <xs:complexType><xs:all>
+      <xs:element name="filters" type="Filters"/>
+      <xs:element name="sessions">
+        <xs:complexType><xs:all>
+          <xs:element name="total" type="xs:integer"/>
+          <xs:element name="by_status">
+            <xs:complexType><xs:sequence>
+              <xs:element name="status" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType><xs:all>
+                  <xs:element name="code" type="xs:string"/><xs:element name="count" type="xs:integer"/>
+                </xs:all></xs:complexType>
+              </xs:element>
+            </xs:sequence></xs:complexType>
+          </xs:element>
+          <xs:element name="scheduled" type="xs:integer"/>
+          <xs:element name="in_progress" type="xs:integer"/>
+          <xs:element name="pending_review" type="xs:integer"/>
+          <xs:element name="closed" type="xs:integer"/>
+          <xs:element name="reported" type="xs:integer"/>
+          <xs:element name="timed" type="xs:integer"/>
+          <xs:element name="avg_duration_minutes" type="xs:decimal" nillable="true"/>
+          <xs:element name="reported_with_discrepancies" type="xs:integer"/>
+          <xs:element name="with_discrepancies_pct" type="xs:decimal" nillable="true"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="discrepancies">
+        <xs:complexType><xs:all>
+          <xs:element name="total" type="xs:integer"/>
+          <xs:element name="open" type="xs:integer"/>
+          <xs:element name="resolved" type="xs:integer"/>
+          <xs:element name="timed" type="xs:integer"/>
+          <xs:element name="avg_resolution_minutes" type="xs:decimal" nillable="true"/>
+          <xs:element name="by_reason">
+            <xs:complexType><xs:sequence>
+              <xs:element name="reason" type="Breakdown" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence></xs:complexType>
+          </xs:element>
+          <xs:element name="by_family">
+            <xs:complexType><xs:sequence>
+              <xs:element name="family" type="Breakdown" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence></xs:complexType>
+          </xs:element>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="ai_agreement">
+        <xs:complexType><xs:all>
+          <xs:element name="pairs" type="xs:integer"/>
+          <xs:element name="agreed" type="xs:integer"/>
+          <xs:element name="corrections" type="xs:integer"/>
+          <xs:element name="min_pairs" type="xs:integer"/>
+          <xs:element name="sufficient" type="xs:boolean"/>
+          <xs:element name="agreement_pct" type="xs:decimal" nillable="true"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="activity">
+        <xs:complexType><xs:sequence>
+          <xs:element name="day" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="date" type="xs:date"/>
+              <xs:element name="sessions" type="xs:integer"/>
+              <xs:element name="reported" type="xs:integer"/>
+              <xs:element name="with_discrepancies" type="xs:integer"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="kit_report">
+    <xs:complexType><xs:all>
+      <xs:element name="filters" type="Filters"/>
+      <xs:element name="page" type="xs:integer"/>
+      <xs:element name="per_page" type="xs:integer"/>
+      <xs:element name="total" type="xs:integer"/>
+      <xs:element name="total_pages" type="xs:integer"/>
+      <xs:element name="kits">
+        <xs:complexType><xs:sequence>
+          <xs:element name="kit" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="kit_id" type="xs:string" nillable="true"/>
+              <xs:element name="name" type="xs:string" nillable="true"/>
+              <xs:element name="version" type="xs:integer" nillable="true"/>
+              <xs:element name="active" type="xs:boolean" nillable="true"/>
+              <xs:element name="sessions" type="xs:integer"/>
+              <xs:element name="reported_sessions" type="xs:integer"/>
+              <xs:element name="sessions_with_discrepancies" type="xs:integer"/>
+              <xs:element name="discrepancies" type="xs:integer"/>
+              <xs:element name="expected_quantity" type="xs:integer" nillable="true"/>
+              <xs:element name="expected_quantity_counted" type="xs:integer" nillable="true"/>
+              <xs:element name="reported_quantity" type="xs:integer" nillable="true"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="operator_report">
+    <xs:complexType><xs:all>
+      <xs:element name="filters" type="Filters"/>
+      <xs:element name="page" type="xs:integer"/>
+      <xs:element name="per_page" type="xs:integer"/>
+      <xs:element name="total" type="xs:integer"/>
+      <xs:element name="total_pages" type="xs:integer"/>
+      <xs:element name="min_pairs" type="xs:integer"/>
+      <xs:element name="operators">
+        <xs:complexType><xs:sequence>
+          <xs:element name="operator" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="operator_id" type="xs:string"/>
+              <xs:element name="name" type="xs:string"/>
+              <xs:element name="sessions" type="xs:integer"/>
+              <xs:element name="started_sessions" type="xs:integer"/>
+              <xs:element name="counts_completed" type="xs:integer"/>
+              <xs:element name="family_counts" type="xs:integer"/>
+              <xs:element name="ai_pairs" type="xs:integer"/>
+              <xs:element name="ai_agreed" type="xs:integer"/>
+              <xs:element name="human_corrections" type="xs:integer"/>
+              <xs:element name="discrepancies" type="xs:integer"/>
+              <xs:element name="agreement_pct" type="xs:decimal" nillable="true"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="report_options">
+    <xs:complexType><xs:all>
+      <xs:element name="kits">
+        <xs:complexType><xs:sequence>
+          <xs:element name="kit" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="id" type="xs:string"/><xs:element name="name" type="xs:string"/>
+              <xs:element name="version" type="xs:integer"/><xs:element name="active" type="xs:boolean"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="operators">
+        <xs:complexType><xs:sequence>
+          <xs:element name="operator" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="id" type="xs:string"/><xs:element name="name" type="xs:string"/>
+              <xs:element name="active" type="xs:boolean"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="statuses">
+        <xs:complexType><xs:sequence>
+          <xs:element name="status" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="error_response">
+    <xs:complexType><xs:all>
+      <xs:element name="error" type="xs:string"/>
+      <xs:element name="message" type="xs:string"/>
+      <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+      <xs:element name="details">
+        <xs:complexType><xs:sequence>
+          <xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+</xs:schema>

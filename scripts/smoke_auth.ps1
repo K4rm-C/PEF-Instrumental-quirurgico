@@ -3,6 +3,8 @@ $ErrorActionPreference = "Stop"
 $base = "http://127.0.0.1:5001"
 $email = "operator@instrumed.com"
 $password = "DemopwdOP78!"
+# Redis password from the root .env (same value docker compose passes to the redis service).
+$redisPass = (Get-Content ".env" | Where-Object { $_ -match "^REDIS_PASSWORD=" } | Select-Object -First 1) -replace "^REDIS_PASSWORD=", ""
 
 Write-Host "== health =="
 $health = Invoke-RestMethod -Uri "$base/health" -Method Get
@@ -22,7 +24,7 @@ $access = $session.Cookies.GetCookies($base) | Where-Object { $_.Name -eq "acces
 if (-not $access) { throw "access_token cookie missing" }
 
 Write-Host "== redis jwt keys =="
-docker exec pef_redis redis-cli -a MedRedis --no-auth-warning KEYS "auth:jwt:*"
+docker compose exec -T redis redis-cli -a $redisPass --no-auth-warning KEYS "auth:jwt:*"
 
 Write-Host "== verify =="
 $verify = Invoke-RestMethod -Uri "$base/verify" -Method Get -Headers @{ Authorization = "Bearer $($access.Value)" }
@@ -33,6 +35,6 @@ Write-Host "== logout =="
 Invoke-RestMethod -Uri "$base/logout" -Method Post -Headers @{ Authorization = "Bearer $($access.Value)" } | Out-Null
 
 Write-Host "== redis after logout (revoked or empty) =="
-docker exec pef_redis redis-cli -a MedRedis --no-auth-warning KEYS "auth:jwt:*"
+docker compose exec -T redis redis-cli -a $redisPass --no-auth-warning KEYS "auth:jwt:*"
 
 Write-Host "OK smoke_auth"

@@ -19,6 +19,9 @@ def create_app():
 	babel.init_app(app, locale_selector=select_locale)
 	install_jinja_gettext(app)
 	app.register_blueprint(web_bp)
+	# PEF-DS06 checkpoints: background outbox (no-op unless MONGO_URL is configured).
+	from services import mongo_checkpoints
+	mongo_checkpoints.start_outbox_thread(app)
 
 	@app.before_request
 	def log_request_start():

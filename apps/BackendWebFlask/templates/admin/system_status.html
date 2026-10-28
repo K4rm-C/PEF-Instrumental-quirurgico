@@ -1,0 +1,264 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Administration · System status (MonitoringService). Every figure on this page is a stored,
+    real measurement of the collector; nothing is static. Expected context: overview (rows, counts,
+    series, collector) or none, history {rows, page, pages, total}, history_filters, window, windows,
+    component_options, status_options, monitoring_notice, previous_url / next_url.
+#}
+{% set hf = history_filters|default({'component': '', 'status': ''}, true) %}
+
+{% block title %}{{ _("System Status") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'system_status' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("System") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("System Status") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/system-status.css') }}">
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("System Status") }}</h1>
+        <p class="page-heading__subtitle">
+            {% if overview and overview.collector.last_run_at %}
+                {{ _("Measured by the monitoring service every %(seconds)s s · last check %(when)s",
+                     seconds=overview.collector.interval_seconds|int, when=overview.collector.last_run_at) }}
+            {% else %}
+                {{ _("Availability, dependencies and latency measured by the monitoring service") }}
+            {% endif %}
+        </p>
+    </div>
+</div>
+
+{% if monitoring_notice %}
+<div class="alert alert--warning" role="status" data-monitoring-unavailable>
+    <span class="alert__message">{{ monitoring_notice }}</span>
+</div>
+{% endif %}
+
+{% if overview %}
+<section class="system-status-counts" aria-label="{{ _('Components by status') }}">
+    {{ macros.stat_card(_("Available"), overview.counts.up, 'success') }}
+    {{ macros.stat_card(_("Degraded"), overview.counts.degraded, 'warning') }}
+    {{ macros.stat_card(_("Unavailable"), overview.counts.down, 'danger') }}
+    {{ macros.stat_card(_("Unknown"), overview.counts.unknown, 'neutral') }}
+</section>
+
+<section class="card">
+    <div class="card__header">
+        <div>
+            <h2 class="card__title">{{ _("Components") }}</h2>
+            <p class="card__subtitle">{{ _("Latest check of each component. A component without a recent check is shown as unknown.") }}</p>
+        </div>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table" data-system-status-table>
+            <thead>
+                <tr>
+                    <th>{{ _("Component") }}</th>
+                    <th>{{ _("Status") }}</th>
+                    <th>{{ _("Last check") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Latency") }}</th>
+                    <th class="data-table__numeric-column">{{ _("HTTP") }}</th>
+                    <th>{{ _("Dependencies") }}</th>
+                    <th>{{ _("Error") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in overview.rows %}
+                <tr data-component="{{ row.name }}" data-status="{{ row.status }}">
+                    <td>
+                        <span class="system-status__name">{{ _(row.label) }}</span>
+                        {% if row.endpoint %}<span class="system-status__endpoint">{{ row.endpoint }}</span>{% endif %}
+                    </td>
+                    <td>
+                        {{ macros.status_badge(row.status_label, row.variant) }}
+                        {% if row.freshness_label %}<span class="system-status__note">{{ _(row.freshness_label) }}</span>{% endif %}
+                    </td>
+                    <td>{{ row.checked_at or '—' }}</td>
+                    <td class="data-table__numeric-column">{% if row.latency_ms is not none %}{{ '%.1f'|format(row.latency_ms) }} ms{% else %}—{% endif %}</td>
+                    <td class="data-table__numeric-column">{{ row.http_status or '—' }}</td>
+                    <td>
+                        {% for dep in row.dependencies %}
+                        <span class="system-status__dep system-status__dep--{{ 'ok' if dep.status == 'ok' else 'error' }}">{{ dep.name }}: {{ dep.status }}</span>
+                        {% else %}—{% endfor %}
+                        {% if row.details.pending_events is defined %}<span class="system-status__note">{{ _("%(count)s pending events", count=row.details.pending_events) }}</span>{% endif %}
+                    </td>
+                    <td>{% if row.error_type %}{{ _(row.error_label) }} <code>{{ row.error_type }}</code>{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card">
+    <div class="card__header">
+        <div>
+            <h2 class="card__title">{{ _("Availability and latency") }}</h2>
+            <p class="card__subtitle">{{ _("Aggregated from the stored checks. Latency only counts checks the component answered.") }}</p>
+        </div>
+        <form method="get" action="{{ url_for('web.admin_system_status') }}" class="system-status__window">
+            <label class="form-field__label" for="status-window">{{ _("Window") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__input--plain form-field__select" id="status-window" name="window" onchange="this.form.submit()">
+                    {% for item in windows %}<option value="{{ item }}" {% if item == window %}selected{% endif %}>{{ _("Last %(window)s", window=item) }}</option>{% endfor %}
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+            <noscript><button class="btn btn--secondary btn--small" type="submit">{{ _("Apply") }}</button></noscript>
+        </form>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>{{ _("Component") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Checks") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Availability") }}</th>
+                    <th class="data-table__numeric-column">{{ _("All dependencies OK") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Average latency") }}</th>
+                    <th class="data-table__numeric-column">{{ _("p95 latency") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in overview.rows %}
+                {% set st = row.stats %}
+                <tr>
+                    <td>{{ _(row.label) }}</td>
+                    <td class="data-table__numeric-column">{{ st.checks|default(0) }}</td>
+                    <td class="data-table__numeric-column">{% if st.availability_pct is not none and st.availability_pct is defined %}{{ '%.1f'|format(st.availability_pct) }} %{% else %}{{ _("No data") }}{% endif %}</td>
+                    <td class="data-table__numeric-column">{% if st.up_pct is not none and st.up_pct is defined %}{{ '%.1f'|format(st.up_pct) }} %{% else %}—{% endif %}</td>
+                    <td class="data-table__numeric-column">{% if st.avg_latency_ms is not none and st.avg_latency_ms is defined %}{{ '%.1f'|format(st.avg_latency_ms) }} ms{% else %}—{% endif %}</td>
+                    <td class="data-table__numeric-column">{% if st.p95_latency_ms is not none and st.p95_latency_ms is defined %}{{ '%.1f'|format(st.p95_latency_ms) }} ms{% else %}—{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if overview.series %}
+    <div class="system-status__chart" id="latency-chart" role="img"
+         aria-label="{{ _('Average latency per component over time') }}"></div>
+    <script type="application/json" id="latency-series">{{ overview.series|tojson }}</script>
+    {% else %}
+    <p class="system-status__empty">{{ _("No measurements in this window yet.") }}</p>
+    {% endif %}
+</section>
+
+<section class="card">
+    <div class="card__header">
+        <div>
+            <h2 class="card__title">{{ _("Recent checks") }}</h2>
+            <p class="card__subtitle">{{ _("Stored history (kept for 7 days)") }}</p>
+        </div>
+        <form method="get" action="{{ url_for('web.admin_system_status') }}" class="system-status__filters">
+            <input type="hidden" name="window" value="{{ window }}">
+            <div class="form-field">
+                <label class="form-field__label" for="history-component">{{ _("Component") }}</label>
+                <div class="form-field__input-wrapper">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="history-component" name="component" onchange="this.form.submit()">
+                        <option value="">{{ _("All Components") }}</option>
+                        {% for value, label in component_options %}<option value="{{ value }}" {% if hf.component == value %}selected{% endif %}>{{ _(label) }}</option>{% endfor %}
+                    </select>
+                    <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+                </div>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="history-status">{{ _("Status") }}</label>
+                <div class="form-field__input-wrapper">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="history-status" name="status" onchange="this.form.submit()">
+                        <option value="">{{ _("All") }}</option>
+                        {% for value, label in status_options %}<option value="{{ value }}" {% if hf.status == value %}selected{% endif %}>{{ _(label) }}</option>{% endfor %}
+                    </select>
+                    <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+                </div>
+            </div>
+            <noscript><button class="btn btn--secondary btn--small" type="submit">{{ _("Apply") }}</button></noscript>
+        </form>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table" data-history-table>
+            <thead>
+                <tr>
+                    <th>{{ _("Checked at") }}</th>
+                    <th>{{ _("Component") }}</th>
+                    <th>{{ _("Status") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Latency") }}</th>
+                    <th class="data-table__numeric-column">{{ _("HTTP") }}</th>
+                    <th>{{ _("Error") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in history.rows %}
+                <tr>
+                    <td>{{ row.checked_at }}</td>
+                    <td>{{ _(row.label) }}</td>
+                    <td>{{ macros.status_badge(row.status_label, row.variant) }}</td>
+                    <td class="data-table__numeric-column">{% if row.latency_ms is not none %}{{ '%.1f'|format(row.latency_ms) }} ms{% else %}—{% endif %}</td>
+                    <td class="data-table__numeric-column">{{ row.http_status or '—' }}</td>
+                    <td>{% if row.error_type %}{{ _(row.error_label) }}{% else %}—{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6">{{ _("No checks match these filters.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <nav class="pagination" aria-label="{{ _('Pagination') }}">
+        <p class="pagination__info">{{ _("%(total)s checks", total=history.total) }}</p>
+        <div class="pagination__controls">
+            <a class="btn btn--secondary btn--small" href="{{ previous_url or '#' }}" {% if not previous_url %}aria-disabled="true"{% endif %}>{{ _("Previous") }}</a>
+            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=history.page, total=history.pages) }}</span>
+            <a class="btn btn--secondary btn--small" href="{{ next_url or '#' }}" {% if not next_url %}aria-disabled="true"{% endif %}>{{ _("Next") }}</a>
+        </div>
+    </nav>
+</section>
+{% endif %}
+{% endblock %}
+
+{% block page_scripts %}
+{% if overview and overview.series %}
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script>
+(function () {
+    var target = document.getElementById("latency-chart");
+    var data = document.getElementById("latency-series");
+    if (!target || !data || !window.Highcharts) {
+        return;
+    }
+    var series = JSON.parse(data.textContent);
+    var style = getComputedStyle(document.documentElement);
+    var text = (style.getPropertyValue("--color-text-secondary") || "#555").trim();
+    var grid = (style.getPropertyValue("--color-border") || "#ddd").trim();
+    Highcharts.chart(target, {
+        chart: {type: "line", backgroundColor: "transparent", height: 320, style: {fontFamily: "inherit"}},
+        title: {text: null},
+        credits: {enabled: false},
+        time: {useUTC: false},
+        xAxis: {type: "datetime", labels: {style: {color: text}}, lineColor: grid, tickColor: grid},
+        yAxis: {title: {text: {{ _("Average latency (ms)")|tojson }}, style: {color: text}}, min: 0,
+                labels: {style: {color: text}}, gridLineColor: grid},
+        legend: {itemStyle: {color: text}},
+        tooltip: {shared: true, valueSuffix: " ms", valueDecimals: 1},
+        plotOptions: {series: {marker: {radius: 2}, connectNulls: false}},
+        series: series.map(function (entry) {
+            return {name: entry.name, data: entry.latency.map(function (point) { return [Date.parse(point[0]), point[1]]; })};
+        })
+    });
+})();
+</script>
+{% endif %}
+{% endblock %}

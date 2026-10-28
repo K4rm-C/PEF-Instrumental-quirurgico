@@ -252,6 +252,8 @@ data/labels/
 *.avi
 *.mov
 *.mkv
+*.webm
+*.m4v
 *.zip
 *.7z
 *.tar
@@ -279,3 +281,26 @@ Desktop.ini
 *.log
 *.sqlite3
 dump.rdb
+
+# Isolated E2E environment (scripts/e2e/isolated.py): generated secrets, logs, outbox, videos
+.e2e/
+
+# Artefactos de evidencia creados para la entrega académica; no pertenecen al código fuente.
+evidencias_segundo_parcial/
+scripts/evidencias/
+
+# Métricas y archivos producidos por VisionWorker en ejecución.
+apps/VisionWorker/uploads/*
+!apps/VisionWorker/uploads/.gitkeep
+
+# Configuracion privada de Garage, creada en el equipo local.
+/infra/garage.toml
+
+# La traduccion compilada se necesita para la imagen Docker.
+!apps/BackendWebFlask/translations/es_MX/LC_MESSAGES/messages.mo
+
+# Artefactos locales que no se incluyen en el repositorio.
+/docs/integracion/
+/apps/BackendWebFlask/prompts/
+/apps/BackendWebFlask/ui_reference/
+/Evidencias_Segundo_Parcial.zip

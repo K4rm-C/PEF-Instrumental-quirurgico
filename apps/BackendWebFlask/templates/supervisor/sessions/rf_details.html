@@ -205,6 +205,47 @@
         </tbody>
     </table>
 </div>
+{% if vision_panel %}
+{# PEF-DS06 visual evidence (MongoDB checkpoint_frame / session_telemetry), read server-side. #}
+<h3 class="card__title" style="margin-top:1.25rem;">{{ _("Visual checkpoints") }}</h3>
+{% if not vision_panel.available %}
+<p class="text-muted" data-checkpoints-unavailable>{{ _("Visual evidence is not available right now. Counting facts above come from PostgreSQL.") }}</p>
+{% else %}
+<div class="table-wrapper">
+    <table class="data-table" data-checkpoints>
+        <thead>
+            <tr>
+                <th scope="col">#</th>
+                <th scope="col">{{ _("When") }}</th>
+                <th scope="col">{{ _("Reason") }}</th>
+                <th scope="col">{{ _("Phase") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Detections") }}</th>
+                <th scope="col">{{ _("Evidence") }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for checkpoint in vision_panel.checkpoints %}
+            <tr>
+                <td>{{ checkpoint.session_checkpoint_seq }}</td>
+                <td>{{ checkpoint.captured_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td><code>{{ checkpoint.reason }}</code></td>
+                <td>{{ checkpoint.phase_code or '—' }}</td>
+                <td class="data-table__numeric-column">{{ checkpoint.detections|length }}</td>
+                <td>{% if checkpoint.media_asset_id %}<code>{{ checkpoint.media_asset_id[:8] }}</code>{% else %}—{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6">{{ _("No visual checkpoints yet.") }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if vision_panel.telemetry %}
+<p class="text-muted" data-telemetry-summary>
+    {{ _("Processing telemetry: %(samples)s samples · %(fps).1f FPS average · %(latency).0f ms average latency · %(drops)s frames skipped.", samples=vision_panel.telemetry.samples, fps=vision_panel.telemetry.fps_avg or 0, latency=vision_panel.telemetry.latency_ms_avg or 0, drops=vision_panel.telemetry.drops or 0) }}
+</p>
+{% endif %}
+{% endif %}
+{% endif %}
 {% endset %}
 
 <div class="v3-page">
@@ -310,6 +351,28 @@
                     <input type="checkbox" name="material_recovered" value="1" required data-material-recovered>
                     <span>{{ _("Material recovered / reprocessing started") }}</span>
                 </label>
+                {% set physical_shortages = (session.discrepancies|default([]))|selectattr('physical_shortage')|list %}
+                {% if physical_shortages %}
+                <div class="alert alert--danger" role="note" data-unreconciled-shortage>
+                    <strong>{{ _("Unreconciled physical shortage") }}:</strong>
+                    {{ _("%(count)s physically missing instrument(s) were recorded and not documented as recovered. This session cannot be confirmed as a safe close: it will be closed and recorded as an unreconciled shortage.", count=physical_shortages|length) }}
+                </div>
+                <label class="form-field__checkbox">
+                    <input type="checkbox" name="unreconciled_shortage_acknowledged" value="1" required>
+                    <span>{{ _("I acknowledge that the missing instrument was not recovered and the session is closed as an unreconciled shortage, not as a safe close") }}</span>
+                </label>
+                {% endif %}
+                {% if contingency %}
+                <div class="alert alert--warning" role="note" data-contingency-summary>
+                    <strong>{{ _("Contingency count") }}:</strong>
+                    {{ _("reason %(reason)s, by %(user)s at %(when)s, verified total %(total)s.", reason=contingency.reason_code, user=contingency.user_name or '—', when=contingency.occurred_at.strftime('%Y-%m-%d %H:%M') if contingency.occurred_at else '—', total=contingency.verified_total if contingency.verified_total is not none else '—') }}
+                    {% if contingency.notes %}<br>{{ contingency.notes }}{% endif %}
+                </div>
+                <label class="form-field__checkbox">
+                    <input type="checkbox" name="contingency_reviewed" value="1" required>
+                    <span>{{ _("I reviewed the contingency count and its verified quantities") }}</span>
+                </label>
+                {% endif %}
             </div>
             <div class="v3-form-footer">
                 <button type="button" class="btn btn--secondary" data-wizard-back>{{ _("Back") }}</button>

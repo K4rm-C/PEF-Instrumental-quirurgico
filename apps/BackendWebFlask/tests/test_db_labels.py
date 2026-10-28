@@ -105,22 +105,23 @@ def test_known_text_with_other_uuid_uses_alias(in_locale):
 # --- Session rows: the Assigned Sessions bug ---------------------------------------------
 
 def _session_row(for_role='operator'):
-    procedure = SimpleNamespace(id=uuid.uuid4(), code='lap_chole', name='Colecistectomia laparoscopica')
-    kit = SimpleNamespace(id=KIT_ID, name='Kit laparoscopico basico')
-    station = SimpleNamespace(id=STATION_ID, name='Estacion cenital OR-01')
-    room = SimpleNamespace(id=uuid.uuid4(), code='OR-01', name='Quirofano 1')
-    operation = SimpleNamespace(id=uuid.uuid4(), procedure_type_id=procedure.id, room_id=room.id,
-                                scheduled_at=datetime(2026, 10, 7, 8, 0, tzinfo=timezone.utc))
-    status = SimpleNamespace(id=uuid.uuid4(), code='scheduled', name='Programada')
-    item = SimpleNamespace(id=uuid.uuid4(), operation_id=operation.id, status_id=status.id, kit_id=kit.id,
-                           station_id=station.id, user_id=uuid.uuid4(), capture_mode=None,
-                           started_at=None, ended_at=None, updated_at=None)
-    return view_data._build_session_row(
-        item, status_by_id={status.id: status}, operations={operation.id: operation},
-        users={item.user_id: 'Operador Demo'}, kits={kit.id: kit}, stations={station.id: station},
-        procedures={procedure.id: procedure}, rooms={room.id: room},
-        open_discrepancy_counts={}, agreement_session_ids=set(), for_role=for_role,
-    )
+    """A session snapshot (services/session_snapshot.py) turned into an RF list row."""
+    snapshot = {
+        'id': str(uuid.uuid4()),
+        'status': {'code': 'scheduled', 'name': 'Programada'},
+        'capture_mode': None,
+        'operator': {'id': str(uuid.uuid4()), 'name': 'Operador Demo'},
+        'operation': {
+            'id': str(uuid.uuid4()), 'scheduled_at': '2026-10-07T08:00:00Z', 'institution_id': str(uuid.uuid4()),
+            'procedure_type': {'id': str(uuid.uuid4()), 'code': 'lap_chole', 'name': 'Colecistectomia laparoscopica'},
+            'room': {'id': str(uuid.uuid4()), 'code': 'OR-01', 'name': 'Quirofano 1'},
+        },
+        'kit': {'id': str(KIT_ID), 'name': 'Kit laparoscopico basico'},
+        'station': {'id': str(STATION_ID), 'name': 'Estacion cenital OR-01'},
+        'started_at': None, 'ended_at': None, 'updated_at': None, 'closed_by_user_id': None,
+        'open_discrepancies': 0, 'has_privacy_agreement': False,
+    }
+    return view_data._build_session_row(snapshot, for_role=for_role)
 
 
 def test_session_row_names_follow_ui_language(in_locale):
@@ -160,7 +161,7 @@ def test_history_filters_use_ids_across_languages(in_locale):
 def test_operator_list_route_shows_localized_names(client, login, monkeypatch, in_locale):
     from controllers import routes
 
-    def rows(_user_id):
+    def rows(_user_id, _institution_id=None):
         return [_session_row()]
     monkeypatch.setattr(routes, 'operator_my_sessions', rows)
     login(locale='en')
@@ -180,7 +181,7 @@ def test_active_capture_localizes_names_but_keeps_worker_keys(client, login, mon
     import services.vision_bridge
     from controllers import routes
 
-    def detail(_session_id, _user_id):
+    def detail(_session_id, _user_id, _institution_id=None):
         row = _session_row()
         row.update({'status_code': 'in_progress', 'capture_mode': 'vision', 'expected_items': [{
             'family_id': 'f1', 'family_code': 'KELLY', 'family_name': view_data._family_label(

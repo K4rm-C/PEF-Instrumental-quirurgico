@@ -67,5 +67,10 @@ Start-AppWindow -Title "PEF BackendWeb :5000" -Directory "$Root\apps\BackendWebF
 Start-AppWindow -Title "PEF VisionWorker :5002" -Directory "$Root\apps\VisionWorker" -Command $VisionCmd
 
 Write-Host "Listo. Web http://127.0.0.1:5000  Auth http://127.0.0.1:5001  Vision http://127.0.0.1:5002" -ForegroundColor Green
+Write-Host "Catalog http://127.0.0.1:5003 (servicio compose catalog, iniciado por docker compose)" -ForegroundColor Green
+Write-Host "Session http://127.0.0.1:5004 (servicio compose session, iniciado por docker compose)" -ForegroundColor Green
+Write-Host "Evidence http://127.0.0.1:5005 (servicio compose evidence, iniciado por docker compose)" -ForegroundColor Green
 Write-Host "Garage S3 http://127.0.0.1:3900" -ForegroundColor Green
 Write-Host "Pesos YOLO: apps\VisionWorker\weights\best.pt (no se suben a GitHub)" -ForegroundColor Cyan
+
+Write-Host "Administración: integrada en Web 5000; Catalog: 5003; Session: 5004; Evidence: 5005"

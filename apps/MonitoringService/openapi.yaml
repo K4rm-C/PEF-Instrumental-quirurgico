@@ -1,0 +1,323 @@
+openapi: 3.0.3
+info:
+  title: PEF Monitoring Service — API v1
+  version: 1.0.0
+  description: |
+    Technical health of the PEF components (PEF-DS09 §1.3.6, Monitor service status — complement v0.1.0).
+    Read-only: the checks are made by the service's own collector process (`collector.py`, compose
+    `monitoring-collector`) and stored in PostgreSQL (`monitoring_run`, `monitoring_check`, retention 7 days).
+
+    - **Components:** web, auth, catalog, session, evidence, audit, notifications, notifications-worker, vision,
+      postgres, redis, mongo, garage.
+    - **Statuses:**
+      - `up`: answered and every dependency ok, within the latency threshold;
+      - `degraded`: answered, but a dependency failed, it was slow, the answer was invalid, or VisionWorker has no weights;
+      - `down`: no answer (refused, timeout, DNS), or it answered that nothing works;
+      - `unknown`: not configured, never checked, or the last check is older than the stale threshold
+        (3 × interval). A state that was not verified recently is never reported as available.
+    - **Measurements:** reachability, HTTP code, the `checks` of each component's health endpoint, and the
+      round-trip latency of the check. Nothing the infrastructure does not expose (no CPU, memory or request rates).
+    - **Aggregates:**
+      - `availability_pct` = (up + degraded) / (checks − unknown);
+      - `up_pct` = up / (checks − unknown);
+      - latency (avg, p95, min, max) over the answered checks.
+    - **Access:** `Authorization: Bearer <access_token>` of Auth Service (signature, expiry, `type=access`, Redis
+      session `auth:jwt:{jti}`, user and institution active).
+      - `it_admin`: full technical detail.
+      - `spd_supervisor`: status, last check and availability only, on `/services` and `/summary`.
+      - Others: 403.
+    - **Formats:** JSON, or XML (`Accept: application/xml`; `GET /api/v1/monitoring/schemas/monitoring.xsd`).
+    - **Correlation:** `X-Correlation-ID` is echoed, or generated if absent.
+servers:
+  - url: http://127.0.0.1:5008
+tags:
+  - name: monitoring
+  - name: health
+  - name: docs
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/monitoring/services:
+    get:
+      tags: [monitoring]
+      summary: Current state of every component (admin and supervisor; the supervisor gets the reduced view)
+      parameters: [{ $ref: '#/components/parameters/CorrelationId' }, { $ref: '#/components/parameters/Accept' }]
+      responses:
+        '200':
+          description: One entry per component, in a fixed order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ServiceList' }
+              example:
+                items:
+                  - name: catalog
+                    label: Catalog Service
+                    status: up
+                    checked_at: '2026-10-21T18:30:00Z'
+                    freshness: current
+                    kind: http_health
+                    measured_status: up
+                    check:
+                      id: 0a3e5e7c-4c4e-4f6c-9d2e-4b1d6a9f0c11
+                      run_id: 5f1d1c3e-7f49-4a57-8b8e-3d0d1f0e9a22
+                      component: catalog
+                      status: up
+                      checked_at: '2026-10-21T18:30:00Z'
+                      latency_ms: 18.4
+                      http_status: 200
+                      error_type: null
+                      endpoint: http://catalog:5003/health/ready
+                      dependencies: [{ name: database, status: ok }, { name: redis, status: ok }]
+                      details: {}
+                counts: { up: 12, degraded: 0, down: 1, unknown: 0 }
+                collector: { last_run_at: '2026-10-21T18:30:00Z', interval_seconds: 30, stale_after_seconds: 90 }
+            application/xml: { schema: { $ref: '#/components/schemas/ServiceList' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/monitoring/services/{name}:
+    get:
+      tags: [monitoring]
+      summary: One component — current state, recent checks and last-24 h aggregates (admin)
+      parameters:
+        - { name: name, in: path, required: true, schema: { $ref: '#/components/schemas/ComponentName' } }
+        - { name: recent, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Component detail
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Service' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Service' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/monitoring/history:
+    get:
+      tags: [monitoring]
+      summary: Stored checks, newest first (admin)
+      parameters:
+        - { name: component, in: query, schema: { $ref: '#/components/schemas/ComponentName' } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/Status' } }
+        - { name: from, in: query, schema: { type: string }, description: 'Checked at or after (ISO-8601 date or date-time; naive = UTC).' }
+        - { name: to, in: query, schema: { type: string }, description: 'Checked before (date-time) or during (date).' }
+        - { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+        - { name: per_page, in: query, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { name: sort, in: query, schema: { type: string, enum: ['-checked_at', checked_at], default: '-checked_at' } }
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Page of checks
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/CheckPage' } }
+            application/xml: { schema: { $ref: '#/components/schemas/CheckPage' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/monitoring/summary:
+    get:
+      tags: [monitoring]
+      summary: Availability and latency aggregates per component over a window (default the last 24 h)
+      parameters:
+        - { name: from, in: query, schema: { type: string } }
+        - { name: to, in: query, schema: { type: string }, description: 'Window up to 31 days.' }
+        - { name: component, in: query, schema: { $ref: '#/components/schemas/ComponentName' } }
+        - { name: bucket, in: query, schema: { type: string, enum: [1m, 5m, 15m, 1h, 6h, 1d] }, description: 'Adds a time series (at most 1500 points per component).' }
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Aggregates (the supervisor gets checks, availability_pct and up_pct only)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Summary' }
+              example:
+                window: { from: '2026-10-20T18:30:00Z', to: '2026-10-21T18:30:00Z' }
+                components:
+                  - { name: catalog, label: Catalog Service, checks: 2880, up: 2850, degraded: 10, down: 20, unknown: 0,
+                      availability_pct: 99.31, up_pct: 98.96, avg_latency_ms: 17.2, p95_latency_ms: 31.0,
+                      min_latency_ms: 6.1, max_latency_ms: 210.4 }
+                bucket: 1h
+                series:
+                  - name: catalog
+                    points: [{ bucket_start: '2026-10-21T17:00:00Z', checks: 120, availability_pct: 100.0, avg_latency_ms: 16.8 }]
+            application/xml: { schema: { $ref: '#/components/schemas/Summary' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /health:
+    get:
+      tags: [health]
+      security: []
+      summary: PostgreSQL and Redis of this service. Header X-Last-Run-Age-Seconds is the age of the collector's last stored cycle
+      responses: { '200': { description: ok }, '503': { description: unavailable } }
+  /health/live:
+    get: { tags: [health], security: [], summary: Process alive, responses: { '200': { description: live } } }
+  /health/ready:
+    get: { tags: [health], security: [], summary: Dependencies reachable, responses: { '200': { description: ready }, '503': { description: not_ready } } }
+  /api/v1/monitoring/openapi.yaml:
+    get: { tags: [docs], security: [], summary: This document, responses: { '200': { description: OpenAPI 3.0 YAML } } }
+  /api/v1/monitoring/docs:
+    get: { tags: [docs], security: [], summary: Swagger UI, responses: { '200': { description: HTML } } }
+  /api/v1/monitoring/schemas/monitoring.xsd:
+    get: { tags: [docs], security: [], summary: XML Schema, responses: { '200': { description: XSD } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    CorrelationId: { name: X-Correlation-ID, in: header, schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' } }
+    Accept: { name: Accept, in: header, schema: { type: string, enum: [application/json, application/xml, '*/*'] } }
+  schemas:
+    ComponentName:
+      type: string
+      enum: [web, auth, catalog, session, evidence, audit, notifications, notifications-worker, vision, postgres, redis, mongo, garage]
+    Status: { type: string, enum: [up, degraded, down, unknown] }
+    Dependency:
+      type: object
+      properties: { name: { type: string }, status: { type: string, enum: [ok, error] } }
+    Check:
+      type: object
+      xml: { name: check }
+      required: [component, status, checked_at]
+      properties:
+        id: { type: string, format: uuid }
+        run_id: { type: string, format: uuid }
+        component: { $ref: '#/components/schemas/ComponentName' }
+        status: { $ref: '#/components/schemas/Status' }
+        checked_at: { type: string, format: date-time }
+        latency_ms: { type: number, nullable: true, description: Measured round trip of the check }
+        http_status: { type: integer, nullable: true }
+        error_type:
+          type: string
+          nullable: true
+          enum: [not_configured, timeout, connect_timeout, connection_refused, dns_error, connection_error, request_error, dependency_failed,
+                 unexpected_status, invalid_response, slow_response, model_weights_missing, authentication_failed,
+                 invalid_configuration, process_not_connected, backlog_stalled, probe_error, null]
+        endpoint: { type: string, nullable: true, description: 'scheme://host:port/path, never credentials or query strings' }
+        dependencies: { type: array, items: { $ref: '#/components/schemas/Dependency' }, xml: { wrapped: true } }
+        details:
+          type: object
+          properties:
+            pending_events: { type: integer }
+            oldest_pending_seconds: { type: number, nullable: true }
+            bound_sessions: { type: integer }
+    Service:
+      type: object
+      xml: { name: service }
+      required: [name, label, status, checked_at, freshness]
+      properties:
+        name: { $ref: '#/components/schemas/ComponentName' }
+        label: { type: string }
+        status: { $ref: '#/components/schemas/Status' }
+        checked_at: { type: string, format: date-time, nullable: true }
+        freshness: { type: string, enum: [current, stale, never_checked] }
+        kind: { type: string, description: admin only }
+        measured_status: { allOf: [{ $ref: '#/components/schemas/Status' }], nullable: true, description: 'admin only: last measured status, even when stale' }
+        check: { allOf: [{ $ref: '#/components/schemas/Check' }], nullable: true, description: admin only }
+        recent: { type: array, items: { $ref: '#/components/schemas/Check' }, description: 'GET /services/{name} only' }
+        last_24h: { $ref: '#/components/schemas/Stats' }
+    ServiceList:
+      type: object
+      xml: { name: service_list }
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Service' }, xml: { wrapped: true } }
+        counts:
+          type: object
+          properties: { up: { type: integer }, degraded: { type: integer }, down: { type: integer }, unknown: { type: integer } }
+        collector:
+          type: object
+          description: admin only
+          properties:
+            last_run_at: { type: string, format: date-time, nullable: true }
+            interval_seconds: { type: number }
+            stale_after_seconds: { type: number }
+    CheckPage:
+      type: object
+      xml: { name: check_page }
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Check' }, xml: { wrapped: true } }
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+        sort: { type: string }
+    Stats:
+      type: object
+      properties:
+        name: { type: string }
+        label: { type: string }
+        checks: { type: integer }
+        up: { type: integer }
+        degraded: { type: integer }
+        down: { type: integer }
+        unknown: { type: integer }
+        availability_pct: { type: number, nullable: true, description: null when there are no known checks }
+        up_pct: { type: number, nullable: true }
+        avg_latency_ms: { type: number, nullable: true }
+        p95_latency_ms: { type: number, nullable: true }
+        min_latency_ms: { type: number, nullable: true }
+        max_latency_ms: { type: number, nullable: true }
+    Summary:
+      type: object
+      xml: { name: summary }
+      properties:
+        window:
+          type: object
+          properties: { from: { type: string, format: date-time }, to: { type: string, format: date-time } }
+        components: { type: array, items: { $ref: '#/components/schemas/Stats' }, xml: { wrapped: true } }
+        bucket: { type: string }
+        series:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              points:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    bucket_start: { type: string, format: date-time }
+                    checks: { type: integer }
+                    availability_pct: { type: number, nullable: true }
+                    avg_latency_ms: { type: number, nullable: true, description: admin only }
+    Error:
+      type: object
+      xml: { name: error_response }
+      properties:
+        error: { type: string, enum: [invalid_request, unauthorized, forbidden, not_found, method_not_allowed, payload_too_large, internal_error, dependency_unavailable] }
+        message: { type: string }
+        correlation_id: { type: string, nullable: true }
+        details: { type: object }
+  responses:
+    InvalidRequest:
+      description: Invalid parameter (details.field) or unknown parameters (details.unknown_parameters).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: invalid_request, message: Unknown component, correlation_id: corr-1, details: { field: component } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unauthorized:
+      description: Missing, invalid, expired or revoked token; no Redis session; inactive user or institution.
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Forbidden:
+      description: Role not allowed (operators always; supervisors on /history and /services/{name}).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    NotFound:
+      description: Unknown component.
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    DependencyUnavailable:
+      description: PostgreSQL or Redis of the Monitoring Service unavailable.
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }

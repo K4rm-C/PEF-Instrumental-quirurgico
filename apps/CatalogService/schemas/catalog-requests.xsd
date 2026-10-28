@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PEF Catalog Service - XML request bodies (PEF-DS09 §1.3.3, complement v0.1.2).
+
+  Every XML body received by POST/PUT /families, /instruments and /kits is validated against this
+  schema before the use case runs. A document that does not conform is answered 400 invalid_request
+  with details.reason = "xsd_validation_failed", details.errors (line, message) and, when the cause
+  is an element the resource does not accept, details.unknown_fields.
+
+  The schema checks structure and lexical types only: which elements each resource accepts, no
+  nesting except kit items/item, no mixed content, booleans true/false/1/0, integer quantities.
+  Business rules (required fields of each operation, lengths, ranges, existing ids and codes) stay
+  in the service, so a JSON and an XML body with the same values get the same 422 reason.
+  null = empty element with xsi:nil="true". Responses are described by catalog.xsd.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+
+  <!-- POST /families (code, name, category_code required) and PUT /families/{id} (no code) -->
+  <xs:element name="family">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="code" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="name" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="category_code" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="identify_text" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="classify_text" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="function_text" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="active" type="xs:boolean" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- POST /instruments (internal_code, family_id, cycle_status_code, active) and
+       PUT /instruments/{id} (family_id, cycle_status_code, active, change_reason) -->
+  <xs:element name="instrument">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="internal_code" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="family_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="cycle_status_code" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="active" type="xs:boolean" minOccurs="0" nillable="true"/>
+        <xs:element name="change_reason" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- POST /kits and PUT /kits/{id} -->
+  <xs:element name="kit">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="name" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="active" type="xs:boolean" minOccurs="0" nillable="true"/>
+        <xs:element name="items" minOccurs="0">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:element name="item" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:all>
+                    <xs:element name="family_id" type="xs:string"/>
+                    <xs:element name="quantity" type="xs:int"/>
+                  </xs:all>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -1,0 +1,7 @@
+# Override used ONLY by scripts/e2e/isolated.py --mode containerized (project pef_e2e).
+# The portal's checkpoint outbox is bind-mounted from .e2e/outbox (instead of the web_outbox volume)
+# so e2e_mongo_ds06.py can observe the pending checkpoints from the host while MongoDB is stopped.
+services:
+  web:
+    volumes:
+    - ./.e2e/outbox:/data/outbox

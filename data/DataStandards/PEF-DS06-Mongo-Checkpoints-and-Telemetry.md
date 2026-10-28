@@ -1,13 +1,13 @@
 ---
 id: PEF-DS06
 title: Mongo Checkpoints and Telemetry
-version: "0.1.0"
+version: "0.1.1"
 status: draft
 owner: PEF Core / Visión / Worker
 applies_to: [Worker, BE, WP]
 stores: [MongoDB]
 related: [PEF-DS04, PEF-DS05, PEF-DS03]
-last_updated: 2026-09-06
+last_updated: 2026-10-20
 ---
 
 # PEF-DS06 · Mongo Checkpoints and Telemetry
@@ -227,13 +227,31 @@ Los checkpoints son documentos variables (detections array, burst metadata) de a
 
 ---
 
+### 1.6 Notas de implementación (v0.1.1)
+
+Sin campos nuevos. Precisan cómo se aplica este estándar en el código (detalle en `GUIA_MONGODB.md`):
+
+| Tema | Decisión |
+| :--- | :--- |
+| Escritores | `checkpoint_frame`: adaptador de BackendWebFlask, tras el commit del hecho DS04 (`initial` → `start`, `final` → `close`, `close_blocked` → `discrepancy`, `phase_change` → `state_change`). `session_telemetry`: VisionWorker. |
+| Desacople | Cola local en disco con reintentos; el conteo nunca espera a MongoDB ni a EvidenceService. |
+| `_id` | ObjectId generado al encolar: un reintento no duplica. |
+| `session_checkpoint_seq` | Índice único `(session_id, session_checkpoint_seq)` además de los índices de §1.3.2. |
+| Campos opcionales | Se omiten cuando no se conocen (no `null`), para que funcionen los índices *sparse*. |
+| `detections[].bbox` | `[x, y, w, h]` en píxeles del cuadro procesado. |
+| Evidencia | JPEG único por checkpoint (regla 4) vía EvidenceService; `media_asset_id`, `gcs_uri` y `retention_until` (alineado con `media_asset`) se fijan una sola vez. |
+| Telemetría | `fps_avg` = cuadros analizados/s; `latency_ms` = inferencia + asignación por cuadro; `drops` = cuadros no analizados por el muestreo (stride); `roi_ok` ausente mientras el worker no use ROI. |
+| No implementado | Ráfagas GIF, `hourly`, `manual_pin` (no existe disparador). |
+
+---
+
 ## 2. Anexo A – Información general
 
 | Campo | Valor |
 | :--- | :--- |
 | Código | PEF-DS06 |
 | Título | Mongo Checkpoints and Telemetry |
-| Versión | 0.1.0 |
+| Versión | 0.1.1 (0.1.1: notas de implementación §1.6, sin cambio de esquema) |
 | Estado | draft |
 | Almacén | MongoDB (`checkpoint_frame`, `session_telemetry`); vocab `cat_checkpoint_reason` en PG |
 | Fuera de alcance | `count_event`; bytes storage; mensajes WSS frame-a-frame (DS10) |

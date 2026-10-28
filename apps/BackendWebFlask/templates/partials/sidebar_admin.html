@@ -7,7 +7,7 @@
     partials/sidebar_supervisor.html. When not provided, every link safely falls back to "#"
     via the |default('#') filter below.
     Recognized keys: dashboard, instrument_families, instruments, kits, procedures, users,
-    roles, vision_models, audit_log, configuration, profile, sign_out.
+    roles, vision_models, audit_log, system_status, configuration, profile, sign_out.
     Intended production endpoints (documented in FRONTEND_INTEGRATION.md):
     admin.dashboard, admin.instrument_families, admin.instruments, admin.kits,
     admin.procedures, admin.users, admin.roles, admin.vision_models, admin.audit_log,
@@ -112,6 +112,14 @@
                    {% if active_nav_item == 'audit_log' %}aria-current="page"{% endif %}>
                     {{ macros.icon_shield_check() }}
                     <span>{{ _("Audit Log") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'system_status' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.system_status|default('#') }}"
+                   {% if active_nav_item == 'system_status' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_monitor() }}
+                    <span>{{ _("System Status") }}</span>
                 </a>
             </li>
             <li>

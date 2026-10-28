@@ -115,7 +115,7 @@ def test_stored_text_is_never_used_to_decide(in_locale):
         assert a['display_description'] == b['display_description'] == c['display_description']
 
 
-def _review_detail(session_id):
+def _review_detail(session_id, institution_id=None):
     with_free = view_data._discrepancy_view(disc(FREE_TEXT), None, 'operator_error', None)
     return {
         'id': session_id, 'session_id': 'WS-C1000005', 'procedure_name': 'x', 'status_code': 'correction_required',
@@ -128,7 +128,9 @@ def _review_detail(session_id):
 def test_review_page_and_resolution_notes(client, login, monkeypatch):
     session_id = 'c1000005-0000-4000-8000-000000000001'
     import services.rf_session
-    monkeypatch.setattr(routes, 'supervisor_session_detail', _review_detail)
+    from controllers import supervisor_sessions
+    monkeypatch.setattr(supervisor_sessions, 'session_view',
+                        lambda sid, inst: {'detail': _review_detail(sid, inst), 'contingency': None})
 
     login(role='spd_supervisor', locale='es-MX')
     page = client.get(f'/supervisor/discrepancies/{session_id}/review').get_data(as_text=True)

@@ -149,3 +149,29 @@
     background-color: var(--color-surface-secondary);
     color: var(--color-text-primary);
 }
+
+/* Header notifications bell (partials/header.html): unread count badge, hidden when zero. */
+.notification-bell {
+    position: relative;
+}
+
+.notification-bell__badge {
+    position: absolute;
+    top: 4px;
+    right: 2px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: var(--radius-pill);
+    background-color: var(--color-danger);
+    color: #fff;
+    font-size: 11px;
+    font-weight: var(--font-weight-semibold);
+    line-height: 18px;
+    text-align: center;
+    pointer-events: none;
+}
+
+.notification-bell__badge[hidden] {
+    display: none;
+}

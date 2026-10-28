@@ -1,0 +1,1681 @@
+openapi: 3.0.3
+info:
+  title: PEF Session / Counting Service — Session API v1 (Phase A–E + Supervisor v0.2.0 + Reports v0.3.0)
+  version: 1.2.0
+  description: |
+    **Complement v0.3.0 (stage 12, Supervisor reports):** `GET /sessions/reports/summary`, `/reports/kits`,
+    `/reports/operators` and `/reports/options`. Read-only aggregates (PostgreSQL READ ONLY transactions) of the
+    caller's institution, for `spd_supervisor` only (any other role: 403, audited).
+    - **Filters:** `from` / `to` (ISO date or date-time; a date is a whole day in `tz`; default the last 30 days,
+      at most 366), `tz`, `kit_id`, `operator_id`, `status`.
+    - **Nulls:** a null metric means "no data", never 0.
+    - **AI–human agreement:** compares each human validation with the YOLO suggestion it validated, not with the
+      expected inventory. It is null below 5 pairs.
+    - **XML responses:** `GET /api/v1/sessions/schemas/session-reports.xsd`.
+
+    **Complement v0.2.0 (stage 8, PEF-DS09 §1.3.4):** SessionService owns the Supervisor's session
+    operations of the RF portal — schedule (`POST /sessions/schedule`), full edit while scheduled
+    (`PUT /sessions/{id}`), privacy agreement (`PUT /sessions/{id}/privacy-agreement`), expected
+    inventory with confirmed additions (`physically_added` → `instruments_added`), the discrepancy
+    queue (`GET /sessions/discrepancies`), resolution and the safe SPD close — plus the session
+    snapshot reads (`expand=detail`) the RF screens are built from. The Operator's counting flow
+    (start, YOLO counts, human validation, contingency report) stays in the portal: the legacy
+    Operator writes here (`start`, `vision-counts`, `count-report`) answer **410 gone**
+    (`details.reason = operator_flow_in_portal`) unless `SESSION_OPERATOR_WRITES_ENABLED=true`.
+    Business errors carry `details.reason` (stable code, the portal shows its own message for it).
+    A request refused by the role check writes `access_audit` `DENIED_<METHOD>_WORK_SESSION`
+    (outcome `denied`). XML bodies are validated against
+    `GET /api/v1/sessions/schemas/session-requests.xsd` (`details.reason = xsd_validation_failed`).
+
+    **State machine** (work_session.status): `scheduled` → (Operator, portal) `in_progress` →
+    (Operator report, portal) `correction_required` (open discrepancies) or `awaiting_spd_review`;
+    `correction_required` → (last resolution here) `awaiting_spd_review` → (SPD close here) `closed`.
+    Supervisor writes allowed per state: schedule edit / privacy only in `scheduled`; inventory in
+    `scheduled` and `in_progress` (`physically_added` counts only in `in_progress`); resolve in
+    `correction_required` and `awaiting_spd_review`; close only in `awaiting_spd_review` with no open
+    discrepancy (and `contingency_reviewed` after a contingency count). Anything else → 409 with
+    `details.status_code` and `details.reason`. Every Supervisor write locks the work_session row
+    first — the same row the portal's Operator transactions lock — so the two never interleave.
+
+    Session / Counting API v1 (contract owner: PEF-DS09 §1.3.4 v0.1.7; data model: PEF-DS04
+    v0.2.2; piece lifecycle: PEF-DS03 §1.3.9.1 v0.2.1). Phase A/B: reads. Phase C: create session,
+    replace expected inventory, start. Phase D: vision-counts and count-report. Phase E: resolve
+    discrepancy and SPD close. Outside v1 (not implemented): abort, phase change, any
+    video/camera/WebSocket endpoint.
+
+    - **Writes:** each write is one PostgreSQL transaction: the domain rows and its
+      `access_audit` row (actions `session.scheduled`, `session.inventory_updated`,
+      `session.start`, `session.manual_close`, `discrepancy.resolve`, `session.spd_close`, with
+      the effective correlation id) commit together or not at all. `vision-counts` writes no audit row: the `auto_count` fact is the
+      record (DS09 v0.1.6 rule 5 exception; technical logs keep the correlation id). The decisive row is locked first
+      (`SELECT ... FOR UPDATE`: the operation on create, the work_session on every other write,
+      then the discrepancy on resolve, then instruments and reservations by id — DS03 §1.3.9.1
+      order work_session → discrepancy → instrument → instrument_reservation); a state changed
+      concurrently → 409.
+    - **Stock:** the create/replace check (available, active pieces of the caller's institution)
+      is a point-in-time validation, NOT a reservation.
+    - **Start** never contacts VisionWorker; it only decides and reports `capture_mode`.
+
+    - **Auth:** `Authorization: Bearer <access_token>` issued by Auth Service. Validated here:
+      signature with exactly `JWT_ALGORITHM` (no other algorithm, never `none`), expiry,
+      `type=access`, `sub`, `jti`; Redis session `auth:jwt:{jti}` present, not revoked,
+      `token_type=access`, same `user_id`; user and institution active in PostgreSQL and the
+      Redis institution equal to `user.institution_id`.
+    - **Roles:** effective roles from `user_role` → `role` of the user's institution (never only
+      the JWT `role` claim). Only `station_operator` and `spd_supervisor` have access; `it_admin`
+      or any other role → 403 on every endpoint. Per action: reads need either role;
+      `POST /sessions`, `PUT expected-inventory`, `resolve` and `close` need `spd_supervisor`; `start`,
+      `vision-counts` and `count-report` need `station_operator` AND being the assigned
+      operator (otherwise 404).
+    - **Scope:** tenant = authenticated user's institution; tenant(session) =
+      `operation.institution_id`. `spd_supervisor` (also when combined with `station_operator`)
+      sees every session of the tenant; `station_operator` only sessions with
+      `work_session.user_id` = the user. Sessions without operation are never returned.
+      Out of scope, unknown or malformed UUID → 404 (indistinguishable).
+    - **Formats:** `Accept: application/xml` → XML; `application/json`, `*/*` or none → JSON.
+      XML element names equal JSON field names; lists are wrappers (`sessions/session`,
+      `expected_inventory/line`, `counts/count`, `discrepancies/discrepancy`); `null` is
+      `xsi:nil="true"`.
+    - **Correlation:** `X-Correlation-ID` is echoed when it matches `^[A-Za-z0-9._:-]{1,64}$`,
+      otherwise (missing, invalid or longer than 64) a UUID is generated — never truncated (DS09 v0.1.5).
+      The same string is returned in the response header and error bodies, logged, and stored in
+      `access_audit.correlation_id`.
+servers:
+  - url: http://127.0.0.1:5004
+    description: Local docker compose (port is a deployment choice, not part of the contract)
+tags:
+  - name: sessions
+  - name: supervisor
+  - name: health
+  - name: docs
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/sessions:
+    get:
+      tags: [sessions]
+      summary: List sessions in the caller's scope
+      description: |
+        Without `expand`: the DS09 v0.1.7 list, ordered by `scheduled_at` descending (nulls last), then
+        `id`; query parameters do not change it. With `expand=detail`: session snapshots
+        (`SessionSnapshot`, most recently updated first), optional `status` filter (comma separated
+        codes) and optional pagination `page` / `per_page` (1..100; totals in `X-Total-Count`,
+        `X-Page`, `X-Per-Page`, `X-Total-Pages`; the body stays a list).
+      parameters:
+        - $ref: '#/components/parameters/Expand'
+        - $ref: '#/components/parameters/StatusFilter'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Session list
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/SessionListItem' } }
+            application/xml:
+              schema:
+                type: array
+                xml: { name: sessions, wrapped: true }
+                items: { $ref: '#/components/schemas/SessionListItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    post:
+      tags: [sessions]
+      summary: Schedule a session on an existing operation (spd_supervisor)
+      description: |
+        Creates only Session-domain rows (`work_session` scheduled + `expected_inventory`) and the
+        `session.scheduled` audit row. Never creates operation, patient, physicians, privacy
+        agreement or instrument reservations, and does not change `operation.status`.
+        Validation (same tenant as the caller, else 422 `invalid_reference` without revealing why):
+        operation exists and is `scheduled` (other status → 409); `user_id` active with an
+        effective `station_operator` role of the tenant; station active, in a room of the tenant
+        and, when the operation has a room, in that room; kit active of the tenant; `phase_code`
+        active in `cat_operation_phase`; families active; each quantity ≤ available pieces of
+        the tenant (422 `validation_error`, `details.family_id`). Line source: `kit_snapshot`
+        when the family is in the kit with the same quantity, otherwise `schedule_additional`.
+        No idempotency is defined: two identical submissions create two sessions.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SessionCreateRequest' }
+          application/xml:
+            schema: { $ref: '#/components/schemas/SessionCreateRequest' }
+            example: |
+              <session_request>
+                <operation_id>aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa</operation_id>
+                <user_id>22222222-2222-2222-2222-222222222221</user_id>
+                <station_id>13131313-0000-4000-8000-000000000001</station_id>
+                <kit_id>51515151-0000-4000-8000-000000000001</kit_id>
+                <phase_code>start</phase_code>
+                <expected_lines>
+                  <line><family_id>41414141-0000-4000-8000-000000000010</family_id><expected_quantity>1</expected_quantity></line>
+                </expected_lines>
+              </session_request>
+      responses:
+        '201':
+          description: Session created (Session detail)
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/schedule:
+    post:
+      tags: [supervisor]
+      summary: Schedule a session (spd_supervisor) — operation + patient + surgical team + session + inventory
+      description: |
+        The portal's RF-SP-02 rules, one transaction: operator active with an effective
+        `station_operator` role of the tenant; room of the tenant and station of that room; kit,
+        patient (optional) and physicians (≥1, unique, active) of the tenant; known surgical role
+        (default surgeon); existing procedure type and phase; lines 1..32767 within available stock
+        (point-in-time check, no reservation). Creates operation (status scheduled), operation_patient,
+        operation_physician, work_session (scheduled, capture_mode null) and expected_inventory
+        (`kit_snapshot` when the line equals the kit quantity, else `schedule_additional`). With
+        `privacy_notice_version_id` (active notice) it also stores the DS07 agreement. Audit
+        `session.scheduled` (+ `privacy.session_agreement`). Reasons: invalid_operator,
+        operator_role_required, invalid_room, invalid_station, invalid_kit, invalid_patient,
+        invalid_procedure, physicians_required, physician_required, duplicate_physician,
+        invalid_physician, invalid_surgical_role, invalid_phase, invalid_scheduled_at,
+        lines_required, invalid_quantity, stock_block, invalid_privacy_notice.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/ScheduleRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/ScheduleRequest' } }
+      responses:
+        '201':
+          description: Scheduled session (snapshot)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/SessionSnapshotDetail' } }
+            application/xml: { schema: { $ref: '#/components/schemas/SessionSnapshotDetail' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/discrepancies:
+    get:
+      tags: [supervisor]
+      summary: Discrepancy queue of the tenant (spd_supervisor)
+      description: Most recently updated first. Optional `status=open|resolved` and pagination.
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, resolved] }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Discrepancies
+          content:
+            application/json: { schema: { type: array, items: { $ref: '#/components/schemas/SnapshotDiscrepancy' } } }
+            application/xml: { schema: { type: array, xml: { name: discrepancies, wrapped: true }, items: { $ref: '#/components/schemas/SnapshotDiscrepancy' } } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/reports/summary:
+    get:
+      tags: [reports]
+      summary: Sessions, discrepancies, AI-human agreement and daily activity of the period (spd_supervisor)
+      parameters:
+        - { name: from, in: query, schema: { type: string }, description: 'ISO date (start of that day in tz) or date-time. Default: to - 30 days.' }
+        - { name: to, in: query, schema: { type: string }, description: 'ISO date (that whole day included) or date-time. Default: now.' }
+        - { name: tz, in: query, schema: { type: string, default: UTC }, description: IANA time zone of the date boundaries and activity days }
+        - { name: kit_id, in: query, schema: { type: string, format: uuid }, description: A kit of the caller institution }
+        - { name: operator_id, in: query, schema: { type: string, format: uuid }, description: A user of the caller institution }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/StatusCode' } }
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportSummary' }
+              example:
+                filters: { from: '2026-09-01T00:00:00Z', to: '2026-10-01T00:00:00Z', tz: UTC, kit_id: null, operator_id: null, status: null }
+                sessions:
+                  total: 5
+                  by_status: [{ code: scheduled, count: 1 }, { code: closed, count: 1 }]
+                  scheduled: 1
+                  in_progress: 1
+                  pending_review: 2
+                  closed: 1
+                  reported: 3
+                  timed: 3
+                  avg_duration_minutes: 30.0
+                  reported_with_discrepancies: 2
+                  with_discrepancies_pct: 66.7
+                discrepancies:
+                  total: 2
+                  open: 1
+                  resolved: 1
+                  timed: 1
+                  avg_resolution_minutes: 30.0
+                  by_reason: [{ code: shortage, name: Shortage versus expected inventory, total: 2, open: 1 }]
+                  by_family: [{ family_id: 4f1b1a52-6e1a-4c4f-9a7e-2a1c3d4e5f60, code: NH, name: Needle holder, total: 1, open: 1 }]
+                ai_agreement: { pairs: 3, agreed: 2, corrections: 1, min_pairs: 5, sufficient: false, agreement_pct: null }
+                activity: [{ date: '2026-09-05', sessions: 1, reported: 1, with_discrepancies: 1 }]
+            application/xml: { schema: { $ref: '#/components/schemas/ReportSummary' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/reports/kits:
+    get:
+      tags: [reports]
+      summary: Activity per kit, most used first (paginated; spd_supervisor)
+      parameters:
+        - { name: from, in: query, schema: { type: string }, description: 'ISO date (start of that day in tz) or date-time. Default: to - 30 days.' }
+        - { name: to, in: query, schema: { type: string }, description: 'ISO date (that whole day included) or date-time. Default: now.' }
+        - { name: tz, in: query, schema: { type: string, default: UTC }, description: IANA time zone of the date boundaries and activity days }
+        - { name: kit_id, in: query, schema: { type: string, format: uuid }, description: A kit of the caller institution }
+        - { name: operator_id, in: query, schema: { type: string, format: uuid }, description: A user of the caller institution }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/StatusCode' } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KitReport' }
+            application/xml: { schema: { $ref: '#/components/schemas/KitReport' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/reports/operators:
+    get:
+      tags: [reports]
+      summary: Activity per Operator (paginated; spd_supervisor)
+      parameters:
+        - { name: from, in: query, schema: { type: string }, description: 'ISO date (start of that day in tz) or date-time. Default: to - 30 days.' }
+        - { name: to, in: query, schema: { type: string }, description: 'ISO date (that whole day included) or date-time. Default: now.' }
+        - { name: tz, in: query, schema: { type: string, default: UTC }, description: IANA time zone of the date boundaries and activity days }
+        - { name: kit_id, in: query, schema: { type: string, format: uuid }, description: A kit of the caller institution }
+        - { name: operator_id, in: query, schema: { type: string, format: uuid }, description: A user of the caller institution }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/StatusCode' } }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OperatorReport' }
+            application/xml: { schema: { $ref: '#/components/schemas/OperatorReport' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/reports/options:
+    get:
+      tags: [reports]
+      summary: Filter options of the caller institution (kits, operators, status codes; spd_supervisor)
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportOptions' }
+            application/xml: { schema: { $ref: '#/components/schemas/ReportOptions' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}:
+    get:
+      tags: [sessions]
+      summary: Session detail (`expand=detail` → full snapshot)
+      description: |
+        `expand=detail` returns `SessionSnapshotDetail`: the summary plus phase, expected inventory with
+        family and category names, count events (occurred_at, then open → facts → manual_close →
+        session_close, then id) with the projected payload only (reason, scope, trigger,
+        reported_quantity, frames_processed, video_t, pipeline, solver, model_version, verified_total,
+        contingency, reference, known_final_mismatch, board.totals.family_count,
+        board.families[family_id, detected_quantity], pipeline_config.solver — never boxes, scores,
+        frames or run metadata), discrepancies, privacy agreement, patient, surgical team and the
+        contingency count (or null).
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/Expand'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Session detail
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    put:
+      tags: [supervisor]
+      summary: Full edit of a scheduled session (spd_supervisor)
+      description: |
+        Same rules as schedule (no phase, no privacy). Locks the work_session row; only while
+        `scheduled` (else 409 `not_scheduled`). Replaces operator, station, kit, operation schedule /
+        procedure / room, patient, surgical team and expected inventory. Audit `session.scheduled_updated`.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/SessionUpdateRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/SessionUpdateRequest' } }
+      responses:
+        '200':
+          description: Updated session (snapshot)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/SessionSnapshotDetail' } }
+            application/xml: { schema: { $ref: '#/components/schemas/SessionSnapshotDetail' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/privacy-agreement:
+    put:
+      tags: [supervisor]
+      summary: Confirm the DS07 privacy agreement of a scheduled session (spd_supervisor, RF-SP-02 Via A)
+      description: |
+        Only while `scheduled` (409 `privacy_not_scheduled`) and before capture_mode is frozen
+        (409 `capture_mode_frozen`); active notice (422 `invalid_privacy_notice`). Creates or replaces
+        the agreement (purpose_quality_ops true). Audit `privacy.session_agreement`.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/PrivacyAgreementRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/PrivacyAgreementRequest' } }
+      responses:
+        '200':
+          description: Session (snapshot)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/SessionSnapshotDetail' } }
+            application/xml: { schema: { $ref: '#/components/schemas/SessionSnapshotDetail' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/expected-inventory:
+    get:
+      tags: [sessions]
+      summary: Expected inventory lines of the session
+      description: Ordered by `family_code`, `family_id`. No stock or kit data.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Lines
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ExpectedLine' } }
+            application/xml:
+              schema:
+                type: array
+                xml: { name: expected_inventory, wrapped: true }
+                items: { $ref: '#/components/schemas/ExpectedLine' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    put:
+      tags: [sessions]
+      summary: Replace the expected inventory (spd_supervisor; scheduled or in_progress; `physically_added` → instruments_added)
+      description: |
+        Total replacement in one transaction after locking the work_session row (serializes with
+        other inventory updates and with start). Lines with the same quantity keep their source;
+        new or changed lines get `kit_snapshot`/`schedule_additional` by the kit rule while
+        `scheduled`, and `live_add` while `in_progress`; omitted lines are deleted. Same line
+        validation as create (families, quantities, tenant stock). Any other state → 409.
+        Audit action `session.inventory_updated`.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExpectedInventoryUpdate' }
+          application/xml:
+            schema: { $ref: '#/components/schemas/ExpectedInventoryUpdate' }
+            example: |
+              <expected_inventory_update>
+                <lines>
+                  <line><family_id>41414141-0000-4000-8000-000000000010</family_id><expected_quantity>2</expected_quantity></line>
+                </lines>
+              </expected_inventory_update>
+      responses:
+        '200':
+          description: The expected inventory after the replacement (same as GET)
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ExpectedLine' } }
+            application/xml:
+              schema:
+                type: array
+                xml: { name: expected_inventory, wrapped: true }
+                items: { $ref: '#/components/schemas/ExpectedLine' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/start:
+    post:
+      tags: [sessions]
+      summary: Start the session (legacy Operator write — 410 unless SESSION_OPERATOR_WRITES_ENABLED)
+      description: |
+        **Disabled by default (410 gone, `operator_flow_in_portal`):** the Operator starts sessions in
+        the portal. Compatibility behaviour when enabled:
+        No parameters: empty body, `{}` or `<start_request/>`; any field → 400. Locks the
+        work_session row, then requires same tenant and `user_id` = caller (else 404) and status
+        `scheduled` (else 409; a scheduled session whose capture_mode is already set → 409).
+        `capture_mode` = `vision` if the session has a PEF-DS07 agreement with
+        `purpose_quality_ops` and a privacy notice already in force (`effective_at` ≤ now),
+        otherwise `manual_no_privacy` (start never fails for lack of agreement). Sets
+        `started_at`, sets phase `start` only if none, copies the kit lines (`kit_snapshot`)
+        only when the session has no expected inventory, writes one `session_open` count event
+        and the `session.start` audit row. Does not contact VisionWorker.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartRequest' }
+          application/xml:
+            schema: { $ref: '#/components/schemas/StartRequest' }
+            example: <start_request/>
+      responses:
+        '200':
+          description: Session detail after start
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/vision-counts:
+    post:
+      tags: [sessions]
+      summary: Record one normalized vision batch (legacy Operator write — 410 unless SESSION_OPERATOR_WRITES_ENABLED)
+      description: |
+        One call = one complete snapshot → ONE `auto_count` count event (`family_id` null,
+        `user_id` null: the model produced it, not the operator; `expected_quantity` /
+        `detected_quantity` = batch totals; payload = `{model_version, trigger, counts[]}` with
+        counts sorted by family_id). Nothing else is accepted or stored: no boxes, frames,
+        JPEG/base64, `video_t`, `frames_processed`, `run_id`, pipeline, upload/camera/WebSocket
+        metadata (unknown fields → 400). Session never contacts VisionWorker.
+
+        Locks the work_session row, then: other tenant / not the assigned operator → 404. An
+        existing `client_event_id` (UNIQUE; PostgreSQL is the only idempotency store) is answered
+        first: same session and same logical content (occurred_at instant, model_version,
+        trigger, counts in any order) → **200** with the same `count_event_id`, even if the
+        session has moved on; otherwise → **409**. New facts need `status = in_progress` and
+        `capture_mode = vision` (else 409) and every family in the session's expected inventory
+        (else 422; the snapshot membership is authoritative, `instrument_family.active` is not
+        re-checked). Not every expected family must appear. The insert uses
+        `ON CONFLICT (client_event_id) DO NOTHING`, so concurrent duplicates resolve to 201 + 200
+        (identical) or 201 + 409 (different). No clock-skew window is applied to `occurred_at`.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VisionCountsRequest' }
+            example:
+              client_event_id: dddddddd-dddd-dddd-dddd-dddddddddddd
+              occurred_at: '2026-10-14T05:00:00Z'
+              model_version: yolo26l-demo
+              trigger: final
+              counts:
+                - { family_id: 41414141-0000-4000-8000-000000000010, detected_quantity: 2 }
+          application/xml:
+            schema: { $ref: '#/components/schemas/VisionCountsRequest' }
+            example: |
+              <vision_counts>
+                <client_event_id>dddddddd-dddd-dddd-dddd-dddddddddddd</client_event_id>
+                <occurred_at>2026-10-14T05:00:00Z</occurred_at>
+                <model_version>yolo26l-demo</model_version>
+                <trigger>final</trigger>
+                <counts>
+                  <count>
+                    <family_id>41414141-0000-4000-8000-000000000010</family_id>
+                    <detected_quantity>2</detected_quantity>
+                  </count>
+                </counts>
+              </vision_counts>
+      responses:
+        '201':
+          description: New auto_count stored
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VisionCountResult' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/VisionCountResult' }
+        '200':
+          description: Idempotent replay (same client_event_id, session and content) — same count_event_id, nothing inserted
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VisionCountResult' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/VisionCountResult' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/count-report:
+    post:
+      tags: [sessions]
+      summary: Final human count and validation (legacy Operator write — 410 unless SESSION_OPERATOR_WRITES_ENABLED)
+      description: |
+        One transaction: lock the work_session row → same tenant and assigned operator (else
+        404) → `status = in_progress` (else 409) → expected quantities read from the session's
+        `expected_inventory` (never from the client; empty inventory → 409) → `reports` must
+        contain every expected family exactly once (missing/duplicate → 400, foreign family → 422).
+
+        **AI suggestion (server-authoritative):** `vision` with a stored `auto_count` whose
+        trigger is `final` → the last one by `occurred_at` DESC, `id` DESC; suggestion = its
+        quantity for the family, 0 when absent; `suggested_quantity` must equal it (null or any
+        other value → 409). `stable_window` batches are never used. `vision` without a final →
+        human fallback: `suggested_quantity` must be null (else 409) and `capture_mode` is not
+        changed. `manual_no_privacy` → `suggested_quantity` must be null (else 400).
+
+        **Rules:** reported ≠ AI suggestion → `notes` required (non-blank, else 400) and a
+        `human_correction` (justification = notes) on that family's `manual_count`. Without a
+        correction (AI = human, no final result, manual session) `notes` must be null/absent
+        (else 400): notes are never accepted to be discarded and are stored nowhere else.
+        reported ≠ expected → `reason_code` required (else 400; must be a
+        `cat_discrepancy_reason` code, `other` is not one → 422) and a `discrepancy` whose reason
+        is `shortage`/`surplus` by the sign (never the operator's reason_code), `origin_event_id`
+        = the manual_count, canonical untranslated description. They are independent checks.
+
+        **Writes:** one `manual_count` per family (`detected_quantity` = reported,
+        `expected_quantity`, `user_id` = operator, payload `{reason_code}` when given), the
+        corrections and discrepancies, one `manual_close` (short summary payload), `ended_at`,
+        status `correction_required` if open discrepancies remain else `awaiting_spd_review`,
+        and the `session.manual_close` audit row. Any failure → full rollback. Afterwards the
+        expected inventory is frozen (PUT → 409).
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CountReportRequest' }
+            example:
+              reports:
+                - family_id: 41414141-0000-4000-8000-000000000010
+                  suggested_quantity: 1
+                  reported_quantity: 2
+                  reason_code: null
+                  notes: Second piece was under a gauze
+          application/xml:
+            schema: { $ref: '#/components/schemas/CountReportRequest' }
+            example: |
+              <count_report xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+                <reports>
+                  <report>
+                    <family_id>41414141-0000-4000-8000-000000000010</family_id>
+                    <suggested_quantity>1</suggested_quantity>
+                    <reported_quantity>2</reported_quantity>
+                    <reason_code xsi:nil="true"/>
+                    <notes>Second piece was under a gauze</notes>
+                  </report>
+                </reports>
+              </count_report>
+      responses:
+        '200':
+          description: Report stored; resulting status
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CountReportResult' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/CountReportResult' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '410': { $ref: '#/components/responses/Gone' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/counts:
+    get:
+      tags: [sessions]
+      summary: Count facts of the session (stable contract; raw payload never exposed)
+      description: |
+        Ordered by `occurred_at`; on equal `occurred_at` by event type rank (`session_open`, then
+        the session facts — `auto_count`, `manual_count` and any other type —, then `manual_close`,
+        then `session_close`); finally `id` (DS09 v0.1.6). Fixed structure: non-applicable fields are null or an
+        empty list. Read-only legacy compatibility: a `manual_count` stored by the legacy portal
+        with `detected_quantity` NULL reports `payload.reported_quantity` when it is a valid
+        integer; `auto_count.counts` is extracted from `payload.counts[]` or the legacy
+        `payload.board.families[]` (only `family_id` + `detected_quantity`); `trigger` is
+        returned only for `stable_window`/`final`; `reason_code` only when it is a catalog code.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Count events
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/CountItem' } }
+            application/xml:
+              schema:
+                type: array
+                xml: { name: counts, wrapped: true }
+                items: { $ref: '#/components/schemas/CountItem' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/discrepancies:
+    get:
+      tags: [sessions]
+      summary: Discrepancies of the session
+      description: Open first, then `family_code` (nulls last), then `id`. `description` is the stored text, untranslated.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Discrepancies
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Discrepancy' } }
+            application/xml:
+              schema:
+                type: array
+                xml: { name: discrepancies, wrapped: true }
+                items: { $ref: '#/components/schemas/Discrepancy' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/discrepancies/{discrepancy_id}/resolve:
+    post:
+      tags: [sessions]
+      summary: Resolve an open discrepancy (spd_supervisor; session in correction_required)
+      description: |
+        Locks the work_session (same tenant, else 404; status `correction_required`, else 409),
+        then the discrepancy row of that session (unknown or of another session → 404; already
+        resolved → 409). Sets `resolved = true`, `resolved_at`, keeps every historical field
+        (family, quantities, reason, origin event) and appends the untranslated resolution text to
+        `description` as `\nSPD resolution (<outcome>): <notes>` (PEF-DS04 §1.3.7: there is no
+        resolution-notes column — temporary compatibility). If no open discrepancy remains the
+        session moves to `awaiting_spd_review` (never closed automatically). Writes the
+        `discrepancy.resolve` audit row; no count event.
+
+        `outcome = resolved`: no physical side effect; `instrument_id` must be null/absent (400).
+        `outcome = lost | recovered`: `instrument_id` (the physical piece, `instrument.id`) is
+        required (400); the server never chooses a piece from the family. The piece is locked
+        after the session and the discrepancy; unknown, other institution, other family than the
+        discrepancy (or a discrepancy without family) → 422 `invalid_reference` with one message
+        (nothing revealed). PEF-DS03 §1.3.9.1 transitions:
+        - `lost`: active piece in `available`/`reserved`/`in_use` → `lost`, `active = false`;
+          the active reservation of THAT piece (operation of the same institution) is released;
+        - `recovered`: `lost` → `available`, `active = true`; no reservation is created;
+        - any other origin → 409 (`details.cycle_status_code`, `details.active`), no change;
+        - exactly one `instrument_cycle_event` (resulting status, session, operation, canonical note).
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - name: discrepancy_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveRequest' }
+            examples:
+              resolved: { value: { notes: Found in the auxiliary tray, outcome: resolved } }
+              lost: { value: { notes: Not found after full tray and room check, outcome: lost, instrument_id: 3f1c2a9e-0000-4000-8000-000000000001 } }
+          application/xml:
+            schema: { $ref: '#/components/schemas/ResolveRequest' }
+            example: <resolve_request><notes>Not found</notes><outcome>lost</outcome><instrument_id>3f1c2a9e-0000-4000-8000-000000000001</instrument_id></resolve_request>
+      responses:
+        '200':
+          description: Discrepancy resolved
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResolveResult' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/ResolveResult' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/close:
+    post:
+      tags: [sessions]
+      summary: SPD close (spd_supervisor; awaiting_spd_review → closed)
+      description: |
+        `material_recovered` must be `true` (false, null, missing or not a boolean → 400; XML
+        accepts `true`/`1`). Locks the work_session (same tenant, else 404; status
+        `awaiting_spd_review`, else 409) and requires 0 open discrepancies (else 409,
+        `details.open_discrepancies`).
+
+        Transitional DS03 side effect (PEF-DS09 rule 6): the active reservations of the session's
+        operation whose piece belongs to the caller's institution are locked (by id) and released
+        (`active = false`, `released_at`); their pieces are locked (by id) and only those that are
+        active and in `available`, `reserved` or `in_use` (DS03 §1.3.9.1) move to `sterilization` with exactly one
+        `instrument_cycle_event` each. Lost, inactive, retired, maintenance or already sterilizing
+        pieces keep their state. Reservations of other operations or institutions are never
+        touched, none is created and `operation.status` is not changed.
+
+        Sets `closed`, `closed_by_user_id`, `ended_at` only if it was missing, writes one
+        `session_close` count event (payload: material_recovered, released_reservations,
+        sterilized_instruments) and the `session.spd_close` audit row — one transaction.
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CloseRequest' }
+            example: { material_recovered: true }
+          application/xml:
+            schema: { $ref: '#/components/schemas/CloseRequest' }
+            example: <close_request><material_recovered>true</material_recovered></close_request>
+      responses:
+        '200':
+          description: Session detail after close
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/sessions/{id}/operator-close:
+    post:
+      tags: [sessions]
+      summary: Operator close of a reconciled vision session (station_operator; awaiting_spd_review → closed)
+      description: |
+        The assigned Operator closes the session without SPD approval when the counts are
+        reconciled and nothing was ever raised. Every condition is re-evaluated under the
+        work_session row lock; when one fails the answer is 409 `operator_close_not_allowed` with
+        `details.blockers` and the session stays in Supervisor review:
+
+        - `awaiting_spd_review`, `capture_mode = vision`, assigned to the caller (another Operator
+          or institution → 404 `session_not_found`);
+        - the Operator's report was YOLO human validation (`manual_close.operator_close_path =
+          vision_validation`): no contingency count, no instruments outside the kit confirmed, no
+          YOLO difference carried into the report (`known_final_mismatch`);
+        - no discrepancy (open or resolved) and no rejected final count (`close_blocked`);
+        - the initial count comes from the FIRST frame and the final count from the LAST frame of
+          the same video (`payload.video.sha256`); the final count is newer than the last confirmed
+          addition and equals the reference total (initial + confirmed additions); neither lot
+          holds detections outside the kit;
+        - the reference total equals the expected inventory and every family's validated quantity
+          equals its expected quantity.
+
+        Blocker codes: not_awaiting_review, not_vision, not_vision_validation, contingency,
+        extra_instruments, final_count_mismatch, discrepancies_recorded, count_blocked,
+        missing_initial, missing_final, different_video, initial_final_mismatch,
+        out_of_kit_detected, family_mismatch, expected_total_mismatch, validated_total_mismatch.
+
+        Same close side effects as `POST /{id}/close` (reservations of the operation released,
+        their active in-service pieces to `sterilization`, one cycle event each). Writes one
+        `session_close` count event (payload: closed_by = station_operator, operator_close,
+        physical_integrity_confirmed, material_recovered, safe_close_confirmed = true,
+        unreconciled_physical_shortages = [], released_reservations, sterilized_instruments,
+        reconciliation totals) and the `session.operator_close` audit row — one transaction. A
+        repeated request after the same Operator closed it returns the session (no second close);
+        any other closed session → 409 `already_closed`. Physical shortages never reach this path:
+        they are discrepancies and stay with the SPD close (`safe_close_confirmed = false`).
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperatorCloseRequest' }
+            example: { physical_integrity_confirmed: true, material_recovered: true }
+          application/xml:
+            schema: { $ref: '#/components/schemas/OperatorCloseRequest' }
+            example: <operator_close_request><physical_integrity_confirmed>true</physical_integrity_confirmed><material_recovered>true</material_recovered></operator_close_request>
+      responses:
+        '200':
+          description: Session detail after close
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/SessionDetail' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /health:
+    get:
+      tags: [health]
+      summary: Aggregate health (PostgreSQL and Redis), same checks as /health/ready
+      security: []
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /api/v1/sessions/openapi.yaml:
+    get: { tags: [docs], security: [], summary: This document, responses: { '200': { description: OpenAPI 3.0 YAML } } }
+  /api/v1/sessions/docs:
+    get: { tags: [docs], security: [], summary: Swagger UI (Authorize with a Bearer access token), responses: { '200': { description: HTML } } }
+  /api/v1/sessions/schemas/session-reports.xsd:
+    get: { tags: [docs], security: [], summary: XML Schema of the report responses, responses: { '200': { description: XSD } } }
+  /api/v1/sessions/schemas/session-requests.xsd:
+    get: { tags: [docs], security: [], summary: XML Schema every XML request body is validated against, responses: { '200': { description: XSD } } }
+  /health/live:
+    get:
+      tags: [health]
+      security: []
+      summary: Process alive (no dependency checks)
+      responses:
+        '200':
+          description: Alive
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: live, checks: {}, correlation_id: corr-health-1 }
+  /health/database:
+    get:
+      tags: [health]
+      security: []
+      summary: PostgreSQL reachable (SELECT 1)
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /health/redis:
+    get:
+      tags: [health]
+      security: []
+      summary: Redis reachable (PING)
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /health/ready:
+    get:
+      tags: [health]
+      security: []
+      summary: Ready only if PostgreSQL and Redis are OK
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: ready, checks: { database: ok, redis: ok }, correlation_id: corr-health-1 }
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: not_ready, checks: { database: ok, redis: error }, correlation_id: corr-health-1 }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Expand:
+      name: expand
+      in: query
+      required: false
+      description: '`detail` → session snapshot representation (any other value → 400).'
+      schema: { type: string, enum: [detail] }
+    StatusFilter:
+      name: status
+      in: query
+      required: false
+      description: With expand=detail, comma separated status codes.
+      schema: { type: string, example: 'awaiting_spd_review,correction_required' }
+    Page:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1 }
+    PerPage:
+      name: per_page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, maximum: 100 }
+    SessionId:
+      name: id
+      in: path
+      required: true
+      description: Session UUID. A malformed value answers 404 like an unknown or out-of-scope session.
+      schema: { type: string, format: uuid }
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' }
+    Accept:
+      name: Accept
+      in: header
+      required: false
+      schema: { type: string, enum: [application/json, application/xml, '*/*'] }
+  headers:
+    CorrelationId:
+      description: Correlation id of this request.
+      schema: { type: string }
+  schemas:
+    StatusCode:
+      type: string
+      enum: [scheduled, in_progress, awaiting_spd_review, correction_required, closed, aborted]
+    CaptureMode:
+      type: string
+      nullable: true
+      enum: [vision, manual_no_privacy]
+    SessionListItem:
+      type: object
+      xml: { name: session }
+      required: [id, status_code, capture_mode, scheduled_at, started_at, ended_at, user_id, kit_id, open_discrepancies]
+      properties:
+        id: { type: string, format: uuid }
+        status_code: { $ref: '#/components/schemas/StatusCode' }
+        capture_mode: { $ref: '#/components/schemas/CaptureMode' }
+        scheduled_at: { type: string, format: date-time, nullable: true, description: operation.scheduled_at }
+        started_at: { type: string, format: date-time, nullable: true }
+        ended_at: { type: string, format: date-time, nullable: true }
+        user_id: { type: string, format: uuid, description: Assigned station operator }
+        kit_id: { type: string, format: uuid, nullable: true }
+        open_discrepancies: { type: integer }
+    SessionDetail:
+      type: object
+      xml: { name: session }
+      required: [id, operation_id, user_id, station_id, kit_id, status_code, capture_mode, current_phase_code,
+                 scheduled_at, started_at, ended_at, closed_by_user_id, open_discrepancies, privacy_agreement]
+      properties:
+        id: { type: string, format: uuid }
+        operation_id: { type: string, format: uuid }
+        user_id: { type: string, format: uuid }
+        station_id: { type: string, format: uuid, nullable: true }
+        kit_id: { type: string, format: uuid, nullable: true }
+        status_code: { $ref: '#/components/schemas/StatusCode' }
+        capture_mode: { $ref: '#/components/schemas/CaptureMode' }
+        current_phase_code: { type: string, nullable: true }
+        scheduled_at: { type: string, format: date-time, nullable: true }
+        started_at: { type: string, format: date-time, nullable: true, description: Null while scheduled }
+        ended_at: { type: string, format: date-time, nullable: true }
+        closed_by_user_id: { type: string, format: uuid, nullable: true }
+        open_discrepancies: { type: integer }
+        privacy_agreement:
+          type: boolean
+          description: Read-only, derived from DS07 (an agreement exists for the session). The agreement itself is not exposed.
+    ExpectedLine:
+      type: object
+      xml: { name: line }
+      required: [family_id, family_code, expected_quantity, source]
+      properties:
+        family_id: { type: string, format: uuid }
+        family_code: { type: string }
+        expected_quantity: { type: integer, minimum: 0 }
+        source: { type: string, enum: [kit_snapshot, schedule_additional, live_add, manual] }
+    VisionCount:
+      type: object
+      xml: { name: count }
+      required: [family_id, detected_quantity]
+      properties:
+        family_id: { type: string, format: uuid }
+        detected_quantity: { type: integer, minimum: 0 }
+    SessionCreateRequest:
+      type: object
+      xml: { name: session_request }
+      additionalProperties: false
+      required: [operation_id, user_id, station_id, kit_id, phase_code, expected_lines]
+      properties:
+        operation_id: { type: string, format: uuid, description: Existing operation of the caller's institution }
+        user_id: { type: string, format: uuid, description: Assigned station operator }
+        station_id: { type: string, format: uuid }
+        kit_id: { type: string, format: uuid }
+        phase_code: { type: string, description: Active cat_operation_phase code }
+        expected_lines:
+          type: array
+          minItems: 1
+          xml: { name: expected_lines, wrapped: true }
+          items: { $ref: '#/components/schemas/LineRequest' }
+    LineRequest:
+      type: object
+      xml: { name: line }
+      additionalProperties: false
+      required: [family_id, expected_quantity]
+      properties:
+        family_id: { type: string, format: uuid, description: 'Active instrument family; unique within the request' }
+        expected_quantity: { type: integer, minimum: 1, maximum: 32767 }
+    ExpectedInventoryUpdate:
+      type: object
+      xml: { name: expected_inventory_update }
+      additionalProperties: false
+      required: [lines]
+      description: |
+        Total replacement. `physically_added: true` while `in_progress`: the increases over the stored
+        quantities are instruments physically added to the tray, recorded as one `instruments_added`
+        count event (expected = previous total, detected = added, payload added[] {family_id, previous,
+        new, quantity}, confirmed_by_role, reference_before) and audited `session.instruments_added`;
+        they raise the vision count reference (initial YOLO count + confirmed additions). Resubmitting
+        the same quantities adds nothing. Without it, or while `scheduled`, the edit is administrative
+        (`session.inventory_updated`) and never changes the reference.
+      properties:
+        lines:
+          type: array
+          minItems: 1
+          xml: { name: lines, wrapped: true }
+          items: { $ref: '#/components/schemas/LineRequest' }
+        physically_added: { type: boolean, default: false }
+    StartRequest:
+      type: object
+      xml: { name: start_request }
+      additionalProperties: false
+      description: No fields; the server decides capture_mode, timestamps and phase.
+    VisionCountsRequest:
+      type: object
+      xml: { name: vision_counts }
+      additionalProperties: false
+      required: [client_event_id, occurred_at, model_version, trigger, counts]
+      properties:
+        client_event_id: { type: string, format: uuid, description: 'Idempotency key (count_event.client_event_id, UNIQUE)' }
+        occurred_at: { type: string, format: date-time, description: 'ISO-8601 with timezone; normalized to UTC' }
+        model_version: { type: string, minLength: 1, maxLength: 32, description: 'yolo_model.version_tag (DS03); not looked up' }
+        trigger: { type: string, enum: [stable_window, final] }
+        counts:
+          type: array
+          description: Detected families of the expected inventory, each at most once; may be empty.
+          xml: { name: counts, wrapped: true }
+          items:
+            type: object
+            xml: { name: count }
+            additionalProperties: false
+            required: [family_id, detected_quantity]
+            properties:
+              family_id: { type: string, format: uuid }
+              detected_quantity: { type: integer, minimum: 0, maximum: 32767 }
+    VisionCountResult:
+      type: object
+      xml: { name: vision_count_result }
+      required: [count_event_id, client_event_id, trigger, occurred_at]
+      properties:
+        count_event_id: { type: string, format: uuid }
+        client_event_id: { type: string, format: uuid }
+        trigger: { type: string, enum: [stable_window, final] }
+        occurred_at: { type: string, format: date-time }
+    CountReportRequest:
+      type: object
+      xml: { name: count_report }
+      additionalProperties: false
+      required: [reports]
+      properties:
+        reports:
+          type: array
+          minItems: 1
+          description: Every expected family exactly once.
+          xml: { name: reports, wrapped: true }
+          items: { $ref: '#/components/schemas/ReportLine' }
+    ReportLine:
+      type: object
+      xml: { name: report }
+      additionalProperties: false
+      required: [family_id, reported_quantity]
+      properties:
+        family_id: { type: string, format: uuid }
+        suggested_quantity: { type: integer, minimum: 0, maximum: 32767, nullable: true, description: 'AI suggestion shown to the operator; must equal the stored final result; null without one' }
+        reported_quantity: { type: integer, minimum: 0, maximum: 32767, description: Final human quantity }
+        reason_code: { type: string, nullable: true, description: 'cat_discrepancy_reason code; required when reported differs from expected' }
+        notes: { type: string, nullable: true, description: 'Human-correction justification: required (non-blank) when suggested is not null and reported differs from it; must be null/absent otherwise' }
+    CountReportResult:
+      type: object
+      xml: { name: count_report_result }
+      required: [session_id, status_code, open_discrepancies, human_corrections]
+      properties:
+        session_id: { type: string, format: uuid }
+        status_code: { type: string, enum: [awaiting_spd_review, correction_required] }
+        open_discrepancies: { type: integer, minimum: 0 }
+        human_corrections: { type: integer, minimum: 0 }
+    ResolveRequest:
+      type: object
+      xml: { name: resolve_request }
+      additionalProperties: false
+      required: [notes, outcome]
+      properties:
+        notes: { type: string, minLength: 1, description: 'Non-blank; appended untranslated to description' }
+        outcome: { type: string, enum: [resolved, lost, recovered], description: 'A physical shortage (reason shortage) cannot be resolved: 409 physical_shortage_needs_piece_outcome (use lost / recovered; it stays an unreconciled incident)' }
+        instrument_id: { type: string, format: uuid, nullable: true, description: 'Physical piece (instrument.id) for lost / recovered (DS03 checks). Absent: the portal rule — lost marks an in-service piece of the discrepancy family (reserved for this operation first), recovered reactivates a lost piece of the family or notes that none was found. Must be null/absent with resolved' }
+    ResolveResult:
+      type: object
+      xml: { name: resolve_result }
+      required: [discrepancy_id, session_id, open_remaining, session_status_code]
+      properties:
+        discrepancy_id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        open_remaining: { type: integer, minimum: 0 }
+        session_status_code: { type: string, enum: [correction_required, awaiting_spd_review] }
+    CloseRequest:
+      type: object
+      xml: { name: close_request }
+      additionalProperties: false
+      required: [material_recovered]
+      properties:
+        material_recovered: { type: boolean, enum: [true], description: 'false/missing → 400 material_not_recovered' }
+        contingency_reviewed: { type: boolean, default: false, description: 'Required true when the Operator closed with a contingency count (400 contingency_review_required)' }
+        unreconciled_shortage_acknowledged: { type: boolean, default: false, description: 'Required true when the session has a physical shortage (409 unreconciled_physical_shortage, details.discrepancy_ids). Such a close is recorded in the session_close event with safe_close_confirmed = false and unreconciled_physical_shortages = the discrepancy ids: a physically missing instrument is never a safe close' }
+    OperatorCloseRequest:
+      type: object
+      xml: { name: operator_close_request }
+      additionalProperties: false
+      required: [physical_integrity_confirmed, material_recovered]
+      properties:
+        physical_integrity_confirmed: { type: boolean, enum: [true], description: 'The Operator confirms the physical instrument set is complete. false/missing → 400 physical_integrity_not_confirmed' }
+        material_recovered: { type: boolean, enum: [true], description: 'false/missing → 400 material_not_recovered' }
+    HumanCorrection:
+      type: object
+      nullable: true
+      required: [justification, user_id, recorded_at]
+      properties:
+        justification: { type: string }
+        user_id: { type: string, format: uuid, nullable: true }
+        recorded_at: { type: string, format: date-time }
+    CountItem:
+      type: object
+      xml: { name: count }
+      required: [id, event_type_code, occurred_at, user_id, client_event_id, family_id, family_code,
+                 expected_quantity, detected_quantity, reason_code, model_version, trigger, counts, human_correction]
+      properties:
+        id: { type: string, format: uuid }
+        event_type_code: { type: string, description: 'cat_event_type.code (DS04)' }
+        occurred_at: { type: string, format: date-time }
+        user_id: { type: string, format: uuid, nullable: true }
+        client_event_id: { type: string, format: uuid, nullable: true }
+        family_id: { type: string, format: uuid, nullable: true }
+        family_code: { type: string, nullable: true }
+        expected_quantity: { type: integer, nullable: true }
+        detected_quantity: { type: integer, nullable: true, description: 'In manual_count: the quantity reported by the human' }
+        reason_code: { type: string, nullable: true, description: 'manual_count only; catalog codes only' }
+        model_version: { type: string, nullable: true, description: auto_count only }
+        trigger: { type: string, nullable: true, enum: [stable_window, final], description: 'auto_count only; null for legacy rows' }
+        counts:
+          type: array
+          xml: { name: counts, wrapped: true }
+          items: { $ref: '#/components/schemas/VisionCount' }
+        human_correction: { $ref: '#/components/schemas/HumanCorrection' }
+    Discrepancy:
+      type: object
+      xml: { name: discrepancy }
+      required: [id, reason_code, family_id, family_code, expected_quantity, detected_quantity, resolved,
+                 resolved_at, origin_event_id, description]
+      properties:
+        id: { type: string, format: uuid }
+        reason_code: { type: string, nullable: true }
+        family_id: { type: string, format: uuid, nullable: true }
+        family_code: { type: string, nullable: true }
+        expected_quantity: { type: integer, nullable: true }
+        detected_quantity: { type: integer, nullable: true }
+        resolved: { type: boolean }
+        resolved_at: { type: string, format: date-time, nullable: true }
+        origin_event_id: { type: string, format: uuid, nullable: true }
+        description: { type: string, description: 'Stored text, untranslated' }
+    Ref:
+      type: object
+      properties: { id: { type: string, format: uuid }, code: { type: string }, name: { type: string } }
+    SessionSnapshot:
+      type: object
+      xml: { name: session }
+      properties:
+        id: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/Ref' }
+        capture_mode: { type: string, nullable: true }
+        operator: { type: object, nullable: true, properties: { id: { type: string }, name: { type: string } } }
+        operation:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            scheduled_at: { type: string, format: date-time, nullable: true }
+            institution_id: { type: string, format: uuid }
+            procedure_type: { allOf: [{ $ref: '#/components/schemas/Ref' }], nullable: true }
+            room: { allOf: [{ $ref: '#/components/schemas/Ref' }], nullable: true }
+        kit: { type: object, nullable: true, properties: { id: { type: string }, name: { type: string } } }
+        station: { type: object, nullable: true, properties: { id: { type: string }, name: { type: string } } }
+        started_at: { type: string, format: date-time, nullable: true }
+        ended_at: { type: string, format: date-time, nullable: true }
+        updated_at: { type: string, format: date-time }
+        closed_by_user_id: { type: string, format: uuid, nullable: true }
+        open_discrepancies: { type: integer }
+        has_privacy_agreement: { type: boolean }
+    SnapshotDiscrepancy:
+      type: object
+      xml: { name: discrepancy }
+      properties:
+        id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        description: { type: string }
+        resolved: { type: boolean }
+        resolved_at: { type: string, format: date-time, nullable: true }
+        expected_quantity: { type: integer, nullable: true }
+        detected_quantity: { type: integer, nullable: true }
+        family: { allOf: [{ $ref: '#/components/schemas/Ref' }], nullable: true }
+        reason_code: { type: string, nullable: true }
+        reason_name: { type: string, nullable: true, description: Queue only }
+        origin_event_code: { type: string, nullable: true }
+    SessionSnapshotDetail:
+      allOf:
+        - $ref: '#/components/schemas/SessionSnapshot'
+        - type: object
+          properties:
+            phase: { allOf: [{ $ref: '#/components/schemas/Ref' }], nullable: true }
+            expected_inventory:
+              type: array
+              items:
+                type: object
+                properties:
+                  family_id: { type: string }
+                  family_code: { type: string }
+                  family_name: { type: string }
+                  category: { allOf: [{ $ref: '#/components/schemas/Ref' }], nullable: true }
+                  expected_quantity: { type: integer }
+                  source: { type: string, enum: [kit_snapshot, schedule_additional, live_add, manual] }
+            events:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: string }
+                  occurred_at: { type: string, format: date-time }
+                  event_code: { type: string }
+                  event_name: { type: string }
+                  user_id: { type: string, nullable: true }
+                  family_id: { type: string, nullable: true }
+                  expected_quantity: { type: integer, nullable: true }
+                  detected_quantity: { type: integer, nullable: true }
+                  payload: { type: object, description: 'Projected payload (see GET /sessions/{id})' }
+            discrepancies: { type: array, items: { $ref: '#/components/schemas/SnapshotDiscrepancy' } }
+            privacy: { type: object, nullable: true }
+            patient: { type: object, nullable: true, properties: { id: { type: string }, display_name: { type: string } } }
+            surgical_team:
+              type: array
+              items: { type: object, properties: { physician_id: { type: string }, name: { type: string }, role_code: { type: string }, role_name: { type: string } } }
+            contingency: { type: object, nullable: true, description: 'Last manual_close contingency: reason_code, notes, worker_state, event_id, occurred_at, user_id, user_name, verified_total, reference, known_final_mismatch' }
+    PhysicianRow:
+      type: object
+      xml: { name: physician }
+      additionalProperties: false
+      properties:
+        physician_id: { type: string, format: uuid }
+        surgical_role_code: { type: string, default: surgeon }
+    ScheduleRequest:
+      type: object
+      xml: { name: schedule_request }
+      additionalProperties: false
+      required: [operator_user_id, procedure_type_id, room_id, station_id, kit_id, scheduled_at, phase_code, physicians, expected_lines]
+      properties:
+        operator_user_id: { type: string, format: uuid }
+        procedure_type_id: { type: string, format: uuid }
+        room_id: { type: string, format: uuid }
+        station_id: { type: string, format: uuid }
+        kit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid, nullable: true }
+        scheduled_at: { type: string, format: date-time }
+        phase_code: { type: string }
+        physicians: { type: array, xml: { wrapped: true }, items: { $ref: '#/components/schemas/PhysicianRow' } }
+        expected_lines: { type: array, xml: { wrapped: true }, items: { $ref: '#/components/schemas/LineRequest' } }
+        privacy_notice_version_id: { type: string, format: uuid, nullable: true }
+        purpose_model_improvement: { type: boolean, nullable: true }
+    SessionUpdateRequest:
+      type: object
+      xml: { name: session_update_request }
+      additionalProperties: false
+      required: [operator_user_id, procedure_type_id, room_id, station_id, kit_id, scheduled_at, physicians, expected_lines]
+      properties:
+        operator_user_id: { type: string, format: uuid }
+        procedure_type_id: { type: string, format: uuid }
+        room_id: { type: string, format: uuid }
+        station_id: { type: string, format: uuid }
+        kit_id: { type: string, format: uuid }
+        patient_id: { type: string, format: uuid, nullable: true }
+        scheduled_at: { type: string, format: date-time }
+        physicians: { type: array, xml: { wrapped: true }, items: { $ref: '#/components/schemas/PhysicianRow' } }
+        expected_lines: { type: array, xml: { wrapped: true }, items: { $ref: '#/components/schemas/LineRequest' } }
+    PrivacyAgreementRequest:
+      type: object
+      xml: { name: privacy_agreement_request }
+      additionalProperties: false
+      required: [privacy_notice_version_id]
+      properties:
+        privacy_notice_version_id: { type: string, format: uuid }
+        purpose_model_improvement: { type: boolean, default: false }
+    ReportFilters:
+      type: object
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        tz: { type: string }
+        kit_id: { type: string, format: uuid, nullable: true }
+        operator_id: { type: string, format: uuid, nullable: true }
+        status: { type: string, nullable: true }
+    ReportBreakdown:
+      type: object
+      properties:
+        family_id: { type: string, format: uuid, nullable: true }
+        code: { type: string, nullable: true, description: null when no reason or family was recorded }
+        name: { type: string, nullable: true }
+        total: { type: integer }
+        open: { type: integer }
+    ReportSummary:
+      type: object
+      xml: { name: report_summary }
+      properties:
+        filters: { $ref: '#/components/schemas/ReportFilters' }
+        sessions:
+          type: object
+          properties:
+            total: { type: integer }
+            by_status:
+              type: array
+              items: { type: object, properties: { code: { type: string }, count: { type: integer } } }
+            scheduled: { type: integer }
+            in_progress: { type: integer }
+            pending_review: { type: integer, description: awaiting_spd_review + correction_required }
+            closed: { type: integer }
+            reported: { type: integer, description: Sessions whose count the Operator finished (ended_at) }
+            timed: { type: integer }
+            avg_duration_minutes: { type: number, nullable: true, description: 'avg(ended_at - started_at); null without timed sessions' }
+            reported_with_discrepancies: { type: integer }
+            with_discrepancies_pct: { type: number, nullable: true, description: reported_with_discrepancies / reported }
+        discrepancies:
+          type: object
+          properties:
+            total: { type: integer }
+            open: { type: integer }
+            resolved: { type: integer }
+            timed: { type: integer }
+            avg_resolution_minutes: { type: number, nullable: true, description: 'resolved_at - COALESCE(origin count event, session start)' }
+            by_reason: { type: array, items: { $ref: '#/components/schemas/ReportBreakdown' } }
+            by_family: { type: array, items: { $ref: '#/components/schemas/ReportBreakdown' } }
+        ai_agreement:
+          type: object
+          properties:
+            pairs: { type: integer, description: Human validations of vision counts with their YOLO suggestion }
+            agreed: { type: integer }
+            corrections: { type: integer, description: pairs - agreed (the human changed the YOLO suggestion) }
+            min_pairs: { type: integer }
+            sufficient: { type: boolean }
+            agreement_pct: { type: number, nullable: true }
+        activity:
+          type: array
+          items:
+            type: object
+            properties:
+              date: { type: string, format: date }
+              sessions: { type: integer }
+              reported: { type: integer }
+              with_discrepancies: { type: integer }
+    KitReport:
+      type: object
+      xml: { name: kit_report }
+      properties:
+        filters: { $ref: '#/components/schemas/ReportFilters' }
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+        kits:
+          type: array
+          items:
+            type: object
+            properties:
+              kit_id: { type: string, format: uuid, nullable: true }
+              name: { type: string, nullable: true }
+              version: { type: integer, nullable: true, description: Current kit version (sessions do not record the version used) }
+              active: { type: boolean, nullable: true }
+              sessions: { type: integer }
+              reported_sessions: { type: integer }
+              sessions_with_discrepancies: { type: integer }
+              discrepancies: { type: integer }
+              expected_quantity: { type: integer, nullable: true, description: Expected pieces over all sessions }
+              expected_quantity_counted: { type: integer, nullable: true, description: Expected pieces of the sessions with a human count }
+              reported_quantity: { type: integer, nullable: true, description: Last human count per session and family }
+    OperatorReport:
+      type: object
+      xml: { name: operator_report }
+      properties:
+        filters: { $ref: '#/components/schemas/ReportFilters' }
+        page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+        min_pairs: { type: integer }
+        operators:
+          type: array
+          items:
+            type: object
+            properties:
+              operator_id: { type: string, format: uuid }
+              name: { type: string }
+              sessions: { type: integer, description: Sessions assigned in the period }
+              started_sessions: { type: integer }
+              counts_completed: { type: integer, description: Sessions whose count the Operator finished }
+              family_counts: { type: integer, description: Families counted (last human count per session and family) }
+              ai_pairs: { type: integer }
+              ai_agreed: { type: integer }
+              human_corrections: { type: integer }
+              discrepancies: { type: integer }
+              agreement_pct: { type: number, nullable: true }
+    ReportOptions:
+      type: object
+      xml: { name: report_options }
+      properties:
+        kits:
+          type: array
+          items: { type: object, properties: { id: { type: string, format: uuid }, name: { type: string }, version: { type: integer }, active: { type: boolean } } }
+        operators:
+          type: array
+          items: { type: object, properties: { id: { type: string, format: uuid }, name: { type: string }, active: { type: boolean } } }
+        statuses: { type: array, items: { $ref: '#/components/schemas/StatusCode' } }
+    Error:
+      type: object
+      xml: { name: error_response }
+      required: [error, message, correlation_id, details]
+      properties:
+        error:
+          type: string
+          enum: [invalid_request, unauthorized, forbidden, not_found, method_not_allowed, conflict, payload_too_large,
+                 validation_error, invalid_reference, internal_error, dependency_unavailable]
+        message: { type: string }
+        correlation_id: { type: string }
+        details: { type: object, additionalProperties: true }
+    Health:
+      type: object
+      xml: { name: health }
+      required: [status, checks, correlation_id]
+      properties:
+        status: { type: string, enum: [live, ok, unavailable, ready, not_ready] }
+        checks:
+          type: object
+          additionalProperties: { type: string, enum: [ok, error] }
+        correlation_id: { type: string }
+  responses:
+    Unauthorized:
+      description: Missing/invalid/expired token, wrong type or algorithm, revoked or absent Redis session, inactive user/institution (`unauthorized`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: unauthorized, message: Bearer access token is required, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    InvalidRequest:
+      description: Malformed JSON/XML, wrong types, missing/unknown fields (e.g. institution_id, boxes, video_t, expected_quantity in a report), duplicate family, empty lines, negative or out-of-range vision/report quantities, missing expected families in a report, missing notes/reason_code, suggested_quantity in a manual session, unsupported Content-Type (`invalid_request`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: invalid_request, message: Unknown fields in request body, correlation_id: corr-1, details: { unknown_fields: [institution_id] } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Gone:
+      description: Legacy Operator write disabled (`gone`, details.reason = operator_flow_in_portal).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Conflict:
+      description: State does not allow the action (complement v0.2.0 reasons — not_scheduled, privacy_not_scheduled, capture_mode_frozen, inventory_locked, session_not_reviewable, already_resolved, not_awaiting_spd_review, open_discrepancies; previously) (operation not scheduled; session not scheduled for start; inventory not editable; session not in_progress or not vision for vision-counts; client_event_id reused with other content/session; suggested_quantity different from the stored vision result; session not in correction_required for resolve or not in awaiting_spd_review for close; discrepancy already resolved; open discrepancies on close, details.open_discrepancies; resolve lost/recovered from a disallowed piece state, details.cycle_status_code/active) (`conflict`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: conflict, message: Session is not scheduled, correlation_id: corr-1, details: { status_code: in_progress } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unprocessable:
+      description: '`invalid_reference` (operation/user/station/kit/phase/family not valid for the tenant; family outside the session expected inventory; reason_code outside cat_discrepancy_reason; details.field) or `validation_error` (expected quantity out of range; quantity above available stock, details.family_id; resolve instrument_id unknown, of another institution or of another family than the discrepancy, details.field = instrument_id).'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: validation_error, message: Requested quantity exceeds available stock, correlation_id: corr-1, details: { family_id: 41414141-0000-4000-8000-000000000010 } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    PayloadTooLarge:
+      description: Body larger than 64 KiB (`payload_too_large`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    InternalError:
+      description: Unexpected error; the whole transaction (domain rows and audit) is rolled back (`internal_error`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Forbidden:
+      description: Missing the role required by the action (e.g. it_admin; operator on create/inventory; supervisor-only on start, vision-counts or count-report; operator on resolve or close) (`forbidden`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    NotFound:
+      description: Unknown, malformed, out-of-tenant, not assigned (operator) or operation-less session; unknown discrepancy or one of another session (`not_found`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: not_found, message: Session not found, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    DependencyUnavailable:
+      description: PostgreSQL or Redis unavailable (`dependency_unavailable`, `details.dependency`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: dependency_unavailable, message: Redis is unavailable, correlation_id: corr-1, details: { dependency: redis } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    HealthOk:
+      description: Dependency OK
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Health' }
+          example: { status: ok, checks: { database: ok }, correlation_id: corr-health-1 }
+    HealthFailed:
+      description: Dependency unavailable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Health' }
+          example: { status: unavailable, checks: { database: error }, correlation_id: corr-health-1 }

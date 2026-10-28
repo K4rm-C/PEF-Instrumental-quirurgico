@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PEF Audit / Event Service - XML representation (PEF-DS09 §1.3.6, base /api/v1/audit).
+
+  Every XML document the service answers (Accept: application/xml):
+    event_page     GET /events            (items/event, page, per_page, total, total_pages, sort)
+    event          GET /events/{id}
+    event_summary  GET /events/summary    (group lists by_*/group, by_user/user, by_session/session)
+    error_response any error
+    health         GET /health, /health/live, /health/ready
+  The API is read only and takes no request bodies, so there are no XML request documents.
+  null = empty element with xsi:nil="true"; element order is not significant (xs:all).
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+
+  <xs:simpleType name="uuid">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Category">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="security"/><xs:enumeration value="business"/><xs:enumeration value="operation"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Outcome">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="success"/><xs:enumeration value="denied"/><xs:enumeration value="blocked"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="RecordType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="access_audit"/><xs:enumeration value="count_event"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Actor">
+    <xs:all>
+      <xs:element name="type" type="xs:string"/>
+      <xs:element name="user_id" type="uuid"/>
+      <xs:element name="name" type="xs:string" nillable="true"/>
+      <xs:element name="email" type="xs:string" nillable="true"/>
+      <xs:element name="role_codes">
+        <xs:complexType><xs:sequence>
+          <xs:element name="role_code" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Resource">
+    <xs:all>
+      <xs:element name="type" type="xs:string"/>
+      <xs:element name="id" type="uuid"/>
+      <xs:element name="label" type="xs:string" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="CountDetails">
+    <xs:all>
+      <xs:element name="expected_quantity" type="xs:int" nillable="true"/>
+      <xs:element name="detected_quantity" type="xs:int" nillable="true"/>
+      <xs:element name="family_id" type="uuid" nillable="true"/>
+      <xs:element name="family_code" type="xs:string" nillable="true"/>
+      <xs:element name="trigger" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="reason" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="scope" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="capture_mode" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="next_status" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="open_discrepancies" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="operator_close_path" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="close_path" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="reference_before" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="confirmed_by_role" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="model_version" type="xs:string" minOccurs="0" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Event">
+    <xs:all>
+      <xs:element name="id" type="uuid"/>
+      <xs:element name="record_type" type="RecordType"/>
+      <xs:element name="occurred_at" type="xs:dateTime"/>
+      <xs:element name="category" type="Category"/>
+      <xs:element name="source_service" type="xs:string"/>
+      <xs:element name="action" type="xs:string"/>
+      <xs:element name="outcome" type="Outcome"/>
+      <xs:element name="actor" type="Actor" nillable="true"/>
+      <xs:element name="institution_id" type="uuid" nillable="true"/>
+      <xs:element name="resource" type="Resource"/>
+      <xs:element name="session_id" type="uuid" nillable="true"/>
+      <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+      <xs:element name="ip" type="xs:string" nillable="true"/>
+      <xs:element name="details" type="CountDetails" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:element name="event" type="Event"/>
+
+  <xs:element name="event_page">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="items">
+          <xs:complexType><xs:sequence>
+            <xs:element name="event" type="Event" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+        <xs:element name="page" type="xs:positiveInteger"/>
+        <xs:element name="per_page" type="xs:positiveInteger"/>
+        <xs:element name="total" type="xs:nonNegativeInteger"/>
+        <xs:element name="total_pages" type="xs:positiveInteger"/>
+        <xs:element name="sort" type="xs:string"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="Groups">
+    <xs:sequence>
+      <xs:element name="group" minOccurs="0" maxOccurs="unbounded">
+        <xs:complexType><xs:all>
+          <xs:element name="value" type="xs:string"/>
+          <xs:element name="count" type="xs:nonNegativeInteger"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+    </xs:sequence>
+  </xs:complexType>
+
+  <xs:element name="event_summary">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="total" type="xs:nonNegativeInteger"/>
+        <xs:element name="first_at" type="xs:dateTime" nillable="true"/>
+        <xs:element name="last_at" type="xs:dateTime" nillable="true"/>
+        <xs:element name="by_category" type="Groups"/>
+        <xs:element name="by_source_service" type="Groups"/>
+        <xs:element name="by_outcome" type="Groups"/>
+        <xs:element name="by_record_type" type="Groups"/>
+        <xs:element name="by_action" type="Groups"/>
+        <xs:element name="by_resource_type" type="Groups"/>
+        <xs:element name="by_user">
+          <xs:complexType><xs:sequence>
+            <xs:element name="user" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType><xs:all>
+                <xs:element name="user_id" type="uuid"/>
+                <xs:element name="name" type="xs:string" nillable="true"/>
+                <xs:element name="email" type="xs:string" nillable="true"/>
+                <xs:element name="count" type="xs:nonNegativeInteger"/>
+              </xs:all></xs:complexType>
+            </xs:element>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+        <xs:element name="by_session">
+          <xs:complexType><xs:sequence>
+            <xs:element name="session" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType><xs:all>
+                <xs:element name="session_id" type="uuid"/>
+                <xs:element name="label" type="xs:string"/>
+                <xs:element name="last_at" type="xs:dateTime"/>
+                <xs:element name="count" type="xs:nonNegativeInteger"/>
+              </xs:all></xs:complexType>
+            </xs:element>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="error_response">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="error" type="xs:string"/>
+        <xs:element name="message" type="xs:string"/>
+        <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+        <xs:element name="details">
+          <xs:complexType><xs:sequence>
+            <xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="health">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="status" type="xs:string"/>
+        <xs:element name="checks">
+          <xs:complexType><xs:sequence>
+            <xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+        <xs:element name="correlation_id" type="xs:string"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

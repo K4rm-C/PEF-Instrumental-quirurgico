@@ -81,7 +81,13 @@
             instrumentSaveTitle: {{ _("Save instrument changes?")|tojson }},
             instrumentCreateTitle: {{ _("Create instrument?")|tojson }},
             instrumentSaveChanges: {{ _("Save Changes")|tojson }},
-            instrumentSaveButton: {{ _("Save Instrument")|tojson }}
+            instrumentSaveButton: {{ _("Save Instrument")|tojson }},
+            notifications: {{ _("Notifications")|tojson }},
+            notificationsUnread: {{ _("Notifications (%(count)s unread)")|tojson }},
+            notificationsUnavailable: {{ _("Notifications cannot be loaded right now")|tojson }},
+            reportsSessions: {{ _("Sessions")|tojson }},
+            reportsWithDiscrepancies: {{ _("With discrepancies")|tojson }},
+            reportsDiscrepancies: {{ _("Discrepancies")|tojson }}
         };
         window.pefT = function (key, values) {
             var text = window.PEF_I18N[key];
@@ -126,6 +132,7 @@
     <script src="{{ url_for('static', filename='js/auth-client.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/auth-heartbeat.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/pages/app-confirm.js') }}" defer></script>
+    {% if current_user %}<script src="{{ url_for('static', filename='js/notifications.js') }}" defer></script>{% endif %}
     {% block page_scripts %}{% endblock %}
 </body>
 </html>

@@ -193,7 +193,11 @@ Reservation and kit
 
 ## 5. PostgreSQL DDL (v2 · script completo)
 
-Script de referencia para migraciones Docker (`001_init.sql`). Todas las restricciones llevan nombre explícito (`pk_*`, `fk_*`, `uk_*`, `chk_*`) para facilitar diffs, rollback y documentación.
+Script de referencia para migraciones Docker (`001_init.sql`).
+
+**Esquema actual = esquema base (este script, `001_init.sql`) + migraciones posteriores (§5.12).** El DDL de esta sección es la base histórica y **no** incluye las migraciones posteriores; `001_init.sql` no se regenera para absorberlas.
+
+Todas las restricciones llevan nombre explícito (`pk_*`, `fk_*`, `uk_*`, `chk_*`) para facilitar diffs, rollback y documentación.
 
 **Orden de ejecución:** extensiones → catálogos → identidad / integration_client → clínico-operativo → media → instrumental / kits / procedure bridges → sesión de conteo → privacidad (notice, agreement, audit, ARCO) → índices adicionales → FK diferidas.
 
@@ -597,6 +601,8 @@ CREATE TABLE media_asset (
     OR purged_at >= purge_requested_at
   )
 );
+-- Current schema also has media_asset.session_id (FK work_session, ON DELETE RESTRICT) and
+-- idx_media_asset_session_created: added by data/migrations/004_media_asset_session.sql (§5.12).
 
 -- -----------------------------------------------------------------------------
 -- 5.6 Instrumental, kits y modelos
@@ -1141,7 +1147,7 @@ Resumen para validar el diagrama ER y migraciones. `UK` incluye índices únicos
 | `operation`                    | `id` | `status_id`, `procedure_type_id`, `room_id`, `institution_id`                                           | —                                                | timeline                                |
 | `operation_patient`            | `id` | `operation_id`, `patient_id`                                                                            | par                                              | —                                       |
 | `operation_physician`          | `id` | `operation_id`, `physician_id`, `surgical_role_id`                                                      | triple                                           | —                                       |
-| `media_asset`                  | `id` | —                                                                                                       | `(bucket, object_key)`                           | `size`, `kind`, `provider`, purge order |
+| `media_asset`                  | `id` | `session_id` (004, `RESTRICT`)                                                                          | `(bucket, object_key)`                           | `size`, `kind`, `provider`, purge order |
 | `instrument_family`            | `id` | `category_id`                                                                                           | `code`                                           | —                                       |
 | `family_example`               | `id` | `family_id`, `media_asset_id`                                                                           | —                                                | —                                       |
 | `instrument`                   | `id` | `family_id`, `cycle_status_id`, `institution_id`                                                        | `(institution_id, internal_code)` parcial        | —                                       |
@@ -1182,10 +1188,32 @@ Resumen para validar el diagrama ER y migraciones. `UK` incluye índices únicos
 
 ### 5.11 Retention purge and FHIR client
 
-- **Retention worker** (cron / queue): same idempotent pipeline for TTL expiry and ARCO cancel — delete object in GCS/MinIO → delete or unlink Mongo `checkpoint_frame` → set `media_asset.purged_at` (or DELETE row). Re-run safe if a store is already clean.
+- **Retention worker** (internal job; PEF-DS05 v0.2.1 §1.3.2 rule 12): same idempotent pipeline for TTL expiry and ARCO cancel. Eligible: `purged_at IS NULL` and (`purge_requested_at` set, or `retention_until` ≤ now); `blocked_at` alone is **not** a purge (blocked ≠ purged). Purge deletes the binary object from object storage (GCS/MinIO/Garage) → deletes or unlinks the Mongo `checkpoint_frame` (DS06, when a Mongo writer exists) → sets `media_asset.purged_at`. The `media_asset` row is **never deleted**: it keeps its historical metadata (id, session, kind, content type, size, sha256, retention/purge/block timestamps, bucket/key), and the read API keeps returning it with `purged = true` and `signed_url = null`. Re-run safe: deleting an object that is already gone counts as success, and a row whose object was deleted but whose `purged_at` was not saved is completed by the next run.
 - **ARCO cancel**: set `blocked_at` / `purge_requested_at` on related `media_asset`, then enqueue the same worker; track lifecycle in `privacy_request`.
 - **FHIR export**: Backend Web (or thin Integration routes) maps PG rows to FHIR R4 JSON; authenticate machine callers with `integration_client` (client credentials / API key hash) + scopes; log reads in `access_audit` with `actor_type = 'client'`.
 - **Training export eligibility**: `session_processing_agreement.purpose_model_improvement = TRUE` and media not purged; UI/API lists URIs only — no in-system GIF deconstruction.
+
+### 5.12 Migraciones posteriores al esquema base
+
+Se aplican en orden después de `001_init.sql` y los seeds. En una base **nueva**, `docker-compose.yml` las monta en `docker-entrypoint-initdb.d` (`04_…`); en una base **existente** se aplican a mano (comando en el README raíz). Son idempotentes.
+
+**004 · `data/migrations/004_media_asset_session.sql`** — Evidence E0 (PEF-DS05 v0.2.0)
+
+| Columna | Tipo | Nulo | Default | FK | Significado |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `media_asset.session_id` | UUID | SÍ | NULL | `work_session (id)` `ON DELETE RESTRICT` | Sesión dueña de la evidencia clínica; tenant = sesión → operación → institución. NULL para assets DS03/MLOps. |
+
+```sql
+ALTER TABLE media_asset ADD COLUMN IF NOT EXISTS session_id UUID NULL;
+ALTER TABLE media_asset
+  ADD CONSTRAINT fk_media_asset_session
+  FOREIGN KEY (session_id) REFERENCES work_session (id) ON DELETE RESTRICT;
+CREATE INDEX IF NOT EXISTS idx_media_asset_session_created
+  ON media_asset (session_id, created_at, id)
+  WHERE session_id IS NOT NULL;
+```
+
+`RESTRICT` (no `CASCADE` / `SET NULL`): la evidencia clínica no desaparece ni pierde su tenant en silencio; sale solo por el ciclo de bloqueo/purga (PEF-DS05/DS07). `object_key` nunca es fuente de autorización.
 
 ---
 

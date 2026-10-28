@@ -75,13 +75,13 @@ def overlay_bgr(
     Type-degraded without usable category → slate.
     """
     reason = resolution_reason or ""
-    if family_code and (high_confidence or sticky_name):
-        return family_bgr(category)
     if reason == "type_degraded" and not family_code:
         return type_bgr(category) if category and _norm_key(category) != "other" else unnamed_bgr()
     if reason == "type_degraded":
         # Object counted only as type.
         return type_bgr(category)
+    if family_code and (high_confidence or sticky_name):
+        return family_bgr(category)
     if family_code:
         # Assigned to a cupo but naming still type-level (weak conf).
         return type_bgr(category)

@@ -177,6 +177,7 @@ INSERT INTO cat_event_type (code, name) VALUES
   ('correction_applied', 'Human correction applied'),
   ('validation_passed',  'Validation with no discrepancies'),
   ('close_blocked',      'Close attempt blocked'),
+  ('instruments_added',  'Instruments added to the tray (confirmed)'),
   ('session_close',      'Session close')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 

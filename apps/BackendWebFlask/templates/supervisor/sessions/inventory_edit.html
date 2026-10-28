@@ -229,7 +229,13 @@
         </div>
     </div>
 
-    <div class="form-actions" style="margin-top: 1rem;">
+    {% if session.status_code == 'in_progress' %}
+    <label class="form-field__checkbox" data-physically-added>
+        <input type="checkbox" name="physically_added" value="1">
+        <span>{{ _("The increased quantities are instruments physically added to the tray during the procedure (they raise the reference count for the final YOLO capture).") }}</span>
+    </label>
+{% endif %}
+<div class="form-actions" style="margin-top: 1rem;">
         <a class="btn btn--secondary" href="{{ url_for('web.supervisor_session_details', session_id=session.id) }}">{{ _("Cancel") }}</a>
         <button type="submit" class="btn btn--primary">{{ _("Save") }}</button>
     </div>

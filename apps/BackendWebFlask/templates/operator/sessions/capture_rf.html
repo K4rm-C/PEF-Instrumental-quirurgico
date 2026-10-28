@@ -117,6 +117,14 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
 }
 .capture-legend__swatch--soft { background: var(--kit-swatch-soft, var(--kit-other-soft)); opacity: .95; }
+.capture-caption { font-size: .8rem; color: #94a3b8; padding: .35rem .6rem; }
+.capture-status-grid { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; margin-top: .75rem; font-size: .88rem; }
+.capture-status-grid dt { color: var(--color-text-secondary); }
+.capture-status-grid dd { margin: 0; }
+.capture-panel { margin-top: 1rem; padding: .85rem 1rem; border-radius: .6rem; border: 1px solid var(--color-border, #cbd5e1); }
+.capture-panel h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.capture-panel[hidden] { display: none; }
+.capture-ack { display: flex; gap: .5rem; align-items: flex-start; margin: .5rem 0; }
 </style>
 {% endblock %}
 
@@ -145,13 +153,12 @@
 
 <div class="capture-layout">
     <section class="card">
-        <h2 class="card__title">{{ _("Overhead capture") }}</h2>
-        <p class="card__subtitle">{{ _("Live camera is the main path. Upload a file only for demo or lab replay. Overlay colors follow instrument type: saturated = type-level label, softer = named family.") }}</p>
+        <h2 class="card__title">{{ _("Capture Image") }}</h2>
+        <p class="card__subtitle">{{ _("One video for both counts: the first frame gives the initial count and the last frame gives the final count. Overlay colors follow instrument type: saturated = type-level label, softer = named family.") }}</p>
         <div class="capture-stage" id="capture-stage">
-            <div class="capture-stage__placeholder" id="capture-placeholder">{{ _("Start the camera to begin live counting.") }}</div>
-            <video id="capture-live-video" playsinline muted hidden></video>
-            <canvas id="capture-live-canvas" hidden></canvas>
-            <img id="capture-frame" alt="{{ _('Annotated frame') }}" hidden>
+            <div class="capture-stage__placeholder" id="capture-placeholder">{{ _("Waiting for video…") }}</div>
+            <img id="capture-frame" alt="{{ _('Frame analysed by YOLO') }}" hidden>
+            <div class="capture-caption" id="capture-caption" hidden></div>
         </div>
         <div class="capture-legend" aria-label="{{ _('Type color legend') }}">
             <span class="capture-legend__item" style="--kit-swatch: var(--kit-cutting); --kit-swatch-soft: var(--kit-cutting-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Cutting") }}</span>
@@ -160,30 +167,48 @@
             <span class="capture-legend__item" style="--kit-swatch: var(--kit-retraction); --kit-swatch-soft: var(--kit-retraction-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Retraction") }}</span>
             <span class="capture-legend__item" style="--kit-swatch: var(--kit-suturing); --kit-swatch-soft: var(--kit-suturing-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Suturing") }}</span>
         </div>
-        <div class="capture-meta">
-            <span id="capture-status">{{ _("Status") }}: idle</span>
-            <span id="capture-progress"></span>
-            <span id="capture-model"></span>
-            <span id="capture-latency"></span>
-        </div>
-        <div class="capture-upload">
-            <button type="button" class="btn btn--primary" id="capture-camera-btn">{{ _("Start camera") }}</button>
-            <select class="form-field__input" id="capture-camera-select" hidden>
-                <option value="">{{ _("Default camera") }}</option>
-            </select>
-            <button type="button" class="btn btn--secondary" id="capture-stop-file-btn" hidden>{{ _("Stop video / back to camera") }}</button>
-        </div>
-        <p id="capture-camera-error" class="text-muted" style="margin-top:.5rem;"></p>
+        <dl class="capture-status-grid">
+            <dt>{{ _("VisionWorker") }}</dt><dd id="capture-status" role="status">—</dd>
+            <dt>{{ _("Model") }}</dt><dd id="capture-model">—</dd>
+        </dl>
+
         <form class="capture-upload" id="capture-upload-form" enctype="multipart/form-data">
             <input class="form-field__input" type="file" name="video" id="capture-video"
                    accept="video/mp4,video/x-matroska,video/quicktime,video/webm,video/x-msvideo,.mp4,.mkv,.mov,.webm,.avi,.m4v" required>
-            <button type="submit" class="btn btn--secondary" id="capture-upload-btn">{{ _("Upload demo video") }}</button>
+            <button type="submit" class="btn btn--secondary" id="capture-upload-btn">{{ _("Upload video") }}</button>
         </form>
-        <p class="text-muted" style="margin-top:.75rem;">{{ _("Demo/lab: .mp4, .mkv, .mov, .webm, .avi. Live uses the camera; you can interrupt a file and return to live.") }}</p>
-        <div class="page-heading__actions" style="margin-top:1rem;">
-            <form method="post" action="{{ finish_url }}">
-                <button type="submit" class="btn btn--primary">{{ _("Finish counting") }}</button>
-            </form>
+        <p class="text-muted" style="margin-top:.5rem;">{{ _("Formats: .mp4, .mkv, .mov, .webm, .avi. Only the first frame is analysed on upload; nothing plays until you register the initial count.") }}</p>
+
+        <div class="capture-panel" id="capture-initial-panel" hidden>
+            <h3>{{ _("Initial count (first frame)") }}</h3>
+            <p id="capture-initial-summary"></p>
+            <label class="capture-ack" id="capture-initial-ack" hidden>
+                <input type="checkbox" id="capture-initial-ack-input">
+                <span>{{ _("I checked the tray in the image: register this count even though it differs from the kit.") }}</span>
+            </label>
+            <button type="button" class="btn btn--primary" id="capture-initial-btn" disabled>{{ _("Register Initial Count") }}</button>
+        </div>
+
+        <div class="capture-panel" id="capture-registered-panel"{% if not count_reference %} hidden{% endif %}>
+            <p class="alert alert--success" id="capture-registered-text" style="margin:0 0 .75rem;">
+                {% if count_reference %}{% if count_reference.added_total %}{{ _("Reference count: %(total)s instruments (initial %(initial)s + %(added)s added).", total=count_reference.total, initial=count_reference.initial_total, added=count_reference.added_total) }}{% else %}{{ _("Initial count registered: %(total)s instruments.", total=count_reference.total) }}{% endif %}{% endif %}
+            </p>
+            <button type="button" class="btn btn--primary" id="capture-play-btn" disabled>{{ _("Run YOLO") }}</button>
+            <p class="text-muted" style="margin:.5rem 0 0;">{{ _("Live detections during processing are shown for observation only: they never change the initial or the final count.") }}</p>
+        </div>
+
+        <div class="capture-panel" id="capture-final-panel" hidden>
+            <h3>{{ _("Final count (last frame)") }}</h3>
+            <p id="capture-final-summary"></p>
+            <label class="capture-ack" id="capture-final-ack" hidden>
+                <input type="checkbox" id="capture-final-ack-input">
+                <span>{{ _("I checked the tray in the image: the difference is real. Document it for Supervisor review.") }}</span>
+            </label>
+            <button type="button" class="btn btn--primary" id="capture-final-btn" disabled>{{ _("Confirm Final Count") }}</button>
+        </div>
+
+        <p class="text-muted" id="capture-hint" role="status" style="margin-top:1rem;"></p>
+        <div class="page-heading__actions" style="margin-top:.5rem;">
             <a class="btn btn--secondary" href="{{ report_url }}">{{ _("Quantity report fallback") }}</a>
         </div>
     </section>
@@ -191,6 +216,7 @@
     <section class="card">
         <h2 class="card__title">{{ _("Expected vs detected") }}</h2>
         <p class="text-muted" style="margin-top:0;">{{ _("Grouped by instrument type (kit purpose). Unnamed = type-level boxes capped by remaining expected slots in that type.") }}</p>
+        <p id="capture-table-source" class="alert alert--info" role="status">{{ _("No frame analysed yet.") }}</p>
         <div class="table-wrapper">
             <table class="data-table" id="capture-counts-table">
                 <thead>
@@ -263,33 +289,313 @@
 </div>
 {% endblock %}
 
+
 {% block page_scripts %}
-<script
-    src="{{ url_for('static', filename='js/pages/capture-rf.js') }}"
-    data-state-url="{{ state_url }}"
-    data-upload-url="{{ upload_url }}"
-    data-phase-url="{{ phase_url }}"
-    data-cancel-url="{{ cancel_url }}"
-    data-ticket-url="{{ ws_ticket_url }}"
-    data-session-id="{{ session_id }}"
-    data-i18n-cat-meta="{{ _('Expected %(expected)s · Named %(named)s · Unnamed %(unnamed)s · Detected %(detected)s') }}"
-    data-i18n-pending="{{ _('Pending: %(items)s') }}"
-    data-i18n-status="{{ _('Status: %(status)s') }}"
-    data-i18n-progress="{{ _('Progress: %(percent)s%%') }}"
-    data-i18n-model="{{ _('Model: %(model)s') }}"
-    data-i18n-uploading="{{ _('uploading…') }}"
-    data-i18n-processing="{{ _('processing') }}"
-    data-i18n-error="{{ _('error · %(detail)s') }}"
-    data-i18n-upload-failed="{{ _('upload failed') }}"
-    data-i18n-phase-changed="{{ _('Phase → %(phase)s (logged; stub side-effects)') }}"
-    data-i18n-phase-failed="{{ _('Phase change failed') }}"
-    data-i18n-latency="{{ _('Latency: %(total)s ms (YOLO %(yolo)s · post %(post)s) · avg %(avg)s · max %(max)s · n=%(n)s') }}"
-    data-i18n-cam-denied="{{ _('Camera permission denied. Allow the camera or use a demo video.') }}"
-    data-i18n-cam-missing="{{ _('No camera found. Plug one in or use a demo video.') }}"
-    data-i18n-cam-busy="{{ _('Camera is in use by another app.') }}"
-    data-i18n-cam-start="{{ _('Start camera') }}"
-    data-i18n-cam-stop="{{ _('Stop camera') }}"
-    data-i18n-live="{{ _('live camera') }}"
-    defer
-></script>
+<script>
+(function () {
+    var urls = {{ {'state': state_url, 'upload': upload_url, 'initial': initial_url, 'play': play_url,
+                   'final': final_url, 'phase': phase_url}|tojson }};
+    var expectedTotal = {{ (session.expected_items|default([])|map(attribute='expected_quantity')|map('int')|sum)|tojson }};
+    var $ = function (id) { return document.getElementById(id); };
+    var img = $("capture-frame"), caption = $("capture-caption"), placeholder = $("capture-placeholder");
+    var statusEl = $("capture-status");
+    var modelEl = $("capture-model"), hintEl = $("capture-hint"), tableSource = $("capture-table-source");
+    var table = $("capture-counts-table");
+    var uploadForm = $("capture-upload-form"), uploadBtn = $("capture-upload-btn"), fileInput = $("capture-video");
+    var initialPanel = $("capture-initial-panel"), initialSummary = $("capture-initial-summary");
+    var initialAck = $("capture-initial-ack"), initialAckInput = $("capture-initial-ack-input"), initialBtn = $("capture-initial-btn");
+    var registeredPanel = $("capture-registered-panel"), registeredText = $("capture-registered-text"), playBtn = $("capture-play-btn");
+    var finalPanel = $("capture-final-panel"), finalSummary = $("capture-final-summary");
+    var finalAck = $("capture-final-ack"), finalAckInput = $("capture-final-ack-input"), finalBtn = $("capture-final-btn");
+    var phaseForm = $("capture-phase-form"), phaseMsg = $("capture-phase-msg");
+    var i18n = {
+        catMeta: {{ _("Expected %(expected)s · Named %(named)s · Unnamed %(unnamed)s · Detected %(detected)s")|tojson }},
+        pending: {{ _("Pending: %(items)s")|tojson }},
+        model: {{ _("%(model)s · %(pipeline)s")|tojson }},
+        workerStatus: {
+            idle: {{ _("Waiting for a video")|tojson }},
+            loading: {{ _("Analysing the first frame…")|tojson }},
+            awaiting_initial: {{ _("First frame analysed — not processing")|tojson }},
+            processing: {{ _("Processing the video: %(percent)s%% (frame %(frame)s)")|tojson }},
+            ready: {{ _("Processing complete; last frame analysed")|tojson }},
+            error: {{ _("Error: %(detail)s")|tojson }}
+        },
+        uploading: {{ _("Uploading the video…")|tojson }},
+        caption: {{ _("%(label)s · frame #%(frame)s · t = %(time)s s · %(total)s instruments in the frame")|tojson }},
+        firstLabel: {{ _("First frame (YOLO)")|tojson }},
+        lastLabel: {{ _("Last valid frame (YOLO)")|tojson }},
+        liveLabel: {{ _("Live detections (visual only)")|tojson }},
+        sourceFirst: {{ _("Showing the first frame: proposed initial count.")|tojson }},
+        sourceLive: {{ _("Showing live detections of the frame being processed. They are not the final count.")|tojson }},
+        sourceLast: {{ _("Showing the last valid frame: proposed final count.")|tojson }},
+        sourceNone: {{ _("No frame analysed yet.")|tojson }},
+        initialSummary: {{ _("%(total)s instruments detected in frame #%(frame)s; the kit expects %(expected)s.")|tojson }},
+        initialMismatch: {{ _("The first frame does not show the instruments the kit expects. Check the image before registering.")|tojson }},
+        registered: {{ _("Initial count registered: %(total)s instruments (frame #%(frame)s).")|tojson }},
+        finalSummary: {{ _("%(total)s instruments detected in frame #%(frame)s; reference count %(reference)s.")|tojson }},
+        finalMismatch: {{ _("The final count differs from the reference count.")|tojson }},
+        quality: {{ _("Frame quality warning: %(reason)s")|tojson }},
+        hint: {
+            upload: {{ _("Upload the video of the procedure. It must start and end with the full tray in view.")|tojson }},
+            loading: {{ _("Analysing the first frame of the video…")|tojson }},
+            firstError: {{ _("The first frame could not be analysed. No count was generated: upload the video again or use the quantity report.")|tojson }},
+            review: {{ _("Review the first frame and its detections, then register the initial count.")|tojson }},
+            play: {{ _("Initial count registered. Run YOLO to process the video in this capture view.")|tojson }},
+            processing: {{ _("Procedure in progress: VisionWorker is processing the video. Confirm Final Count unlocks when processing ends.")|tojson }},
+            processingError: {{ _("Video processing failed. No final count was generated. Retry Run YOLO or use the quantity report.")|tojson }},
+            final: {{ _("Processing finished. Review the last frame and confirm the final count.")|tojson }},
+            reupload: {{ _("The video of the initial count is no longer loaded in VisionWorker. Upload the same video again to continue.")|tojson }},
+            legacy: {{ _("The initial count of this session was not taken from a video frame. Use the quantity report to finish the count.")|tojson }}
+        },
+        phaseChanged: {{ _("Phase → %(phase)s (logged; stub side-effects)")|tojson }},
+        phaseFailed: {{ _("Phase change failed")|tojson }},
+        requestFailed: {{ _("The request failed. Try again.")|tojson }}
+    };
+    var registered = {{ registered_initial|tojson }};
+    var busy = false, lastState = null;
+
+    function fill(template, values) {
+        return template.replace(/%\((\w+)\)s/g, function (match, name) {
+            return values[name] !== undefined ? String(values[name]) : match;
+        }).replace(/%%/g, "%");
+    }
+    function fmt(n) { return n == null ? "—" : Number(n).toFixed(2); }
+
+    // Stage of the flow = VisionWorker state + what PostgreSQL registered (the server re-checks all).
+    function stageOf(s) {
+        if (registered && registered.source !== "first_frame") return "legacy";
+        var sameVideo = registered && s.video && s.video.sha256 === registered.video_sha256;
+        if (registered && !sameVideo && s.status !== "loading") return "reupload";
+        if (!s.video_id) return "upload";
+        if (s.status === "loading") return "loading";
+        if (!registered) {
+            if (s.status === "error" && s.error_stage === "first_frame") return "first_error";
+            return s.initial_frame && s.initial_frame.ok ? "review_initial" : "upload";
+        }
+        if (s.status === "processing") return "processing";
+        if (s.status === "ready" && s.final_frame && s.final_frame.ok) return "review_final";
+        if (s.status === "error") return "processing_error";
+        return "ready_to_play";
+    }
+
+    function showFrame(frame, label) {
+        if (!frame || !frame.frame_jpeg_b64) return;
+        img.src = "data:image/jpeg;base64," + frame.frame_jpeg_b64;
+        img.hidden = false;
+        placeholder.hidden = true;
+        caption.hidden = false;
+        caption.textContent = fill(i18n.caption, {label: label, frame: frame.frame_index,
+            time: frame.video_t != null ? Number(frame.video_t).toFixed(2) : "—",
+            total: (frame.boxes || []).length});
+    }
+
+    function qualityText(frame) {
+        var q = frame && frame.quality;
+        return q && q.ok === false ? " " + fill(i18n.quality, {reason: q.reason}) : "";
+    }
+
+    function render(data) {
+        var s = data.session || {};
+        if (data.pef) registered = data.pef.initial;
+        lastState = s;
+        var stage = stageOf(s);
+
+        var ws = i18n.workerStatus[s.status] || s.status || "—";
+        statusEl.textContent = fill(ws, {percent: Math.round((s.progress || 0) * 100), frame: s.frame_index || 0,
+                                         detail: s.last_error || s.message || ""});
+        if (s.model_version) modelEl.textContent = fill(i18n.model, {model: s.model_version, pipeline: s.pipeline || ""});
+
+        // Image + table come from ONE source: first frame, live frame or last frame.
+        var source = null;
+        if (stage === "review_initial" || (stage === "ready_to_play" && s.initial_frame)) {
+            source = s.initial_frame;
+            showFrame(source, i18n.firstLabel);
+            tableSource.textContent = i18n.sourceFirst;
+        } else if (stage === "processing" || stage === "processing_error") {
+            source = s;
+            showFrame({frame_jpeg_b64: s.frame_jpeg_b64, frame_index: s.frame_index, boxes: s.boxes}, i18n.liveLabel);
+            tableSource.textContent = i18n.sourceLive;
+        } else if (stage === "review_final") {
+            source = s.final_frame;
+            showFrame(source, i18n.lastLabel);
+            tableSource.textContent = i18n.sourceLast;
+        } else {
+            tableSource.textContent = i18n.sourceNone;
+        }
+        applyCounts(source ? source.counts : null, source ? source.category_summary : null);
+
+        // Step 1: upload — until the initial count exists, or to reload the same video.
+        uploadBtn.disabled = busy || ["upload", "first_error", "review_initial", "reupload"].indexOf(stage) < 0;
+        fileInput.disabled = uploadBtn.disabled;
+
+        // Step 2: Register Initial Count.
+        initialPanel.hidden = stage !== "review_initial";
+        if (stage === "review_initial") {
+            var first = s.initial_frame, total = (first.boxes || []).length, mismatch = total !== expectedTotal;
+            initialSummary.textContent = fill(i18n.initialSummary, {total: total, frame: first.frame_index,
+                expected: expectedTotal}) + qualityText(first) + (mismatch ? " " + i18n.initialMismatch : "");
+            initialAck.hidden = !mismatch;
+            initialBtn.disabled = busy || total === 0 || (mismatch && !initialAckInput.checked);
+        }
+
+        // Run YOLO in this capture view, only after registering the initial count.
+        registeredPanel.hidden = !registered;
+        if (registered) {
+            registeredText.textContent = fill(i18n.registered, {total: registered.total, frame: registered.frame_index});
+        }
+        playBtn.disabled = busy || ["ready_to_play", "processing_error"].indexOf(stage) < 0;
+
+        // Confirm Final Count only once VisionWorker analysed the last frame.
+        finalPanel.hidden = stage !== "review_final";
+        if (stage === "review_final") {
+            var last = s.final_frame, finalTotal = (last.boxes || []).length;
+            var reference = registered.reference, differs = finalTotal !== reference;
+            finalSummary.textContent = fill(i18n.finalSummary, {total: finalTotal, frame: last.frame_index,
+                reference: reference}) + qualityText(last) + (differs ? " " + i18n.finalMismatch : "");
+            finalAck.hidden = !differs;
+            finalBtn.disabled = busy || finalTotal === 0 || (differs && !finalAckInput.checked);
+        }
+
+        var hints = {upload: i18n.hint.upload, loading: i18n.hint.loading, first_error: i18n.hint.firstError,
+                     review_initial: i18n.hint.review, ready_to_play: i18n.hint.play, processing: i18n.hint.processing,
+                     processing_error: i18n.hint.processingError, review_final: i18n.hint.final,
+                     reupload: i18n.hint.reupload, legacy: i18n.hint.legacy};
+        if (!busy) {
+            hintEl.textContent = hints[stage] || "";
+            hintEl.className = ["first_error", "processing_error", "reupload", "legacy"].indexOf(stage) >= 0
+                ? "alert alert--warning" : "text-muted";
+        }
+    }
+
+    function applyCounts(counts, summary) {
+        counts = counts || {};
+        table.querySelectorAll("tr[data-family-code]").forEach(function (row) {
+            var meta = counts[row.getAttribute("data-family-code")];
+            var cells = ["detected", "diff", "best", "weak", "conf"].map(function (k) {
+                return row.querySelector("[data-" + k + "]");
+            });
+            if (!meta) {
+                cells.forEach(function (c) { c.textContent = "—"; });
+                row.removeAttribute("data-detected-value");
+                return;
+            }
+            cells[0].textContent = String(meta.detected_quantity);
+            cells[1].textContent = meta.difference;
+            cells[2].textContent = fmt(meta.best_confidence);
+            cells[3].textContent = fmt(meta.weakest_confidence);
+            cells[4].textContent = fmt(meta.avg_confidence);
+            row.setAttribute("data-detected-value", meta.detected_quantity);
+        });
+        summary = summary || {};
+        table.querySelectorAll("tr.capture-cat-header").forEach(function (row) {
+            var meta = summary[row.getAttribute("data-category-name")];
+            var metaEl = row.querySelector("[data-cat-meta]"), pendEl = row.querySelector("[data-cat-pending]");
+            if (!metaEl) return;
+            metaEl.textContent = meta ? fill(i18n.catMeta, {expected: meta.expected, named: meta.named,
+                                                            unnamed: meta.unnamed, detected: meta.detected}) : "";
+            if (pendEl) {
+                var pending = (meta && meta.pending) || [];
+                pendEl.textContent = pending.length ? fill(i18n.pending, {items: pending.map(function (p) {
+                    return p.family_name + " (−" + p.missing + ")";
+                }).join(", ")}) : "";
+            }
+        });
+        // Total row: Detected sums the family rows; Diff = Detected - Expected.
+        var totalRow = table.querySelector("[data-total-row]");
+        if (!totalRow) return;
+        var detected = 0, seen = false;
+        table.querySelectorAll("tr[data-family-code][data-detected-value]").forEach(function (row) {
+            detected += Number(row.getAttribute("data-detected-value")) || 0;
+            seen = true;
+        });
+        var expected = Number(totalRow.getAttribute("data-total-expected")) || 0;
+        totalRow.querySelector("[data-total-detected]").textContent = seen ? detected : "—";
+        totalRow.querySelector("[data-total-diff]").textContent = seen ? detected - expected : "—";
+    }
+
+    function poll() {
+        return fetch(urls.state, {credentials: "same-origin"})
+            .then(function (r) { return r.json(); })
+            .then(function (data) { if (data && data.session) render(data); })
+            .catch(function () { /* keep polling */ });
+    }
+
+    // One request at a time: the buttons stay disabled until the server answered (no duplicate events).
+    function post(url, body) {
+        busy = true;
+        if (lastState) render({session: lastState});
+        return fetch(url, {method: "POST", body: body || new FormData(), credentials: "same-origin"})
+            .then(function (r) { return r.json().then(function (j) { return {ok: r.ok, j: j}; }); })
+            .catch(function () { return {ok: false, j: {}}; })
+            .then(function (res) {
+                busy = false;
+                if (!res.ok) {
+                    hintEl.textContent = res.j.error || i18n.requestFailed;
+                    hintEl.className = "alert alert--warning";
+                }
+                return res;
+            });
+    }
+
+    uploadForm.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        var file = fileInput.files && fileInput.files[0];
+        if (!file || busy) return;
+        var fd = new FormData();
+        fd.append("video", file);
+        statusEl.textContent = i18n.uploading;
+        post(urls.upload, fd).then(function (res) {
+            if (!res.ok) return;
+            poll();
+        });
+    });
+
+    function ackForm(input) {
+        var fd = new FormData();
+        if (input.checked) fd.append("acknowledge_mismatch", "1");
+        return fd;
+    }
+
+    [initialAckInput, finalAckInput].forEach(function (input) {
+        input.addEventListener("change", function () { if (lastState) render({session: lastState}); });
+    });
+
+    initialBtn.addEventListener("click", function () {
+        if (busy) return;
+        post(urls.initial, ackForm(initialAckInput)).then(function (res) { if (res.ok) poll(); });
+    });
+
+    playBtn.addEventListener("click", function () {
+        if (busy) return;
+        post(urls.play).then(function (res) {
+            if (!res.ok) return;
+            poll();
+        });
+    });
+
+    finalBtn.addEventListener("click", function () {
+        if (busy) return;
+        post(urls.final, ackForm(finalAckInput)).then(function (res) {
+            if (res.ok && res.j.next_url) window.location.assign(res.j.next_url);
+        });
+    });
+
+    phaseForm.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        fetch(urls.phase, {method: "POST", body: new FormData(phaseForm), credentials: "same-origin"})
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                phaseMsg.textContent = data.ok ? fill(i18n.phaseChanged, {phase: data.phase_code})
+                                               : (data.error || i18n.phaseFailed);
+            })
+            .catch(function (err) { phaseMsg.textContent = String(err); });
+    });
+
+    poll();
+    var timer = setInterval(poll, 1500);
+    window.addEventListener("beforeunload", function () {
+        clearInterval(timer);
+    });
+})();
+</script>
 {% endblock %}

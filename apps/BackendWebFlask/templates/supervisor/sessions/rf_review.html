@@ -58,12 +58,16 @@
         <input type="hidden" name="discrepancy_id" value="{{ disc.id }}">
         <fieldset class="form-field">
             <legend class="form-field__label">{{ _("Outcome") }}</legend>
+            {% if disc.physical_shortage %}
+            <p class="alert alert--warning" role="note" data-physical-shortage>{{ _("Physically missing instrument: notes alone cannot resolve it. Record the piece as lost; the incident stays unreconciled and the session cannot be closed as a safe close.") }}</p>
+            {% else %}
             <label class="form-field__checkbox">
                 <input type="radio" name="resolution_outcome" value="notes_only" checked data-outcome-label="{{ _('Resolve with notes only') }}">
                 <span>{{ _("Resolve with notes only") }}</span>
             </label>
+            {% endif %}
             <label class="form-field__checkbox">
-                <input type="radio" name="resolution_outcome" value="lost" data-outcome-label="{{ _('Lost — mark one active piece as lost') }}">
+                <input type="radio" name="resolution_outcome" value="lost" {% if disc.physical_shortage %}checked{% endif %} data-outcome-label="{{ _('Lost — mark one active piece as lost') }}">
                 <span>{{ _("Lost — mark one active piece as lost") }}</span>
             </label>
             <label class="form-field__checkbox">

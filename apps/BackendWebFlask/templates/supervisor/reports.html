@@ -3,9 +3,10 @@
 
 {#
     Supervisor Reports (V3 — ui_reference_v3/supervisor/supervisor-reports.png).
-    reports / filter_options: view_data.supervisor_v3_reports() / supervisor_v3_filter_options().
-    No report generation backend exists yet: filters are presentation-only and "View Report"
-    has no destination (as before).
+    Live: report (controllers/report_routes._report_view) from SessionService's read-only report
+    endpoints — every card, table and chart is a PostgreSQL aggregate of the Supervisor's institution.
+    report_notice: controlled message when SessionService is not configured / not available.
+    Demo (FRONTEND_DEMO_MODE): reports / filter_options presentation fixtures, as before.
 #}
 
 {% block title %}{{ _("Reports") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
@@ -25,7 +26,10 @@
 
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/reports.css') }}">
 {% endblock %}
+
+{% macro value_or_empty(value) %}{% if value is none %}<span class="report-empty-value">{{ _("No data") }}</span>{% else %}{{ value }}{% endif %}{% endmacro %}
 
 {% block page_content %}
 <div class="v3-page">
@@ -36,6 +40,8 @@
         </div>
     </div>
 
+{% if v3_demo %}
+    {# --- Demo mode: presentation fixtures (unchanged) ------------------------------------------ #}
     <section class="card">
         <form class="v3-filter-grid" action="{{ url_for('web.supervisor_reports') }}" method="get">
             <div class="form-field">
@@ -105,5 +111,277 @@
         </div>
         {% endfor %}
     </section>
+{% else %}
+    {# --- Live reports ---------------------------------------------------------------------------- #}
+    {% set rf = report_filters %}
+    <section class="card">
+        <form class="v3-filter-grid" action="{{ url_for('web.supervisor_reports') }}" method="get" data-report-filters>
+            <div class="form-field">
+                <label class="form-field__label" for="reports-date-range">{{ _("Date Range") }}</label>
+                <div class="form-field__input-wrapper">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="reports-date-range" name="date_range" onchange="this.form.submit()">
+                        {% for value, label in date_ranges %}<option value="{{ value }}" {% if rf.date_range == value %}selected{% endif %}>{{ _(label) }}</option>{% endfor %}
+                    </select>
+                    <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+                </div>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="reports-kit">{{ _("Kit") }}</label>
+                <div class="form-field__input-wrapper">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="reports-kit" name="kit" onchange="this.form.submit()">
+                        <option value="">{{ _("All Kits") }}</option>
+                        {% for kit in kit_options %}<option value="{{ kit.value }}" {% if rf.kit == kit.value %}selected{% endif %}>{{ kit.label }}{% if kit.inactive %} ({{ _("inactive") }}){% endif %}</option>{% endfor %}
+                    </select>
+                    <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+                </div>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="reports-operator">{{ _("Operator") }}</label>
+                <div class="form-field__input-wrapper">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="reports-operator" name="operator" onchange="this.form.submit()">
+                        <option value="">{{ _("All Operators") }}</option>
+                        {% for operator in operator_options %}<option value="{{ operator.value }}" {% if rf.operator == operator.value %}selected{% endif %}>{{ operator.label }}{% if operator.inactive %} ({{ _("inactive") }}){% endif %}</option>{% endfor %}
+                    </select>
+                    <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+                </div>
+            </div>
+            <div class="form-field">
+                <label class="form-field__label" for="reports-session-status">{{ _("Session Status") }}</label>
+                <div class="form-field__input-wrapper">
+                    <select class="form-field__input form-field__input--plain form-field__select" id="reports-session-status" name="session_status" onchange="this.form.submit()">
+                        <option value="">{{ _("All Statuses") }}</option>
+                        {% for item in status_options %}<option value="{{ item.value }}" {% if rf.session_status == item.value %}selected{% endif %}>{{ _(item.label) }}</option>{% endfor %}
+                    </select>
+                    <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+                </div>
+            </div>
+            <noscript><button class="btn btn--secondary btn--small" type="submit">{{ _("Apply") }}</button></noscript>
+        </form>
+    </section>
+
+    {% if report_notice %}
+    <div class="alert alert--warning" role="status" data-report-unavailable>
+        <span class="alert__message">{{ report_notice }}</span>
+    </div>
+    {% endif %}
+
+    {% if report %}
+    <section class="report-card-grid">
+        {% for anchor, icon, title, description in report_cards %}
+        <div class="card">
+            <div class="report-card__header">
+                <span class="report-card__icon" aria-hidden="true">
+                    {% if icon == 'document' %}{{ macros.icon_document() }}
+                    {% elif icon == 'alert_triangle' %}{{ macros.icon_alert_triangle() }}
+                    {% elif icon == 'box' %}{{ macros.icon_box() }}
+                    {% else %}{{ macros.icon_user() }}
+                    {% endif %}
+                </span>
+                <div>
+                    <p class="report-card__title">{{ _(title) }}</p>
+                    <p class="report-card__description">{{ _(description) }}</p>
+                </div>
+            </div>
+            <div class="report-card__divider"></div>
+            <div class="report-card__footer">
+                <span class="report-card__meta">{{ _("Last generated: %(when)s", when=report.generated_at) }}</span>
+                <div class="report-card__actions">
+                    <a class="btn btn--primary" href="#{{ anchor }}">{{ _("View Report") }}</a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </section>
+
+    {# A. Session summary #}
+    <section class="card report-section" id="session-summary" aria-labelledby="session-summary-title">
+        <h2 class="card__title" id="session-summary-title">{{ _("Session Summary") }}</h2>
+        <section class="stat-card-grid report-kpis" aria-label="{{ _('Session indicators') }}">
+            {{ macros.stat_card(_("Total Sessions"), report.sessions.total, 'neutral') }}
+            {{ macros.stat_card(_("Scheduled"), report.sessions.scheduled, 'neutral') }}
+            {{ macros.stat_card(_("In Progress"), report.sessions.in_progress, 'info') }}
+            {{ macros.stat_card(_("Pending Review"), report.sessions.pending_review, 'warning') }}
+            {{ macros.stat_card(_("Closed"), report.sessions.closed, 'success') }}
+            <div class="stat-card stat-card--neutral">
+                <p class="stat-card__label">{{ _("Average Duration") }}</p>
+                <p class="stat-card__value" data-metric="avg-duration">{{ value_or_empty(report.sessions.avg_duration) }}</p>
+                <p class="stat-card__description">{{ _("Start to Operator report · %(count)s timed sessions", count=report.sessions.timed) }}</p>
+            </div>
+            <div class="stat-card stat-card--warning">
+                <p class="stat-card__label">{{ _("Sessions with Discrepancies") }}</p>
+                <p class="stat-card__value" data-metric="with-discrepancies">{{ value_or_empty(report.sessions.with_discrepancies) }}</p>
+                <p class="stat-card__description">{{ _("%(part)s of %(whole)s reported sessions", part=report.sessions.reported_with_discrepancies, whole=report.sessions.reported) }}</p>
+            </div>
+        </section>
+        {% if report.sessions.total %}
+        <div class="v3-columns">
+            <div>
+                <h3 class="report-subtitle">{{ _("Sessions by Status") }}</h3>
+                <div class="report-chart" id="chart-status" role="img" aria-label="{{ _('Sessions by status') }}"></div>
+                <table class="data-table report-table" data-table="status">
+                    <thead><tr><th>{{ _("Status") }}</th><th class="data-table__numeric-column">{{ _("Sessions") }}</th></tr></thead>
+                    <tbody>{% for row in report.sessions.by_status %}<tr><td>{{ macros.status_badge(row.label, row.variant) }}</td><td class="data-table__numeric-column">{{ row.count }}</td></tr>{% endfor %}</tbody>
+                </table>
+            </div>
+            <div>
+                <h3 class="report-subtitle">{{ _("Activity by Day") }}</h3>
+                <div class="report-chart" id="chart-activity" role="img" aria-label="{{ _('Sessions per scheduled day') }}"></div>
+            </div>
+        </div>
+        {% else %}
+        <p class="v3-empty-state" data-report-empty>{{ _("No sessions match these filters in the selected period.") }}</p>
+        {% endif %}
+    </section>
+
+    {# B. Discrepancies #}
+    <section class="card report-section" id="discrepancy-summary" aria-labelledby="discrepancy-summary-title">
+        <h2 class="card__title" id="discrepancy-summary-title">{{ _("Discrepancy Summary") }}</h2>
+        <section class="stat-card-grid report-kpis" aria-label="{{ _('Discrepancy indicators') }}">
+            {{ macros.stat_card(_("Total Discrepancies"), report.discrepancies.total, 'neutral') }}
+            {{ macros.stat_card(_("Pending"), report.discrepancies.open, 'warning') }}
+            {{ macros.stat_card(_("Resolved"), report.discrepancies.resolved, 'success') }}
+            <div class="stat-card stat-card--neutral">
+                <p class="stat-card__label">{{ _("Average Resolution Time") }}</p>
+                <p class="stat-card__value" data-metric="avg-resolution">{{ value_or_empty(report.discrepancies.avg_resolution) }}</p>
+                <p class="stat-card__description">{{ _("%(count)s resolved discrepancies with a start time", count=report.discrepancies.timed) }}</p>
+            </div>
+        </section>
+        {% if report.discrepancies.total %}
+        <div class="v3-columns">
+            <div>
+                <h3 class="report-subtitle">{{ _("Discrepancies by Type") }}</h3>
+                <div class="report-chart" id="chart-reasons" role="img" aria-label="{{ _('Discrepancies by reason') }}"></div>
+                <table class="data-table report-table">
+                    <thead><tr><th>{{ _("Reason") }}</th><th class="data-table__numeric-column">{{ _("Total") }}</th><th class="data-table__numeric-column">{{ _("Pending") }}</th></tr></thead>
+                    <tbody>{% for row in report.discrepancies.by_reason %}<tr><td>{{ row.label }}</td><td class="data-table__numeric-column">{{ row.total }}</td><td class="data-table__numeric-column">{{ row.open }}</td></tr>{% endfor %}</tbody>
+                </table>
+            </div>
+            <div>
+                <h3 class="report-subtitle">{{ _("Discrepancies by Instrument Family") }}</h3>
+                <table class="data-table report-table" data-table="families">
+                    <thead><tr><th>{{ _("Family") }}</th><th class="data-table__numeric-column">{{ _("Total") }}</th><th class="data-table__numeric-column">{{ _("Pending") }}</th></tr></thead>
+                    <tbody>{% for row in report.discrepancies.by_family %}<tr><td>{{ row.label }}</td><td class="data-table__numeric-column">{{ row.total }}</td><td class="data-table__numeric-column">{{ row.open }}</td></tr>{% endfor %}</tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <p class="v3-empty-state" data-report-empty>{{ _("No discrepancies in the selected period.") }}</p>
+        {% endif %}
+    </section>
+
+    {# C. Kits #}
+    <section class="card report-section" id="kit-activity" aria-labelledby="kit-activity-title">
+        <h2 class="card__title" id="kit-activity-title">{{ _("Kit Activity") }}</h2>
+        {% if report.kits %}
+        <div class="report-chart report-chart--short" id="chart-kits" role="img" aria-label="{{ _('Sessions per kit') }}"></div>
+        <div class="table-wrapper">
+            <table class="data-table" data-table="kits">
+                <thead>
+                    <tr>
+                        <th>{{ _("Kit") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Version") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Sessions") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Reported") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Expected Quantity") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Reported Quantity") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Sessions with Discrepancies") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for kit in report.kits %}
+                    <tr data-kit="{{ kit.kit_id or '' }}">
+                        <td>{{ kit.label }}</td>
+                        <td class="data-table__numeric-column">{{ value_or_empty(kit.version) }}</td>
+                        <td class="data-table__numeric-column">{{ kit.sessions }}</td>
+                        <td class="data-table__numeric-column">{{ kit.reported_sessions }}</td>
+                        <td class="data-table__numeric-column">{{ value_or_empty(kit.expected_quantity) }}</td>
+                        <td class="data-table__numeric-column">
+                            {% if kit.reported_quantity is none %}{{ value_or_empty(none) }}{% else %}{{ kit.reported_quantity }} <span class="report-note">{{ _("of %(expected)s expected in counted sessions", expected=kit.expected_quantity_counted) }}</span>{% endif %}
+                        </td>
+                        <td class="data-table__numeric-column">{{ kit.sessions_with_discrepancies }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="report-note">{{ _("Version: current version of the kit (sessions do not record the version they used).") }}</p>
+        <nav class="pagination" aria-label="{{ _('Pagination') }}">
+            <p class="pagination__info">{{ _("%(total)s kits", total=report.kits_page.total) }}</p>
+            <div class="pagination__controls">
+                {% set kp = report.kits_page %}
+                <a class="btn btn--secondary btn--small" href="{{ page_url('kits_page', kp.page - 1) if kp.page > 1 else '#' }}" {% if kp.page <= 1 %}aria-disabled="true"{% endif %}>{{ _("Previous") }}</a>
+                <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=kp.page, total=kp.total_pages) }}</span>
+                <a class="btn btn--secondary btn--small" href="{{ page_url('kits_page', kp.page + 1) if kp.page < kp.total_pages else '#' }}" {% if kp.page >= kp.total_pages %}aria-disabled="true"{% endif %}>{{ _("Next") }}</a>
+            </div>
+        </nav>
+        {% else %}
+        <p class="v3-empty-state" data-report-empty>{{ _("No kits were used in the selected period.") }}</p>
+        {% endif %}
+    </section>
+
+    {# D. Operators #}
+    <section class="card report-section" id="operator-activity" aria-labelledby="operator-activity-title">
+        <h2 class="card__title" id="operator-activity-title">{{ _("Operator Activity") }}</h2>
+        <div class="stat-card-grid report-kpis">
+            <div class="stat-card stat-card--info">
+                <p class="stat-card__label">{{ _("AI–Human Agreement") }}</p>
+                <p class="stat-card__value" data-metric="agreement">{% if report.agreement.value is none %}<span class="report-empty-value">{{ _("Insufficient data") }}</span>{% else %}{{ report.agreement.value }}{% endif %}</p>
+                <p class="stat-card__description">{{ _("YOLO suggestion vs. human confirmation · %(pairs)s validated rows (minimum %(min)s)", pairs=report.agreement.pairs, min=report.agreement.min_pairs) }}</p>
+            </div>
+            {{ macros.stat_card(_("Human Corrections"), report.agreement.corrections, 'warning') }}
+        </div>
+        {% if report.operators %}
+        <div class="report-chart report-chart--short" id="chart-operators" role="img" aria-label="{{ _('Sessions and discrepancies per operator') }}"></div>
+        <div class="table-wrapper">
+            <table class="data-table" data-table="operators">
+                <thead>
+                    <tr>
+                        <th>{{ _("Operator") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Sessions") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Counts Completed") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Families Counted") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Human Corrections") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Discrepancies") }}</th>
+                        <th class="data-table__numeric-column">{{ _("AI–Human Agreement") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for op in report.operators %}
+                    <tr data-operator="{{ op.operator_id }}">
+                        <td>{{ op.name }}</td>
+                        <td class="data-table__numeric-column">{{ op.sessions }}</td>
+                        <td class="data-table__numeric-column">{{ op.counts_completed }}</td>
+                        <td class="data-table__numeric-column">{{ op.family_counts }}</td>
+                        <td class="data-table__numeric-column">{{ op.human_corrections }}</td>
+                        <td class="data-table__numeric-column">{{ op.discrepancies }}</td>
+                        <td class="data-table__numeric-column">{% if op.agreement is none %}<span class="report-empty-value">{{ _("Insufficient data (%(pairs)s)", pairs=op.ai_pairs) }}</span>{% else %}{{ op.agreement }}{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <nav class="pagination" aria-label="{{ _('Pagination') }}">
+            <p class="pagination__info">{{ _("%(total)s operators", total=report.operators_page.total) }}</p>
+            <div class="pagination__controls">
+                {% set opp = report.operators_page %}
+                <a class="btn btn--secondary btn--small" href="{{ page_url('operators_page', opp.page - 1) if opp.page > 1 else '#' }}" {% if opp.page <= 1 %}aria-disabled="true"{% endif %}>{{ _("Previous") }}</a>
+                <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=opp.page, total=opp.total_pages) }}</span>
+                <a class="btn btn--secondary btn--small" href="{{ page_url('operators_page', opp.page + 1) if opp.page < opp.total_pages else '#' }}" {% if opp.page >= opp.total_pages %}aria-disabled="true"{% endif %}>{{ _("Next") }}</a>
+            </div>
+        </nav>
+        {% else %}
+        <p class="v3-empty-state" data-report-empty>{{ _("No operator activity in the selected period.") }}</p>
+        {% endif %}
+    </section>
+    <script type="application/json" id="report-charts">{{ report.charts|tojson }}</script>
+    {% endif %}
+{% endif %}
 </div>
+{% endblock %}
+
+{% block page_scripts %}
+{% if not v3_demo and report %}
+<script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+<script src="{{ url_for('static', filename='js/pages/reports.js') }}"></script>
+{% endif %}
 {% endblock %}

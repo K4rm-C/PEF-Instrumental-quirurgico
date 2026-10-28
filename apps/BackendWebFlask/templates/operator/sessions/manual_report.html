@@ -70,7 +70,32 @@
             </tbody>
         </table>
     </div>
-    <div class="form-actions">
+    {% if contingency_mode|default(false) %}
+    {% set cv = contingency_values|default({}) %}
+    <div class="v3-panel" data-contingency>
+        <h2 class="card__title">{{ _("Contingency count") }}</h2>
+        <p class="text-muted">{{ _("Use this report only when YOLO cannot provide a reliable count. The reason, your user, the time and the verified quantities are recorded, and the SPD Supervisor must review the count before the session can be closed.") }}</p>
+        <div class="form-field">
+            <label class="form-field__label" for="contingency-reason">{{ _("Reason") }}</label>
+            <select class="form-field__input" id="contingency-reason" name="contingency_reason" required>
+                <option value="">{{ _("Select a reason") }}</option>
+                {% for option in contingency_options|default([]) %}
+                <option value="{{ option.code }}" {% if cv.reason_code == option.code %}selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="contingency-notes">{{ _("Contingency notes") }}</label>
+            <input class="form-field__input" id="contingency-notes" name="contingency_notes" value="{{ cv.notes|default('') }}" maxlength="500">
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="extra-instruments">{{ _("Instruments outside the kit on the tray") }}</label>
+            <input class="form-field__input" type="number" min="0" id="extra-instruments" name="extra_instruments" value="{{ cv.extra_instruments|default('0') }}">
+            <input class="form-field__input" name="extra_notes" value="{{ cv.extra_notes|default('') }}" maxlength="300" placeholder="{{ _('Which instruments') }}">
+        </div>
+    </div>
+{% endif %}
+<div class="form-actions">
         <a class="btn btn--secondary" href="{{ url_for('web.operator_session_manual', session_id=session.id) if session.capture_mode == 'manual_no_privacy' else url_for('web.operator_session_capture', session_id=session.id) }}">{{ _("Back") }}</a>
         <button type="submit" class="btn btn--primary">{{ _("Submit report and close counting") }}</button>
     </div>

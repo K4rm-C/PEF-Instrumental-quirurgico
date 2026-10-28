@@ -1,0 +1,916 @@
+openapi: 3.0.3
+info:
+  title: PEF Auth / Identity Service — API v1
+  version: 1.0.0
+  description: |
+    Versioned Auth API for external clients (Android JSON, Desktop XML). Contract owner:
+    PEF-DS09 §1.3.2; identity rules: PEF-DS01.
+
+    Only the versioned API and the DS09 health checks are described here. The legacy
+    unversioned routes used by BackendWebFlask (`/login`, `/refresh`, `/logout`, `/verify`,
+    `/preferences`, `/register`, `/password/*`, `/health`) keep their cookie-based behaviour
+    and legacy `{"error": "..."}` bodies; see apps/BackendAuthService/README.md.
+
+    - **Tokens:** returned in the response body (no cookies). Send
+      `Authorization: Bearer <access_token>` to Auth and to the microservices (e.g. Catalog).
+      Access and refresh tokens are JWT signed with exactly `JWT_ALGORITHM` (default HS256);
+      any other algorithm, including `none`, is rejected. Each token has a Redis session
+      `auth:jwt:{jti}` (`user_id`, `institution_id`, `token_type`, `revoked`, `exp`).
+    - **Validation of every Bearer/refresh token:** signature, algorithm, expiry, claims
+      `sub`, `jti`, `type`, Redis session present / not revoked / same type and user, user and
+      institution active in PostgreSQL, Redis institution equal to `user.institution_id`.
+    - **Formats:** `Accept: application/xml` → XML; `application/json`, `*/*` or none → JSON.
+      Request bodies: `Content-Type: application/json` or `application/xml` (same fields).
+      XML element names equal JSON field names; lists are wrappers (`roles/role`); `null` is
+      `xsi:nil="true"`; DTD / entity declarations are rejected. Max body 64 KiB.
+    - **Identity administration** (DS09 §1.3.2 complement v0.1.4): users, roles, role
+      assignment and passwords under `/api/v1/auth/users`, `/roles`, `/password/change`.
+      Effective `it_admin` of the caller's institution required (own password change: any
+      valid token); a denied attempt is 403 and an `access_audit` row `DENIED_<METHOD>_<RESOURCE>`.
+      Every change writes `access_audit` in the same transaction. Value errors are 422 and
+      conflicts 409, both with `details.reason` (stable code). Deactivating a user, moving them to
+      another institution or resetting their password revokes all their Redis sessions
+      (`auth:user_tokens:{user_id}` index); PostgreSQL is checked on every request as well.
+      No operation can leave an institution without an active `it_admin`. XML bodies are
+      validated against `GET /api/v1/auth/schemas/identity.xsd` (failure: 400,
+      `details.reason = xsd_validation_failed`). Responses never contain passwords, hashes or tokens.
+    - **Correlation:** `X-Correlation-ID` is echoed (or a UUID is generated when missing or not
+      matching `^[A-Za-z0-9._:-]{1,64}$`; longer ids are replaced, never truncated — DS09 v0.1.5) in the
+      response header, in error bodies and in the logs.
+servers:
+  - url: http://127.0.0.1:5001
+    description: Local process (port is a deployment choice)
+tags:
+  - name: auth
+  - name: identity
+  - name: health
+  - name: docs
+paths:
+  /api/v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Credentials → access + refresh tokens
+      description: |
+        Rejects inactive users and users of inactive institutions as invalid credentials.
+        Failed attempts are rate limited per email and per client IP (429). `user.roles` are the
+        effective role codes of the user's own institution.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+          application/xml:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+            example: |
+              <login_request>
+                <email>ana.perez@demo.local</email>
+                <password>[REDACTED]</password>
+              </login_request>
+      responses:
+        '200':
+          description: Authenticated
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+              example: |
+                <login_response>
+                  <access_token>[JWT_REDACTED]</access_token>
+                  <refresh_token>[REFRESH_REDACTED]</refresh_token>
+                  <token_type>Bearer</token_type>
+                  <expires_in>900</expires_in>
+                  <user>
+                    <id>22222222-2222-2222-2222-222222222222</id>
+                    <name>Ana Pérez</name>
+                    <email>ana.perez@demo.local</email>
+                    <institution_id>11111111-1111-1111-1111-111111111111</institution_id>
+                    <ui_preferences><locale>es-MX</locale><theme>dark</theme></ui_preferences>
+                    <roles><role>station_operator</role></roles>
+                  </user>
+                </login_response>
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401':
+          description: Wrong email/password, inactive user or institution (`invalid_credentials`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: invalid_credentials, message: Invalid credentials, correlation_id: corr-1, details: {} }
+            application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '429':
+          description: Too many failed attempts (`rate_limited`).
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Error' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/refresh:
+    post:
+      tags: [auth]
+      summary: Refresh token → new access + refresh pair (rotation)
+      description: |
+        The presented refresh token is revoked and a new pair is issued (it cannot be replayed).
+        Same session policy as the portal: absolute max session per role and idle timeout
+        (station operators are exempt while a counting session is in progress). An explicit API
+        refresh counts as user activity.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+          application/xml:
+            schema: { $ref: '#/components/schemas/RefreshRequest' }
+            example: <refresh_request><refresh_token>[REFRESH_REDACTED]</refresh_token></refresh_request>
+      responses:
+        '200':
+          description: New token pair
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/TokenPair' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: Revoke the Bearer access token and its refresh token in Redis
+      description: |
+        Both tokens are validated before anything is revoked; a failed logout revokes nothing.
+        The `refresh_token` must be a refresh token (`type=refresh`) present and not revoked in
+        Redis, of the same user as the Bearer access token. On success both sessions are marked
+        revoked, so any microservice validating the access token rejects it afterwards and
+        `/api/v1/auth/refresh` rejects the refresh token.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LogoutRequest' }
+          application/xml:
+            schema: { $ref: '#/components/schemas/LogoutRequest' }
+            example: <logout_request><refresh_token>[REFRESH_REDACTED]</refresh_token></logout_request>
+      responses:
+        '204':
+          description: Access and refresh tokens revoked (no body)
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401':
+          description: Bearer access token invalid, or `refresh_token` invalid, expired, revoked, absent from Redis or not a refresh token (`unauthorized`). Nothing is revoked.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: unauthorized, message: 'refresh_token: Token is revoked or user is inactive', correlation_id: corr-1, details: {} }
+            application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+        '403':
+          description: '`refresh_token` belongs to another user (`forbidden`). Nothing is revoked.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { error: forbidden, message: refresh_token does not belong to the authenticated user, correlation_id: corr-1, details: {} }
+            application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/me:
+    get:
+      tags: [auth]
+      summary: Current profile + roles (read from PostgreSQL on every call)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Profile (same object as `user` in the login response)
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/permissions:
+    get:
+      tags: [auth]
+      summary: Effective permissions (role codes) of the caller
+      description: |
+        PEF authorizes by role (PEF-DS01; there is no permission table). Effective permissions
+        are the role codes assigned in `user_role` whose role belongs to the user's institution,
+        read from PostgreSQL on every call (never from the JWT `role` claim). Codes in use:
+        `station_operator`, `spd_supervisor`, `it_admin`.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Effective roles
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Permissions' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/Permissions' }
+              example: |
+                <permissions>
+                  <user_id>22222222-2222-2222-2222-222222222223</user_id>
+                  <institution_id>11111111-1111-1111-1111-111111111111</institution_id>
+                  <roles><role>it_admin</role></roles>
+                </permissions>
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/users:
+    get:
+      tags: [identity]
+      summary: List the users of every institution (it_admin)
+      description: |
+        Ordered by name, email. Filters, search and pagination are left to the client.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Users (without secrets)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedUserList' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedUserList' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    post:
+      tags: [identity]
+      summary: Create a user (it_admin)
+      description: |
+        Required: name (max 160), email (valid, unique case-insensitive, stored lowercase), institution_id
+        (existing and active), role_codes (at least one, roles of that institution), password (min 8;
+        confirm_password must match when sent). `active` defaults to true. Reasons (422): name_required,
+        name_too_long, email_required, email_too_long, invalid_email, institution_required,
+        invalid_institution, institution_inactive, roles_required, invalid_roles, password_too_short,
+        password_mismatch; 409 email_exists. Audit CREATE_USER.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/UserCreateRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/UserCreateRequest' } }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/users/{id}:
+    get:
+      tags: [identity]
+      summary: User detail (it_admin)
+      description: |
+        404 for an unknown or malformed id.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: User
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    put:
+      tags: [identity]
+      summary: Replace name, email, institution, roles and status (it_admin)
+      description: |
+        Same validations as POST (an inactive institution is accepted only when unchanged). Guards (409):
+        cannot_deactivate_self, cannot_remove_own_admin, last_admin (the institution would keep no active
+        it_admin). Audit UPDATE_USER (fields changed), ACTIVATE_USER / DEACTIVATE_USER, CHANGE_USER_ROLES.
+        Deactivation or a change of institution revokes every Redis session of the user.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/UserUpdateRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/UserUpdateRequest' } }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/users/{id}/roles:
+    put:
+      tags: [identity]
+      summary: Assign the roles of a user (it_admin)
+      description: |
+        Replaces the user's roles with role_codes (roles of the user's institution). Effective on the next
+        request (roles are read from PostgreSQL). Guards: cannot_remove_own_admin, last_admin.
+        Audit CHANGE_USER_ROLES.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/UserRolesRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/UserRolesRequest' } }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/users/{id}/activate:
+    post:
+      tags: [identity]
+      summary: Reactivate a user (it_admin)
+      description: |
+        Audit ACTIVATE_USER. Sessions revoked earlier stay revoked.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Current state
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/users/{id}/deactivate:
+    post:
+      tags: [identity]
+      summary: Deactivate a user (it_admin)
+      description: |
+        Guards cannot_deactivate_self and last_admin. Revokes every Redis session of the user; the next
+        request with any of their tokens is 401. History is kept. Audit DEACTIVATE_USER.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Current state
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/users/{id}/password:
+    post:
+      tags: [identity]
+      summary: Administrator password reset (it_admin)
+      description: |
+        new_password min 8 (password_too_short); confirm_new_password must match when sent
+        (password_mismatch). Revokes every Redis session of the user (an administrator resetting their own
+        password keeps the access token of this request). Audit RESET_USER_PASSWORD.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/PasswordResetRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/PasswordResetRequest' } }
+      responses:
+        '200':
+          description: Password changed
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedUser' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/password/change:
+    post:
+      tags: [identity]
+      summary: Change one's own password (any authenticated user)
+      description: |
+        current_password must be correct (422 invalid_current_password); new_password min 8. Every other
+        session of the account is revoked; the current one continues. Audit CHANGE_OWN_PASSWORD.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/PasswordChangeRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/PasswordChangeRequest' } }
+      responses:
+        '204': { description: Changed }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/roles:
+    get:
+      tags: [identity]
+      summary: List the roles of every institution (it_admin)
+      description: |
+        `system` is true for it_admin, spd_supervisor and station_operator.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Roles
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedRoleList' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedRoleList' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    post:
+      tags: [identity]
+      summary: Create a role in the administrator's institution (it_admin)
+      description: |
+        code: required (code_required), max 64, lowercased, `^[a-z][a-z0-9_]*$` (invalid_role_code), unique
+        per institution (409 role_code_exists); description required (max 255). Audit CREATE_ROLE.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/RoleCreateRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/RoleCreateRequest' } }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedRole' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedRole' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/roles/{id}:
+    get:
+      tags: [identity]
+      summary: Role detail (it_admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Role
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedRole' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedRole' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    put:
+      tags: [identity]
+      summary: Change the description of a role (it_admin)
+      description: |
+        The code is immutable (sending it is 400). Audit UPDATE_ROLE when it changes.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/RoleUpdateRequest' } }
+          application/xml: { schema: { $ref: '#/components/schemas/RoleUpdateRequest' } }
+      responses:
+        '200':
+          description: Role
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ManagedRole' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ManagedRole' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422': { $ref: '#/components/responses/ValidationFailed' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+    delete:
+      tags: [identity]
+      summary: Delete a role (it_admin)
+      description: |
+        409 system_role (protected roles) or role_in_use (still assigned). Audit DELETE_ROLE.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/RoleDeleted' } }
+            application/xml: { schema: { $ref: '#/components/schemas/RoleDeleted' } }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/auth/docs:
+    get: { tags: [docs], summary: Swagger UI (Authorize with a Bearer access token), responses: { '200': { description: HTML } } }
+  /api/v1/auth/openapi.yaml:
+    get: { tags: [docs], summary: This document, responses: { '200': { description: OpenAPI 3.0 YAML } } }
+  /api/v1/auth/schemas/identity.xsd:
+    get: { tags: [docs], summary: XML Schema of the identity administration bodies, responses: { '200': { description: XSD } } }
+  /health/live:
+    get:
+      tags: [health]
+      summary: Process alive (no dependency checks)
+      responses:
+        '200':
+          description: Alive
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: live, checks: {}, correlation_id: corr-health-1 }
+  /health/database:
+    get:
+      tags: [health]
+      summary: PostgreSQL reachable (SELECT 1)
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /health/redis:
+    get:
+      tags: [health]
+      summary: Redis reachable (PING)
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Ready only if PostgreSQL and Redis are OK
+      responses:
+        '200':
+          description: Ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: ready, checks: { database: ok, redis: ok }, correlation_id: corr-health-1 }
+        '503':
+          description: Not ready
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: not_ready, checks: { database: ok, redis: error }, correlation_id: corr-health-1 }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+      description: UUID of the user or role (a malformed id is 404, like an unknown one).
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' }
+    Accept:
+      name: Accept
+      in: header
+      required: false
+      schema: { type: string, enum: [application/json, application/xml, '*/*'] }
+  headers:
+    CorrelationId:
+      description: Correlation id of this request.
+      schema: { type: string }
+  schemas:
+    LoginRequest:
+      type: object
+      xml: { name: login_request }
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: { type: string, minLength: 1, description: Case-insensitive login (DS01). }
+        password: { type: string, minLength: 1, format: password, description: Never logged or echoed. }
+    RefreshRequest:
+      type: object
+      xml: { name: refresh_request }
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string, minLength: 1 }
+    LogoutRequest:
+      type: object
+      xml: { name: logout_request }
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string, minLength: 1, description: Refresh token of the same session/user. }
+    TokenPair:
+      type: object
+      xml: { name: refresh_response }
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token: { type: string, description: JWT (short-lived). }
+        refresh_token: { type: string, description: JWT used only with /refresh. }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, description: Access token lifetime in seconds. }
+    LoginResponse:
+      type: object
+      xml: { name: login_response }
+      required: [access_token, refresh_token, token_type, expires_in, user]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer }
+        user: { $ref: '#/components/schemas/User' }
+    User:
+      type: object
+      xml: { name: user }
+      required: [id, name, email, institution_id, ui_preferences, roles]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string }
+        institution_id: { type: string, format: uuid }
+        ui_preferences:
+          type: object
+          required: [locale, theme]
+          properties:
+            locale: { type: string, enum: [en, es-MX] }
+            theme: { type: string, enum: [light, dark, system] }
+        roles:
+          type: array
+          xml: { name: roles, wrapped: true }
+          items: { type: string, xml: { name: role } }
+    Permissions:
+      type: object
+      xml: { name: permissions }
+      required: [user_id, institution_id, roles]
+      properties:
+        user_id: { type: string, format: uuid }
+        institution_id: { type: string, format: uuid }
+        roles:
+          type: array
+          xml: { name: roles, wrapped: true }
+          items: { type: string, xml: { name: role } }
+    RoleCodes:
+      type: array
+      items: { type: string, example: station_operator }
+      description: Role codes of the user's institution (XML role_codes/role_code).
+    UserCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, maxLength: 160 }
+        email: { type: string, format: email, maxLength: 255 }
+        institution_id: { type: string, format: uuid }
+        role_codes: { $ref: '#/components/schemas/RoleCodes' }
+        active: { type: boolean, default: true }
+        password: { type: string, format: password, minLength: 8, writeOnly: true }
+        confirm_password: { type: string, format: password, writeOnly: true }
+      xml: { name: user_create_request }
+    UserUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, maxLength: 160 }
+        email: { type: string, format: email, maxLength: 255 }
+        institution_id: { type: string, format: uuid }
+        role_codes: { $ref: '#/components/schemas/RoleCodes' }
+        active: { type: boolean }
+      xml: { name: user_update_request }
+    UserRolesRequest:
+      type: object
+      additionalProperties: false
+      properties: { role_codes: { $ref: '#/components/schemas/RoleCodes' } }
+      xml: { name: user_roles_request }
+    PasswordResetRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        new_password: { type: string, format: password, minLength: 8, writeOnly: true }
+        confirm_new_password: { type: string, format: password, writeOnly: true }
+      xml: { name: password_reset_request }
+    PasswordChangeRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        current_password: { type: string, format: password, writeOnly: true }
+        new_password: { type: string, format: password, minLength: 8, writeOnly: true }
+        confirm_new_password: { type: string, format: password, writeOnly: true }
+      xml: { name: password_change_request }
+    RoleCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        code: { type: string, maxLength: 64, pattern: '^[a-z][a-z0-9_]*$' }
+        description: { type: string, maxLength: 255 }
+      xml: { name: role_create_request }
+    RoleUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties: { description: { type: string, maxLength: 255 } }
+      xml: { name: role_update_request }
+    InstitutionRef:
+      type: object
+      properties: { id: { type: string, format: uuid }, name: { type: string } }
+    ManagedUser:
+      type: object
+      description: Never contains a password, hash or token.
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        email: { type: string }
+        active: { type: boolean }
+        institution: { $ref: '#/components/schemas/InstitutionRef' }
+        roles:
+          type: array
+          items: { type: object, properties: { code: { type: string }, description: { type: string } } }
+        last_login_at: { type: string, format: date-time, nullable: true }
+        password_updated_at: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      xml: { name: managed_user }
+    ManagedUserList:
+      type: array
+      items: { $ref: '#/components/schemas/ManagedUser' }
+      xml: { name: managed_users, wrapped: true }
+    ManagedRole:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        description: { type: string }
+        institution: { $ref: '#/components/schemas/InstitutionRef' }
+        assigned_users: { type: integer }
+        system: { type: boolean, description: 'it_admin, spd_supervisor, station_operator (cannot be deleted)' }
+      xml: { name: managed_role }
+    ManagedRoleList:
+      type: array
+      items: { $ref: '#/components/schemas/ManagedRole' }
+      xml: { name: managed_roles, wrapped: true }
+    RoleDeleted:
+      type: object
+      properties: { deleted: { type: boolean }, id: { type: string, format: uuid } }
+      xml: { name: role_deleted }
+    Error:
+      type: object
+      xml: { name: error_response }
+      required: [error, message, correlation_id, details]
+      properties:
+        error:
+          type: string
+          enum: [invalid_request, invalid_credentials, unauthorized, forbidden, not_found, method_not_allowed,
+                 payload_too_large, rate_limited, internal_error, dependency_unavailable]
+        message: { type: string }
+        correlation_id: { type: string }
+        details: { type: object, additionalProperties: true }
+    Health:
+      type: object
+      xml: { name: health }
+      required: [status, checks, correlation_id]
+      properties:
+        status: { type: string, enum: [live, ok, unavailable, ready, not_ready] }
+        checks:
+          type: object
+          additionalProperties: { type: string, enum: [ok, error] }
+        correlation_id: { type: string }
+  responses:
+    Forbidden:
+      description: The effective roles do not allow the operation (`forbidden`); recorded as DENIED_<METHOD>_<RESOURCE>.
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    NotFound:
+      description: Unknown or malformed id (`not_found`, details.reason user_not_found or role_not_found).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Conflict:
+      description: State conflict (`conflict`, details.reason email_exists, role_code_exists, last_admin, cannot_deactivate_self, cannot_remove_own_admin, system_role, role_in_use).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: conflict, message: At least one active administrator must remain, correlation_id: corr-1, details: { reason: last_admin, field: active } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    ValidationFailed:
+      description: Invalid value (`validation_error`, details.reason and details.field; same reason for JSON and XML).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: validation_error, message: Enter a valid email address, correlation_id: corr-1, details: { reason: invalid_email, field: email } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    InvalidRequest:
+      description: Malformed JSON/XML, wrong types, missing or unknown fields, unsupported Content-Type (`invalid_request`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: invalid_request, message: Required fields are missing, correlation_id: corr-1, details: { missing_fields: [password] } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unauthorized:
+      description: Missing/invalid/expired token, wrong type or algorithm, revoked or absent Redis session, inactive user/institution, refresh refused by session policy (`unauthorized`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: unauthorized, message: Token is revoked or user is inactive, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    PayloadTooLarge:
+      description: Body larger than 64 KiB (`payload_too_large`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    DependencyUnavailable:
+      description: PostgreSQL or Redis unavailable (`dependency_unavailable`, `details.dependency`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: dependency_unavailable, message: Redis is unavailable, correlation_id: corr-1, details: { dependency: redis } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    HealthOk:
+      description: Dependency OK
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Health' }
+          example: { status: ok, checks: { redis: ok }, correlation_id: corr-health-1 }
+    HealthFailed:
+      description: Dependency unavailable
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Health' }
+          example: { status: unavailable, checks: { redis: error }, correlation_id: corr-health-1 }

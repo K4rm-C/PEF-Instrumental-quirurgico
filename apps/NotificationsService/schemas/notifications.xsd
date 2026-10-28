@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PEF Notifications Service - XML representation (base /api/v1/notifications).
+
+  Request (validated by the service): read_all_request   PATCH /read-all (optional body)
+  Responses: notification (GET /{id}, PATCH /{id}/read), notification_page (GET /), unread_count,
+  read_all_result, error_response, health.
+  null = empty element with xsi:nil="true"; element order is not significant (xs:all).
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+
+  <xs:simpleType name="uuid">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="NotificationType">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="session_scheduled"/>
+      <xs:enumeration value="discrepancy_pending"/>
+      <xs:enumeration value="correction_required"/>
+      <xs:enumeration value="discrepancy_resolved"/>
+      <xs:enumeration value="session_closed"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="Status">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="unread"/><xs:enumeration value="read"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <!-- ===== Request ===== -->
+  <xs:element name="read_all_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="type" type="NotificationType" minOccurs="0" nillable="true"/>
+        <xs:element name="before" type="xs:dateTime" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ===== Responses ===== -->
+  <xs:complexType name="Notification">
+    <xs:all>
+      <xs:element name="id" type="uuid"/>
+      <xs:element name="type" type="NotificationType"/>
+      <xs:element name="status" type="Status"/>
+      <xs:element name="title" type="xs:string"/>
+      <xs:element name="message" type="xs:string"/>
+      <xs:element name="session_id" type="uuid" nillable="true"/>
+      <xs:element name="data">
+        <xs:complexType>
+          <xs:all>
+            <xs:element name="session_label" type="xs:string" minOccurs="0"/>
+            <xs:element name="scheduled_at" type="xs:dateTime" minOccurs="0" nillable="true"/>
+            <xs:element name="open_discrepancies" type="xs:nonNegativeInteger" minOccurs="0"/>
+          </xs:all>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="created_at" type="xs:dateTime"/>
+      <xs:element name="read_at" type="xs:dateTime" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:element name="notification" type="Notification"/>
+  <xs:element name="notification_page">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="items">
+          <xs:complexType><xs:sequence>
+            <xs:element name="notification" type="Notification" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+        <xs:element name="page" type="xs:positiveInteger"/>
+        <xs:element name="per_page" type="xs:positiveInteger"/>
+        <xs:element name="total" type="xs:nonNegativeInteger"/>
+        <xs:element name="total_pages" type="xs:positiveInteger"/>
+        <xs:element name="unread" type="xs:nonNegativeInteger"/>
+        <xs:element name="sort" type="xs:string"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="unread_count">
+    <xs:complexType><xs:all><xs:element name="unread" type="xs:nonNegativeInteger"/></xs:all></xs:complexType>
+  </xs:element>
+  <xs:element name="read_all_result">
+    <xs:complexType><xs:all>
+      <xs:element name="updated" type="xs:nonNegativeInteger"/>
+      <xs:element name="unread" type="xs:nonNegativeInteger"/>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="error_response">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="error" type="xs:string"/>
+        <xs:element name="message" type="xs:string"/>
+        <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+        <xs:element name="details">
+          <xs:complexType><xs:sequence>
+            <xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="health">
+    <xs:complexType><xs:all>
+      <xs:element name="status" type="xs:string"/>
+      <xs:element name="checks"><xs:complexType><xs:sequence>
+        <xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence></xs:complexType></xs:element>
+      <xs:element name="correlation_id" type="xs:string"/>
+    </xs:all></xs:complexType>
+  </xs:element>
+</xs:schema>

@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PEF Auth / Identity Service - XML of the identity administration endpoints
+  (PEF-DS09 §1.3.2, complement v0.1.4; base /api/v1/auth).
+
+  Requests (every XML body is validated against this schema; a non-conforming document is
+  400 invalid_request with details.reason = "xsd_validation_failed", details.schema, details.errors):
+    user_create_request      POST /users
+    user_update_request      PUT  /users/{id}
+    user_roles_request       PUT  /users/{id}/roles
+    password_reset_request   POST /users/{id}/password   (administrator)
+    password_change_request  POST /password/change        (own account)
+    role_create_request      POST /roles
+    role_update_request      PUT  /roles/{id}
+  Responses: managed_user, managed_users/managed_user, managed_role, managed_roles/managed_role,
+  role_deleted, error_response.
+
+  The schema checks structure and lexical types; which fields each operation requires and their
+  values (lengths, email format, existing institution and roles, password rules) are checked by the
+  service and answered 422 with the same details.reason for JSON and XML.
+  null = empty element with xsi:nil="true"; booleans true/false (1/0 accepted in requests).
+  Element order is not significant (xs:all). No response ever carries a password, hash or token.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+
+  <xs:simpleType name="uuid">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="RoleCodes">
+    <xs:sequence>
+      <xs:element name="role_code" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence>
+  </xs:complexType>
+
+  <!-- ===== Requests ===== -->
+
+  <xs:element name="user_create_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="name" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="email" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="institution_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="role_codes" type="RoleCodes" minOccurs="0" nillable="true"/>
+        <xs:element name="active" type="xs:boolean" minOccurs="0" nillable="true"/>
+        <xs:element name="password" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="confirm_password" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="user_update_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="name" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="email" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="institution_id" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="role_codes" type="RoleCodes" minOccurs="0" nillable="true"/>
+        <xs:element name="active" type="xs:boolean" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="user_roles_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="role_codes" type="RoleCodes" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="password_reset_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="new_password" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="confirm_new_password" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="password_change_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="current_password" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="new_password" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="confirm_new_password" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="role_create_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="code" type="xs:string" minOccurs="0" nillable="true"/>
+        <xs:element name="description" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="role_update_request">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="description" type="xs:string" minOccurs="0" nillable="true"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- ===== Responses ===== -->
+
+  <xs:complexType name="InstitutionRef">
+    <xs:all>
+      <xs:element name="id" type="uuid"/>
+      <xs:element name="name" type="xs:string"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="AssignedRole">
+    <xs:all>
+      <xs:element name="code" type="xs:string"/>
+      <xs:element name="description" type="xs:string"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="ManagedUser">
+    <xs:all>
+      <xs:element name="id" type="uuid"/>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="email" type="xs:string"/>
+      <xs:element name="active" type="xs:boolean"/>
+      <xs:element name="institution" type="InstitutionRef"/>
+      <xs:element name="roles">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="role" type="AssignedRole" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="last_login_at" type="xs:dateTime" nillable="true"/>
+      <xs:element name="password_updated_at" type="xs:dateTime" nillable="true"/>
+      <xs:element name="created_at" type="xs:dateTime" nillable="true"/>
+      <xs:element name="updated_at" type="xs:dateTime" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="ManagedRole">
+    <xs:all>
+      <xs:element name="id" type="uuid"/>
+      <xs:element name="code" type="xs:string"/>
+      <xs:element name="description" type="xs:string"/>
+      <xs:element name="institution" type="InstitutionRef"/>
+      <xs:element name="assigned_users" type="xs:int"/>
+      <xs:element name="system" type="xs:boolean"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:element name="managed_user" type="ManagedUser"/>
+  <xs:element name="managed_users">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="managed_user" type="ManagedUser" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="managed_role" type="ManagedRole"/>
+  <xs:element name="managed_roles">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="managed_role" type="ManagedRole" minOccurs="0" maxOccurs="unbounded"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+  <xs:element name="role_deleted">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="deleted" type="xs:boolean"/>
+        <xs:element name="id" type="uuid"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="error_response">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="error" type="xs:string"/>
+        <xs:element name="message" type="xs:string"/>
+        <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+        <xs:element name="details">
+          <xs:complexType>
+            <xs:sequence>
+              <xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+          </xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>
