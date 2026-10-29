@@ -18,4 +18,5 @@ class OperatingRoom(db.Model):
     # Relations
     # OperatingRoom -> Institution 'institution'
     stations: Mapped[list["CaptureStation"]] = relationship("CaptureStation", back_populates="room") # OperatingRoom << CaptureStation 'stations'
+    user_assignments: Mapped[list["UserOperatingRoom"]] = relationship("UserOperatingRoom", back_populates="room")
     operations: Mapped[list["Operation"]] = relationship("Operation", back_populates="location") # OperatingRoom << Operation 'operations'

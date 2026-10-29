@@ -293,6 +293,19 @@ CREATE TABLE operating_room (
   CONSTRAINT uk_operating_room_institution_code UNIQUE (institution_id, code)
 );
 
+CREATE TABLE user_operating_room (
+  id          UUID        NOT NULL DEFAULT gen_random_uuid(),
+  user_id     UUID        NOT NULL,
+  room_id     UUID        NOT NULL,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT pk_user_operating_room PRIMARY KEY (id),
+  CONSTRAINT fk_user_operating_room_user
+    FOREIGN KEY (user_id) REFERENCES "user" (id) ON DELETE CASCADE,
+  CONSTRAINT fk_user_operating_room_room
+    FOREIGN KEY (room_id) REFERENCES operating_room (id) ON DELETE CASCADE,
+  CONSTRAINT uk_user_operating_room_user_room UNIQUE (user_id, room_id)
+);
+
 CREATE TABLE capture_station (
   id     UUID         NOT NULL DEFAULT gen_random_uuid(),
   name   VARCHAR(120) NOT NULL,
@@ -571,6 +584,8 @@ CREATE TABLE yolo_model (
   version_tag    VARCHAR(32) NOT NULL,
   media_asset_id UUID,
   checksum       CHAR(64),
+  architecture   VARCHAR(64),
+  model_size     VARCHAR(8),
   active         BOOLEAN     NOT NULL DEFAULT FALSE,
   published_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT pk_yolo_model PRIMARY KEY (id),
@@ -617,6 +632,8 @@ CREATE TABLE work_session (
   phase_changed_at   TIMESTAMPTZ,
   -- Frozen at Start: vision | manual_no_privacy (RF capture_mode).
   capture_mode       VARCHAR(32),
+  -- Pin del detector al Start en modo vision (NULL en scheduled / manual_no_privacy).
+  yolo_model_id      UUID,
   atypical_session   BOOLEAN     NOT NULL DEFAULT FALSE,
   extended_retention BOOLEAN     NOT NULL DEFAULT FALSE,
   retention_until    TIMESTAMPTZ,
@@ -636,6 +653,8 @@ CREATE TABLE work_session (
     FOREIGN KEY (kit_id) REFERENCES kit (id) ON DELETE SET NULL,
   CONSTRAINT fk_work_session_current_phase
     FOREIGN KEY (current_phase_id) REFERENCES cat_operation_phase (id) ON DELETE SET NULL,
+  CONSTRAINT fk_work_session_yolo_model
+    FOREIGN KEY (yolo_model_id) REFERENCES yolo_model (id) ON DELETE SET NULL,
   CONSTRAINT chk_work_session_ended CHECK (
     ended_at IS NULL OR (started_at IS NOT NULL AND ended_at >= started_at)
   ),
@@ -698,9 +717,12 @@ CREATE TABLE discrepancy (
   family_id         UUID,
   expected_quantity SMALLINT,
   detected_quantity SMALLINT,
-  session_id        UUID     NOT NULL,
-  origin_event_id   UUID,
-  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  session_id             UUID     NOT NULL,
+  origin_event_id        UUID,
+  suggested_resolution   TEXT,
+  or_released_at         TIMESTAMPTZ,
+  or_released_by_user_id UUID,
+  updated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT pk_discrepancy PRIMARY KEY (id),
   CONSTRAINT fk_discrepancy_reason
     FOREIGN KEY (reason_id) REFERENCES cat_discrepancy_reason (id) ON DELETE SET NULL,
@@ -710,6 +732,8 @@ CREATE TABLE discrepancy (
     FOREIGN KEY (session_id) REFERENCES work_session (id) ON DELETE CASCADE,
   CONSTRAINT fk_discrepancy_origin_event
     FOREIGN KEY (origin_event_id) REFERENCES count_event (id) ON DELETE SET NULL,
+  CONSTRAINT fk_discrepancy_or_released_by
+    FOREIGN KEY (or_released_by_user_id) REFERENCES "user" (id) ON DELETE SET NULL,
   CONSTRAINT chk_discrepancy_resolved_at CHECK (
     resolved = FALSE OR resolved_at IS NOT NULL
   ),

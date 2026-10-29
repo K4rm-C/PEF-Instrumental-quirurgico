@@ -271,7 +271,7 @@ Sin finalidades y sin traza de acceso, el conteo con evidencia nominativa no se 
 3. **Booleanos en el acuerdo** + catálogo de purposes (como checkpoint reasons).
 4. **`access_audit` separado de `count_event`.**
 5. **Actor user XOR client** en el mismo log.
-6. **ARCO como entidad** que orquesta purga ya modelada en `media_asset`.
+6. **ARCO como entidad** que orquesta purga ya modelada en `media_asset`. En v1 el portal Admin solo **lista** `privacy_request` (stub RF-AD-11); no ejecuta acceso, rectificación, cancelación ni oposición.
 
 **Alternativas no elegidas**
 

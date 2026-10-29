@@ -219,6 +219,11 @@ PEF-Instrumental-quirurgico/
 ├── start-services.sh
 ├── infra/garage.toml
 ├── data/
+│   ├── DataStandards/            # PEF-DS01…DS10
+│   ├── FunctionalRequirements/   # RF operador/SPD y Admin/App
+│   ├── ER PostgreSQL-MongoDB-v3.jpg
+│   ├── migrations/
+│   └── seeds/
 └── apps/
     ├── BackendAuthService/
     ├── BackendWebFlask/

@@ -19,6 +19,9 @@ class Discrepancy(db.Model):
     expected_quantity: Mapped[int] = mapped_column(SMALLINT, nullable=False)
     detected_quantity: Mapped[int] = mapped_column(SMALLINT, nullable=False) 
     family_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('instrument_family.id'), nullable=False)
+    suggested_resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
+    or_released_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    or_released_by_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('user.id'), nullable=True)
     
     # Relaciones
     reason: Mapped["CatDiscrepancyReason"] = relationship("CatDiscrepancyReason", back_populates="discrepancies") # Discrepancy -> CatDiscrepancyReason 'Reason'

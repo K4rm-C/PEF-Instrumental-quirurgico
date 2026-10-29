@@ -85,7 +85,7 @@ Códigos esperados: `start`, `close`, `hourly`, `state_change`, `discrepancy`, `
 | `operation_id` | string (UUID) | SÍ | — | Denormalizado para paneles. |
 | `media_asset_id` | string (UUID) | SÍ | — | = `media_asset.id` (DS05). |
 | `gcs_uri` | string | SÍ | — | URI redundante para lectura rápida. |
-| `model_version` | string | SÍ | — | Tag `yolo_model.version_tag`. |
+| `model_version` | string | SÍ | — | Tag `yolo_model.version_tag` **del modelo pineado en la sesión** (`work_session.yolo_model_id` → `yolo_model.version_tag`, DS04/DS03). No se redefine el contrato Mongo. |
 | `reason` | string | NO | — | Código de motivo (ver catálogo). |
 | `phase_id` | string (UUID) | SÍ | — | Copia de fase al capturar. |
 | `phase_code` | string | SÍ | — | Código de fase denormalizado. |

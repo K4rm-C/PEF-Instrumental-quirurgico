@@ -1,13 +1,13 @@
 ---
 id: PEF-DS01
 title: Identity and Credentials
-version: "0.2.1"
+version: "0.2.2"
 status: draft
 owner: PEF Core / Backend Web
 applies_to: [WP, BE, CS]
 stores: [PostgreSQL, Redis]
 related: [PEF-DS02, PEF-DS07, PEF-DS08]
-last_updated: 2026-09-06
+last_updated: 2026-10-29
 ---
 
 # PEF-DS01 · Identity and Credentials
@@ -16,7 +16,9 @@ last_updated: 2026-09-06
 
 Este estándar define **quién puede entrar al sistema** y **cómo se guarda la identidad humana**.
 
-Cubre estas tablas PostgreSQL: `institution`, `role`, `user`, `user_role`. Cubre también las claves temporales de autenticación en Redis (JWT / rate limit). No son la misma cosa que una `work_session` de conteo.
+Cubre estas tablas PostgreSQL: `institution`, `role`, `user`, `user_role`, `user_operating_room`. Cubre también las claves temporales de autenticación en Redis (JWT / rate limit). No son la misma cosa que una `work_session` de conteo.
+
+Roles de producto v1: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge`.
 
 No cubre pacientes ni médicos de la operación (PEF-DS02). No cubre clientes máquina tipo HIS (`integration_client`, PEF-DS08). No cubre aviso de privacidad ni ARCO (PEF-DS07).
 
@@ -128,7 +130,7 @@ Ejemplo hijo (misma tabla, otra fila):
 | Campo            | Tipo         | Nulo | Default             | Significado                                                       |
 | ---------------- | ------------ | ---- | ------------------- | ----------------------------------------------------------------- |
 | `id`             | UUID         | NO   | `gen_random_uuid()` | Identificador del rol.                                            |
-| `code`           | VARCHAR(64)  | NO   | —                   | Código estable de permiso (`scrub_nurse`, `supervisor`, `admin`). |
+| `code`           | VARCHAR(64)  | NO   | —                   | Código estable de permiso. Producto v1: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge`. |
 | `description`    | VARCHAR(255) | NO   | —                   | Texto explicativo para UI/administración.                         |
 | `institution_id` | UUID         | NO   | —                   | Institución dueña de este rol.                                    |
 
@@ -148,8 +150,8 @@ Ejemplo hijo (misma tabla, otra fila):
 ```json
 {
   "id": "33333333-3333-3333-3333-333333333333",
-  "code": "scrub_nurse",
-  "description": "Personal de conteo en charola",
+  "code": "or_charge",
+  "description": "Supervisor de piso. Vigila holds de sala; no cierra ciclo SPD.",
   "institution_id": "11111111-1111-1111-1111-111111111111"
 }
 ```
@@ -259,7 +261,42 @@ Otras claves de UI (densidad, etc.) pueden añadirse después en el mismo JSONB;
 
 ---
 
-#### 1.3.5 Redis · autenticación (no es tabla SQL)
+#### 1.3.5 Tabla `user_operating_room`
+
+**Para qué existe:** N:M usuario ↔ quirófano. Alimenta al supervisor de piso (`or_charge`). La App **lista todas** las salas (las ligadas **primero**); las **notificaciones in-app** solo salen si la sesión/hold es de una sala de este par.
+
+
+| Campo         | Tipo        | Nulo | Default             | Significado            |
+| ------------- | ----------- | ---- | ------------------- | ---------------------- |
+| `id`          | UUID        | NO   | `gen_random_uuid()` | PK.                    |
+| `user_id`     | UUID        | NO   | —                   | Usuario asignado.      |
+| `room_id`     | UUID        | NO   | —                   | Quirofano asignado.    |
+| `assigned_at` | TIMESTAMPTZ | NO   | `now()`             | Cuándo se asignó.      |
+
+
+**Hacia dónde apunta**
+
+
+| Campo     | Apunta a              | Relación | Por qué                         | ON DELETE  |
+| --------- | --------------------- | -------- | ------------------------------- | ---------- |
+| `user_id` | `user.id`             | N:1      | Dueño de la asignación.         | `CASCADE`  |
+| `room_id` | `operating_room.id` (DS02) | N:1 | Sala física.                    | `CASCADE`  |
+
+
+**Restricciones:** PK `id`; UNIQUE (`user_id`, `room_id`) = `uk_user_operating_room_user_room`.
+
+```json
+{
+  "id": "15151515-0000-4000-8000-000000000001",
+  "user_id": "22222222-2222-2222-2222-222222222226",
+  "room_id": "12121212-0000-4000-8000-000000000001",
+  "assigned_at": "2026-10-29T18:00:00Z"
+}
+```
+
+---
+
+#### 1.3.6 Redis · autenticación (no es tabla SQL)
 
 Redis guarda estado **temporal** de login. No sustituye `user`.
 
@@ -294,7 +331,7 @@ Redis guarda estado **temporal** de login. No sustituye `user`.
 
 ---
 
-#### 1.3.6 Reglas de negocio
+#### 1.3.7 Reglas de negocio
 
 1. Login solo si `user.active = true` e institución usable.
 2. Cambio de contraseña → nuevo `password_hash` + `password_updated_at`.
@@ -360,9 +397,9 @@ Sin un estándar de identidad, cada pantalla inventa “quién es el usuario”.
 | ----------------- | ---------------------------------------------------------------------------------- |
 | Código            | PEF-DS01                                                                           |
 | Título            | Identity and Credentials                                                           |
-| Versión           | 0.2.1                                                                              |
+| Versión           | 0.2.2                                                                              |
 | Estado            | draft                                                                              |
-| Almacenes         | PostgreSQL (`institution`, `role`, `user`, `user_role`); Redis (auth)              |
+| Almacenes         | PostgreSQL (`institution`, `role`, `user`, `user_role`, `user_operating_room`); Redis (auth) |
 | Fuera de alcance  | Paciente, médico, operación; `integration_client`; privacidad ARCO; `work_session` |
 | DDL de referencia | `esquema_base_datos_v2.md` §5.3                                                    |
 

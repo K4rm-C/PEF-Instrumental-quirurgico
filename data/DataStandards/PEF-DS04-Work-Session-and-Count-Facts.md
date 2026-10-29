@@ -1,14 +1,14 @@
 ---
-
-## id: PEF-DS04
+id: PEF-DS04
 title: Work Session and Count Facts
-version: "0.2.0"
+version: "0.2.1"
 status: draft
 owner: PEF Core / Estación / Worker
 applies_to: [CS, BE, Worker, WP]
 stores: [PostgreSQL]
 related: [PEF-DS01, PEF-DS02, PEF-DS03, PEF-DS06, PEF-DS07]
-last_updated: 2026-09-06
+last_updated: 2026-10-29
+---
 
 # PEF-DS04 · Work Session and Count Facts
 
@@ -28,43 +28,31 @@ Abajo: **todos** los campos, FKs con motivo, y **fila completa** por tabla.
 
 ---
 
-
-
 ## 1. Explicación del estándar
-
-
 
 ### 1.1 Definiciones
 
-
-| Término                 | Significado                                                                                                |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
-| **Sesión de trabajo**   | Periodo en que un usuario cuenta o prepara conteo, ligado opcionalmente a operación, estación, kit y fase. |
-| **Inventario esperado** | Cantidades por familia **congeladas** para esa sesión.                                                     |
-| **Evento de conteo**    | Hecho auditable (auto/manual/cambio de fase, etc.).                                                        |
-| **Discrepancia**        | Registro de descuadre; puede resolverse después.                                                           |
-| **Corrección humana**   | Justificación obligatoria ligada a un `count_event` (1:1).                                                 |
-
-
-
+| Término | Significado |
+| :--- | :--- |
+| **Sesión de trabajo** | Periodo en que un usuario cuenta o prepara conteo, ligado opcionalmente a operación, estación, kit y fase. |
+| **Inventario esperado** | Cantidades por familia **congeladas** para esa sesión. |
+| **Evento de conteo** | Hecho auditable (auto/manual/cambio de fase, etc.). |
+| **Discrepancia** | Registro de descuadre; puede resolverse después. |
+| **Corrección humana** | Justificación obligatoria ligada a un `count_event` (1:1). |
 
 ### 1.2 Uso
 
 Estación abre/cierra sesión y muestra esperado vs detectado. Worker/backend **persisten** `count_event` además del push WSS a UI. Portal consulta historial y discrepancias.
 
-
-| Pregunta                                                      | Dónde                   |
-| ------------------------------------------------------------- | ----------------------- |
+| Pregunta | Dónde |
+| :--- | :--- |
 | ¿Cuántos se dieron por detectados a las 10:32 en la sesión X? | `count_event` (este DS) |
-| ¿Boxes, score, traza fina?                                    | Mongo (DS06)            |
-| ¿URI del JPEG?                                                | `media_asset` (DS05)    |
-
+| ¿Boxes, score, traza fina? | Mongo (DS06) |
+| ¿URI del JPEG? | `media_asset` (DS05) |
 
 Fan-out del proyecto: detección → UI (WSS) **y** hecho en PG (+ checkpoint si la política lo pide).
 
 ---
-
-
 
 ### 1.3 Convenciones
 
@@ -72,41 +60,33 @@ En “Hacia dónde apunta”, columna **Relación**: `N:1` = muchas filas de est
 
 ---
 
-
-
 #### 1.3.1 `cat_session_status`
 
-
-| Campo  | Tipo        | Nulo | Default             | Significado                      |
-| ------ | ----------- | ---- | ------------------- | -------------------------------- |
-| `id`   | UUID        | NO   | `gen_random_uuid()` | PK.                              |
-| `code` | VARCHAR(32) | NO   | —                   | Ej. `open`, `closed`, `aborted`. |
-| `name` | VARCHAR(80) | NO   | —                   | Etiqueta.                        |
-
+| Campo | Tipo | Nulo | Default | Significado |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(32) | NO | — | `scheduled`, `in_progress`, `or_hold`, `awaiting_spd_review`, `correction_required`, `closed`, `aborted`. |
+| `name` | VARCHAR(80) | NO | — | Etiqueta. |
 
 FKs: ninguna. UNIQUE `code`.
 
 ```json
 {
   "id": "c1000001-0000-4000-8000-000000000001",
-  "code": "open",
-  "name": "Abierta"
+  "code": "or_hold",
+  "name": "OR hold"
 }
 ```
 
 ---
 
-
-
 #### 1.3.2 `cat_event_type`
 
-
-| Campo  | Tipo         | Nulo | Default             | Significado                                       |
-| ------ | ------------ | ---- | ------------------- | ------------------------------------------------- |
-| `id`   | UUID         | NO   | `gen_random_uuid()` | PK.                                               |
-| `code` | VARCHAR(64)  | NO   | —                   | Ej. `auto_count`, `manual_count`, `phase_change`. |
-| `name` | VARCHAR(160) | NO   | —                   | Etiqueta.                                         |
-
+| Campo | Tipo | Nulo | Default | Significado |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(64) | NO | — | Incluye `auto_count`, `manual_count`, `phase_change`, `or_hold_opened`, `or_hold_comment`, `or_hold_released`. |
+| `name` | VARCHAR(160) | NO | — | Etiqueta. |
 
 FKs: ninguna. UNIQUE `code`.
 
@@ -120,17 +100,13 @@ FKs: ninguna. UNIQUE `code`.
 
 ---
 
-
-
 #### 1.3.3 `cat_discrepancy_reason`
 
-
-| Campo  | Tipo         | Nulo | Default             | Significado                                               |
-| ------ | ------------ | ---- | ------------------- | --------------------------------------------------------- |
-| `id`   | UUID         | NO   | `gen_random_uuid()` | PK.                                                       |
-| `code` | VARCHAR(64)  | NO   | —                   | Ej. `left_in_patient`, `counting_error`, `extra_on_tray`. |
-| `name` | VARCHAR(160) | NO   | —                   | Etiqueta.                                                 |
-
+| Campo | Tipo | Nulo | Default | Significado |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(64) | NO | — | Ej. `left_in_patient`, `counting_error`, `extra_on_tray`. |
+| `name` | VARCHAR(160) | NO | — | Etiqueta. |
 
 FKs: ninguna. UNIQUE `code`.
 
@@ -144,45 +120,41 @@ FKs: ninguna. UNIQUE `code`.
 
 ---
 
-
-
 #### 1.3.4 Tabla `work_session`
 
 **Para qué:** cabecera del periodo de conteo.
 
-
-| Campo                | Tipo        | Nulo | Default             | Significado                                         |
-| -------------------- | ----------- | ---- | ------------------- | --------------------------------------------------- |
-| `id`                 | UUID        | NO   | `gen_random_uuid()` | PK de la sesión.                                    |
-| `started_at`         | TIMESTAMPTZ | NO   | `now()`             | Inicio.                                             |
-| `ended_at`           | TIMESTAMPTZ | SÍ   | NULL                | Cierre.                                             |
-| `status_id`          | UUID        | NO   | —                   | Estado de sesión.                                   |
-| `user_id`            | UUID        | NO   | —                   | Usuario dueño / quien abre.                         |
-| `closed_by_user_id`  | UUID        | SÍ   | NULL                | Quien cerró.                                        |
-| `operation_id`       | UUID        | SÍ   | NULL                | Caso clínico (política de producto puede exigirlo). |
-| `station_id`         | UUID        | SÍ   | NULL                | Estación de captura.                                |
-| `kit_id`             | UUID        | SÍ   | NULL                | Kit de referencia al abrir.                         |
-| `current_phase_id`   | UUID        | SÍ   | NULL                | Fase clínica actual.                                |
-| `phase_changed_at`   | TIMESTAMPTZ | SÍ   | NULL                | Cuándo cambió la fase.                              |
-| `atypical_session`   | BOOLEAN     | NO   | `FALSE`             | Sesión fuera de proceso estándar.                   |
-| `extended_retention` | BOOLEAN     | NO   | `FALSE`             | Señal de retención extendida de evidencia.          |
-| `retention_until`    | TIMESTAMPTZ | SÍ   | NULL                | Hasta cuándo retener (si aplica).                   |
-| `updated_at`         | TIMESTAMPTZ | NO   | `now()`             | Última actualización de la cabecera.                |
-
+| Campo | Tipo | Nulo | Default | Significado |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK de la sesión. |
+| `started_at` | TIMESTAMPTZ | NO | `now()` | Inicio. |
+| `ended_at` | TIMESTAMPTZ | SÍ | NULL | Cierre. |
+| `status_id` | UUID | NO | — | Estado de sesión. |
+| `user_id` | UUID | NO | — | Usuario dueño / quien abre. |
+| `closed_by_user_id` | UUID | SÍ | NULL | Quien cerró. |
+| `operation_id` | UUID | SÍ | NULL | Caso clínico (política de producto puede exigirlo). |
+| `station_id` | UUID | SÍ | NULL | Estación de captura. |
+| `kit_id` | UUID | SÍ | NULL | Kit de referencia al abrir. |
+| `current_phase_id` | UUID | SÍ | NULL | Fase clínica actual. |
+| `phase_changed_at` | TIMESTAMPTZ | SÍ | NULL | Cuándo cambió la fase. |
+| `yolo_model_id` | UUID | SÍ | NULL | Pin del detector al Start en modo `vision`. NULL en `scheduled` y en `manual_no_privacy`. Worker/UI de sesión abierta leen esta FK, no el `yolo_model.active` global. |
+| `atypical_session` | BOOLEAN | NO | `FALSE` | Sesión fuera de proceso estándar. |
+| `extended_retention` | BOOLEAN | NO | `FALSE` | Señal de retención extendida de evidencia. |
+| `retention_until` | TIMESTAMPTZ | SÍ | NULL | Hasta cuándo retener (si aplica). |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Última actualización de la cabecera. |
 
 **Hacia dónde apunta**
 
-
-| Campo               | Apunta a                        | Relación | Por qué                                                                 | ON DELETE  |
-| ------------------- | ------------------------------- | -------- | ----------------------------------------------------------------------- | ---------- |
-| `status_id`         | `cat_session_status.id`         | N:1      | Estado controlado.                                                      | `RESTRICT` |
-| `user_id`           | `user.id` (DS01)                | N:1      | Responsable de la sesión.                                               | `RESTRICT` |
-| `closed_by_user_id` | `user.id` (DS01)                | N:0..1   | Quién cerró; puede diferir del abridor.                                 | `SET NULL` |
-| `operation_id`      | `operation.id` (DS02)           | N:0..1   | Contexto clínico.                                                       | `RESTRICT` |
-| `station_id`        | `capture_station.id` (DS02)     | N:0..1   | Dónde se capturó.                                                       | `SET NULL` |
-| `kit_id`            | `kit.id` (DS03)                 | N:0..1   | Receta de referencia; el detalle esperado está en `expected_inventory`. | `SET NULL` |
-| `current_phase_id`  | `cat_operation_phase.id` (DS03) | N:0..1   | Fase actual.                                                            | `SET NULL` |
-
+| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| :--- | :--- | :--- | :--- | :--- |
+| `status_id` | `cat_session_status.id` | N:1 | Estado controlado. | `RESTRICT` |
+| `user_id` | `user.id` (DS01) | N:1 | Responsable de la sesión. | `RESTRICT` |
+| `closed_by_user_id` | `user.id` (DS01) | N:0..1 | Quién cerró; puede diferir del abridor. | `SET NULL` |
+| `operation_id` | `operation.id` (DS02) | N:0..1 | Contexto clínico. | `RESTRICT` |
+| `station_id` | `capture_station.id` (DS02) | N:0..1 | Dónde se capturó. | `SET NULL` |
+| `kit_id` | `kit.id` (DS03) | N:0..1 | Receta de referencia; el detalle esperado está en `expected_inventory`. | `SET NULL` |
+| `current_phase_id` | `cat_operation_phase.id` (DS03) | N:0..1 | Fase actual. | `SET NULL` |
+| `yolo_model_id` | `yolo_model.id` (DS03) | N:0..1 | Detector congelado para esta sesión. | `SET NULL` |
 
 CHECK: `ended_at` ≥ `started_at` si ambas existen.
 
@@ -201,6 +173,7 @@ CHECK: `ended_at` ≥ `started_at` si ambas existen.
   "kit_id": "k1000001-0000-4000-8000-000000000001",
   "current_phase_id": "b1000004-0000-4000-8000-000000000004",
   "phase_changed_at": "2026-09-05T16:15:30Z",
+  "yolo_model_id": "y1000001-0000-4000-8000-000000000001",
   "atypical_session": false,
   "extended_retention": false,
   "retention_until": null,
@@ -210,30 +183,24 @@ CHECK: `ended_at` ≥ `started_at` si ambas existen.
 
 ---
 
-
-
 #### 1.3.5 Tabla `expected_inventory`
 
 **Para qué:** snapshot de “cuántos deberían verse” por familia en esta sesión.
 
-
-| Campo               | Tipo        | Nulo | Default             | Significado                |
-| ------------------- | ----------- | ---- | ------------------- | -------------------------- |
-| `id`                | UUID        | NO   | `gen_random_uuid()` | PK.                        |
-| `family_id`         | UUID        | NO   | —                   | Familia esperada.          |
-| `expected_quantity` | SMALLINT    | NO   | —                   | Cantidad esperada (≥ 0).   |
-| `session_id`        | UUID        | NO   | —                   | Sesión dueña.              |
-| `source`            | VARCHAR(32) | NO   | `'kit_snapshot'`    | `kit_snapshot` o `manual`. |
-
+| Campo | Tipo | Nulo | Default | Significado |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `family_id` | UUID | NO | — | Familia esperada. |
+| `expected_quantity` | SMALLINT | NO | — | Cantidad esperada (≥ 0). |
+| `session_id` | UUID | NO | — | Sesión dueña. |
+| `source` | VARCHAR(32) | NO | `'kit_snapshot'` | `kit_snapshot` o `manual`. |
 
 **Hacia dónde apunta**
 
-
-| Campo        | Apunta a                      | Relación | Por qué                      | ON DELETE  |
-| ------------ | ----------------------------- | -------- | ---------------------------- | ---------- |
-| `family_id`  | `instrument_family.id` (DS03) | N:1      | Qué tipo se espera.          | `RESTRICT` |
-| `session_id` | `work_session.id`             | N:1      | Congela esperado por sesión. | `CASCADE`  |
-
+| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| :--- | :--- | :--- | :--- | :--- |
+| `family_id` | `instrument_family.id` (DS03) | N:1 | Qué tipo se espera. | `RESTRICT` |
+| `session_id` | `work_session.id` | N:1 | Congela esperado por sesión. | `CASCADE` |
 
 UNIQUE (`session_id`, `family_id`). CHECK cantidad ≥ 0; CHECK `source` ∈ (`kit_snapshot`, `manual`).
 
@@ -251,39 +218,35 @@ Editar el kit **después** no reescribe solos estos snapshots.
 
 ---
 
-
-
 #### 1.3.6 Tabla `count_event`
 
 **Para qué:** hecho auditable de conteo u evento relacionado.
 
-
-| Campo               | Tipo        | Nulo | Default             | Significado                                             |
-| ------------------- | ----------- | ---- | ------------------- | ------------------------------------------------------- |
-| `id`                | UUID        | NO   | `gen_random_uuid()` | PK del hecho.                                           |
-| `event_type_id`     | UUID        | NO   | —                   | Tipo de evento.                                         |
-| `client_event_id`   | UUID        | SÍ   | NULL                | Id del cliente para idempotencia (único si viene).      |
-| `family_id`         | UUID        | SÍ   | NULL                | Familia afectada (nulo si el evento no es por familia). |
-| `expected_quantity` | SMALLINT    | SÍ   | NULL                | Esperado en ese momento (≥ 0 si informado).             |
-| `detected_quantity` | SMALLINT    | SÍ   | NULL                | Detectado/contabilizado (≥ 0 si informado).             |
-| `payload`           | JSONB       | NO   | `'{}'`              | Datos extra controlados (sin PII innecesaria).          |
-| `occurred_at`       | TIMESTAMPTZ | NO   | `now()`             | Momento del hecho.                                      |
-| `session_id`        | UUID        | NO   | —                   | Sesión.                                                 |
-| `user_id`           | UUID        | SÍ   | NULL                | Usuario si el evento fue humano; nulo si solo sistema.  |
-
+| Campo | Tipo | Nulo | Default | Significado |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK del hecho. |
+| `event_type_id` | UUID | NO | — | Tipo de evento. |
+| `client_event_id` | UUID | SÍ | NULL | Id del cliente para idempotencia (único si viene). |
+| `family_id` | UUID | SÍ | NULL | Familia afectada (nulo si el evento no es por familia). |
+| `expected_quantity` | SMALLINT | SÍ | NULL | Esperado en ese momento (≥ 0 si informado). |
+| `detected_quantity` | SMALLINT | SÍ | NULL | Detectado/contabilizado (≥ 0 si informado). |
+| `payload` | JSONB | NO | `'{}'` | Datos extra controlados (sin PII innecesaria). En `auto_count`: lista `confidences` (0..1, una por caja). |
+| `occurred_at` | TIMESTAMPTZ | NO | `now()` | Momento del hecho. |
+| `session_id` | UUID | NO | — | Sesión. |
+| `user_id` | UUID | SÍ | NULL | Usuario si el evento fue humano; nulo si solo sistema. |
 
 **Hacia dónde apunta**
 
-
-| Campo           | Apunta a                      | Relación | Por qué                | ON DELETE  |
-| --------------- | ----------------------------- | -------- | ---------------------- | ---------- |
-| `event_type_id` | `cat_event_type.id`           | N:1      | Clasifica el hecho.    | `RESTRICT` |
-| `family_id`     | `instrument_family.id` (DS03) | N:0..1   | Tipo contado.          | `SET NULL` |
-| `session_id`    | `work_session.id`             | N:1      | Dueño temporal.        | `CASCADE`  |
-| `user_id`       | `user.id` (DS01)              | N:0..1   | Actor humano opcional. | `SET NULL` |
-
+| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| :--- | :--- | :--- | :--- | :--- |
+| `event_type_id` | `cat_event_type.id` | N:1 | Clasifica el hecho. | `RESTRICT` |
+| `family_id` | `instrument_family.id` (DS03) | N:0..1 | Tipo contado. | `SET NULL` |
+| `session_id` | `work_session.id` | N:1 | Dueño temporal. | `CASCADE` |
+| `user_id` | `user.id` (DS01) | N:0..1 | Actor humano opcional. | `SET NULL` |
 
 UNIQUE `client_event_id` (cuando no es nulo, vía UNIQUE en columna).
+
+En `auto_count` el payload **debe** incluir las confianzas de cada caja reportada (0..1). Fila por familia: `payload.confidences`. Snapshot de tablero (`scope = board`): `payload.board.families[].confidences`. No se persisten `avg` / `best` / `worst`.
 
 ```json
 {
@@ -294,8 +257,8 @@ UNIQUE `client_event_id` (cuando no es nulo, vía UNIQUE en columna).
   "expected_quantity": 2,
   "detected_quantity": 1,
   "payload": {
-    "model_version_tag": "yolo11n-pef-2026-03",
-    "confidence_mean": 0.91,
+    "model_version": "yolo26l-demo",
+    "confidences": [0.93, 0.88],
     "ui_source": "station"
   },
   "occurred_at": "2026-09-05T18:20:00Z",
@@ -306,38 +269,36 @@ UNIQUE `client_event_id` (cuando no es nulo, vía UNIQUE en columna).
 
 ---
 
-
-
 #### 1.3.7 Tabla `discrepancy`
 
 **Para qué:** descuadre abierto o resuelto, trazable a sesión y opcionalmente a un evento origen.
 
-
-| Campo               | Tipo        | Nulo | Default             | Significado                                     |
-| ------------------- | ----------- | ---- | ------------------- | ----------------------------------------------- |
-| `id`                | UUID        | NO   | `gen_random_uuid()` | PK.                                             |
-| `description`       | TEXT        | NO   | —                   | Descripción legible del descuadre.              |
-| `resolved`          | BOOLEAN     | NO   | `FALSE`             | Si ya se cerró.                                 |
-| `resolved_at`       | TIMESTAMPTZ | SÍ   | NULL                | Cuándo se resolvió (obligatorio si `resolved`). |
-| `reason_id`         | UUID        | SÍ   | NULL                | Motivo de catálogo al clasificar/resolver.      |
-| `family_id`         | UUID        | SÍ   | NULL                | Familia involucrada.                            |
-| `expected_quantity` | SMALLINT    | SÍ   | NULL                | Esperado (≥ 0 si informado).                    |
-| `detected_quantity` | SMALLINT    | SÍ   | NULL                | Detectado (≥ 0 si informado).                   |
-| `session_id`        | UUID        | NO   | —                   | Sesión.                                         |
-| `origin_event_id`   | UUID        | SÍ   | NULL                | `count_event` que originó el aviso.             |
-| `updated_at`        | TIMESTAMPTZ | NO   | `now()`             | Última actualización.                           |
-
+| Campo | Tipo | Nulo | Default | Significado |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `description` | TEXT | NO | — | Descripción legible del descuadre. |
+| `resolved` | BOOLEAN | NO | `FALSE` | Si ya se cerró. |
+| `resolved_at` | TIMESTAMPTZ | SÍ | NULL | Cuándo se resolvió (obligatorio si `resolved`). |
+| `reason_id` | UUID | SÍ | NULL | Motivo de catálogo al clasificar/resolver. |
+| `family_id` | UUID | SÍ | NULL | Familia involucrada. |
+| `expected_quantity` | SMALLINT | SÍ | NULL | Esperado (≥ 0 si informado). |
+| `detected_quantity` | SMALLINT | SÍ | NULL | Detectado (≥ 0 si informado). |
+| `session_id` | UUID | NO | — | Sesión. |
+| `origin_event_id` | UUID | SÍ | NULL | `count_event` que originó el aviso. |
+| `suggested_resolution` | TEXT | SÍ | NULL | Relato OR al liberar el hold (encontrado / no encontrado / búsqueda). |
+| `or_released_at` | TIMESTAMPTZ | SÍ | NULL | Cuándo OP envió el caso a SPD. |
+| `or_released_by_user_id` | UUID | SÍ | NULL | Quién liberó el hold. |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Última actualización. |
 
 **Hacia dónde apunta**
 
-
-| Campo             | Apunta a                      | Relación | Por qué                   | ON DELETE  |
-| ----------------- | ----------------------------- | -------- | ------------------------- | ---------- |
-| `reason_id`       | `cat_discrepancy_reason.id`   | N:0..1   | Clasificación controlada. | `SET NULL` |
-| `family_id`       | `instrument_family.id` (DS03) | N:0..1   | Tipo en descuadre.        | `SET NULL` |
-| `session_id`      | `work_session.id`             | N:1      | Dueño.                    | `CASCADE`  |
-| `origin_event_id` | `count_event.id`              | N:0..1   | Hecho disparador.         | `SET NULL` |
-
+| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| :--- | :--- | :--- | :--- | :--- |
+| `reason_id` | `cat_discrepancy_reason.id` | N:0..1 | Clasificación controlada. | `SET NULL` |
+| `family_id` | `instrument_family.id` (DS03) | N:0..1 | Tipo en descuadre. | `SET NULL` |
+| `session_id` | `work_session.id` | N:1 | Dueño. | `CASCADE` |
+| `origin_event_id` | `count_event.id` | N:0..1 | Hecho disparador. | `SET NULL` |
+| `or_released_by_user_id` | `user.id` (DS01) | N:0..1 | Operador que liberó a SPD. | `SET NULL` |
 
 CHECK: si `resolved = TRUE` entonces `resolved_at` NOT NULL.
 
@@ -353,36 +314,33 @@ CHECK: si `resolved = TRUE` entonces `resolved_at` NOT NULL.
   "detected_quantity": 1,
   "session_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
   "origin_event_id": "ce000001-0000-4000-8000-000000000001",
+  "suggested_resolution": null,
+  "or_released_at": null,
+  "or_released_by_user_id": null,
   "updated_at": "2026-09-05T18:20:05Z"
 }
 ```
 
 ---
 
-
-
 #### 1.3.8 Tabla `human_correction`
 
 **Para qué:** corrección/validación humana de un evento. **Una** corrección por `count_event` (UNIQUE).
 
-
-| Campo            | Tipo        | Nulo | Default             | Significado                                   |
-| ---------------- | ----------- | ---- | ------------------- | --------------------------------------------- |
-| `id`             | UUID        | NO   | `gen_random_uuid()` | PK.                                           |
-| `justification`  | TEXT        | NO   | —                   | Texto obligatorio: por qué se corrige/valida. |
-| `recorded_at`    | TIMESTAMPTZ | NO   | `now()`             | Momento del registro.                         |
-| `count_event_id` | UUID        | NO   | —                   | Evento corregido (único).                     |
-| `user_id`        | UUID        | SÍ   | NULL                | Quien registró la corrección.                 |
-
+| Campo | Tipo | Nulo | Default | Significado |
+| :--- | :--- | :--- | :--- | :--- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `justification` | TEXT | NO | — | Texto obligatorio: por qué se corrige/valida. |
+| `recorded_at` | TIMESTAMPTZ | NO | `now()` | Momento del registro. |
+| `count_event_id` | UUID | NO | — | Evento corregido (único). |
+| `user_id` | UUID | SÍ | NULL | Quien registró la corrección. |
 
 **Hacia dónde apunta**
 
-
-| Campo            | Apunta a         | Relación                                          | Por qué                                                   | ON DELETE  |
-| ---------------- | ---------------- | ------------------------------------------------- | --------------------------------------------------------- | ---------- |
-| `count_event_id` | `count_event.id` | 1:1 (UNIQUE: a lo sumo una corrección por evento) | Hecho que se corrige; no se borra la historia del evento. | `CASCADE`  |
-| `user_id`        | `user.id` (DS01) | N:0..1                                            | Autor de la justificación.                                | `SET NULL` |
-
+| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| :--- | :--- | :--- | :--- | :--- |
+| `count_event_id` | `count_event.id` | 1:1 (UNIQUE: a lo sumo una corrección por evento) | Hecho que se corrige; no se borra la historia del evento. | `CASCADE` |
+| `user_id` | `user.id` (DS01) | N:0..1 | Autor de la justificación. | `SET NULL` |
 
 UNIQUE `count_event_id`.
 
@@ -398,22 +356,16 @@ UNIQUE `count_event_id`.
 
 ---
 
-
-
 ### 1.4 Governance and Ownership
 
-
-| Aspecto                       | Responsable                                        |
-| ----------------------------- | -------------------------------------------------- |
-| Apertura/cierre de sesión     | Estación + Backend                                 |
+| Aspecto | Responsable |
+| :--- | :--- |
+| Apertura/cierre de sesión | Estación + Backend |
 | Persistencia de `count_event` | Backend / contrato con Worker (no solo UI efímera) |
-| Resolución de discrepancias   | Personal clínico autorizado                        |
-| Retención extendida           | Coordinar con PEF-DS07 / política de privacidad    |
-
+| Resolución de discrepancias | Personal clínico autorizado |
+| Retención extendida | Coordinar con PEF-DS07 / política de privacidad |
 
 ---
-
-
 
 ### 1.5 Justificación del estándar
 
@@ -423,9 +375,9 @@ La UI en tiempo real se olvida. Mongo guarda detalle de visión. Hace falta un l
 
 **Decisiones tomadas**
 
-1. **Snapshot** `expected_inventory` **por sesión.** Editar el kit mañana no reescribe lo que se esperaba ayer.
-2. `count_event` **como hecho de negocio**, no solo log de aplicación. Reportes y auditoría SQL.
-3. `client_event_id` **para idempotencia.** Reintentos de red no duplican el mismo hecho.
+1. **Snapshot `expected_inventory` por sesión.** Editar el kit mañana no reescribe lo que se esperaba ayer.
+2. **`count_event` como hecho de negocio**, no solo log de aplicación. Reportes y auditoría SQL.
+3. **`client_event_id` para idempotencia.** Reintentos de red no duplican el mismo hecho.
 4. **Discrepancia como entidad propia.** Puede vivir abierta; no todo descuadre es un “update” del último evento.
 5. **Corrección humana 1:1 con justificación obligatoria.** No hay “corregí el número y ya”.
 6. **Sesión puede existir sin acuerdo de privacidad.** El acuerdo es 0..1 en DS07; p. ej. reserva previa.
@@ -433,32 +385,25 @@ La UI en tiempo real se olvida. Mongo guarda detalle de visión. Hace falta un l
 
 **Alternativas no elegidas**
 
-
-| Alternativa                                         | Por qué no                                                                                                                                                      |
-| --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Guardar solo el último conteo en la sesión          | Pierde línea de tiempo; no hay auditoría de cambios.                                                                                                            |
-| Esperado = join vivo al kit                         | El pasado se mueve cuando editan el kit.                                                                                                                        |
-| Solo Mongo para conteos                             | Reportes legales/hospitalarios suelen querer SQL relacional y retención distinta al TTL de checkpoints.                                                         |
-| Meter boxes dentro de `count_event.payload` siempre | Infla PG; el detalle fino es DS06. El payload queda para metadatos cortos.                                                                                      |
-| Varias correcciones humanas por evento sin regla    | Ambiguo cuál mandó; el UNIQUE fuerza una corrección vigente por evento (si hace falta historial largo, se versiona el evento, no se apilan correcciones mudas). |
-| Discrepancia solo como flag en el evento            | Complica listar abiertas, asignar motivo y resolver sin tocar el hecho original.                                                                                |
-
+| Alternativa | Por qué no |
+| :--- | :--- |
+| Guardar solo el último conteo en la sesión | Pierde línea de tiempo; no hay auditoría de cambios. |
+| Esperado = join vivo al kit | El pasado se mueve cuando editan el kit. |
+| Solo Mongo para conteos | Reportes legales/hospitalarios suelen querer SQL relacional y retención distinta al TTL de checkpoints. |
+| Meter boxes (xyxy, top-k, matriz) dentro de `count_event.payload` siempre | Infla PG; el detalle geométrico es DS06. En cada `auto_count` sí van las **`confidences` por caja** (lista corta); no avg/best/worst. |
+| Varias correcciones humanas por evento sin regla | Ambiguo cuál mandó; el UNIQUE fuerza una corrección vigente por evento (si hace falta historial largo, se versiona el evento, no se apilan correcciones mudas). |
+| Discrepancia solo como flag en el evento | Complica listar abiertas, asignar motivo y resolver sin tocar el hecho original. |
 
 ---
 
-
-
 ## 2. Anexo A – Información general
 
-
-| Campo             | Valor                                                                               |
-| ----------------- | ----------------------------------------------------------------------------------- |
-| Código            | PEF-DS04                                                                            |
-| Título            | Work Session and Count Facts                                                        |
-| Versión           | 0.2.0                                                                               |
-| Estado            | draft                                                                               |
-| Almacén           | PostgreSQL (§5.7)                                                                   |
-| Fuera de alcance  | Checkpoints Mongo; object storage; WSS frame-a-frame (DS10); acuerdo privacy (DS07) |
-| DDL de referencia | `esquema_base_datos_v2.md`                                                          |
-
-
+| Campo | Valor |
+| :--- | :--- |
+| Código | PEF-DS04 |
+| Título | Work Session and Count Facts |
+| Versión | 0.2.1 |
+| Estado | draft |
+| Almacén | PostgreSQL (§5.7) |
+| Fuera de alcance | Checkpoints Mongo; object storage; WSS frame-a-frame (DS10); acuerdo privacy (DS07) |
+| DDL de referencia | `esquema_base_datos_v2.md` |

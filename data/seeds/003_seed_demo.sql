@@ -17,10 +17,11 @@
 -- supervisor@instrumed.com / DemopwdSPD78!
 -- supervisor2@instrumed.com / DemopwdSPD278!
 -- admin@instrumed.com / DemopwdADM78!
+-- floor@instrumed.com / DemopwdFLR78!
 --
 -- ESCENARIO QUE CONSTRUYE:
 --   1. Una institucion con un quirofano y una estacion de captura con ROI.
---   2. Tres usuarios, uno por cada perfil del apartado 2 del reporte.
+--   2. Usuarios demo: operadores, SPD, Admin y supervisor de piso (or_charge).
 --   3. Cuatro familias de instrumental con sus textos pedagogicos.
 --   4. Piezas individuales por familia, en cantidad suficiente para que la
 --      reserva de un kit tenga exito y para poder provocar deliberadamente
@@ -51,7 +52,7 @@ INSERT INTO capture_station (id, name, roi, active, room_id) VALUES
    TRUE, '12121212-0000-4000-8000-000000000001');
 
 -- -----------------------------------------------------------------------------
--- 2. Roles y usuarios (los tres perfiles del apartado 2 del reporte)
+-- 2. Roles y usuarios (station_operator, spd_supervisor, it_admin, or_charge)
 -- -----------------------------------------------------------------------------
 -- Codigos de rol = RF (station_operator / spd_supervisor). it_admin = catalogo tecnico.
 INSERT INTO role (id, code, description, institution_id) VALUES
@@ -63,6 +64,9 @@ INSERT INTO role (id, code, description, institution_id) VALUES
    '11111111-1111-1111-1111-111111111111'),
   ('14141414-0000-4000-8000-000000000003', 'it_admin',
    'Technical administrator. Manages catalogs, users, and configuration.',
+   '11111111-1111-1111-1111-111111111111'),
+  ('14141414-0000-4000-8000-000000000004', 'or_charge',
+   'Floor supervisor. Watches OR holds and comments; does not close SPD cycle.',
    '11111111-1111-1111-1111-111111111111');
 
 -- ui_preferences: clave DS01 `locale` (en | es-MX) + theme. Babel/traduccion real = fase i18n posterior.
@@ -81,14 +85,23 @@ INSERT INTO "user" (id, name, email, password_hash, active, ui_preferences, inst
    '{"theme": "dark", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
   ('22222222-2222-2222-2222-222222222223', 'Admin Demo', 'admin@instrumed.com',
    'pbkdf2:sha256:600000$7c8qfwZeUHfYRb6N$7ffb6e05addb4ed80157d1e532c25da5d2412ba16937f15eaf45eb01fb09f32e', TRUE,
-   '{"theme": "system", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111');
+   '{"theme": "system", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
+  ('22222222-2222-2222-2222-222222222226', 'Supervisor de piso Demo', 'floor@instrumed.com',
+   'pbkdf2:sha256:600000$sMy6cTCxvZhCSVAC$26f6f77be1babcc398ff7309569e22ccdf8cc6e6651d5ebda1aa542c31ac4c9a', TRUE,
+   '{"theme": "light", "locale": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111');
 
 INSERT INTO user_role (user_id, role_id) VALUES
   ('22222222-2222-2222-2222-222222222221', '14141414-0000-4000-8000-000000000001'),
   ('22222222-2222-2222-2222-222222222224', '14141414-0000-4000-8000-000000000001'),
   ('22222222-2222-2222-2222-222222222222', '14141414-0000-4000-8000-000000000002'),
   ('22222222-2222-2222-2222-222222222225', '14141414-0000-4000-8000-000000000002'),
-  ('22222222-2222-2222-2222-222222222223', '14141414-0000-4000-8000-000000000003');
+  ('22222222-2222-2222-2222-222222222223', '14141414-0000-4000-8000-000000000003'),
+  ('22222222-2222-2222-2222-222222222226', '14141414-0000-4000-8000-000000000004');
+
+INSERT INTO user_operating_room (id, user_id, room_id) VALUES
+  ('15151515-0000-4000-8000-000000000001',
+   '22222222-2222-2222-2222-222222222226',
+   '12121212-0000-4000-8000-000000000001');
 
 -- -----------------------------------------------------------------------------
 -- 3. Paciente y medico (datos minimos, sin historia clinica)
@@ -519,10 +532,10 @@ FROM (VALUES
    '{"from_phase": "start", "to_phase": "demo_phase_1", "source": "station_button"}',
    '2026-09-05T16:05:00Z', '22222222-2222-2222-2222-222222222221'),
   ('71000001-0000-4000-8000-000000000003', 'auto_count',         'POZZI',       1, 1,
-   '{"model_version": "yolo26l-demo", "confidence_avg": 0.93}',
+   '{"model_version": "yolo26l-demo", "confidences": [0.93]}',
    '2026-09-05T16:06:30Z', NULL),
   ('71000001-0000-4000-8000-000000000004', 'auto_count',         'FARABEUF',    2, 1,
-   '{"model_version": "yolo26l-demo", "confidence_avg": 0.89}',
+   '{"model_version": "yolo26l-demo", "confidences": [0.89]}',
    '2026-09-05T16:06:31Z', NULL),
   ('71000001-0000-4000-8000-000000000005', 'discrepancy_raised', 'FARABEUF',    2, 1,
    '{"rule": "expected_gt_detected"}', '2026-09-05T16:06:32Z', NULL),
@@ -801,12 +814,14 @@ FROM cat_event_type et WHERE et.code = 'phase_change';
 -- YOLO model pin + class map (17 labels = PEF/Image Dataset/classes.txt order)
 -- Pesos locales: apps/VisionWorker/weights/best.pt (NO subir a GitHub; *.pt gitignored)
 -- -----------------------------------------------------------------------------
-INSERT INTO yolo_model (id, version_tag, media_asset_id, checksum, active, published_at)
+INSERT INTO yolo_model (id, version_tag, media_asset_id, checksum, architecture, model_size, active, published_at)
 VALUES (
   '71717171-0000-4000-8000-000000000001',
   'yolo26l-demo',
   NULL,
   repeat('a', 64),
+  'yolo26',
+  'l',
   TRUE,
   now()
 );

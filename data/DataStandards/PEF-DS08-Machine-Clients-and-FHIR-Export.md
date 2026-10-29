@@ -177,7 +177,7 @@ Mapeo lógico PEF → FHIR R4:
 
 1. **Cliente máquina ≠ `user`.** Secretos y scopes distintos de contraseñas humanas.
 2. **Scopes en JSONB** listables y auditables.
-3. **FHIR como proyección**, no segundo modelo de persistencia.
+3. **FHIR como proyección**, no segundo modelo de persistencia. En v1 está **considerado en plan, no diseñado** (sin rutas ni `integration_client` operativos en Admin/App).
 4. **Aprobación humana al dar de alta el cliente**, no en cada GET.
 
 **Alternativas no elegidas**

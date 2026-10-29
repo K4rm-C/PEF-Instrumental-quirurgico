@@ -467,6 +467,48 @@ def _latency_payload_from_meta(meta_extra: dict | None) -> dict:
     return out
 
 
+def _box_confidence(box: dict) -> float | None:
+    """Score the worker reported for that box (assigned, then raw top-1, then confidence)."""
+    if not isinstance(box, dict):
+        return None
+    assigned = box.get("assigned") if isinstance(box.get("assigned"), dict) else {}
+    top1 = box.get("yolo_top1") if isinstance(box.get("yolo_top1"), dict) else {}
+    raw = box.get("raw") if isinstance(box.get("raw"), dict) else {}
+    for value in (
+        assigned.get("score"),
+        top1.get("score"),
+        box.get("confidence"),
+        raw.get("confidence"),
+    ):
+        if value is None:
+            continue
+        try:
+            return round(float(value), 4)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _family_confidences(meta: dict) -> list[float]:
+    """Per-box confidences for an auto_count family row (no avg/best/worst)."""
+    listed = meta.get("box_confidences") or meta.get("confidences")
+    if isinstance(listed, list) and listed:
+        out: list[float] = []
+        for value in listed:
+            try:
+                out.append(round(float(value), 4))
+            except (TypeError, ValueError):
+                continue
+        if out:
+            return out
+    confs: list[float] = []
+    for box in meta.get("boxes") or []:
+        score = _box_confidence(box) if isinstance(box, dict) else None
+        if score is not None:
+            confs.append(score)
+    return confs
+
+
 def _compact_box_audit(box: dict) -> dict:
     """Keep observable box telemetry; drop recalculable matrix internals."""
     if not isinstance(box, dict):
@@ -532,9 +574,7 @@ def build_board_payload_from_counts(
             "raw_detected_quantity": raw_n,
             "detected_quantity": detected,
             "difference": meta.get("difference"),
-            "best_confidence": meta.get("best_confidence"),
-            "weakest_confidence": meta.get("weakest_confidence"),
-            "avg_confidence": meta.get("avg_confidence"),
+            "confidences": _family_confidences(meta),
             "held": bool(meta.get("held")),
             "sticky_name": meta.get("sticky_name"),
             "reassigned_in": meta.get("reassigned_in"),
@@ -602,7 +642,7 @@ def persist_board_auto_count(
     """Insert one auto_count row for a vision board snapshot (family_id NULL).
 
     Dense series stay in worker NDJSON / future Mongo (DS06). PG stores sampled observables:
-    raw tallies, compact top-k boxes (optional), latency of that sample, and the exposed table.
+    raw tallies, per-box confidences, compact top-k boxes (optional), latency, and the table.
     """
     flush_key = once_key or f"{session_id}:{reason}"
     if flush_key in _AUTO_COUNT_FLUSHED and reason != "detection_close":

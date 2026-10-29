@@ -6,6 +6,8 @@
 
 El esquema modela **quién cuenta, en qué acto quirúrgico, con qué kit e instrumental, qué detectó el sistema y qué decidió el humano**, sin pretender ser un HIS/EHR completo. PostgreSQL es la fuente de verdad de negocio y auditoría; MongoDB guarda evidencia visual ocasional; Google Cloud Storage guarda archivos; Redis solo tokens efímeros.
 
+**Total:** 51 tablas en PostgreSQL + 2 colecciones Mongo. Incluye `user_operating_room`, pin `work_session.yolo_model_id` y estado `or_hold` (faltante humano antes de SPD).
+
 ---
 
 ## 2. Qué cubre
@@ -151,6 +153,7 @@ Integraciones HIS ──► resource_identifier ──► patient / physician / 
 - `resource_identifier` esta sin flechas sólidas: es correcto; la unión es por consulta (`resource_type` + `resource_id`).
 - `cat_checkpoint_reason` no tiene FK entrante en PG; alimenta el campo `reason` en Mongo como catalogo)
 - El orden visual del lienzo **no** tiene que coincidir con el diagrama Mermaid interno; lo que importa son tablas y FK documentadas.
+- Export draw.io v3 (imagen canónica): [ER PostgreSQL-MongoDB-v3.jpg](ER%20PostgreSQL-MongoDB-v3.jpg)
 
 ---
 
@@ -160,5 +163,5 @@ Integraciones HIS ──► resource_identifier ──► patient / physician / 
 - Identificadores FHIR: `system` (URI) + `value` (string).
 - URI interna PEF: `https://pef.udem/conteo-cenital` + UUID del registro.
 - Nombres de tablas en inglés en el DDL (`work_session`, `instrument_family`, etc.). (por el hecho que el pef es junto a Linnaeus)
-- Total: 38 tablas en PostgreSQL + 2 colecciones Mongo en el manejo de datos.
+- Total: 51 tablas en PostgreSQL + 2 colecciones Mongo en el manejo de datos.
 

@@ -47,7 +47,7 @@ Abajo: **todos** los campos, FKs con motivo, y **fila completa** por tabla.
 
 ### 1.2 Uso
 
-Portal arma familias/kits y publica modelos. Worker carga pesos y traduce clase→familia. Al abrir sesión (DS04) se suele copiar el kit a `expected_inventory`.
+Admin arma **familias** (con examples) y publica **modelos**. SPD da de alta **piezas** y **kits**. Worker carga pesos y traduce clase→familia. Al abrir sesión (DS04) se suele copiar el kit a `expected_inventory`.
 
 **Idea de stock:** el stock son las filas `instrument`. El kit habla de familias. En operación se pueden reservar piezas concretas.
 
@@ -562,7 +562,9 @@ UNIQUE parcial: `instrument_id` WHERE `active = TRUE`.
 | `version_tag`    | VARCHAR(32) | NO   | —                   | Etiqueta única de versión.           |
 | `media_asset_id` | UUID        | SÍ   | NULL                | Archivo de pesos (DS05).             |
 | `checksum`       | CHAR(64)    | SÍ   | NULL                | Hash del artefacto (p. ej. SHA-256). |
-| `active`         | BOOLEAN     | NO   | `FALSE`             | Si es el modelo en producción.       |
+| `architecture`   | VARCHAR(64) | SÍ   | NULL                | Familia del detector extraída al alta Admin (ej. `yolo26`). |
+| `model_size`     | VARCHAR(8)  | SÍ   | NULL                | Tamaño del peso (ej. `n`, `s`, `m`, `l`, `x`). |
+| `active`         | BOOLEAN     | NO   | `FALSE`             | Si es el modelo en producción **para Starts nuevos**. |
 | `published_at`   | TIMESTAMPTZ | NO   | `now()`             | Publicación.                         |
 
 
@@ -576,12 +578,16 @@ UNIQUE parcial: `instrument_id` WHERE `active = TRUE`.
 
 UNIQUE `version_tag`. UNIQUE parcial: un solo `active = TRUE`.
 
+**Pin de sesión:** `work_session.yolo_model_id` (PEF-DS04). El worker de una sesión ya abierta lee esa FK, no este `active`.
+
 ```json
 {
   "id": "y1000001-0000-4000-8000-000000000001",
   "version_tag": "yolo26n-pef-2026-03",
   "media_asset_id": "m1000002-0000-4000-8000-000000000002",
   "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "architecture": "yolo26",
+  "model_size": "n",
   "active": true,
   "published_at": "2026-03-20T18:00:00Z"
 }

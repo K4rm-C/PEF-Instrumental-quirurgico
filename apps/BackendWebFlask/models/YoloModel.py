@@ -12,9 +12,12 @@ class YoloModel(db.Model):
     version_tag: Mapped[str] = mapped_column(String, unique=True, nullable=False)  
     media_asset_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('media_asset.id'), nullable=True)
     checksum: Mapped[str | None] = mapped_column(CHAR(64), nullable=True)
+    architecture: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    model_size: Mapped[str | None] = mapped_column(String(8), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     published_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     # Relaciones
     media_asset: Mapped["MediaAsset"] = relationship("MediaAsset", back_populates="yolo_models")
     model_classes: Mapped[list["ModelClass"]] = relationship("ModelClass", back_populates="model")
+    work_sessions: Mapped[list["WorkSession"]] = relationship("WorkSession", back_populates="yolo_model")

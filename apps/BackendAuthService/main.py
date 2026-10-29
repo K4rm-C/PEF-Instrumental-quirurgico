@@ -97,6 +97,8 @@ def _primary_role_code(role_rows) -> str:
 		return "station_operator"
 	if "spd_supervisor" in codes:
 		return "spd_supervisor"
+	if "or_charge" in codes:
+		return "or_charge"
 	if "it_admin" in codes:
 		return "it_admin"
 	return "default"
@@ -112,6 +114,13 @@ def _token_policy(role_code: str) -> dict[str, int]:
 			"max_session": app.config["OP_MAX_SESSION_HOURS"] * 3600,
 		}
 	if role_code == "spd_supervisor":
+		return {
+			"access": app.config["SPD_ACCESS_TOKEN_MINUTES"] * 60,
+			"refresh": app.config["SPD_REFRESH_TOKEN_HOURS"] * 3600,
+			"idle": app.config["SPD_IDLE_TIMEOUT_MINUTES"] * 60,
+			"max_session": app.config["SPD_MAX_SESSION_HOURS"] * 3600,
+		}
+	if role_code == "or_charge":
 		return {
 			"access": app.config["SPD_ACCESS_TOKEN_MINUTES"] * 60,
 			"refresh": app.config["SPD_REFRESH_TOKEN_HOURS"] * 3600,

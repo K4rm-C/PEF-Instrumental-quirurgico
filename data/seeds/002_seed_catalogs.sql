@@ -73,12 +73,14 @@ ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------
 -- Counting session status (RF state machine)
---   scheduled -> in_progress -> awaiting_spd_review|correction_required -> closed
+--   scheduled -> in_progress -> awaiting_spd_review | or_hold -> closed
+--   or_hold -> correction_required (OP libera a SPD) -> closed
 --   any eligible state -> aborted
 -- -----------------------------------------------------------------------------
 INSERT INTO cat_session_status (code, name) VALUES
   ('scheduled',           'Scheduled'),
   ('in_progress',         'In progress'),
+  ('or_hold',             'OR hold'),
   ('awaiting_spd_review', 'Awaiting SPD review'),
   ('correction_required', 'Correction required'),
   ('closed',              'Closed'),
@@ -177,7 +179,10 @@ INSERT INTO cat_event_type (code, name) VALUES
   ('correction_applied', 'Human correction applied'),
   ('validation_passed',  'Validation with no discrepancies'),
   ('close_blocked',      'Close attempt blocked'),
-  ('session_close',      'Session close')
+  ('session_close',      'Session close'),
+  ('or_hold_opened',     'OR hold opened (human shortfall)'),
+  ('or_hold_comment',    'OR hold comment'),
+  ('or_hold_released',   'OR hold released to SPD')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------

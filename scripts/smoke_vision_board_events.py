@@ -49,9 +49,7 @@ def _synthetic_counts(expected_rows: list) -> dict:
             "raw_detected_quantity": det,
             "detected_quantity": det,
             "difference": det - eq,
-            "best_confidence": 0.81 if det else None,
-            "weakest_confidence": 0.81 if det else None,
-            "avg_confidence": 0.81 if det else None,
+            "box_confidences": [0.81] * det,
             "held": False,
             "sticky_name": False,
             "reassigned_in": 0,
@@ -226,6 +224,12 @@ def main() -> int:
         window = next(ev for ev in board_events if (ev.payload or {}).get("reason") == "video_window")
         window_families = (window.payload or {}).get("board", {}).get("families") or []
         assert not any(f.get("boxes") for f in window_families)
+        for fam in window_families:
+            assert "avg_confidence" not in fam
+            assert "best_confidence" not in fam
+            assert "weakest_confidence" not in fam
+            confs = fam.get("confidences") or []
+            assert len(confs) == int(fam.get("detected_quantity") or 0)
 
         mayo = next(f for _inv, f in expected_rows if f.code == "MAYOHEG")
         disc = Discrepancy(

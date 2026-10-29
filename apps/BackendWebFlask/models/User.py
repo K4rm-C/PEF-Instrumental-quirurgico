@@ -15,6 +15,7 @@ class User(db.Model):
     institution_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey('institution.id'), nullable=False)
     
     user_roles: Mapped[list["UserRole"]] = relationship("UserRole", back_populates="user")
+    room_assignments: Mapped[list["UserOperatingRoom"]] = relationship("UserOperatingRoom", back_populates="user")
     processing_agreements: Mapped[list["SessionProcessingAgreement"]] = relationship("SessionProcessingAgreement", back_populates="agreed_by_user")
     access_audits: Mapped[list["AccessAudit"]] = relationship("AccessAudit", back_populates="actor_user")
     handled_privacy_requests: Mapped[list["PrivacyRequest"]] = relationship("PrivacyRequest", back_populates="handled_by_user")

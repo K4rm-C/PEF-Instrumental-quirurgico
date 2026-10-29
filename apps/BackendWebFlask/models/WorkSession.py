@@ -21,6 +21,7 @@ class WorkSession(db.Model):
     current_phase_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('cat_operation_phase.id'), nullable=True)
     phase_changed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     capture_mode: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    yolo_model_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey('yolo_model.id'), nullable=True)
     atypical_session: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     extended_retention: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     retention_until: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
@@ -47,4 +48,7 @@ class WorkSession(db.Model):
     )
     current_phase: Mapped["CatOperationPhase | None"] = relationship(
         "CatOperationPhase", back_populates="work_sessions"
+    )
+    yolo_model: Mapped["YoloModel | None"] = relationship(
+        "YoloModel", back_populates="work_sessions"
     )

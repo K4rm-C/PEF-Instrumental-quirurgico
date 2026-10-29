@@ -57,7 +57,7 @@ Relación lógica: 1 estación ↔ 1 conexión worker por sesión activa típica
 | `type` | string | NO | `session.bind` |
 | `session_id` | uuid | NO | Sesión de conteo (DS04). |
 | `station_id` | uuid | SÍ | Estación (DS02). |
-| `model_version_pin` | string | SÍ | Si null, worker usa modelo `active`. |
+| `model_version_pin` | string | SÍ | Tag del modelo **pineado** en `work_session.yolo_model_id` (`yolo_model.version_tag`). El worker no sustituye por el `active` global en sesiones ya abiertas. Mongo `checkpoint_frame.model_version` debe coincidir con ese tag. |
 | `auth_token` | string | NO | JWT (o ya validado en handshake). |
 | `correlation_id` | string | SÍ | Trazas. |
 
@@ -260,7 +260,7 @@ Sugerencia de hecho de conteo (la persistencia la hace el Backend).
 1. **WSS solo percepción**; negocio por HTTPS/Backend.
 2. **Mensajes tipados por `type`** con campos explícitos.
 3. **`client_event_id`** para idempotencia al materializar conteo.
-4. **Sugerencia ≠ hecho** hasta que Backend escribe `count_event`.
+4. **Sugerencia ≠ hecho** hasta que Backend escribe `count_event`. Al materializar `auto_count`, copia `detections[].confidence` (o el score asignado de esa caja) a `payload.confidences` / `board.families[].confidences`. No avg/best/worst.
 
 **Alternativas no elegidas**
 

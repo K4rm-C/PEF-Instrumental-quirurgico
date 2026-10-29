@@ -4,7 +4,9 @@ Documentos que explican **qué datos maneja el sistema**, para qué sirven, cóm
 
 **Idioma:** nombres de archivo e IDs en inglés. Texto en español. Versión en inglés de estos mismos estándares: al cierre del proyecto.
 
-**Fuente técnica de tablas:** `../esquema_base_datos_v2.md` y `../diagrama_er_completo.md`.
+**Fuente técnica de tablas:** [`../esquema_base_datos_v2.md`](../esquema_base_datos_v2.md). Export ER: [`../ER PostgreSQL-MongoDB-v3.jpg`](../ER%20PostgreSQL-MongoDB-v3.jpg). PostgreSQL: **51 tablas** (incluye `user_operating_room`).
+
+Los contratos de pantalla (RF) no viven aquí; están en [`../FunctionalRequirements/`](../FunctionalRequirements/).
 
 ---
 
@@ -12,7 +14,7 @@ Documentos que explican **qué datos maneja el sistema**, para qué sirven, cóm
 
 | ID | Archivo | Qué cubre (dueño canónico) |
 | :--- | :--- | :--- |
-| PEF-DS01 | [PEF-DS01-Identity-and-Credentials.md](PEF-DS01-Identity-and-Credentials.md) | Institución, usuario, rol, contraseña hasheada, claves Redis de sesión/login |
+| PEF-DS01 | [PEF-DS01-Identity-and-Credentials.md](PEF-DS01-Identity-and-Credentials.md) | Institución, usuario, rol, `user_operating_room`, contraseña hasheada, claves Redis de sesión/login |
 | PEF-DS02 | [PEF-DS02-Clinical-Context-and-Identifiers.md](PEF-DS02-Clinical-Context-and-Identifiers.md) | Paciente, médico, sala, estación, operación, identificadores FHIR |
 | PEF-DS03 | [PEF-DS03-Instrument-Kits-and-Model-Registry.md](PEF-DS03-Instrument-Kits-and-Model-Registry.md) | Familias, piezas, kits, fases de procedimiento, registro del modelo YOLO |
 | PEF-DS04 | [PEF-DS04-Work-Session-and-Count-Facts.md](PEF-DS04-Work-Session-and-Count-Facts.md) | Sesión de trabajo, inventario esperado, eventos de conteo, discrepancias |
@@ -41,7 +43,7 @@ Tags útiles en el front matter de cada archivo:
 
 | Artefacto | Dueño canónico | No redefinir en |
 | :--- | :--- | :--- |
-| `institution`, `user`, `role`, `user_role`, Redis auth | DS01 | DS08–10 |
+| `institution`, `user`, `role`, `user_role`, `user_operating_room`, Redis auth | DS01 | DS08–10 |
 | `patient`…`operation*`, `resource_identifier`, cats clínicos | DS02 | DS03–04 (solo FK) |
 | Familias, kits, YOLO, `cat_operation_phase` | DS03 | DS04 (fase solo referencia) |
 | `work_session`, `count_event`, discrepancy | DS04 | DS06 (no hechos SQL) |
