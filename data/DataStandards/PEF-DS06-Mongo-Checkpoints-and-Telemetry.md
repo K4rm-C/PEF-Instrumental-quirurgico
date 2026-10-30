@@ -1,13 +1,13 @@
 ---
 id: PEF-DS06
 title: Mongo Checkpoints and Telemetry
-version: "0.1.0"
+version: "0.2.0"
 status: draft
 owner: PEF Core / Visión / Worker
 applies_to: [Worker, BE, WP]
 stores: [MongoDB]
 related: [PEF-DS04, PEF-DS05, PEF-DS03]
-last_updated: 2026-09-06
+last_updated: 2026-10-30
 ---
 
 # PEF-DS06 · Mongo Checkpoints and Telemetry
@@ -32,7 +32,7 @@ No define hechos de conteo SQL (`count_event`, PEF-DS04). No define bytes del ar
 | :--- | :--- |
 | **Checkpoint** | Documento que congela un momento visual/detecciones de una sesión. |
 | **Razón (`reason`)** | Motivo tipado (`start`, `close`, `hourly`, `state_change`, `discrepancy`, `manual_pin`). |
-| **Ráfaga GIF** | Varios frames del ring buffer → un GIF → **un** checkpoint (no N documentos). |
+| **Ráfaga / clip** | Varios frames del ring buffer → un MP4 (H.264) → **un** checkpoint (no N documentos). |
 | **Telemetría** | Métricas de runtime (FPS, latencia); no es evidencia legal. |
 | **Tope por sesión** | Máximo 30–50 `checkpoint_frame` por `session_id`. |
 
@@ -89,7 +89,7 @@ Códigos esperados: `start`, `close`, `hourly`, `state_change`, `discrepancy`, `
 | `reason` | string | NO | — | Código de motivo (ver catálogo). |
 | `phase_id` | string (UUID) | SÍ | — | Copia de fase al capturar. |
 | `phase_code` | string | SÍ | — | Código de fase denormalizado. |
-| `burst_frame_count` | int | SÍ | — | Frames usados en ráfaga GIF. |
+| `burst_frame_count` | int | SÍ | — | Frames del ring buffer usados en el clip. |
 | `burst_interval_ms` | int | SÍ | — | Espaciado aproximado entre frames. |
 | `captured_at` | ISODate | NO | — | Momento UTC. |
 | `detections` | array | NO | `[]` | Detecciones del frame clave. |
@@ -107,16 +107,16 @@ Códigos esperados: `start`, `close`, `hourly`, `state_change`, `discrepancy`, `
 | :--- | :--- | :--- | :--- | :--- |
 | `session_id` | `work_session.id` (DS04) | N:1 | Dueño temporal del checkpoint. | N/A (lógico); purga por job/TTL |
 | `operation_id` | `operation.id` (DS02) | N:0..1 | Filtro de panel. | N/A |
-| `media_asset_id` | `media_asset.id` (DS05) | N:0..1 | Bytes JPEG/GIF. | N/A; job borra doc + marca purga media |
+| `media_asset_id` | `media_asset.id` (DS05) | N:0..1 | Bytes del clip (MP4) o JPEG de fallback. | N/A; job borra doc + marca purga media |
 
 **Índices:** `(session_id, captured_at)`; TTL en `retention_until`; sparse `operation_id`, `phase_code`.
 
 **Reglas**
 
 1. Máximo 30–50 docs por sesión; al exceder, borrar primero `interval`/`hourly` viejos; conservar `start`, `close`, `state_change`, `discrepancy`, `manual_pin`.
-2. GIF = un documento.
+2. Un clip (MP4) = un documento.
 3. Debounce ráfagas ricas: 10–30 s por sesión.
-4. Fallback: si falla GIF → JPEG único.
+4. Fallback: si falla el encode MP4 → JPEG único. `gif` no es el formato v1.
 5. Retención: +90 días; +180 si `work_session.extended_retention`.
 
 **Ejemplo de documento completo**
@@ -127,7 +127,7 @@ Códigos esperados: `start`, `close`, `hourly`, `state_change`, `discrepancy`, `
   "session_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
   "operation_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   "media_asset_id": "m1000003-0000-4000-8000-000000000003",
-  "gcs_uri": "s3://pef-minio-evidence/11111111-1111-1111-1111-111111111111/cccccccc-cccc-cccc-cccc-cccccccccccc/2026/09/burst-disc.gif",
+  "gcs_uri": "s3://pef-minio-evidence/11111111-1111-1111-1111-111111111111/cccccccc-cccc-cccc-cccc-cccccccccccc/2026/09/burst-disc.mp4",
   "model_version": "yolo11n-pef-2026-03",
   "reason": "discrepancy",
   "phase_id": "b1000004-0000-4000-8000-000000000004",
@@ -212,7 +212,7 @@ Los checkpoints son documentos variables (detections array, burst metadata) de a
 
 1. **PG = hechos de negocio; Mongo = detalle visual/telemetría.**
 2. **Tope 30–50** y prioridad de borrado por `reason`.
-3. **GIF off hot path**; ring buffer en RAM.
+3. **Encode MP4 off hot path**; ring buffer en RAM.
 4. **`reason` string** alineado a catálogo PG sin FK cruzada de motores.
 5. **URI redundante** en el doc para no forzar join PG en cada thumbnail.
 
@@ -222,6 +222,7 @@ Los checkpoints son documentos variables (detections array, burst metadata) de a
 | :--- | :--- |
 | Todo en PostgreSQL JSONB | Posible, pero índices TTL y volumen de telemetría encajan mejor en Mongo. |
 | Un documento por frame de ráfaga | Rompe el tope y multiplica I/O. |
+| GIF como contenedor v1 | Peor peso/fidelidad que MP4 para la misma cola de frames. |
 | Worker escribe `count_event` directo | Bifurca fuente de verdad; el diseño manda Backend/adaptador para hechos SQL (DS04). |
 | Sin `media_asset_id`, solo URI | Pierde ciclo de purga unificado en PG. |
 
@@ -233,7 +234,7 @@ Los checkpoints son documentos variables (detections array, burst metadata) de a
 | :--- | :--- |
 | Código | PEF-DS06 |
 | Título | Mongo Checkpoints and Telemetry |
-| Versión | 0.1.0 |
+| Versión | 0.2.0 |
 | Estado | draft |
 | Almacén | MongoDB (`checkpoint_frame`, `session_telemetry`); vocab `cat_checkpoint_reason` en PG |
 | Fuera de alcance | `count_event`; bytes storage; mensajes WSS frame-a-frame (DS10) |

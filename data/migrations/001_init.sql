@@ -391,7 +391,7 @@ CREATE TABLE media_asset (
   CONSTRAINT uk_media_asset_bucket_object_key UNIQUE (bucket, object_key),
   CONSTRAINT chk_media_asset_size_bytes CHECK (size_bytes IS NULL OR size_bytes >= 0),
   CONSTRAINT chk_media_asset_kind CHECK (
-    kind IN ('jpeg', 'gif', 'weights', 'other')
+    kind IN ('jpeg', 'gif', 'mp4', 'mkv', 'webm', 'weights', 'other')
   ),
   CONSTRAINT chk_media_asset_storage_provider CHECK (
     storage_provider IN ('gcs', 'minio', 'other')

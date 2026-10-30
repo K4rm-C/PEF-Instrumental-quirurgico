@@ -45,7 +45,7 @@ Cada requisito funcional (RF) sigue la misma plantilla:
 | Precaución / marca temporal | Ausencia prolongada que luego se recupera sola                  | `discrepancy` con resolución automática + evidencia                                                        |
 | Fase / Counting phase       | Etapa clínica del conteo (pre, intra, cierre, …)                | `work_session.current_phase_id` → `cat_operation_phase`                                                    |
 | Estación / Capture station  | Puesto de cámara                                                | `capture_station`                                                                                          |
-| GIF de evidencia            | Ráfaga visual del momento                                       | Archivo en MinIO/GCS + `media_asset` + Mongo `checkpoint_frame`                                            |
+| Clip de evidencia           | Ráfaga visual del momento (MP4)                                 | Archivo en MinIO/GCS + `media_asset` + Mongo `checkpoint_frame`                                            |
 | Aviso de privacidad         | Texto legal versionado que el hospital usa para el tratamiento  | Tabla `privacy_notice_version` (`document_uri`, `content_sha256`, `version`, `active`)                     |
 | Acuerdo de tratamiento      | Confirmación de que **esta** sesión tiene aviso aceptado        | Tabla `session_processing_agreement` (1 fila máx. por `session_id`)                                        |
 | Modo de captura             | Con visión (cámara + IA) o solo conteo manual                   | Se **congela al Start Session**: `vision` si hay acuerdo; `manual_no_privacy` si no                        |
@@ -57,7 +57,7 @@ Cada requisito funcional (RF) sigue la misma plantilla:
 2. El supervisor **debe poder** subir un PDF/HTML nuevo o **confirmar** una versión ya activa del aviso y ligarla a la sesión (ver RF-SP-02). Sin eso, la sesión sigue siendo válida.
 3. Al pulsar **Start Session**, el Backend mira si existe `session_processing_agreement` para esa sesión:
   - **Sí** → modo `vision` → pantalla live con cámara (RF-OP-04).
-  - **No** → modo `manual_no_privacy` → **no** se abre WSS, **no** hay captura ni GIF de evidencia de conteo; el operador entra a la vista de progreso manual (RF-OP-04M) hasta el cierre con cantidades reportadas a mano.
+  - **No** → modo `manual_no_privacy` → **no** se abre WSS, **no** hay captura ni clip de evidencia de conteo; el operador entra a la vista de progreso manual (RF-OP-04M) hasta el cierre con cantidades reportadas a mano.
 4. El modo queda escrito en `work_session` (campo de aplicación o clave en `payload` JSON: `capture_mode`) y **no cambia** aunque SPD agregue el acuerdo después del Start. Motivo: no mezclar mitad de sesión sin cámara con mitad con IA.
 5. `purpose_quality_ops` en el acuerdo es siempre `TRUE` (CHECK de BD). `purpose_model_improvement` es opt-in del supervisor al confirmar.
 
@@ -108,7 +108,7 @@ Cada requisito funcional (RF) sigue la misma plantilla:
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | HTTPS → Backend Web                         | Login, listas, start, cambio de fase, validación, cierre, programación SPD, **aviso de privacidad**, kits, métricas |
 | WSS → vision-worker                         | Solo frames y detecciones (DS10) mientras la sesión está `in_progress` **y** `capture_mode = vision`                |
-| Cola `pef-evidence-queue` → evidence-worker | Armar GIF, subir storage, escribir Mongo (**no** se usa en `manual_no_privacy`)                                     |
+| Cola `pef-evidence-queue` → evidence-worker | Armar MP4 de ráfaga, subir storage, escribir Mongo (**no** se usa en `manual_no_privacy`)                             |
 
 
 ---
@@ -320,9 +320,9 @@ Todo en una **transacción PostgreSQL** del Backend, excepto los pasos de eviden
 1. Backend **encola** job en `pef-evidence-queue`: `{ session_id, reason: "start", phase_id, frame_snapshot_ref }`.
 2. Evidence-worker (proceso aparte):
   - Congela N frames del buffer o captura de arranque  
-  - Construye GIF  
+  - Codifica MP4 H.264 (sin audio); si falla, un JPEG  
   - Sube a MinIO/GCS  
-  - **INSERT** `media_asset` (SQL vía Backend/adaptador)  
+  - **INSERT** `media_asset` (`kind = 'mp4'` o `'jpeg'`; SQL vía Backend/adaptador)  
   - **INSERT** documento Mongo `checkpoint_frame` (`session_id`, `reason`, `phase_id`/`phase_code`, `media_asset_id`, detecciones si hay, timestamp)
 3. Estación abre **WSS** `session.bind` al vision-worker con `session_id`, `station_id` y el `yolo_model_id` **pineado** en `work_session` (no el activo global).
 
@@ -338,7 +338,7 @@ Todo en una **transacción PostgreSQL** del Backend, excepto los pasos de eviden
 ### Configuración
 
 - Texto del checkbox, del banner de expected y de los badges de privacidad (i18n).  
-- Número de frames / duración del GIF de `start` (evidence-worker) — solo modo visión.  
+- Número de frames / duración del clip de `start` (evidence-worker) — solo modo visión.  
 - Timeout para fallar bind WSS (solo modo visión; la sesión ya puede estar `in_progress`).
 
 ### Salida
@@ -355,7 +355,7 @@ Todo en una **transacción PostgreSQL** del Backend, excepto los pasos de eviden
 - Checkbox sin marcar: Start deshabilitado.  
 - Sesión ya no `scheduled`: mensaje y volver a lista.  
 - Fallo SQL: rollback completo; mensaje “No se pudo iniciar; reintente”.  
-- Fallo evidencia (solo visión): Start **sí** puede completarse; se registra warn de evidencia pendiente (la cámara no depende del GIF).
+- Fallo evidencia (solo visión): Start **sí** puede completarse; se registra warn de evidencia pendiente (la cámara no depende del clip).
 
 ---
 
@@ -443,7 +443,7 @@ Entonces Backend hace **INSERT** `count_event` (`event_type` = `auto_count` u ho
 2. Backend **UPDATE** `work_session.current_phase_id`, `phase_changed_at`.
 3. Backend **INSERT** `count_event` con `event_type` = `phase_change` y `payload` `{ from_phase, to_phase, phase_id, phase_code }`.
 4. Si hay regla de “familias solo de la fase que termina”: Backend evalúa missing de esa fase y puede **INSERT** `discrepancy` abierta con fase en descripción/payload del evento origen.
-5. Backend encola evidencia `reason = state_change` → evidence-worker (GIF → storage → `media_asset` → Mongo).
+5. Backend encola evidencia `reason = state_change` → evidence-worker (MP4 → storage → `media_asset` → Mongo).
 
 ### Precauciones temporales (subflujo automático)
 
@@ -461,7 +461,7 @@ Entonces Backend hace **INSERT** `count_event` (`event_type` = `auto_count` u ho
 **Cuando se cumple ausencia**  
 
 1. Backend **INSERT** `discrepancy` (`resolved = false`, descripción tipo “Absence > Ns”, `family_id`, expected/detected, `origin_event_id` si hay).
-2. Encola GIF `reason = discrepancy`.
+2. Encola clip `reason = discrepancy`.
 3. UI puede mostrar chip “Precaución: [instrumento] ausente”.
 
 **Cuando vuelve la detección estable**  
@@ -533,7 +533,7 @@ Totales: Total Expected. **No** hay columna Detected/IA.
 
 **Controles permitidos**
 
-- **Change phase** (opcional; mismo UPDATE SQL de fase que RF-OP-04 pero **sin** encolar evidencia de cámara ni GIF).  
+- **Change phase** (opcional; mismo UPDATE SQL de fase que RF-OP-04 pero **sin** encolar evidencia de cámara ni clip).  
 - **Proceed to quantity report / Close counting** → RF-OP-06M.
 
 ### Qué hace el usuario
@@ -602,7 +602,7 @@ Al salir del live (Finish counting). En este punto el loop de frames **terminó*
 
 1. Al entrar a esta pantalla (o al Finish): Backend **INSERT** `count_event`(s) de cierre de detección (`event_type` ej. `detection_close`) por familia con expected/detected del snapshot.
 2. Encola evidencia `reason` alineado a cierre de visión (`close` o equivalente de catálogo de checkpoints).
-3. Evidence-worker guarda GIF/JPEG final.
+3. Evidence-worker guarda MP4 (fallback JPEG) final.
 4. Lectura de `yolo_model` para el bloque de metadata.
 5. **No** se cambia aún a `awaiting_spd_review` (falta validación humana).
 
@@ -797,7 +797,7 @@ Automático tras RF-OP-06 / RF-OP-06M cuando el status queda `or_hold`. También
 
 - Banner **OR hold · faltante confirmado**. SPD **no** aparece como cola todavía.
 - Familias en falta (expected vs validated/reported).
-- Evidencias notables: GIFs/checkpoints de la sesión (Mongo + URL firmada). En `manual_no_privacy` se indica que no hay cámara; el relato es textual.
+- Evidencias notables: clips/checkpoints de la sesión (Mongo + URL firmada). En `manual_no_privacy` se indica que no hay cámara; el relato es textual.
 - Timeline `count_event` (incluido `or_hold_opened` y comentarios).
 - Campo **Comentario** (hilo OP + SdP).
 - Campo **Resolución sugerida** (texto obligatorio para liberar): encontrado / no encontrado / se sigue buscando / otra.
@@ -1107,7 +1107,7 @@ Cola “Awaiting Review” o botón Review en sesión `awaiting_spd_review` (sin
 
 ### Qué muestra la interfaz
 
-Resumen de sesión, totales validados, lista de evidencias (miniaturas/links a GIF), estado de ciclo de piezas asociadas, checkbox *“Material recovered / reprocessing started”* o flujo equivalente, botón **Confirm and close**.
+Resumen de sesión, totales validados, lista de evidencias (miniaturas/links a MP4), estado de ciclo de piezas asociadas, checkbox *“Material recovered / reprocessing started”* o flujo equivalente, botón **Confirm and close**.
 
 ### Qué ocurre en el sistema al confirmar cierre
 
@@ -1138,7 +1138,7 @@ Sesión `correction_required` (**después** de RF-OP-07) o discrepancia con `or_
 Igual espíritu que validación del operador, **más**:
 
 - **Relato OR (solo lectura):** `discrepancy.suggested_resolution`, `or_released_at`, `or_released_by_user_id`, y eventos `or_hold_comment` / `or_hold_released`. SPD **confirma** ese relato; **no** reabre el hilo de sala ni escribe `or_hold_comment`.  
-- Visor de **GIFs/checkpoints** de la sesión (lista por reason + timestamp + fase).  
+- Visor de **clips/checkpoints** de la sesión (lista por reason + timestamp + fase).  
 - **Historial de** `count_event`: timestamp, tipo, familia, expected, detected, fase (de `payload`).  
 - Acciones por discrepancia:  
   - Marcar **resuelta** (motivo + notas; implica confirmar el relato OR)  
@@ -1159,7 +1159,7 @@ Igual espíritu que validación del operador, **más**:
 5. El stock efectivo baja → futuros RF-SP-02/10 muestran WARN/BLOCK con números nuevos.
 6. `access_audit`.
 
-### Cómo se leen los GIF
+### Cómo se leen los clips
 
 1. Backend **SELECT**/query Mongo `checkpoint_frame` por `session_id`.
 2. Resuelve `media_asset` → genera **URL firmada** temporal a MinIO/GCS.
@@ -1260,15 +1260,15 @@ Escritura: **INSERT/UPDATE/DELETE** SQL en `kit`, `kit_item`, `procedure_kit`. `
 | Login                         | — (Redis sesión)                                                                                 | —                          | —                  | Backend                   |
 | Programar sesión              | `operation*`, `work_session`, borrador expected, `access_audit`                                  | —                          | —                  | Backend                   |
 | Subir/confirmar aviso         | `privacy_notice_version` (±), `session_processing_agreement`, `access_audit`                     | —                          | PDF/HTML del aviso | Backend                   |
-| Start Session (visión)        | `work_session` (+ `capture_mode`, **pin** `yolo_model_id`), `expected_inventory`, `count_event`, reservas | `checkpoint_frame` (async) | GIF start          | Backend + evidence-worker |
+| Start Session (visión)        | `work_session` (+ `capture_mode`, **pin** `yolo_model_id`), `expected_inventory`, `count_event`, reservas | `checkpoint_frame` (async) | MP4 start          | Backend + evidence-worker |
 | Start Session (sin aviso)     | `work_session` (`capture_mode=manual_no_privacy`), `expected_inventory`, `count_event`, reservas | —                          | —                  | Backend                   |
 | Frame live                    | —                                                                                                | —                          | —                  | WSS vision-worker         |
 | Auto count persistido         | `count_event` (`payload.confidences` por caja)                                                   | —                          | —                  | Backend                   |
-| Cambio fase (visión)          | `work_session`, `count_event`, ± `discrepancy`                                                   | checkpoint async           | GIF                | Backend + evidence-worker |
+| Cambio fase (visión)          | `work_session`, `count_event`, ± `discrepancy`                                                   | checkpoint async           | MP4                | Backend + evidence-worker |
 | Cambio fase (manual)          | `work_session`, `count_event`                                                                    | —                          | —                  | Backend                   |
-| Precaución ausencia           | `discrepancy`, `count_event`                                                                     | checkpoint async           | GIF                | Backend + evidence-worker |
+| Precaución ausencia           | `discrepancy`, `count_event`                                                                     | checkpoint async           | MP4                | Backend + evidence-worker |
 | Auto-resolve precaución       | `discrepancy`, `count_event`                                                                     | —                          | —                  | Backend                   |
-| Cierre detección (visión)     | `count_event`                                                                                    | checkpoint async           | GIF cierre         | Backend + evidence-worker |
+| Cierre detección (visión)     | `count_event`                                                                                    | checkpoint async           | MP4 cierre         | Backend + evidence-worker |
 | Validación / corrección       | `count_event`, `human_correction`, `discrepancy`; status `or_hold` si faltante, si no `awaiting_spd_review` | — | — | Backend |
 | Cierre manual sin IA (OP-06M) | Igual regla de faltante → `or_hold`; extra documentado sin hold | — | — | Backend |
 | Hold OR (OP-07)               | `count_event` (`or_hold_comment` / `or_hold_released`), `discrepancy` (resolución sugerida, `or_released_*`), status `correction_required` | lectura checkpoints | — | Backend |
@@ -1291,7 +1291,7 @@ Escritura: **INSERT/UPDATE/DELETE** SQL en `kit`, `kit_item`, `procedure_kit`. `
 | `absence_resolve_stable_seconds`       | 10                        | Auto-resolve                    |
 | `conf_display_threshold`               | 0.70                      | UI resultados                   |
 | `frame_stride`                         | 1 o 2                     | Estación → WSS                  |
-| `evidence_gif_frames`                  | 8–16                      | Evidence-worker                 |
+| `evidence_clip_frames`                 | 8–16                      | Evidence-worker (MP4)           |
 | `evidence_queue_name`                  | `pef-evidence-queue`      | Cola                            |
 | `diff_convention`                      | `detected_minus_expected` | Todas las tablas Diff           |
 | `session_id_display_prefix`            | `WS-`                     | Listas                          |

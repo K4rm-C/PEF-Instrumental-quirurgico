@@ -36,7 +36,7 @@ Tags útiles en el front matter de cada archivo:
 
 1. Una tabla o colección tiene **un solo dueño** (un DS). Los demás solo dicen “ver PEF-DSxx”.
 2. Un endpoint se define en detalle en **DS09** (REST) o **DS10** (WSS). Los DS de tablas pueden nombrar el endpoint que las usa, sin redescribir el contrato HTTP.
-3. Bytes de imagen/GIF/pesos: **DS05**. Detecciones en Mongo: **DS06**. Hechos de conteo en PostgreSQL: **DS04**.
+3. Bytes de imagen/MP4/pesos: **DS05**. Detecciones en Mongo: **DS06**. Hechos de conteo en PostgreSQL: **DS04**.
 4. Contraseña y secretos: solo hashes en **DS01** / **DS08**. Nunca el valor en claro en un estándar ni en mocks.
 
 ### Matriz anti-solape (verificación)

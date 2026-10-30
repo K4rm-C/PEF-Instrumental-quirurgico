@@ -39,7 +39,7 @@ No define `media_asset` (PEF-DS05) ni checkpoints (PEF-DS06): los orquesta vía 
 
 ### 1.2 Uso
 
-Al abrir/activar conteo con captura: materializar acuerdo. Al leer paciente/sesión/GIF: insertar `access_audit`. Al recibir ARCO: crear `privacy_request` y, si cancelación, bloquear/purgar multi-almacén.
+Al abrir/activar conteo con captura: materializar acuerdo. Al leer paciente/sesión/clip: insertar `access_audit`. Al recibir ARCO: crear `privacy_request` y, si cancelación, bloquear/purgar multi-almacén.
 
 **Cardinalidad clave:** `work_session` 0..1 `session_processing_agreement` (sesión puede existir sin acuerdo, p. ej. reserva previa).
 

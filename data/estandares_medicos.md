@@ -66,7 +66,7 @@
 | **Hoy**    | Tabla/contrato de identificadores externos (`system`+`value`+tipo de recurso); mapeo Patient/Practitioner/Location/Procedure/Device a UUIDs locales                        | Permite integración HIS sin duplicar filas; es el datatype más usado en intercambio |
 | **Hoy**    | Guardar **URI + hash + contentType** de evidencia, no blobs en filas clínicas                                                                                              | Alineado a Attachment/Binary; facilita export FHIR sin re-arquitectura              |
 | **Futuro** | Capas de exportación FHIR REST o mensajes Bundle; perfiles nacionales                                                                                                      | Cuando exista HIS conectado o certificación de interoperabilidad                    |
-| **Futuro** | Si la evidencia cenital se eleva a “estudio de imagen clínica”, valorar **ImagingStudy + DICOM**; si sigue siendo JPEG/GIF de tray, **DocumentReference/Attachment** basta | Evita over-engineering DICOM en MVP de visión por cámara RGB                        |
+| **Futuro** | Si la evidencia cenital se eleva a “estudio de imagen clínica”, valorar **ImagingStudy + DICOM**; si sigue siendo JPEG/MP4 de tray, **DocumentReference/Attachment** basta | Evita over-engineering DICOM en MVP de visión por cámara RGB                        |
 
 
 **Citación de adopción:** [2025 State of FHIR Survey (HL7 / Firely)](https://www.hl7.org/documentcenter/public/white-papers/2025%20State%20of%20FHIR%20Survey%20Report.pdf) — R4 sigue siendo la versión principal más reportada frente a R5.
@@ -140,7 +140,7 @@ Sección: [PS3.15 § Attribute Confidentiality Profiles / Annex E](https://dicom
 
 | Horizonte                                             | Qué interesa                                                                                             | Por qué                                                                                               |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| **Hoy (cámara RGB / YOLO / JPEG-GIF)**                | Probablemente **no** hace falta IOD DICOM ni Study UID en tablas                                         | La evidencia de tray no es modalidad radiológica; FHIR Media/DocumentReference + object storage basta |
+| **Hoy (cámara RGB / YOLO / JPEG-MP4)**                | Probablemente **no** hace falta IOD DICOM ni Study UID en tablas                                         | La evidencia de tray no es modalidad radiológica; FHIR Media/DocumentReference + object storage basta |
 | **Hoy (diseño defensivo)**                            | Separar: (a) metadatos de negocio, (b) URI de archivo, (c) eventual `sop_class` / `study_uid` nullable   | Deja gancho sin pagar costo DICOM en MVP                                                              |
 | **Futuro (PACS / quirófano digital / certificación)** | Jerarquía Patient→Study→Series→Instance; endpoints DICOMweb; perfiles PS3.15; puente FHIR `ImagingStudy` | Interoperar con PACS hospitalario o exportar evidencia “clínica”                                      |
 | **Futuro (IA / datasets)**                            | Pipeline de de-identificación alineado a Annex E + política local                                        | Requisitos de investigación, docencia o transferencia a terceros                                      |
@@ -150,14 +150,14 @@ Sección: [PS3.15 § Attribute Confidentiality Profiles / Annex E](https://dicom
 
 ### 3.5 REDACTADO · DICOM en la BD PEF
 
-**Decisión de alcance:** el sistema PEF **no** implementa DICOM / PACS / DICOMweb en el núcleo. La evidencia es **JPEG/GIF (y pesos)** de charola cenital RGB, no modalidad radiológica.
+**Decisión de alcance:** el sistema PEF **no** implementa DICOM / PACS / DICOMweb en el núcleo. La evidencia es **JPEG/MP4 (y pesos)** de charola cenital RGB, no modalidad radiológica.
 
 **Qué quedó en BD (alternativa no DICOM)**
 
 
 | Necesidad                       | Decisión PEF                                                                        | Dónde                                                                 |
 | ------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Guardar imagen de evidencia     | `media_asset.kind` ∈ (`jpeg`, `gif`, `weights`, `other`) + object storage GCS/MinIO | DS05                                                                  |
+| Guardar imagen de evidencia     | `media_asset.kind` ∈ (`jpeg`, `mp4`, `mkv`, `webm`, `gif`, `weights`, `other`) + object storage GCS/MinIO | DS05                                                                  |
 | Metadatos tipo Attachment       | `gcs_uri`, `content_type`, `sha256`, `size_bytes`, `storage_provider`               | DS05                                                                  |
 | Detalle de detecciones / ráfaga | Mongo `checkpoint_frame` (no Study/Series/Instance)                                 | [PEF-DS06](DataStandards/PEF-DS06-Mongo-Checkpoints-and-Telemetry.md) |
 | Visión en vivo                  | WSS estación↔worker; sin C-STORE                                                    | [PEF-DS10](DataStandards/PEF-DS10-Vision-Realtime-Contracts.md)       |
@@ -324,7 +324,7 @@ Referencias al articulado del PDF consolidado (numeración vigente 2025):
 | Paciente / médico mínimos                | ●                                | ○                       | ● (salud = especial)     | ● (sensibles)            | `patient` / `physician` (DS02)              |
 | Acto / procedimiento / ubicación         | ●                                | ○ Study/Series          | ○                        | ○                        | `operation` / sala (DS02)                   |
 | Instrumento como Device                  | ●                                | ○                       | ○                        | ○                        | `instrument` (DS03)                         |
-| Evidencia JPEG/GIF (no radiología)       | ● Attachment / DocumentReference | ○                       | ● retención/minimización | ● retención/minimización | `media_asset` (DS05)                        |
+| Evidencia JPEG/MP4 (no radiología)       | ● Attachment / DocumentReference | ○                       | ● retención/minimización | ● retención/minimización | `media_asset` (DS05)                        |
 | Evidencia como estudio PACS              | ● ImagingStudy                   | ●                       | ●                        | ●                        | **Fuera de alcance**                        |
 | De-identificación para datasets IA       | ○                                | ● PS3.15 Annex E        | ● anonimización          | ●                        | Opt-in ML + export URI (DS07/DS08); offline |
 | Retención / borrado automatizable        | ○                                | ○                       | ● Art. 5/17              | ● Art. 10/12/24          | `retention_*` / `purge_*` / TTL Mongo       |

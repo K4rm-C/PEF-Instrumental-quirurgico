@@ -22,7 +22,7 @@ Catálogos dueños: `cat_session_status`, `cat_event_type`, `cat_discrepancy_rea
 
 `cat_operation_phase` se define en PEF-DS03; aquí la sesión solo guarda `current_phase_id`.
 
-No define checkpoints Mongo (PEF-DS06), ni bytes JPEG/GIF (PEF-DS05), ni el acuerdo de privacidad de la sesión (PEF-DS07) — aunque la sesión puede existir antes de ese acuerdo.
+No define checkpoints Mongo (PEF-DS06), ni bytes JPEG/MP4 (PEF-DS05), ni el acuerdo de privacidad de la sesión (PEF-DS07) — aunque la sesión puede existir antes de ese acuerdo.
 
 Abajo: **todos** los campos, FKs con motivo, y **fila completa** por tabla.
 

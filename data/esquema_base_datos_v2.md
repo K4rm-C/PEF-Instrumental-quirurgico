@@ -112,7 +112,7 @@ FHIR rules applied
 | `instrument_reservation` | Concrete unit reserved per operation                                           |
 | `yolo_model`             | Weights version + extracted `architecture` / `model_size`                      |
 | `model_class`            | class_id ↔ family mapping                                                      |
-| `media_asset`            | Canonical object URI (jpeg, gif, weights); retention/purge; `storage_provider` |
+| `media_asset`            | Canonical object URI (jpeg, mp4/mkv/webm, gif, weights); retention/purge; `storage_provider` |
 
 
 
@@ -181,7 +181,7 @@ Reservation and kit
 | `kit` / `kit_item`                  | Template vs independent lines                                    |
 | `procedure_kit` / `procedure_phase` | Admin link procedure ↔ kits and phase sequence                   |
 | `expected_inventory` session copy   | Immutable history even if kit changes later                      |
-| `media_asset` separate from Mongo   | PG anchors GCS URI (incl. GIF burst) for audit                   |
+| `media_asset` separate from Mongo   | PG anchors object URI (incl. MP4 burst) for audit                |
 | `count_event` typed cols + JSONB    | Filter without parsing payload; detail stays flexible            |
 | `access_audit` append-only          | Access history without mutating business rows                    |
 | `session_processing_agreement`      | quality_ops mandatory; model_improvement opt-in per session      |
@@ -200,7 +200,7 @@ Script de referencia para migraciones Docker (`001_init.sql`). Todas las restric
 
 **Nota:** la tabla `"user"` va entre comillas porque `USER` es palabra reservada en PostgreSQL.
 
-**Total:** 51 tablas en PostgreSQL (`cat_checkpoint_reason` sin FK entrante en PG; fase y GIF se enlazan a Mongo por equivalencia de código/UUID). Incluye `user_operating_room`.
+**Total:** 51 tablas en PostgreSQL (`cat_checkpoint_reason` sin FK entrante en PG; fase y clip de ráfaga se enlazan a Mongo por equivalencia de código/UUID). Incluye `user_operating_room`.
 
 ### 5.1 Convención de nombres de restricciones
 
@@ -600,7 +600,7 @@ CREATE TABLE media_asset (
   CONSTRAINT uk_media_asset_bucket_object_key UNIQUE (bucket, object_key),
   CONSTRAINT chk_media_asset_size_bytes CHECK (size_bytes IS NULL OR size_bytes >= 0),
   CONSTRAINT chk_media_asset_kind CHECK (
-    kind IN ('jpeg', 'gif', 'weights', 'other')
+    kind IN ('jpeg', 'gif', 'mp4', 'mkv', 'webm', 'weights', 'other')
   ),
   CONSTRAINT chk_media_asset_storage_provider CHECK (
     storage_provider IN ('gcs', 'minio', 'other')
@@ -1209,7 +1209,7 @@ Resumen para validar el diagrama ER y migraciones. `UK` incluye índices únicos
 - **Retention worker** (cron / queue): same idempotent pipeline for TTL expiry and ARCO cancel — delete object in GCS/MinIO → delete or unlink Mongo `checkpoint_frame` → set `media_asset.purged_at` (or DELETE row). Re-run safe if a store is already clean.
 - **ARCO cancel**: set `blocked_at` / `purge_requested_at` on related `media_asset`, then enqueue the same worker; track lifecycle in `privacy_request`.
 - **FHIR export**: Backend Web (or thin Integration routes) maps PG rows to FHIR R4 JSON; authenticate machine callers with `integration_client` (client credentials / API key hash) + scopes; log reads in `access_audit` with `actor_type = 'client'`.
-- **Training export eligibility**: `session_processing_agreement.purpose_model_improvement = TRUE` and media not purged; UI/API lists URIs only — no in-system GIF deconstruction.
+- **Training export eligibility**: `session_processing_agreement.purpose_model_improvement = TRUE` and media not purged; UI/API lists URIs only — no in-system clip deconstruction.
 
 ---
 
@@ -1244,11 +1244,11 @@ GROUP BY f.id, f.code;
 
 - Base **90 days** on `work_session.retention_until` or Mongo TTL
 - **180 days** if `work_session.atypical_session = true` or unresolved `discrepancy` at close
-- Max **30–50** checkpoint **documents** per session (a GIF burst = one document)
+- Max **30–50** checkpoint **documents** per session (one ring-buffer clip = one document)
 - Required reasons: start, close, hourly, state_change (≥3 families missing ≥60 s), discrepancy, manual_pin
 - Each document stores `reason` (align `cat_checkpoint_reason.code`) and `phase_id` / `phase_code` (copy from `work_session.current_phase_id`)
-- Rich checkpoints (`state_change`, `discrepancy`, `manual_pin`): worker builds GIF burst off hot path → object storage → `media_asset.kind = 'gif'` → Mongo holds URI only
-- Hot path keeps a RAM ring buffer; GIF/upload/Mongo write is async / queued
+- Rich checkpoints (`state_change`, `discrepancy`, `manual_pin`): worker encodes the RAM ring buffer (~5–8 s of JPEG frames) off hot path to **MP4 H.264** (no audio, `yuv420p`) → object storage → `media_asset.kind = 'mp4'` → Mongo holds URI only. `mkv` / `webm` allowed in CHECK; UI plays MP4. Fallback if encode fails: single JPEG. `gif` remains for legacy rows only.
+- Hot path keeps a RAM ring buffer; encode/upload/Mongo write is async / queued
 - Purge job clears object store + Mongo + `media_asset` using `retention_until` / `purge_requested_at` (same path for ARCO cancel)
 
 ---

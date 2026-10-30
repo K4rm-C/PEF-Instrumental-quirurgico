@@ -676,7 +676,7 @@ Desde AP-02 o desde sesión en hold.
 
 - Ficha (status, expected vs validado, faltantes).
 - Timeline `count_event`.
-- Evidencias: GIFs/checkpoints y **video ya guardado** (URL firmada). **No** stream de cámara.
+- Evidencias: clips/checkpoints **ya guardados** (URL firmada, MP4). **No** stream de cámara.
 - Hilo de comentarios (OP y SdP).
 - Resolución sugerida si OP ya la cargó.
 - Botón **Comentar**. **No** hay “Enviar a SPD”, “Marcar lost” ni “Confirm and close”.
@@ -723,7 +723,7 @@ Pestaña Sesiones.
 
 Filtros: programadas, en progreso, `or_hold`, procedimiento, sala. Lista **todas** las salas, ligadas primero.
 
-Ficha: datos, inventario, timeline. **Live de tabla de conteo:** expected vs detected y `confidences` por caja al persistirse `count_event` (poll o WS Backend). **Sin** feed de cámara. **Sí** evidencias de video/GIF **ya guardadas** (URL firmada).
+Ficha: datos, inventario, timeline. **Live de tabla de conteo:** expected vs detected y `confidences` por caja al persistirse `count_event` (poll o WS Backend). **Sin** feed de cámara. **Sí** evidencias de video **ya guardadas** (URL firmada, MP4).
 
 ### Qué hace el usuario
 

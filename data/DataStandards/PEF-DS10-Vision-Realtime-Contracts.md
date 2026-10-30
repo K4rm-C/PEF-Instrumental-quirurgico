@@ -27,7 +27,7 @@ Es el canal de percepción en tiempo real: la estación envía cuadros (o metada
 | Término | Significado |
 | :--- | :--- |
 | **WSS** | WebSocket sobre TLS. |
-| **Hot path** | Inferencia + push UI; sin armar GIF ni escribir PG. |
+| **Hot path** | Inferencia + push UI; sin armar MP4 ni escribir PG. |
 | **Detección sugerida** | Propuesta del modelo; el humano/reglas validan. |
 | **client_event_id** | UUID de idempotencia cuando el backend materializa un hecho. |
 
@@ -237,7 +237,7 @@ Sugerencia de hecho de conteo (la persistencia la hace el Backend).
 #### 1.3.6 Reglas de frontera
 
 1. Si el modelo cae, la estación sigue en modo manual vía Backend.
-2. GIF/checkpoint: off hot path (DS06); el WSS no espera el GIF.
+2. Clip/checkpoint: off hot path (DS06); el WSS no espera el MP4.
 3. No enviar PII de paciente en el bus de frames.
 4. Rate: muestreo de frames; no flood sin límite.
 

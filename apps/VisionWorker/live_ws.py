@@ -5,9 +5,9 @@ Two buffers that must not be mixed:
 - Slot YOLO (this module): at most one pending JPEG. While run_frame is busy the
   latest frame overwrites the slot; there is no YOLO backlog. Camera 30 fps always
   outruns inference on this hardware.
-- Ring GIF (future, not implemented): JPEG of the *camera* at camera fps, ~5–8 s
-  RAM window, assembled off the hot path into a DS05 gif + DS06 checkpoint.
-  Mongo/Garage/GIF encoding are out of this delivery.
+- Ring clip (future, not implemented): JPEG of the *camera* at camera fps, ~5–8 s
+  RAM window, encoded off the hot path into a DS05 MP4 (H.264, no audio) + DS06 checkpoint.
+  Mongo/Garage/MP4 encoding are out of this delivery.
 """
 
 from __future__ import annotations

@@ -275,7 +275,7 @@ Base: `/api/v1/sessions`
 | Campo | Tipo | Significado |
 | :--- | :--- | :--- |
 | `id` | uuid | `media_asset.id` |
-| `kind` | string | jpeg/gif/… |
+| `kind` | string | jpeg/mp4/mkv/webm/gif/weights/other |
 | `content_type` | string | |
 | `size_bytes` | int\|null | |
 | `storage_provider` | string | |
