@@ -70,3 +70,37 @@ def login(client, monkeypatch):
         client.set_cookie('access_token', 'test-access-token')
         return fake
     return _login
+
+
+class FakeAdminService:
+    """Stand-in for AdminService (clients/admin_service.call). Records every call.
+
+    `responses` maps (METHOD, path) to a payload or to an AdminServiceError to raise; GETs
+    without an entry return an empty list page so admin screens still render.
+    """
+
+    def __init__(self):
+        self.calls = []
+        self.responses = {}
+
+    def __call__(self, method, path, *, params=None, json=None):
+        from clients.admin_service import AdminServiceError
+
+        self.calls.append((method, path, params, json))
+        result = self.responses.get((method, path))
+        if isinstance(result, AdminServiceError):
+            raise result
+        if result is not None:
+            return result
+        if method == 'GET':
+            return {'items': [], 'page': 1, 'per_page': 20, 'total': 0, 'total_pages': 1, 'shown': 0}
+        return {'id': '99999999-9999-9999-9999-999999999999'}
+
+
+@pytest.fixture(autouse=True)
+def admin_service(monkeypatch):
+    from clients import admin_service as client_module
+
+    fake = FakeAdminService()
+    monkeypatch.setattr(client_module, 'call', fake)
+    return fake

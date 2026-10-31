@@ -22,24 +22,11 @@
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
-{% set procedure = procedure|default({'code': 'PROC-001', 'name': _('Appendectomy')} if is_edit else {'code': '', 'name': ''}, true) %}
-{% set kits = kits|default([
-    {'value': 'delivery-kit', 'label': _('Delivery Kit')},
-    {'value': 'suture-kit', 'label': _('Suture Kit')},
-    {'value': 'general-surgery-kit', 'label': _('General Surgery Kit')}
-], true) %}
-{% set phases = phases|default([
-    {'value': 'pre-procedure', 'label': _('Pre-Procedure')},
-    {'value': 'post-procedure', 'label': _('Post-Procedure')}
-], true) %}
-{% set associated_kits = associated_kits|default([
-    {'kit_value': 'delivery-kit', 'technique_label': _('Standard'), 'is_default': true, 'active': true},
-    {'kit_value': 'general-surgery-kit', 'technique_label': _('Alternative'), 'is_default': false, 'active': true}
-] if is_edit else [], true) %}
-{% set counting_phases = counting_phases|default([
-    {'phase_value': 'pre-procedure', 'is_count_required': true, 'sort_order': 1, 'active': true},
-    {'phase_value': 'post-procedure', 'is_count_required': true, 'sort_order': 2, 'active': true}
-] if is_edit else [], true) %}
+{% set procedure = procedure|default({'code': '', 'name': ''}, true) %}
+{% set kits = kits|default([], true) %}
+{% set phases = phases|default([], true) %}
+{% set associated_kits = associated_kits|default([], true) %}
+{% set counting_phases = counting_phases|default([], true) %}
 {% set page_title = _("Edit Procedure") if is_edit else _("New Procedure") %}
 {% set page_subtitle = _("Update the procedure, associated kits, and counting phases.") if is_edit else _("Register a surgical procedure and configure its available kits and counting phases.") %}
 

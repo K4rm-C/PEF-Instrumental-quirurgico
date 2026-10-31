@@ -17,10 +17,10 @@
 {% endblock %}
 
 {% block page_content %}
+{% set procedures = procedures|default([], true) %}
+{% set filters = filters|default({'search': ''}, true) %}
 {% set procedures_shown_count = procedures_shown_count|default(procedures|length, true) %}
-{% set procedures_total_count = procedures_total_count|default(5, true) %}
-{% set current_page = current_page|default(1, true) %}
-{% set total_pages = total_pages|default(2, true) %}
+{% set procedures_total_count = procedures_total_count|default(procedures|length, true) %}
 
 <div class="page-heading">
     <div>
@@ -35,17 +35,18 @@
 
 <section class="card">
     <span class="form-field__label">{{ _("Search Procedures") }}</span>
-    {# Search is presentation-only in this iteration: no client-side or server-side filtering
-       is wired up yet. #}
-    <form class="filter-bar" action="#" method="get" role="search">
+    <form class="filter-bar" action="{{ url_for('web.admin_procedures') }}" method="get" role="search">
         <div class="filter-bar__search">
             <label class="visually-hidden" for="procedures-search">{{ _("Search Procedures") }}</label>
             <div class="form-field__input-wrapper">
                 <span class="form-field__icon">{{ macros.icon_search() }}</span>
                 <input class="form-field__input" type="search" id="procedures-search" name="search"
-                       placeholder="{{ _('Search procedures...') }}">
+                       value="{{ filters.search }}" placeholder="{{ _('Search procedures...') }}">
             </div>
         </div>
+        <button type="submit" class="btn btn--success filter-bar__search-btn" aria-label="{{ _('Search') }}" title="{{ _('Search') }}">
+            {{ macros.icon_search() }}
+        </button>
     </form>
 </section>
 
@@ -75,14 +76,16 @@
                         <a class="btn btn--secondary btn--small" href="{{ procedure.edit_url }}">{{ _("Edit") }}</a>
                     </td>
                 </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="data-table__empty-state">{{ _("No procedures match the current filters.") }}</td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
-    <nav class="pagination" aria-label="{{ _('Pagination') }}">
-        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s procedures", shown=procedures_shown_count, total=procedures_total_count) }}</p>
-        <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
-    </nav>
+    {% set pagination_info = _("Showing %(shown)s of %(total)s procedures", shown=procedures_shown_count, total=procedures_total_count) %}
+    {% include "components/pagination.html" %}
 </section>
 {% endblock %}

@@ -153,3 +153,8 @@
     flex-wrap: wrap;
     gap: var(--space-3);
 }
+
+/* A POST action inside the actions row keeps the row's flex layout. */
+.modal-dialog__actions form {
+    display: contents;
+}

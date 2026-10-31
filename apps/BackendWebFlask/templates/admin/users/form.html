@@ -20,21 +20,15 @@
       change_password_url, deactivate_user_url   URL strings, default "#" (edit mode only;
                                            feed components/modals/change_password.html and
                                            deactivate_user.html)
-    Integration point: Save submits to save_url — not implemented here. Password fields are
-    never pre-filled and never round-tripped back from the server; see FRONTEND_INTEGRATION.md
-    for the frontend/backend password responsibility split.
+    Save posts to save_url; the view forwards it to AdminService (POST/PUT /api/v1/users),
+    which hashes the password, persists the user and audits the change. Password fields are
+    never pre-filled and never round-tripped back from the server.
 #}
 {% set form_mode = form_mode|default('create') %}
 {% set is_edit = form_mode == 'edit' %}
-{% set user = user|default({'name': 'Alex Morgan', 'email': 'alex.morgan@institution.edu', 'institution': 'hospital-institution', 'assigned_role_codes': ['operator'], 'status': 'active'} if is_edit else {'name': '', 'email': '', 'institution': 'hospital-institution', 'assigned_role_codes': ['operator'], 'status': 'active'}, true) %}
-{% set institutions = institutions|default([
-    {'value': 'hospital-institution', 'label': _('Hospital Institution')}
-], true) %}
-{% set roles = roles|default([
-    {'value': 'operator', 'label': _('Operator CDE')},
-    {'value': 'supervisor', 'label': _('Supervisor CDE / Quality')},
-    {'value': 'admin', 'label': _('IT Administrator')}
-], true) %}
+{% set user = user|default({'name': '', 'email': '', 'institution': '', 'assigned_role_codes': [], 'status': 'active', 'active': true}, true) %}
+{% set institutions = institutions|default([], true) %}
+{% set roles = roles|default([], true) %}
 {% set page_title = _("Edit User") if is_edit else _("New User") %}
 {% set page_subtitle = _("Update user information and assigned role.") if is_edit else _("Create an authorized system user and assign a role.") %}
 
@@ -71,18 +65,19 @@
         {% endif %}
         <div class="form-field">
             <label class="form-field__label" for="user-name">{{ _("Name") }}</label>
-            <input class="form-field__input form-field__input--plain" type="text" id="user-name" name="name"
+            <input class="form-field__input form-field__input--plain" type="text" id="user-name" name="name" maxlength="160" required
                    value="{{ user.name }}" placeholder="{{ _('Enter full name') }}">
         </div>
         <div class="form-field">
             <label class="form-field__label" for="user-email">{{ _("Institutional Email") }}</label>
-            <input class="form-field__input form-field__input--plain" type="email" id="user-email" name="email"
+            <input class="form-field__input form-field__input--plain" type="email" id="user-email" name="email" maxlength="255" required
                    value="{{ user.email }}" placeholder="{{ _('Enter institutional email address') }}">
         </div>
         <div class="form-field">
             <label class="form-field__label" for="user-institution">{{ _("Institution") }}</label>
             <div class="form-field__input-wrapper">
-                <select class="form-field__input form-field__select" id="user-institution" name="institution">
+                <select class="form-field__input form-field__select" id="user-institution" name="institution" required>
+                    <option value="">{{ _("Select an institution") }}</option>
                     {% for institution in institutions %}
                     <option value="{{ institution.value }}" {% if institution.value == user.institution %}selected{% endif %}>{{ institution.label }}</option>
                     {% endfor %}
@@ -106,8 +101,8 @@
         {% if not is_edit %}
         <div class="form-field">
             <label class="form-field__label" for="user-password">{{ _("Password") }}</label>
-            <input class="form-field__input form-field__input--plain" type="password" id="user-password" name="password" autocomplete="new-password">
-            <p class="form-field__helper">{{ _("Set the initial password for this user.") }}</p>
+            <input class="form-field__input form-field__input--plain" type="password" id="user-password" name="password" autocomplete="new-password" minlength="8" required>
+            <p class="form-field__helper">{{ _("Set the initial password for this user (at least 8 characters).") }}</p>
         </div>
         <div class="form-field">
             <label class="form-field__label" for="user-confirm-password">{{ _("Confirm Password") }}</label>
@@ -128,16 +123,27 @@
         </div>
 
         {% if is_edit %}
+        {% if user.last_login %}<p class="form-field__helper">{{ _("Last sign in: %(date)s", date=user.last_login) }}</p>{% endif %}
+        {% if user.password_updated_at %}<p class="form-field__helper">{{ _("Password last changed: %(date)s", date=user.password_updated_at) }}</p>{% endif %}
         <div>
             <button type="button" class="link-action" data-modal-open="change-password-modal">{{ _("Change Password") }}</button>
         </div>
 
         <div class="form-field form-section-divider">
             <h2 class="card__title">{{ _("Account Status") }}</h2>
+            {% if is_self %}
+            <p class="form-field__helper">{{ _("You cannot deactivate your own account.") }}</p>
+            {% elif user.active %}
             <p class="form-field__helper">{{ _("Deactivate this user to prevent system access while preserving historical records.") }}</p>
             <div>
                 <button type="button" class="btn btn--danger-solid" data-modal-open="deactivate-user-modal">{{ _("Deactivate User") }}</button>
             </div>
+            {% else %}
+            <p class="form-field__helper">{{ _("This user is inactive and cannot sign in. Their historical records are preserved.") }}</p>
+            <div>
+                <button type="submit" class="btn btn--primary" form="activate-user-form">{{ _("Reactivate User") }}</button>
+            </div>
+            {% endif %}
         </div>
         {% endif %}
 
@@ -149,10 +155,15 @@
 </section>
 
 {% if is_edit %}
-{% with target_user={'name': user.name, 'role_label': user.role_label|default(''), 'avatar_url': none}, change_password_url=change_password_url|default('#'), deactivate_user_url=deactivate_user_url|default('#') %}
+{% with target_user={'name': user.name, 'role_label': user.role_label|default(''), 'avatar_url': none}, change_password_url=change_password_url, deactivate_user_url=deactivate_user_url %}
 {% include "components/modals/change_password.html" %}
+{% if user.active and not is_self %}
 {% include "components/modals/deactivate_user.html" %}
+{% endif %}
 {% endwith %}
+{% if not user.active %}
+<form id="activate-user-form" action="{{ activate_user_url }}" method="post" hidden></form>
+{% endif %}
 {% endif %}
 {% endblock %}
 

@@ -17,12 +17,12 @@
 {% endblock %}
 
 {% block page_content %}
+{% set users = users|default([], true) %}
+{% set filters = filters|default({'search': '', 'role': '', 'institution': '', 'status': 'active'}, true) %}
+{% set role_filter = role_filter|default([], true) %}
+{% set institution_filter = institution_filter|default([], true) %}
 {% set users_shown_count = users_shown_count|default(users|length, true) %}
 {% set users_total_count = users_total_count|default(users|length, true) %}
-{% set current_page = current_page|default(1, true) %}
-{% set total_pages = total_pages|default(1, true) %}
-{% set previous_url = previous_url|default('#', true) %}
-{% set next_url = next_url|default('#', true) %}
 
 <div class="page-heading">
     <div>
@@ -36,41 +36,44 @@
 </div>
 
 <section class="card">
-    {# Filters are presentation-only in this iteration: no client-side or server-side
-       filtering is wired up yet. #}
-    <form class="filter-bar" action="#" method="get" role="search">
+    <form class="filter-bar" action="{{ url_for('web.admin_users') }}" method="get" role="search">
         <div class="filter-bar__search">
             <label class="visually-hidden" for="users-search">{{ _("Search Users") }}</label>
             <div class="form-field__input-wrapper">
                 <span class="form-field__icon">{{ macros.icon_search() }}</span>
                 <input class="form-field__input" type="search" id="users-search" name="search"
-                       placeholder="{{ _('Search users...') }}">
+                       value="{{ filters.search }}" placeholder="{{ _('Search users...') }}">
             </div>
         </div>
         <div class="filter-bar__select">
             <label class="visually-hidden" for="users-role">{{ _("Role") }}</label>
             <select class="form-field__input form-field__input--plain" id="users-role" name="role">
                 <option value="">{{ _("Role: All") }}</option>
-                <option value="operator">{{ _("Operator CDE") }}</option>
-                <option value="supervisor">{{ _("Supervisor CDE / Quality") }}</option>
-                <option value="admin">{{ _("IT Administrator") }}</option>
+                {% for item in role_filter %}
+                <option value="{{ item.value }}" {% if filters.role == item.value %}selected{% endif %}>{{ item.label }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="filter-bar__select">
             <label class="visually-hidden" for="users-institution">{{ _("Institution") }}</label>
             <select class="form-field__input form-field__input--plain" id="users-institution" name="institution">
                 <option value="">{{ _("Institution: All") }}</option>
-                <option value="hospital-institution">{{ _("Hospital Institution") }}</option>
+                {% for item in institution_filter %}
+                <option value="{{ item.value }}" {% if filters.institution == item.value %}selected{% endif %}>{{ item.label }}</option>
+                {% endfor %}
             </select>
         </div>
         <div class="filter-bar__select">
             <label class="visually-hidden" for="users-status">{{ _("Status") }}</label>
             <select class="form-field__input form-field__input--plain" id="users-status" name="status">
-                <option value="active" selected>{{ _("Status: Active") }}</option>
-                <option value="inactive">{{ _("Status: Inactive") }}</option>
-                <option value="">{{ _("Status: All") }}</option>
+                <option value="active" {% if filters.status == 'active' %}selected{% endif %}>{{ _("Status: Active") }}</option>
+                <option value="inactive" {% if filters.status == 'inactive' %}selected{% endif %}>{{ _("Status: Inactive") }}</option>
+                <option value="all" {% if filters.status == 'all' %}selected{% endif %}>{{ _("Status: All") }}</option>
             </select>
         </div>
+        <button type="submit" class="btn btn--success filter-bar__search-btn" aria-label="{{ _('Search') }}" title="{{ _('Search') }}">
+            {{ macros.icon_search() }}
+        </button>
     </form>
 </section>
 
@@ -83,6 +86,7 @@
                     <th scope="col">{{ _("Email") }}</th>
                     <th scope="col">{{ _("Institution") }}</th>
                     <th scope="col">{{ _("Assigned Roles") }}</th>
+                    <th scope="col">{{ _("Last Sign In") }}</th>
                     <th scope="col">{{ _("Status") }}</th>
                     <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
                 </tr>
@@ -101,6 +105,7 @@
                             {% endfor %}
                         </div>
                     </td>
+                    <td>{{ _(user.last_login) }}</td>
                     <td>{{ macros.status_badge(user.status_label, user.status_variant) }}</td>
                     <td class="data-table__action-column">
                         <a class="btn btn--secondary btn--small" href="{{ user.edit_url }}">{{ _("Edit") }}</a>
@@ -109,20 +114,14 @@
                 {% endfor %}
                 {% else %}
                 <tr>
-                    <td colspan="6" class="data-table__empty-state">{{ _("No users found.") }}</td>
+                    <td colspan="7" class="data-table__empty-state">{{ _("No users found.") }}</td>
                 </tr>
                 {% endif %}
             </tbody>
         </table>
     </div>
 
-    <nav class="pagination" aria-label="{{ _('Pagination') }}">
-        <p class="pagination__info">{{ _("Showing %(shown)s of %(total)s users", shown=users_shown_count, total=users_total_count) }}</p>
-        <div class="pagination__controls">
-            <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
-            <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
-            <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
-        </div>
-    </nav>
+    {% set pagination_info = _("Showing %(shown)s of %(total)s users", shown=users_shown_count, total=users_total_count) %}
+    {% include "components/pagination.html" %}
 </section>
 {% endblock %}
