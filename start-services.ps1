@@ -10,6 +10,8 @@ if (-not (Test-Path "$Root\.env")) {
 Copy-Item "$Root\.env" "$Root\apps\BackendAuthService\.env" -Force
 Copy-Item "$Root\.env" "$Root\apps\BackendWebFlask\.env" -Force
 Copy-Item "$Root\.env" "$Root\apps\AdminService\.env" -Force
+Copy-Item "$Root\.env" "$Root\apps\VisionWorker\.env" -Force
+Copy-Item "$Root\.env" "$Root\apps\EvidenceWorker\.env" -Force
 
 function Start-AppWindow {
     param([string]$Title, [string]$Directory, [string]$Command)
@@ -69,12 +71,22 @@ if (-not (Test-Path weights\best.pt)) {
 python main.py
 "@
 
-Write-Host "Abriendo Auth (5001), AdminService (5003), Backend Web (5000) y VisionWorker (5002)..." -ForegroundColor Yellow
+$EvidenceCmd = @"
+if (-not (Test-Path .venv)) { python -m venv .venv }
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Write-Host 'EvidenceWorker: ring Redis + video local (clips\). Garage on por defecto (EVIDENCE_GARAGE_ENABLED)' -ForegroundColor Cyan
+python main.py
+"@
+
+Write-Host "Abriendo Auth (5001), AdminService (5003), Backend Web (5000), VisionWorker (5002) y EvidenceWorker..." -ForegroundColor Yellow
 Start-AppWindow -Title "PEF Auth :5001" -Directory "$Root\apps\BackendAuthService" -Command $AuthCmd
 Start-AppWindow -Title "PEF AdminService :5003" -Directory "$Root\apps\AdminService" -Command $AdminCmd
 Start-AppWindow -Title "PEF BackendWeb :5000" -Directory "$Root\apps\BackendWebFlask" -Command $WebCmd
 Start-AppWindow -Title "PEF VisionWorker :5002" -Directory "$Root\apps\VisionWorker" -Command $VisionCmd
+Start-AppWindow -Title "PEF EvidenceWorker" -Directory "$Root\apps\EvidenceWorker" -Command $EvidenceCmd
 
 Write-Host "Listo. Web http://127.0.0.1:5000  Auth http://127.0.0.1:5001  Admin http://127.0.0.1:5003  Vision http://127.0.0.1:5002" -ForegroundColor Green
+Write-Host "EvidenceWorker: logs en su ventana; clips en apps\EvidenceWorker\clips\" -ForegroundColor Green
 Write-Host "Garage S3 http://127.0.0.1:3900" -ForegroundColor Green
 Write-Host "Pesos YOLO: apps\VisionWorker\weights\best.pt (no se suben a GitHub)" -ForegroundColor Cyan

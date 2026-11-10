@@ -1,0 +1,52 @@
+{# Shared OP-05 / OP-06: last annotated still + evidence clip drawer.
+   Expects: snapshot, clips_url, optional frame_meta (string).
+   Does not wrap the human-validation form — drawer state is independent of inputs. #}
+{% set frame_b64 = snapshot.frame_jpeg_b64 if snapshot else none %}
+<div class="v3-op-ev"
+     data-evidence-validation
+     data-clips-url="{{ clips_url }}"
+     data-i18n-empty="{{ _('No evidence clips yet for this session.') }}"
+     data-i18n-load-error="{{ _('Could not load evidence clips.') }}"
+     data-i18n-frame="{{ _('frame') }}"
+     data-i18n-frames="{{ _('frames') }}"
+     data-i18n-open-drawer="{{ _('Evidence clips') }}"
+     data-i18n-close-drawer="{{ _('Hide evidence') }}"
+     data-i18n-garage-fail="{{ _('Some clips are not yet synced to object storage / DB. Local playback is used until upload retry succeeds.') }}">
+    <p class="v3-op-ev__garage-banner" data-ev-garage-banner hidden role="status"></p>
+    <div class="v3-op-ev__layout" data-ev-layout>
+        <section class="card v3-op-ev__stage-card" aria-labelledby="ev-stage-heading">
+            <h2 id="ev-stage-heading" class="card__title">{{ _("Last annotated frame") }}</h2>
+            <div class="v3-op-ev__stage" data-ev-stage title="{{ _('Click to open last frame') }}">
+                {% if frame_b64 %}
+                <img data-ev-still src="data:image/jpeg;base64,{{ frame_b64 }}" alt="{{ _('Annotated tray frame') }}">
+                {% else %}
+                <img data-ev-still alt="{{ _('Annotated tray frame') }}" hidden>
+                <div class="v3-op-ev__placeholder" data-ev-placeholder>{{ _("No frame available.") }}</div>
+                {% endif %}
+                <video data-ev-video controls playsinline hidden></video>
+            </div>
+            <div class="v3-op-ev__toolbar">
+                <button type="button" class="btn btn--secondary" data-ev-zoom>{{ _("Zoom") }}</button>
+                <button type="button" class="btn btn--secondary" data-ev-toggle-drawer aria-expanded="true">{{ _("Hide evidence") }}</button>
+                <span class="v3-op-ev__meta" data-ev-count-hint>
+                    {% if frame_meta %}{{ frame_meta }}{% endif %}
+                </span>
+            </div>
+        </section>
+
+        <aside class="v3-op-ev__drawer" data-ev-drawer aria-labelledby="ev-drawer-heading">
+            <div class="v3-op-ev__drawer-head">
+                <h2 id="ev-drawer-heading" class="v3-op-ev__drawer-title">{{ _("Evidence clips") }}</h2>
+            </div>
+            <p class="v3-op-ev__empty" data-ev-empty hidden></p>
+            <ul class="v3-op-ev__clip-list" data-ev-clip-list></ul>
+        </aside>
+    </div>
+
+    <div class="v3-op-ev__lightbox" data-ev-lightbox role="dialog" aria-modal="true" aria-label="{{ _('Last annotated frame') }}">
+        <div class="v3-op-ev__lightbox-inner">
+            <div class="v3-op-ev__lightbox-media" data-ev-lightbox-media></div>
+            <button type="button" class="btn btn--secondary v3-op-ev__lightbox-close" data-ev-lightbox-close>{{ _("Close") }}</button>
+        </div>
+    </div>
+</div>

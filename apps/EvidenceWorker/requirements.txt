@@ -1,0 +1,7 @@
+python-dotenv==1.2.3
+redis==6.4.0
+opencv-python-headless>=4.10.0
+numpy>=1.26.0
+boto3>=1.34.0
+pymongo>=4.8.0
+psycopg[binary]==3.2.10

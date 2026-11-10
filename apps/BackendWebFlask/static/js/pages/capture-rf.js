@@ -13,6 +13,9 @@
 
     var img = document.getElementById("capture-frame");
     var placeholder = document.getElementById("capture-placeholder");
+    var stageEl = document.getElementById("capture-stage");
+    var stageLoadingText = document.getElementById("capture-stage-loading-text");
+    var toolbarMeta = document.getElementById("capture-toolbar-meta");
     var statusEl = document.getElementById("capture-status");
     var progressEl = document.getElementById("capture-progress");
     var modelEl = document.getElementById("capture-model");
@@ -22,6 +25,8 @@
     var uploadBtn = document.getElementById("capture-upload-btn");
     var phaseForm = document.getElementById("capture-phase-form");
     var phaseMsg = document.getElementById("capture-phase-msg");
+    var phaseCurrentName = document.getElementById("capture-phase-current-name");
+    var phaseSelect = phaseForm ? phaseForm.querySelector('select[name="phase_code"]') : null;
     var cameraBtn = document.getElementById("capture-camera-btn");
     var cameraSelect = document.getElementById("capture-camera-select");
     var cameraErr = document.getElementById("capture-camera-error");
@@ -56,6 +61,7 @@
         model: script.getAttribute("data-i18n-model") || "",
         uploading: script.getAttribute("data-i18n-uploading") || "",
         processing: script.getAttribute("data-i18n-processing") || "",
+        connecting: script.getAttribute("data-i18n-connecting") || "Connecting…",
         error: script.getAttribute("data-i18n-error") || "",
         uploadFailed: script.getAttribute("data-i18n-upload-failed") || "",
         phaseChanged: script.getAttribute("data-i18n-phase-changed") || "",
@@ -66,7 +72,9 @@
         camBusy: script.getAttribute("data-i18n-cam-busy") || "",
         camStart: script.getAttribute("data-i18n-cam-start") || "Start camera",
         camStop: script.getAttribute("data-i18n-cam-stop") || "Stop camera",
-        live: script.getAttribute("data-i18n-live") || "live camera"
+        camDefault: script.getAttribute("data-i18n-cam-default") || "Default camera",
+        camN: script.getAttribute("data-i18n-cam-n") || "Camera %(n)s",
+        live: script.getAttribute("data-i18n-live") || "Live"
     };
 
     function fill(template, values) {
@@ -75,8 +83,41 @@
         }).replace(/%%/g, "%");
     }
 
-    function fmt(n) {
-        return n == null ? "—" : Number(n).toFixed(2);
+    function setStageLoading(on, text) {
+        if (!stageEl) return;
+        stageEl.classList.toggle("is-loading", !!on);
+        if (stageLoadingText && text) stageLoadingText.textContent = text;
+    }
+
+    function setCameraError(msg) {
+        if (!cameraErr) return;
+        if (msg) {
+            cameraErr.textContent = msg;
+            cameraErr.hidden = false;
+        } else {
+            cameraErr.textContent = "";
+            cameraErr.hidden = true;
+        }
+    }
+
+    function refreshToolbarMeta() {
+        if (!toolbarMeta) return;
+        var has =
+            (statusEl && statusEl.textContent) ||
+            (progressEl && progressEl.textContent) ||
+            (modelEl && modelEl.textContent) ||
+            (latencyEl && latencyEl.textContent);
+        toolbarMeta.setAttribute("data-empty", has ? "false" : "true");
+    }
+
+    function presenceFor(expected, detected) {
+        var exp = Number(expected);
+        var det = Number(detected);
+        if (isNaN(exp) || isNaN(det)) return "pending";
+        if (exp <= 0) return det > 0 ? "partial" : "ok";
+        if (det === 0) return "missing";
+        if (det === exp) return "ok";
+        return "partial";
     }
 
     function uuid4() {
@@ -95,57 +136,82 @@
             var meta = summary[cat];
             var metaEl = row.querySelector("[data-cat-meta]");
             var pendEl = row.querySelector("[data-cat-pending]");
-            if (!metaEl) return;
-            if (!meta) {
-                metaEl.textContent = "";
-                if (pendEl) pendEl.textContent = "";
-                return;
-            }
-            metaEl.textContent = fill(i18n.catMeta, {
-                expected: meta.expected, named: meta.named,
-                unnamed: meta.unnamed, detected: meta.detected
-            });
-            if (pendEl) {
-                var pending = meta.pending || [];
-                if (!pending.length) {
-                    pendEl.textContent = "";
-                } else {
-                    pendEl.textContent = fill(i18n.pending, {items: pending.map(function (p) {
-                        return p.family_name + " (−" + p.missing + ")";
-                    }).join(", ")});
+            var expected = 0;
+            var detected = 0;
+            var seen = false;
+
+            if (meta) {
+                expected = Number(meta.expected) || 0;
+                detected = Number(meta.detected) || 0;
+                seen = true;
+                if (metaEl) {
+                    metaEl.textContent = fill(i18n.catMeta, {
+                        expected: expected,
+                        detected: detected
+                    });
                 }
+                if (pendEl) {
+                    var pending = meta.pending || [];
+                    pendEl.textContent = pending.length
+                        ? fill(i18n.pending, {items: pending.map(function (p) {
+                            return p.family_name + " (−" + p.missing + ")";
+                        }).join(", ")})
+                        : "";
+                }
+            } else {
+                table.querySelectorAll('tr[data-family-code][data-category-name="' + cat + '"]').forEach(function (fam) {
+                    var exp = Number(fam.getAttribute("data-expected-value"));
+                    var detAttr = fam.getAttribute("data-detected-value");
+                    if (!isNaN(exp)) expected += exp;
+                    if (detAttr != null && detAttr !== "") {
+                        detected += Number(detAttr) || 0;
+                        seen = true;
+                    }
+                });
+                if (metaEl) {
+                    metaEl.textContent = seen
+                        ? fill(i18n.catMeta, {expected: expected, detected: detected})
+                        : "";
+                }
+                if (pendEl) pendEl.textContent = "";
             }
+
+            row.setAttribute("data-presence", seen ? presenceFor(expected, detected) : "pending");
         });
     }
 
     function applyState(session, source) {
         if (!session) return;
-        statusEl.textContent = fill(i18n.status, {status: (session.status || "—") + (session.message ? " · " + session.message : "")});
+        var statusBits = [];
+        if (liveMode) statusBits.push(i18n.live);
+        else if (session.status) statusBits.push(session.status);
+        if (session.message) statusBits.push(session.message);
+        statusEl.textContent = statusBits.length
+            ? fill(i18n.status, {status: statusBits.join(" · ")})
+            : "";
         if (typeof session.progress === "number") {
             progressEl.textContent = fill(i18n.progress, {percent: Math.round(session.progress * 100)});
+        } else {
+            progressEl.textContent = "";
         }
         if (session.model_version) {
-            modelEl.textContent = fill(i18n.model, {model: session.model_version
-                + (session.pipeline ? " · " + session.pipeline : "")
-                + (session.assign_solver ? " / " + session.assign_solver : "")
-                + (session.model_device ? " · " + session.model_device : "")});
+            modelEl.textContent = fill(i18n.model, {model: session.model_version});
         }
         if (session.latency_ms != null) {
             latencyEl.textContent = fill(i18n.latency, {
-                total: Math.round(Number(session.latency_ms)),
-                yolo: Math.round(Number(session.last_yolo_ms || 0)),
-                post: Math.round(Number(session.last_post_ms || 0)),
-                avg: Math.round(Number(session.latency_avg_ms || session.latency_ms)),
-                max: Math.round(Number(session.latency_max_ms || session.latency_ms)),
-                n: session.latency_n || 1
+                total: Math.round(Number(session.latency_ms))
             });
         }
+        refreshToolbarMeta();
         var skipJpeg = liveMode && source !== "ws";
         if (session.frame_jpeg_b64 && !skipJpeg && session.frames_processed !== lastProcessed) {
             lastProcessed = session.frames_processed;
             img.src = "data:image/jpeg;base64," + session.frame_jpeg_b64;
             img.hidden = false;
-            placeholder.hidden = true;
+            if (placeholder) placeholder.hidden = true;
+            /* Keep raw grabber hidden; only the annotated JPEG is visible. */
+            if (liveVideo) liveVideo.hidden = true;
+            setStageLoading(false);
         }
         var counts = session.counts || {};
         table.querySelectorAll("tr[data-family-code]").forEach(function (row) {
@@ -153,21 +219,25 @@
             var meta = counts[code];
             var det = row.querySelector("[data-detected]");
             var diff = row.querySelector("[data-diff]");
-            var best = row.querySelector("[data-best]");
-            var weak = row.querySelector("[data-weak]");
-            var conf = row.querySelector("[data-conf]");
-            if (!meta) return;
+            if (!meta || !det || !diff) return;
             det.textContent = String(meta.detected_quantity);
             diff.textContent = meta.difference;
-            best.textContent = fmt(meta.best_confidence);
-            weak.textContent = fmt(meta.weakest_confidence);
-            conf.textContent = fmt(meta.avg_confidence);
+            det.classList.remove("is-waiting");
+            diff.classList.remove("is-waiting");
             row.setAttribute("data-detected-value", meta.detected_quantity);
         });
         applyCategorySummary(session.category_summary);
         updateTotals();
         fileMode = session.capture_source === "file" && session.status === "processing";
         if (stopFileBtn) stopFileBtn.hidden = !fileMode;
+        /* Loading overlay only until the first annotated frame arrives. */
+        if (img && !img.hidden) {
+            setStageLoading(false);
+        } else if (fileMode) {
+            setStageLoading(true, i18n.processing);
+        } else if (!liveMode) {
+            setStageLoading(false);
+        }
     }
 
     function updateTotals() {
@@ -183,8 +253,12 @@
             }
         });
         var expected = Number(totalRow.getAttribute("data-total-expected")) || 0;
-        totalRow.querySelector("[data-total-detected]").textContent = seen ? detected : "—";
-        totalRow.querySelector("[data-total-diff]").textContent = seen ? detected - expected : "—";
+        var detEl = totalRow.querySelector("[data-total-detected]");
+        var diffEl = totalRow.querySelector("[data-total-diff]");
+        detEl.textContent = seen ? detected : "—";
+        diffEl.textContent = seen ? detected - expected : "—";
+        detEl.classList.toggle("is-waiting", !seen);
+        diffEl.classList.toggle("is-waiting", !seen);
     }
 
     function pollDelayMs(session) {
@@ -302,7 +376,7 @@
         }
         if (msg.type === "error") {
             workerBusy = false;
-            if (cameraErr) cameraErr.textContent = msg.message || msg.code || "";
+            setCameraError(msg.message || msg.code || "");
             if (msg.code === "busy" || msg.code === "unauthorized") {
                 /* keep camera; user can retry start */
             }
@@ -334,6 +408,8 @@
                     workerBusy = false;
                     if (cameraBtn) cameraBtn.textContent = i18n.camStop;
                     statusEl.textContent = fill(i18n.status, {status: i18n.live});
+                    refreshToolbarMeta();
+                    setStageLoading(false);
                     grabLoop();
                     resolve();
                     return;
@@ -370,12 +446,12 @@
             cameraSelect.innerHTML = "";
             var def = document.createElement("option");
             def.value = "";
-            def.textContent = i18n.camStart === "Start camera" ? "Default camera" : "Default camera";
+            def.textContent = i18n.camDefault;
             cameraSelect.appendChild(def);
             cams.forEach(function (cam, i) {
                 var opt = document.createElement("option");
                 opt.value = cam.deviceId;
-                opt.textContent = cam.label || ("Camera " + (i + 1));
+                opt.textContent = cam.label || fill(i18n.camN, { n: i + 1 });
                 cameraSelect.appendChild(opt);
             });
             if (current) cameraSelect.value = current;
@@ -385,13 +461,15 @@
 
     function startCamera() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            if (cameraErr) cameraErr.textContent = i18n.camMissing;
+            setCameraError(i18n.camMissing);
             return Promise.reject(new Error("getUserMedia"));
         }
         var constraints = { video: true, audio: false };
         if (cameraSelect && cameraSelect.value) {
             constraints.video = { deviceId: { exact: cameraSelect.value } };
         }
+        setStageLoading(true, i18n.connecting);
+        setCameraError("");
         return postCancel().then(function () {
             return navigator.mediaDevices.getUserMedia(constraints);
         }).then(function (stream) {
@@ -399,19 +477,22 @@
             mediaStream = stream;
             liveVideo.srcObject = stream;
             liveVideo.muted = true;
+            liveVideo.hidden = true;
+            if (img) img.hidden = true;
             return liveVideo.play().catch(function () { /* autoplay policies */ });
         }).then(function () {
             listCameras();
-            if (cameraErr) cameraErr.textContent = "";
+            setCameraError("");
             return fetchTicket();
         }).then(function (issued) {
             return connectWs(issued.ticket, issued.ws_url);
         }).catch(function (err) {
+            setStageLoading(false);
             var name = err && err.name;
-            if (name === "NotAllowedError") cameraErr.textContent = i18n.camDenied;
-            else if (name === "NotFoundError") cameraErr.textContent = i18n.camMissing;
-            else if (name === "NotReadableError") cameraErr.textContent = i18n.camBusy;
-            else if (cameraErr) cameraErr.textContent = String(err.message || err);
+            if (name === "NotAllowedError") setCameraError(i18n.camDenied);
+            else if (name === "NotFoundError") setCameraError(i18n.camMissing);
+            else if (name === "NotReadableError") setCameraError(i18n.camBusy);
+            else setCameraError(String(err.message || err));
             throw err;
         });
     }
@@ -434,10 +515,18 @@
         cameraBtn.addEventListener("click", function () {
             if (liveMode) {
                 stopCamera();
+                statusEl.textContent = "";
+                refreshToolbarMeta();
                 return;
             }
             cameraBtn.disabled = true;
-            startCamera().finally(function () { cameraBtn.disabled = false; });
+            cameraBtn.setAttribute("aria-busy", "true");
+            startCamera()
+                .catch(function () { /* error already shown */ })
+                .finally(function () {
+                    cameraBtn.disabled = false;
+                    cameraBtn.removeAttribute("aria-busy");
+                });
         });
     }
 
@@ -465,20 +554,29 @@
         var fd = new FormData();
         fd.append("video", fileInput.files[0]);
         uploadBtn.disabled = true;
+        uploadBtn.setAttribute("aria-busy", "true");
         statusEl.textContent = fill(i18n.status, {status: i18n.uploading});
+        refreshToolbarMeta();
+        setStageLoading(true, i18n.uploading);
         closeWs();
         postCancel().then(function () {
             return fetch(uploadUrl, { method: "POST", body: fd, credentials: "same-origin" });
         }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
             .then(function (res) {
                 if (!res.ok) {
-                    statusEl.textContent = fill(i18n.status, {status: fill(i18n.error, {detail: res.j.error || i18n.uploadFailed})});
+                    statusEl.textContent = fill(i18n.status, {
+                        status: fill(i18n.error, {detail: res.j.error || i18n.uploadFailed})
+                    });
+                    refreshToolbarMeta();
+                    setStageLoading(false);
                     return;
                 }
                 liveMode = false;
                 fileMode = true;
                 if (stopFileBtn) stopFileBtn.hidden = false;
                 statusEl.textContent = fill(i18n.status, {status: i18n.processing});
+                refreshToolbarMeta();
+                setStageLoading(true, i18n.processing);
                 if (res.j.session) {
                     lastSession = res.j.session;
                     applyState(res.j.session, "poll");
@@ -488,21 +586,46 @@
             })
             .catch(function (err) {
                 statusEl.textContent = fill(i18n.status, {status: fill(i18n.error, {detail: err})});
+                refreshToolbarMeta();
+                setStageLoading(false);
             })
-            .finally(function () { uploadBtn.disabled = false; });
+            .finally(function () {
+                uploadBtn.disabled = false;
+                uploadBtn.removeAttribute("aria-busy");
+            });
     });
 
     phaseForm.addEventListener("submit", function (ev) {
         ev.preventDefault();
+        var submitBtn = phaseForm.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.setAttribute("aria-busy", "true");
+        }
         var fd = new FormData(phaseForm);
         fetch(phaseUrl, { method: "POST", body: fd, credentials: "same-origin" })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                phaseMsg.textContent = data.ok
-                    ? fill(i18n.phaseChanged, {phase: data.phase_code})
-                    : (data.error || i18n.phaseFailed);
+                if (data.ok) {
+                    var label = data.phase_name || data.phase_code || "";
+                    phaseMsg.textContent = fill(i18n.phaseChanged, {phase: label || data.phase_code});
+                    if (phaseCurrentName && label) {
+                        phaseCurrentName.textContent = label;
+                    }
+                    if (phaseSelect && data.phase_code) {
+                        phaseSelect.value = data.phase_code;
+                    }
+                } else {
+                    phaseMsg.textContent = data.error || i18n.phaseFailed;
+                }
             })
-            .catch(function (err) { phaseMsg.textContent = String(err); });
+            .catch(function (err) { phaseMsg.textContent = String(err); })
+            .finally(function () {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.removeAttribute("aria-busy");
+                }
+            });
     });
 
     function shutdown() {

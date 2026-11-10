@@ -191,6 +191,17 @@ def start_session(*, session_id: UUID, operator_user_id: UUID, institution_id: U
         except Exception:
             # Worker may be down; OP capture UI shows offline banner and can retry bind.
             pass
+        try:
+            from services.evidence_bus import publish_evidence_trigger
+            publish_evidence_trigger(
+                session_id=session_id,
+                reason="start",
+                phase_id=work.current_phase_id,
+                occurred_at=now,
+                extra=evidence_clip_context(session_id, phase=phase),
+            )
+        except Exception:
+            pass
 
     return {"capture_mode": capture_mode, "session_id": str(session_id)}
 
@@ -368,6 +379,81 @@ def get_vision_snapshot(session_id: UUID | str) -> dict | None:
     return _VISION_SNAPSHOTS.get(str(session_id))
 
 
+def evidence_clip_context(
+    session_id: UUID | str,
+    *,
+    counts: dict | None = None,
+    phase: CatOperationPhase | None = None,
+) -> dict:
+    """Snapshot for evidence sidecar: phase labels + detected/expected ratio at trigger time."""
+    try:
+        work = db.session.get(WorkSession, UUID(str(session_id)))
+    except (TypeError, ValueError):
+        work = None
+    if phase is None and work is not None and work.current_phase_id:
+        phase = db.session.get(CatOperationPhase, work.current_phase_id)
+
+    src_counts = counts
+    ratio_source = "caller" if counts is not None else None
+    if src_counts is None:
+        snap = get_vision_snapshot(session_id) or {}
+        src_counts = snap.get("counts") or {}
+        if src_counts:
+            ratio_source = "finish_snapshot"
+    if not src_counts:
+        # Live / lab: VisionWorker holds current board; finish snapshot may be empty mid-session.
+        try:
+            from services.vision_bridge import fetch_state
+            worker_payload = fetch_state(UUID(str(session_id)))
+            worker = (worker_payload or {}).get("session") or {}
+            src_counts = worker.get("counts") or {}
+            if src_counts:
+                ratio_source = "vision_worker_http"
+        except Exception:
+            src_counts = src_counts or {}
+
+    by_family: dict[str, dict] = {}
+    for _code, meta in (src_counts or {}).items():
+        if not isinstance(meta, dict):
+            continue
+        fid = str(meta.get("family_id") or "")
+        if fid:
+            by_family[fid] = meta
+
+    expected_total = 0
+    detected_total = 0
+    inv = []
+    if work is not None:
+        inv = db.session.execute(
+            select(ExpectedInventory).where(ExpectedInventory.session_id == work.id)
+        ).scalars().all()
+    if inv:
+        for row in inv:
+            expected_total += int(row.expected_quantity or 0)
+            meta = by_family.get(str(row.family_id), {})
+            detected_total += int(meta.get("detected_quantity") or 0)
+    else:
+        for meta in by_family.values():
+            expected_total += int(meta.get("expected_quantity") or 0)
+            detected_total += int(meta.get("detected_quantity") or 0)
+
+    phase_code = phase.code if phase else None
+    phase_name = (
+        localize_db_label("operation_phase", phase.code, phase.name) if phase else None
+    )
+    ratio_label = f"{detected_total}/{expected_total}" if expected_total else None
+    out = {
+        "phase_code": phase_code,
+        "phase_name": phase_name,
+        "ratio_label": ratio_label,
+        "detected_total": detected_total,
+        "expected_total": expected_total,
+    }
+    if ratio_source:
+        out["ratio_source"] = ratio_source
+    return out
+
+
 def clear_auto_count_flush_keys_for_session(session_id: UUID | str) -> None:
     sid = str(session_id)
     stale = [key for key in _AUTO_COUNT_FLUSHED if key.startswith(f"{sid}:")]
@@ -381,7 +467,7 @@ def clear_vision_snapshot(session_id: UUID | str) -> None:
     clear_auto_count_flush_keys_for_session(sid)
 
 
-def change_phase_stub(
+def change_phase(
     *,
     session_id: UUID,
     operator_user_id: UUID,
@@ -389,7 +475,7 @@ def change_phase_stub(
     to_phase_code: str,
     ip: str | None = None,
 ) -> dict:
-    """Real phase UPDATE + count_event; no Mongo/Garage side effects in this demo cycle."""
+    """UPDATE current_phase + INSERT phase_change; publish evidence trigger (vision only)."""
     work = db.session.get(WorkSession, session_id)
     if work is None:
         raise RfSessionError(N_("Session not found."), 404)
@@ -406,31 +492,58 @@ def change_phase_stub(
     work.current_phase_id = to_phase.id
     work.phase_changed_at = now
     work.updated_at = now
+    payload = {
+        "from_phase": from_phase.code if from_phase else None,
+        "to_phase": to_phase.code,
+        "phase_id": str(to_phase.id),
+        "phase_code": to_phase.code,
+        "occurred_at": now.isoformat(),
+        "capture_mode": work.capture_mode,
+        "source": "station_button",
+    }
     db.session.add(CountEvent(
         event_type_id=_event_type_id("phase_change"),
         session_id=session_id,
         user_id=operator_user_id,
         occurred_at=now,
-        payload={
-            "from_phase": from_phase.code if from_phase else None,
-            "to_phase": to_phase.code,
-            "phase_id": str(to_phase.id),
-            "phase_code": to_phase.code,
-            "capture_mode": work.capture_mode,
-            "source": "station_button",
-            "stub": True,
-        },
+        payload=payload,
     ))
     try:
         db.session.commit()
     except SQLAlchemyError as exc:
         db.session.rollback()
         raise RfSessionError(N_("Could not change phase; please retry."), 503) from exc
+
+    if work.capture_mode == "vision":
+        try:
+            from services.evidence_bus import publish_evidence_trigger
+            ctx = evidence_clip_context(session_id, phase=to_phase)
+            publish_evidence_trigger(
+                session_id=session_id,
+                reason="phase",
+                phase_id=to_phase.id,
+                occurred_at=now,
+                extra={
+                    "from_phase": payload["from_phase"],
+                    "to_phase": payload["to_phase"],
+                    **ctx,
+                },
+            )
+        except Exception:
+            pass
+
     return {
         "session_id": str(session_id),
         "phase_code": to_phase.code,
         "phase_name": localize_db_label("operation_phase", to_phase.code, to_phase.name),
+        "occurred_at": now.isoformat(),
+        "from_phase": payload["from_phase"],
+        "to_phase": payload["to_phase"],
     }
+
+
+# Backward-compatible alias (routes / older imports).
+change_phase_stub = change_phase
 
 
 _BOARD_METRIC_KEYS = (
@@ -815,6 +928,23 @@ def finish_vision_counting(
         "finished_at": utc_now().isoformat(),
     }
     store_vision_snapshot(session_id, snapshot)
+    try:
+        from services.evidence_bus import publish_evidence_trigger
+        phase = db.session.get(CatOperationPhase, work.current_phase_id) if work.current_phase_id else None
+        ctx = evidence_clip_context(session_id, counts=counts, phase=phase)
+        publish_evidence_trigger(
+            session_id=session_id,
+            reason="close",
+            phase_id=work.current_phase_id,
+            occurred_at=utc_now(),
+            extra={
+                "run_id": run_id,
+                "frames_processed": frames_processed,
+                **ctx,
+            },
+        )
+    except Exception:
+        pass
     return snapshot
 
 

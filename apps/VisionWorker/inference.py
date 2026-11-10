@@ -20,6 +20,7 @@ from assign import assign_boxes
 from category_colors import overlay_bgr
 from config import (
     ASSIGN_SOLVER,
+    CONFUSION_HOLD_SECONDS,
     CONF_DISPLAY_THRESHOLD,
     COUNT_SAMPLE_INTERVAL_S,
     FRAME_STRIDE_CPU,
@@ -36,12 +37,16 @@ from config import (
     WORKER_PIPELINE,
     WEIGHTS_PATH,
 )
+from evidence_queue import push_camera_jpeg
 from infer_pipeline import detect_with_class_scores
 from tracks import commit_track_families, update_box_tracks
 
 _model = None
 _model_device = "cpu"
 _model_lock = threading.Lock()
+# Throttle lab-video → evidence ring (~10 fps wall) so Redis/ring stay healthy.
+_last_evidence_push_at: dict[str, float] = {}
+_EVIDENCE_PUSH_MIN_GAP_S = 0.1
 
 
 def _wanted_device() -> torch.device:
@@ -139,6 +144,7 @@ class SessionState:
     run_id: str | None = None
     hold_seconds: float = HOLD_SECONDS
     name_hold_seconds: float = NAME_HOLD_SECONDS
+    confusion_hold_seconds: float = CONFUSION_HOLD_SECONDS
     hold_min_score: float = HOLD_MIN_SCORE
     hold_absent_seconds: float = HOLD_ABSENT_SECONDS
     hold_absent_streak: int = HOLD_ABSENT_STREAK
@@ -163,6 +169,8 @@ class SessionState:
     latency_n: int = 0
     # family_code -> hold snapshot
     _hold_by_family: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # family_code -> confusion hold (top2–N only; 5 s renew)
+    _confusion_by_family: dict[str, dict[str, Any]] = field(default_factory=dict)
     # family_code -> video_t when the current live run started
     _live_since: dict[str, float] = field(default_factory=dict)
     # family_code -> video_t of last *sustained* live (seed-gate met)
@@ -193,6 +201,7 @@ class SessionState:
             "run_id": self.run_id,
             "hold_seconds": self.hold_seconds,
             "name_hold_seconds": self.name_hold_seconds,
+            "confusion_hold_seconds": self.confusion_hold_seconds,
             "hold_absent_seconds": self.hold_absent_seconds,
             "hold_absent_streak": self.hold_absent_streak,
             "hold_seed_frames": self.hold_seed_frames,
@@ -342,6 +351,176 @@ def _family_live_stats(boxes: list[dict[str, Any]], code: str) -> tuple[float, b
     return best, named
 
 
+def _box_topk(box: dict[str, Any] | None) -> list[dict[str, Any]]:
+    if not box:
+        return []
+    raw = box.get("raw") or {}
+    audit = box.get("audit") or {}
+    topk = raw.get("topk") or audit.get("topk") or []
+    return topk if isinstance(topk, list) else []
+
+
+def _top1_already_assigned(
+    box: dict[str, Any],
+    top1_code: str | None,
+    *,
+    counts: dict[str, dict[str, Any]],
+    expected: dict[str, dict[str, Any]],
+) -> bool:
+    """True when this box's YOLO top1 is already taken (assigned / quota full)."""
+    if not top1_code:
+        return False
+    assigned = _box_family_code(box)
+    if assigned == top1_code:
+        return True
+    exp_q = int((expected.get(top1_code) or {}).get("expected_quantity") or 0)
+    det_q = int((counts.get(top1_code) or {}).get("detected_quantity") or 0)
+    if exp_q > 0 and det_q >= exp_q:
+        return True
+    return False
+
+
+def _confusion_ghost_box(
+    source: dict[str, Any],
+    *,
+    code: str,
+    family_name: str,
+    score: float,
+) -> dict[str, Any]:
+    ghost = copy.deepcopy(source)
+    ghost["family_code"] = code
+    ghost["family_id"] = ghost.get("family_id")
+    ghost["family_name"] = family_name
+    ghost["label"] = family_name
+    ghost["confidence"] = float(score)
+    ghost["high_confidence"] = False
+    ghost["sticky_name"] = True
+    ghost["held"] = True
+    ghost["resolution_reason"] = "confusion_hold"
+    return ghost
+
+
+def _refresh_confusion_holds(
+    state: SessionState,
+    *,
+    counts: dict[str, dict[str, Any]],
+    public_boxes: list[dict[str, Any]],
+    video_t: float,
+) -> None:
+    """Retain missing families seen only as top2–N while top1 is already assigned.
+
+    Renews the 5 s window each time the family reappears in selectable top2–N.
+    Never seeds from top1.
+    """
+    ttl = max(0.0, float(state.confusion_hold_seconds))
+    if ttl <= 0:
+        state._confusion_by_family = {}
+        return
+
+    refreshed: set[str] = set()
+    for box in public_boxes:
+        topk = _box_topk(box)
+        if len(topk) < 2:
+            continue
+        top1_code = (topk[0] or {}).get("family_code")
+        if isinstance(top1_code, str):
+            top1_code = top1_code.strip() or None
+        else:
+            top1_code = None
+        if not _top1_already_assigned(
+            box, top1_code, counts=counts, expected=state.expected
+        ):
+            continue
+        for entry in topk[1:]:
+            code = (entry or {}).get("family_code")
+            if not code or code not in state.expected:
+                continue
+            if code == top1_code:
+                continue
+            live_n = int((counts.get(code) or {}).get("detected_quantity") or 0)
+            if live_n > 0:
+                # Already a live assignment — normal hold owns this family.
+                continue
+            exp_q = int((state.expected.get(code) or {}).get("expected_quantity") or 0)
+            if exp_q <= 0:
+                continue
+            score = float((entry or {}).get("score") or 0.0)
+            family_name = (
+                (entry or {}).get("family_name")
+                or (state.expected.get(code) or {}).get("family_name")
+                or code
+            )
+            prev = state._confusion_by_family.get(code)
+            ghost = _confusion_ghost_box(
+                box, code=code, family_name=family_name, score=score
+            )
+            exp_meta = state.expected.get(code) or {}
+            state._confusion_by_family[code] = {
+                "until": video_t + ttl,
+                "score": max(score, float((prev or {}).get("score") or 0.0)),
+                "boxes": [ghost],
+                "named": True,
+                "family_name": family_name,
+                "count": {
+                    "family_id": exp_meta.get("family_id"),
+                    "family_code": code,
+                    "family_name": family_name,
+                    "category_name": exp_meta.get("category_name"),
+                    "expected_quantity": exp_q,
+                    "detected_quantity": 1,
+                    "raw_detected_quantity": 0,
+                    "difference": 1 - exp_q,
+                    "held": True,
+                    "sticky_name": True,
+                    "confusion_hold": True,
+                },
+            }
+            refreshed.add(code)
+
+    expired = [
+        code
+        for code, hold in state._confusion_by_family.items()
+        if video_t > float(hold.get("until") or 0)
+    ]
+    for code in expired:
+        state._confusion_by_family.pop(code, None)
+
+
+def _merge_confusion_holds(
+    state: SessionState,
+    *,
+    out_counts: dict[str, dict[str, Any]],
+    held_boxes: list[dict[str, Any]],
+    video_t: float,
+) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
+    """Apply active confusion holds to families still at 0 live / 0 count-hold."""
+    extra_boxes: list[dict[str, Any]] = []
+    for code, hold in list(state._confusion_by_family.items()):
+        if video_t > float(hold.get("until") or 0):
+            state._confusion_by_family.pop(code, None)
+            continue
+        cur = out_counts.get(code) or {}
+        if int(cur.get("detected_quantity") or 0) > 0:
+            continue
+        restored = copy.deepcopy(hold.get("count") or {})
+        restored["held"] = True
+        restored["sticky_name"] = True
+        restored["confusion_hold"] = True
+        restored["hold_remaining_s"] = round(float(hold["until"]) - video_t, 2)
+        restored["raw_detected_quantity"] = cur.get("raw_detected_quantity", 0)
+        restored["difference"] = int(restored.get("detected_quantity") or 0) - int(
+            restored.get("expected_quantity") or 0
+        )
+        out_counts[code] = restored
+        for b in hold.get("boxes") or []:
+            hb = copy.deepcopy(b)
+            hb["held"] = True
+            hb["sticky_name"] = True
+            hb["confusion_hold"] = True
+            extra_boxes.append(hb)
+    return out_counts, held_boxes + extra_boxes
+
+
 def _xyxy_iou(a: list[float] | tuple[float, ...], b: list[float] | tuple[float, ...]) -> float:
     try:
         ax1, ay1, ax2, ay2 = [float(v) for v in a[:4]]
@@ -476,13 +655,16 @@ def _apply_hold(
     video_t: float,
 ) -> tuple[dict[str, dict[str, Any]], list[dict[str, Any]]]:
     """
-    Count-hold + sticky naming with production-minded gates:
+    Count-hold + sticky naming + confusion (top2–N) retention:
     - Seed / refresh long *count* TTL only after sustained live (CPU-stride-equivalent tape time).
     - Count clock is a timeout from last sustained live; zone overlap does not restart it.
-    - While YOLO still emits a box for that family (even conf < 0.70), keep sticky *name*.
+    - Named sticky: keep the family *name* while the slot is occupied; do not shrink
+      name_until on confirmed absence (name expires only after name_hold_seconds).
     - Unassigned type box in the same slot also keeps the name; another family does not.
-    - After tape-time of absence without same-slot occupancy, shrink to HOLD_ABSENT_SECONDS.
-    - A 1-frame flicker does not reset the absence clock nor extend the long hold.
+    - After tape-time of absence without same-slot occupancy, shrink *count* to HOLD_ABSENT_SECONDS.
+    - Confusion: missing families that appear only in top2–N (top1 already assigned) get a
+      5 s renewing hold. Never seeded from top1.
+    - A 1-frame flicker does not reset the absence clock nor extend the long count hold.
     """
     ttl = max(0.0, float(state.hold_seconds))
     name_ttl = max(ttl, float(state.name_hold_seconds))
@@ -549,7 +731,12 @@ def _apply_hold(
             if prev.get("named") or live_named:
                 prev["name_until"] = video_t + name_ttl
 
-    # Absent path: tape-time since last sustained live, then short TTL unless
+    # Confusion hold (top2–N only) renews independently of count seed gates.
+    _refresh_confusion_holds(
+        state, counts=counts, public_boxes=public_boxes, video_t=video_t
+    )
+
+    # Absent path: tape-time since last sustained live, then short *count* TTL unless
     # YOLO still occupies *this* slot (unassigned/type or same family).
     for code in list(state.expected.keys()):
         if code in live_codes:
@@ -576,13 +763,8 @@ def _apply_hold(
             continue
         if (video_t - float(last_good)) < absent_s:
             continue
-        # Confirmed gone: shrink remaining hold/name windows.
+        # Confirmed gone: shrink count window only. Named sticky keeps name_until.
         hold["until"] = min(float(hold.get("until") or 0), video_t + absent_ttl)
-        if hold.get("named"):
-            hold["name_until"] = min(
-                float(hold.get("name_until") or 0),
-                video_t + max(absent_ttl, absent_ttl * 1.25),
-            )
 
     sticky_boxes: list[dict[str, Any]] = []
     for box in public_boxes:
@@ -625,6 +807,8 @@ def _apply_hold(
             hold = state._hold_by_family.get(code)
             if hold and hold.get("named") and video_t <= float(hold.get("name_until") or 0):
                 out_counts[code]["sticky_name"] = True
+            # Live assignment wins over confusion ghost for this family.
+            state._confusion_by_family.pop(code, None)
             continue
         hold = state._hold_by_family.get(code)
         if not hold:
@@ -646,6 +830,7 @@ def _apply_hold(
             restored.get("expected_quantity") or 0
         )
         out_counts[code] = restored
+        state._confusion_by_family.pop(code, None)
         for b in hold.get("boxes") or []:
             hb = copy.deepcopy(b)
             hb["held"] = True
@@ -654,7 +839,13 @@ def _apply_hold(
                 hb["sticky_name"] = True
             held_boxes.append(hb)
 
-    return out_counts, sticky_boxes + held_boxes
+    out_counts, all_boxes = _merge_confusion_holds(
+        state,
+        out_counts=out_counts,
+        held_boxes=sticky_boxes + held_boxes,
+        video_t=video_t,
+    )
+    return out_counts, all_boxes
 
 
 def _overlay_quota_boxes(
@@ -757,6 +948,7 @@ def _metrics_payload(state: SessionState) -> dict[str, Any]:
         "frames_processed": state.frames_processed,
         "hold_seconds": state.hold_seconds,
         "name_hold_seconds": state.name_hold_seconds,
+        "confusion_hold_seconds": state.confusion_hold_seconds,
         "frame_stride": state.frame_stride,
         "count_sample_interval_s": state.count_sample_interval_s,
         "video_t": state.video_t,
@@ -1024,8 +1216,9 @@ def _reset_timeline(state: SessionState) -> None:
 
 
 def reset_hold_state(state: SessionState) -> None:
-    """Drop hold/sticky clocks. File video_t and live wall clock must not mix."""
+    """Drop hold/sticky/confusion clocks. File video_t and live wall clock must not mix."""
     state._hold_by_family = {}
+    state._confusion_by_family = {}
     state._live_since = {}
     state._last_good_live_t = {}
     state._tracks = []
@@ -1067,6 +1260,7 @@ def prepare_live_run(state: SessionState) -> None:
     state.count_sample_interval_s = COUNT_SAMPLE_INTERVAL_S
     state.hold_seconds = HOLD_SECONDS
     state.name_hold_seconds = NAME_HOLD_SECONDS
+    state.confusion_hold_seconds = CONFUSION_HOLD_SECONDS
     state.hold_min_score = HOLD_MIN_SCORE
     state.hold_absent_seconds = HOLD_ABSENT_SECONDS
     state.hold_absent_streak = HOLD_ABSENT_STREAK
@@ -1136,6 +1330,23 @@ def run_frame(
     _append_timeline_sample(state, video_t=video_t, final=False)
 
 
+def _push_lab_frame_to_evidence(state: SessionState, frame_bgr: np.ndarray) -> None:
+    """Feed EvidenceWorker ring from lab/file video (same Redis path as live camera)."""
+    sid = str(state.session_id or "")
+    if not sid:
+        return
+    now = time.time()
+    last = float(_last_evidence_push_at.get(sid) or 0.0)
+    if (now - last) < _EVIDENCE_PUSH_MIN_GAP_S:
+        return
+    ok, buf = cv2.imencode(".jpg", frame_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+    if not ok:
+        return
+    b64 = base64.b64encode(buf.tobytes()).decode("ascii")
+    if push_camera_jpeg(sid, b64, captured_at=now):
+        _last_evidence_push_at[sid] = now
+
+
 def process_video_file(path: str, state: SessionState) -> None:
     state.capture_source = "file"
     state.status = "processing"
@@ -1153,6 +1364,7 @@ def process_video_file(path: str, state: SessionState) -> None:
     state.count_sample_interval_s = COUNT_SAMPLE_INTERVAL_S
     state.hold_seconds = HOLD_SECONDS
     state.name_hold_seconds = NAME_HOLD_SECONDS
+    state.confusion_hold_seconds = CONFUSION_HOLD_SECONDS
     state.hold_min_score = HOLD_MIN_SCORE
     state.hold_absent_seconds = HOLD_ABSENT_SECONDS
     state.hold_absent_streak = HOLD_ABSENT_STREAK
@@ -1185,6 +1397,11 @@ def process_video_file(path: str, state: SessionState) -> None:
             last_video_t = idx / fps
             if idx % state.frame_stride == 0:
                 run_frame(frame, state, video_t=last_video_t)
+                # Lab video must feed the evidence ring (throttled wall-clock).
+                try:
+                    _push_lab_frame_to_evidence(state, frame)
+                except Exception:
+                    pass
             if total > 0:
                 state.progress = min(0.99, (idx + 1) / total)
             idx += 1
@@ -1201,3 +1418,4 @@ def process_video_file(path: str, state: SessionState) -> None:
         state.message = f"Inference error: {exc}"
     finally:
         cap.release()
+        _last_evidence_push_at.pop(str(state.session_id or ""), None)

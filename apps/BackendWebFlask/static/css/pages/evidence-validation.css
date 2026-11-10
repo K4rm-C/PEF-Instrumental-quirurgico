@@ -1,0 +1,212 @@
+/* OP-05 / OP-06: last frame + evidence drawer (cycle close; iterate pixels later). */
+
+.v3-op-ev {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.v3-op-ev__garage-banner {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid #f59e0b;
+    border-radius: var(--radius-md);
+    background: #fffbeb;
+    color: #92400e;
+    font-size: var(--font-size-sm);
+}
+
+.v3-op-ev__garage-banner[hidden] {
+    display: none !important;
+}
+
+.v3-op-ev__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+    gap: var(--space-4);
+    align-items: start;
+}
+
+.v3-op-ev__layout.is-drawer-closed {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.v3-op-ev__layout.is-drawer-closed .v3-op-ev__drawer {
+    display: none;
+}
+
+.v3-op-ev__stage-card {
+    padding: var(--space-3);
+}
+
+.v3-op-ev__stage {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: min(52vh, 520px);
+    overflow: hidden;
+    border: 1px solid #334155;
+    border-radius: calc(var(--radius-lg) - var(--space-2));
+    background: #0b1220;
+    cursor: zoom-in;
+}
+
+.v3-op-ev__stage img,
+.v3-op-ev__stage video {
+    display: block;
+    width: 100%;
+    max-height: min(52vh, 520px);
+    object-fit: contain;
+    background: #000;
+}
+
+.v3-op-ev__stage video {
+    cursor: default;
+}
+
+.v3-op-ev__placeholder {
+    padding: var(--space-8) var(--space-5);
+    color: #94a3b8;
+    text-align: center;
+}
+
+.v3-op-ev__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+    align-items: center;
+}
+
+.v3-op-ev__meta {
+    margin-left: auto;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.v3-op-ev__drawer {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    padding: var(--space-3);
+    max-height: min(70vh, 640px);
+    overflow: auto;
+}
+
+.v3-op-ev__drawer-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.v3-op-ev__drawer-title {
+    margin: 0;
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-op-ev__clip-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.v3-op-ev__clip {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    width: 100%;
+    text-align: left;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-secondary);
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.v3-op-ev__clip:hover,
+.v3-op-ev__clip.is-active {
+    border-color: var(--color-primary);
+    background: var(--color-primary-surface);
+}
+
+.v3-op-ev__clip-reason {
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    text-transform: capitalize;
+}
+
+.v3-op-ev__clip-meta {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.v3-op-ev__empty {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.v3-op-ev__lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.88);
+    padding: var(--space-4);
+}
+
+.v3-op-ev__lightbox.is-open {
+    display: flex;
+}
+
+.v3-op-ev__lightbox-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    width: min(96vw, 1200px);
+    max-height: 92vh;
+}
+
+.v3-op-ev__lightbox-media {
+    display: flex;
+    justify-content: center;
+    min-width: 0;
+}
+
+.v3-op-ev__lightbox-media img,
+.v3-op-ev__lightbox-inner img {
+    display: block;
+    width: 100%;
+    max-height: 80vh;
+    object-fit: contain;
+    background: #000;
+}
+
+.v3-op-ev__lightbox-close {
+    position: static;
+    width: 100%;
+    align-self: stretch;
+}
+
+@media (max-width: 960px) {
+    .v3-op-ev__layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .v3-op-ev__drawer {
+        max-height: none;
+    }
+}

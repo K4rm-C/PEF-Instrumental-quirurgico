@@ -1,7 +1,7 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
-{% block title %}{{ session.session_id }} · {{ _("Capture") }}{% endblock %}
+{% block title %}{{ session.session_id }} · {{ _("Live tray count") }}{% endblock %}
 
 {% block sidebar %}
 {% set active_nav_item = 'counting_sessions' %}
@@ -69,197 +69,173 @@
   --kit-other: #94a3b8;
   --kit-other-soft: #cbd5e1;
 }
-.capture-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1.25rem; }
-@media (max-width: 960px) { .capture-layout { grid-template-columns: 1fr; } }
-.capture-stage {
-  background: #0b1220; color: #e2e8f0; border-radius: .75rem; min-height: 280px;
-  display: flex; flex-direction: column; align-items: stretch; justify-content: center;
-  overflow: hidden; border: 1px solid #334155;
-}
-.capture-stage img { width: 100%; max-height: 420px; object-fit: contain; background: #000; display: block; }
-.capture-stage__placeholder { padding: 2rem 1rem; text-align: center; color: #94a3b8; }
-.capture-meta { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin-top: .75rem; font-size: .9rem; color: var(--color-text-secondary); }
-.capture-upload { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; margin-top: 1rem; }
-.capture-cat-header td {
-  font-weight: 600; font-size: .85rem; color: var(--color-text-primary);
-  padding-top: .65rem; padding-bottom: .65rem;
-  border-left: 4px solid var(--kit-swatch, var(--kit-other));
-  background: color-mix(in srgb, var(--kit-swatch, var(--kit-other)) 16%, var(--color-surface));
-}
-.capture-cat-header[data-category-code="cutting"] { --kit-swatch: var(--kit-cutting); }
-.capture-cat-header[data-category-code="dissection"] { --kit-swatch: var(--kit-dissection); }
-.capture-cat-header[data-category-code="grasping"] { --kit-swatch: var(--kit-grasping); }
-.capture-cat-header[data-category-code="hemostasis"] { --kit-swatch: var(--kit-hemostasis); }
-.capture-cat-header[data-category-code="retraction"] { --kit-swatch: var(--kit-retraction); }
-.capture-cat-header[data-category-code="suturing"] { --kit-swatch: var(--kit-suturing); }
-.capture-cat-header[data-category-code="suction"] { --kit-swatch: var(--kit-suction); }
-.capture-family-row td:first-child {
-  border-left: 3px solid var(--kit-swatch-soft, transparent);
-  padding-left: .65rem;
-}
-.capture-family-row[data-category-code="cutting"] { --kit-swatch-soft: var(--kit-cutting-soft); }
-.capture-family-row[data-category-code="dissection"] { --kit-swatch-soft: var(--kit-dissection-soft); }
-.capture-family-row[data-category-code="grasping"] { --kit-swatch-soft: var(--kit-grasping-soft); }
-.capture-family-row[data-category-code="hemostasis"] { --kit-swatch-soft: var(--kit-hemostasis-soft); }
-.capture-family-row[data-category-code="retraction"] { --kit-swatch-soft: var(--kit-retraction-soft); }
-.capture-family-row[data-category-code="suturing"] { --kit-swatch-soft: var(--kit-suturing-soft); }
-.capture-family-row[data-category-code="suction"] { --kit-swatch-soft: var(--kit-suction-soft); }
-.capture-cat-meta { font-weight: 500; color: var(--color-text-secondary); font-size: .8rem; margin-left: .5rem; }
-.capture-pending { color: var(--color-warning); font-size: .78rem; }
-.capture-legend {
-  display: flex; flex-wrap: wrap; gap: .5rem .85rem; margin: .75rem 0 0;
-  font-size: .78rem; color: var(--color-text-secondary);
-}
-.capture-legend__item { display: inline-flex; align-items: center; gap: .35rem; }
-.capture-legend__swatch {
-  width: .7rem; height: .7rem; border-radius: 2px;
-  background: var(--kit-swatch, var(--kit-other));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
-}
-.capture-legend__swatch--soft { background: var(--kit-swatch-soft, var(--kit-other-soft)); opacity: .95; }
 </style>
 {% endblock %}
 
 {% block page_content %}
-<div class="page-heading">
-    <div>
-        <h1 class="page-heading__title">{{ _("Active capture") }}</h1>
-        <p class="page-heading__subtitle">{{ session.session_id }} · {{ session.procedure_name }}</p>
-    </div>
-    <a class="btn btn--secondary" href="{{ url_for('web.operator_sessions') }}">{{ _("Back") }}</a>
-</div>
-
-<p>
-    {{ macros.status_badge(session.status_label, session.status_variant) }}
-    {{ macros.status_badge(session.privacy_label, session.privacy_variant) }}
-    {% if session.phase_label %}<span class="text-muted">· {{ _("Phase") }}: {{ session.phase_label }}</span>{% endif %}
-</p>
-
-{% if bind_error or not (worker_health.ok if worker_health is defined else False) %}
-<div class="alert alert--warning" role="alert">
-    <strong>{{ _("Vision worker") }}:</strong>
-    {{ bind_error or (worker_health.error if worker_health is defined else _("Unavailable")) }}
-    — {{ _("You can retry after starting VisionWorker, or use the quantity report fallback.") }}
-</div>
-{% endif %}
-
-<div class="capture-layout">
-    <section class="card">
-        <h2 class="card__title">{{ _("Overhead capture") }}</h2>
-        <p class="card__subtitle">{{ _("Live camera is the main path. Upload a file only for demo or lab replay. Overlay colors follow instrument type: saturated = type-level label, softer = named family.") }}</p>
-        <div class="capture-stage" id="capture-stage">
-            <div class="capture-stage__placeholder" id="capture-placeholder">{{ _("Start the camera to begin live counting.") }}</div>
-            <video id="capture-live-video" playsinline muted hidden></video>
-            <canvas id="capture-live-canvas" hidden></canvas>
-            <img id="capture-frame" alt="{{ _('Annotated frame') }}" hidden>
+<div class="v3-op-capture">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-heading__title">{{ _("Live tray count") }}</h1>
+            <p class="page-heading__subtitle">{{ session.procedure_name }}</p>
         </div>
-        <div class="capture-legend" aria-label="{{ _('Type color legend') }}">
-            <span class="capture-legend__item" style="--kit-swatch: var(--kit-cutting); --kit-swatch-soft: var(--kit-cutting-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Cutting") }}</span>
-            <span class="capture-legend__item" style="--kit-swatch: var(--kit-grasping); --kit-swatch-soft: var(--kit-grasping-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Grasping") }}</span>
-            <span class="capture-legend__item" style="--kit-swatch: var(--kit-hemostasis); --kit-swatch-soft: var(--kit-hemostasis-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Hemostasis") }}</span>
-            <span class="capture-legend__item" style="--kit-swatch: var(--kit-retraction); --kit-swatch-soft: var(--kit-retraction-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Retraction") }}</span>
-            <span class="capture-legend__item" style="--kit-swatch: var(--kit-suturing); --kit-swatch-soft: var(--kit-suturing-soft);"><span class="capture-legend__swatch"></span><span class="capture-legend__swatch capture-legend__swatch--soft"></span> {{ _("Suturing") }}</span>
-        </div>
-        <div class="capture-meta">
-            <span id="capture-status">{{ _("Status") }}: idle</span>
-            <span id="capture-progress"></span>
-            <span id="capture-model"></span>
-            <span id="capture-latency"></span>
-        </div>
-        <div class="capture-upload">
-            <button type="button" class="btn btn--primary" id="capture-camera-btn">{{ _("Start camera") }}</button>
-            <select class="form-field__input" id="capture-camera-select" hidden>
-                <option value="">{{ _("Default camera") }}</option>
-            </select>
-            <button type="button" class="btn btn--secondary" id="capture-stop-file-btn" hidden>{{ _("Stop video / back to camera") }}</button>
-        </div>
-        <p id="capture-camera-error" class="text-muted" style="margin-top:.5rem;"></p>
-        <form class="capture-upload" id="capture-upload-form" enctype="multipart/form-data">
-            <input class="form-field__input" type="file" name="video" id="capture-video"
-                   accept="video/mp4,video/x-matroska,video/quicktime,video/webm,video/x-msvideo,.mp4,.mkv,.mov,.webm,.avi,.m4v" required>
-            <button type="submit" class="btn btn--secondary" id="capture-upload-btn">{{ _("Upload demo video") }}</button>
-        </form>
-        <p class="text-muted" style="margin-top:.75rem;">{{ _("Demo/lab: .mp4, .mkv, .mov, .webm, .avi. Live uses the camera; you can interrupt a file and return to live.") }}</p>
-        <div class="page-heading__actions" style="margin-top:1rem;">
+        <div class="page-heading__actions">
             <form method="post" action="{{ finish_url }}">
                 <button type="submit" class="btn btn--primary">{{ _("Finish counting") }}</button>
             </form>
-            <a class="btn btn--secondary" href="{{ report_url }}">{{ _("Quantity report fallback") }}</a>
+            <a class="btn btn--secondary" href="{{ url_for('web.operator_sessions') }}">{{ _("Back") }}</a>
         </div>
-    </section>
+    </div>
 
-    <section class="card">
-        <h2 class="card__title">{{ _("Expected vs detected") }}</h2>
-        <p class="text-muted" style="margin-top:0;">{{ _("Grouped by instrument type (kit purpose). Unnamed = type-level boxes capped by remaining expected slots in that type.") }}</p>
-        <div class="table-wrapper">
-            <table class="data-table" id="capture-counts-table">
-                <thead>
-                    <tr>
-                        <th>{{ _("Instrument") }}</th>
-                        <th class="data-table__numeric-column">{{ _("Expected") }}</th>
-                        <th class="data-table__numeric-column">{{ _("Detected") }}</th>
-                        <th class="data-table__numeric-column">{{ _("Diff") }}</th>
-                        <th>{{ _("Best") }}</th>
-                        <th>{{ _("Weak") }}</th>
-                        <th>{{ _("Avg") }}</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% set ns = namespace(prev_cat=None) %}
-                    {% for item in session.expected_items|default([]) %}
-                        {% set cat = item.category_label|default('Other') %}
-                        {% set cat_code = (item.category_code|default('other'))|lower %}
-                        {% if cat != ns.prev_cat %}
-                        <tr class="capture-cat-header" data-category-name="{{ item.category_name|default(cat, true) }}" data-category-code="{{ cat_code }}">
-                            <td colspan="7">
-                                {{ cat }}
-                                <span class="capture-cat-meta" data-cat-meta></span>
-                                <div class="capture-pending" data-cat-pending></div>
-                            </td>
+    <div class="v3-op-capture__session-meta">
+        <span class="v3-op-capture__session-id">{{ session.session_id }}</span>
+        {{ macros.status_badge(session.status_label, session.status_variant) }}
+        {{ macros.status_badge(session.privacy_label, session.privacy_variant) }}
+        {% if session.phase_label %}
+        <span>{{ session.phase_label }}</span>
+        {% endif %}
+    </div>
+
+    {% if bind_error or not (worker_health.ok if worker_health is defined else False) %}
+    <div class="alert alert--warning" role="alert">
+        {{ _("Vision worker unavailable.") }}
+        {{ bind_error or (worker_health.error if worker_health is defined else "") }}
+        {{ _("Start VisionWorker to use the camera, or fall back to a quantity report.") }}
+        <a href="{{ report_url }}">{{ _("Quantity report") }}</a>
+    </div>
+    {% endif %}
+
+    <div class="v3-op-capture__stack">
+        <section class="card v3-op-capture__stage-card" aria-labelledby="capture-stage-heading">
+            <h2 id="capture-stage-heading" class="visually-hidden">{{ _("Overhead camera") }}</h2>
+            <div class="v3-op-capture__stage" id="capture-stage">
+                <div class="v3-op-capture__placeholder" id="capture-placeholder">{{ _("Start the camera to count the tray.") }}</div>
+                <video id="capture-live-video" playsinline muted hidden></video>
+                <canvas id="capture-live-canvas" hidden></canvas>
+                <img id="capture-frame" alt="{{ _("Annotated tray frame") }}" hidden>
+                <div class="v3-op-capture__stage-loading" id="capture-stage-loading" aria-live="polite">
+                    <span class="v3-op-capture__spinner" aria-hidden="true"></span>
+                    <span id="capture-stage-loading-text">{{ _("Connecting…") }}</span>
+                </div>
+            </div>
+
+            <div class="v3-op-capture__controls">
+                <div class="v3-op-capture__controls-main">
+                    <div class="v3-op-capture__toolbar">
+                        <button type="button" class="btn btn--primary" id="capture-camera-btn">{{ _("Start camera") }}</button>
+                        <select class="form-field__input" id="capture-camera-select" hidden aria-label="{{ _("Camera") }}">
+                            <option value="">{{ _("Default camera") }}</option>
+                        </select>
+                        <button type="button" class="btn btn--secondary" id="capture-stop-file-btn" hidden>{{ _("Stop file · back to camera") }}</button>
+                    </div>
+                    <div class="v3-op-capture__toolbar-meta" id="capture-toolbar-meta" data-empty="true">
+                        <span id="capture-status"></span>
+                        <span id="capture-progress"></span>
+                        <span id="capture-model"></span>
+                        <span id="capture-latency"></span>
+                    </div>
+                    <p id="capture-camera-error" class="v3-op-capture__error" role="alert" hidden></p>
+
+                    <div class="v3-op-capture__secondary">
+                        <p class="v3-op-capture__secondary-label">{{ _("Lab replay") }}</p>
+                        <form class="v3-op-capture__toolbar" id="capture-upload-form" enctype="multipart/form-data">
+                            <input class="form-field__input" type="file" name="video" id="capture-video"
+                                   accept="video/mp4,video/x-matroska,video/quicktime,video/webm,video/x-msvideo,.mp4,.mkv,.mov,.webm,.avi,.m4v"
+                                   aria-label="{{ _("Demo video file") }}" required>
+                            <button type="submit" class="btn btn--secondary" id="capture-upload-btn">{{ _("Upload demo video") }}</button>
+                        </form>
+                    </div>
+                </div>
+
+                <aside class="v3-op-capture__controls-phase" aria-labelledby="capture-phase-heading">
+                    <p id="capture-phase-heading" class="v3-op-capture__phase-label">{{ _("Phase") }}</p>
+                    <p class="v3-op-capture__phase-current" id="capture-phase-current">
+                        {{ _("Current") }}:
+                        <strong id="capture-phase-current-name">{{ session.phase_label or session.phase_code or _("—") }}</strong>
+                    </p>
+                    <form id="capture-phase-form" class="v3-op-capture__toolbar">
+                        <select class="form-field__input" name="phase_code" required aria-label="{{ _("Phase") }}">
+                            <option value="">{{ _("Select phase") }}</option>
+                            {% for phase in phases|default([]) %}
+                            <option value="{{ phase.code }}" {% if session.phase_code == phase.code %}selected{% endif %}>{{ phase.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="btn btn--secondary">{{ _("Apply phase") }}</button>
+                    </form>
+                    <p id="capture-phase-msg" class="v3-op-capture__phase-msg"></p>
+                </aside>
+            </div>
+        </section>
+
+        <section class="card v3-op-capture__counts" aria-labelledby="capture-counts-heading">
+            <div class="v3-op-capture__board-head">
+                <div>
+                    <h2 id="capture-counts-heading" class="card__title">{{ _("Count board") }}</h2>
+                    <p class="card__subtitle">{{ _("Expected kit vs live detections, by instrument type.") }}</p>
+                </div>
+                <ul class="v3-op-capture__presence-legend" aria-label="{{ _("Category presence") }}">
+                    <li><span class="v3-op-capture__dot v3-op-capture__dot--ok" aria-hidden="true"></span>{{ _("Complete") }}</li>
+                    <li><span class="v3-op-capture__dot v3-op-capture__dot--partial" aria-hidden="true"></span>{{ _("Partial or extra") }}</li>
+                    <li><span class="v3-op-capture__dot v3-op-capture__dot--missing" aria-hidden="true"></span>{{ _("Missing") }}</li>
+                </ul>
+            </div>
+
+            <div class="v3-op-capture__type-legend" aria-label="{{ _("Overlay type colors") }}">
+                <span class="v3-op-capture__type-legend-item" style="--kit-swatch: var(--kit-cutting); --kit-swatch-soft: var(--kit-cutting-soft);"><span class="v3-op-capture__swatch"></span><span class="v3-op-capture__swatch v3-op-capture__swatch--soft"></span>{{ _("Cutting") }}</span>
+                <span class="v3-op-capture__type-legend-item" style="--kit-swatch: var(--kit-grasping); --kit-swatch-soft: var(--kit-grasping-soft);"><span class="v3-op-capture__swatch"></span><span class="v3-op-capture__swatch v3-op-capture__swatch--soft"></span>{{ _("Grasping") }}</span>
+                <span class="v3-op-capture__type-legend-item" style="--kit-swatch: var(--kit-hemostasis); --kit-swatch-soft: var(--kit-hemostasis-soft);"><span class="v3-op-capture__swatch"></span><span class="v3-op-capture__swatch v3-op-capture__swatch--soft"></span>{{ _("Hemostasis") }}</span>
+                <span class="v3-op-capture__type-legend-item" style="--kit-swatch: var(--kit-retraction); --kit-swatch-soft: var(--kit-retraction-soft);"><span class="v3-op-capture__swatch"></span><span class="v3-op-capture__swatch v3-op-capture__swatch--soft"></span>{{ _("Retraction") }}</span>
+                <span class="v3-op-capture__type-legend-item" style="--kit-swatch: var(--kit-suturing); --kit-swatch-soft: var(--kit-suturing-soft);"><span class="v3-op-capture__swatch"></span><span class="v3-op-capture__swatch v3-op-capture__swatch--soft"></span>{{ _("Suturing") }}</span>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="data-table" id="capture-counts-table">
+                    <thead>
+                        <tr>
+                            <th>{{ _("Instrument") }}</th>
+                            <th class="data-table__numeric-column">{{ _("Expected") }}</th>
+                            <th class="data-table__numeric-column">{{ _("Detected") }}</th>
+                            <th class="data-table__numeric-column">{{ _("Diff") }}</th>
                         </tr>
-                        {% set ns.prev_cat = cat %}
+                    </thead>
+                    <tbody>
+                        {% set ns = namespace(prev_cat=None) %}
+                        {% for item in session.expected_items|default([]) %}
+                            {% set cat = item.category_label|default('Other') %}
+                            {% set cat_code = (item.category_code|default('other'))|lower %}
+                            {% if cat != ns.prev_cat %}
+                            <tr class="capture-cat-header" data-category-name="{{ item.category_name|default(cat, true) }}" data-category-code="{{ cat_code }}" data-presence="pending">
+                                <td colspan="4">
+                                    {{ cat }}
+                                    <span class="v3-op-capture__cat-meta" data-cat-meta></span>
+                                    <div class="v3-op-capture__cat-pending" data-cat-pending></div>
+                                </td>
+                            </tr>
+                            {% set ns.prev_cat = cat %}
+                            {% endif %}
+                        <tr class="capture-family-row" data-family-code="{{ item.family_code }}" data-category-name="{{ item.category_name|default(cat, true) }}" data-category-code="{{ cat_code }}" data-expected-value="{{ item.expected_quantity }}">
+                            <td>{{ item.family_name }}</td>
+                            <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                            <td class="data-table__numeric-column is-waiting" data-detected>—</td>
+                            <td class="data-table__numeric-column is-waiting" data-diff>—</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="4">{{ _("No expected inventory rows.") }}</td></tr>
+                        {% endfor %}
+                        {% if session.expected_items %}
+                        {% set total_expected = session.expected_items|map(attribute='expected_quantity')|map('int')|sum %}
+                        <tr class="v3-total-row" data-total-row data-total-expected="{{ total_expected }}">
+                            <th scope="row">{{ _("Total") }}</th>
+                            <td class="data-table__numeric-column">{{ total_expected }}</td>
+                            <td class="data-table__numeric-column is-waiting" data-total-detected>—</td>
+                            <td class="data-table__numeric-column is-waiting" data-total-diff>—</td>
+                        </tr>
                         {% endif %}
-                    <tr class="capture-family-row" data-family-code="{{ item.family_code }}" data-category-name="{{ item.category_name|default(cat, true) }}" data-category-code="{{ cat_code }}">
-                        <td>{{ item.family_name }}</td>
-                        <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
-                        <td class="data-table__numeric-column" data-detected>—</td>
-                        <td class="data-table__numeric-column" data-diff>—</td>
-                        <td data-best>—</td>
-                        <td data-weak>—</td>
-                        <td data-conf>—</td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="7">{{ _("No expected inventory rows.") }}</td></tr>
-                    {% endfor %}
-                    {% if session.expected_items %}
-                    {% set total_expected = session.expected_items|map(attribute='expected_quantity')|map('int')|sum %}
-                    <tr class="v3-total-row" data-total-row data-total-expected="{{ total_expected }}">
-                        <th scope="row">{{ _("Total") }}</th>
-                        <td class="data-table__numeric-column">{{ total_expected }}</td>
-                        <td class="data-table__numeric-column" data-total-detected>—</td>
-                        <td class="data-table__numeric-column" data-total-diff>—</td>
-                        <td>—</td>
-                        <td>—</td>
-                        <td>—</td>
-                    </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-
-        <h3 class="card__title" style="margin-top:1.25rem;font-size:1rem;">{{ _("Change phase (stub)") }}</h3>
-        <p class="text-muted">{{ _("Writes a real phase_change event; no Mongo/Garage evidence in this cycle.") }}</p>
-        <form id="capture-phase-form" class="capture-upload">
-            <select class="form-field__input" name="phase_code" required>
-                <option value="">{{ _("Select phase") }}</option>
-                {% for phase in phases|default([]) %}
-                <option value="{{ phase.code }}" {% if session.phase_code == phase.code %}selected{% endif %}>{{ phase.name }} ({{ phase.code }})</option>
-                {% endfor %}
-            </select>
-            <button type="submit" class="btn btn--secondary">{{ _("Apply phase") }}</button>
-        </form>
-        <p id="capture-phase-msg" class="text-muted" style="margin-top:.5rem;"></p>
-    </section>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
 </div>
 {% endblock %}
 
@@ -272,24 +248,27 @@
     data-cancel-url="{{ cancel_url }}"
     data-ticket-url="{{ ws_ticket_url }}"
     data-session-id="{{ session_id }}"
-    data-i18n-cat-meta="{{ _('Expected %(expected)s · Named %(named)s · Unnamed %(unnamed)s · Detected %(detected)s') }}"
+    data-i18n-cat-meta="{{ _('Expected %(expected)s · Detected %(detected)s') }}"
     data-i18n-pending="{{ _('Pending: %(items)s') }}"
-    data-i18n-status="{{ _('Status: %(status)s') }}"
-    data-i18n-progress="{{ _('Progress: %(percent)s%%') }}"
-    data-i18n-model="{{ _('Model: %(model)s') }}"
-    data-i18n-uploading="{{ _('uploading…') }}"
-    data-i18n-processing="{{ _('processing') }}"
-    data-i18n-error="{{ _('error · %(detail)s') }}"
-    data-i18n-upload-failed="{{ _('upload failed') }}"
-    data-i18n-phase-changed="{{ _('Phase → %(phase)s (logged; stub side-effects)') }}"
+    data-i18n-status="{{ _('%(status)s') }}"
+    data-i18n-progress="{{ _('%(percent)s%%') }}"
+    data-i18n-model="{{ _('%(model)s') }}"
+    data-i18n-uploading="{{ _('Uploading…') }}"
+    data-i18n-processing="{{ _('Processing video…') }}"
+    data-i18n-connecting="{{ _('Connecting…') }}"
+    data-i18n-error="{{ _('Error · %(detail)s') }}"
+    data-i18n-upload-failed="{{ _('Upload failed') }}"
+    data-i18n-phase-changed="{{ _('Phase → %(phase)s') }}"
     data-i18n-phase-failed="{{ _('Phase change failed') }}"
-    data-i18n-latency="{{ _('Latency: %(total)s ms (YOLO %(yolo)s · post %(post)s) · avg %(avg)s · max %(max)s · n=%(n)s') }}"
+    data-i18n-latency="{{ _('%(total)s ms') }}"
     data-i18n-cam-denied="{{ _('Camera permission denied. Allow the camera or use a demo video.') }}"
     data-i18n-cam-missing="{{ _('No camera found. Plug one in or use a demo video.') }}"
     data-i18n-cam-busy="{{ _('Camera is in use by another app.') }}"
     data-i18n-cam-start="{{ _('Start camera') }}"
     data-i18n-cam-stop="{{ _('Stop camera') }}"
-    data-i18n-live="{{ _('live camera') }}"
+    data-i18n-cam-default="{{ _('Default camera') }}"
+    data-i18n-cam-n="{{ _('Camera %(n)s') }}"
+    data-i18n-live="{{ _('Live') }}"
     defer
 ></script>
 {% endblock %}

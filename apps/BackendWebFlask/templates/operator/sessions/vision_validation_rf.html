@@ -11,84 +11,92 @@
 {% block page_styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operator-v3.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/evidence-validation.css') }}">
 {% endblock %}
 
 {% block page_content %}
 {% set report_values = report_values|default({}, true) %}
-<div class="page-heading">
-    <div>
-        <h1 class="page-heading__title">{{ _("Human validation") }}</h1>
-        <p class="page-heading__subtitle">{{ session.session_id }} · {{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</p>
+<div class="v3-op-ev">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-heading__title">{{ _("Human validation") }}</h1>
+            <p class="page-heading__subtitle">{{ session.session_id }} · {{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</p>
+        </div>
+        <a class="btn btn--secondary" href="{{ summary_url }}">{{ _("Back") }}</a>
     </div>
-    <a class="btn btn--secondary" href="{{ summary_url }}">{{ _("Back") }}</a>
+
+    <p class="text-muted">
+        {{ _("AI detected counts are locked. Adjust validated counts if needed. Opening evidence clips does not clear your inputs.") }}
+    </p>
+
+    {% if form_error %}
+    <div class="alert alert--warning" role="alert">{{ form_error }}</div>
+    {% endif %}
+
+    {% set frame_meta = _("Model") ~ ': ' ~ ((snapshot.model_version if snapshot else none)|default('—')) %}
+    {% include "operator/sessions/_evidence_frame_drawer.html" %}
+
+    <form method="post" class="card" id="vision-validation-form"
+          data-app-confirm="{{ _('This closes counting with the manual-count path and unbinds the vision worker.') }}"
+          data-app-confirm-title="{{ _('Submit validation?') }}"
+          data-app-confirm-ok="{{ _('Submit and close') }}">
+        <h2 class="card__title">{{ _("Validated counts") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>{{ _("Instrument") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Expected") }}</th>
+                        <th class="data-table__numeric-column">{{ _("AI detected") }}</th>
+                        <th class="data-table__numeric-column">{{ _("Validated") }}</th>
+                        <th>{{ _("Reason (if Diff ≠ 0)") }}</th>
+                        <th>{{ _("Notes") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in session.expected_items|default([]) %}
+                    {% set prev = report_values.get(item.family_id, {}) %}
+                    {% set validated_val = prev.validated if prev.validated is defined else item.expected_quantity %}
+                    {% set ai_val = prev.ai_detected if prev.ai_detected is defined else 0 %}
+                    <tr data-report-row
+                        data-family-name="{{ item.family_name }}"
+                        data-expected="{{ item.expected_quantity }}">
+                        <td>{{ item.family_name }}</td>
+                        <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                        <td class="data-table__numeric-column"><strong>{{ ai_val }}</strong></td>
+                        <td class="data-table__numeric-column">
+                            <input class="form-field__input form-field__input--plain" type="number" min="0"
+                                   name="validated_{{ item.family_id }}"
+                                   value="{{ validated_val }}"
+                                   required data-reported-input>
+                        </td>
+                        <td>
+                            <select class="form-field__input form-field__input--plain" name="reason_{{ item.family_id }}" data-reason-select>
+                                <option value="">{{ _("—") }}</option>
+                                {% for opt in reason_options|default([]) %}
+                                <option value="{{ opt.code }}" {% if prev.reason == opt.code %}selected{% endif %}>{{ opt.label }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td>
+                            <input class="form-field__input form-field__input--plain" type="text"
+                                   name="notes_{{ item.family_id }}" value="{{ prev.notes|default('', true) }}"
+                                   placeholder="{{ _('Required if Other') }}" data-notes-input>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn--primary">{{ _("Submit validation and close counting") }}</button>
+        </div>
+    </form>
 </div>
-
-<p class="text-muted">
-    {{ _("AI detected counts are locked. Adjust validated counts if needed. Closing uses the manual count path (discrepancies only when validated ≠ expected) — no auto discrepancy from the uploaded video itself.") }}
-</p>
-
-{% if form_error %}
-<div class="alert alert--warning" role="alert">{{ form_error }}</div>
-{% endif %}
-
-<form method="post" class="card" id="vision-validation-form"
-      data-app-confirm="{{ _('This closes counting with the manual-count path and unbinds the vision worker.') }}"
-      data-app-confirm-title="{{ _('Submit validation?') }}"
-      data-app-confirm-ok="{{ _('Submit and close') }}">
-    <div class="table-wrapper">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>{{ _("Instrument") }}</th>
-                    <th class="data-table__numeric-column">{{ _("Expected") }}</th>
-                    <th class="data-table__numeric-column">{{ _("AI detected") }}</th>
-                    <th class="data-table__numeric-column">{{ _("Validated") }}</th>
-                    <th>{{ _("Reason (if Diff ≠ 0)") }}</th>
-                    <th>{{ _("Notes") }}</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in session.expected_items|default([]) %}
-                {% set prev = report_values.get(item.family_id, {}) %}
-                {% set validated_val = prev.validated if prev.validated is defined else item.expected_quantity %}
-                {% set ai_val = prev.ai_detected if prev.ai_detected is defined else 0 %}
-                <tr data-report-row
-                    data-family-name="{{ item.family_name }}"
-                    data-expected="{{ item.expected_quantity }}">
-                    <td>{{ item.family_name }}</td>
-                    <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
-                    <td class="data-table__numeric-column"><strong>{{ ai_val }}</strong></td>
-                    <td class="data-table__numeric-column">
-                        <input class="form-field__input form-field__input--plain" type="number" min="0"
-                               name="validated_{{ item.family_id }}"
-                               value="{{ validated_val }}"
-                               required data-reported-input>
-                    </td>
-                    <td>
-                        <select class="form-field__input form-field__input--plain" name="reason_{{ item.family_id }}" data-reason-select>
-                            <option value="">{{ _("—") }}</option>
-                            {% for opt in reason_options|default([]) %}
-                            <option value="{{ opt.code }}" {% if prev.reason == opt.code %}selected{% endif %}>{{ opt.label }}</option>
-                            {% endfor %}
-                        </select>
-                    </td>
-                    <td>
-                        <input class="form-field__input form-field__input--plain" type="text"
-                               name="notes_{{ item.family_id }}" value="{{ prev.notes|default('', true) }}"
-                               placeholder="{{ _('Required if Other') }}" data-notes-input>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    <div class="form-actions">
-        <button type="submit" class="btn btn--primary">{{ _("Submit validation and close counting") }}</button>
-    </div>
-</form>
 {% endblock %}
 
 {% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/evidence-validation.js') }}" defer></script>
 <script>
 (function () {
     var form = document.getElementById("vision-validation-form");

@@ -2,17 +2,15 @@
 
 Conteo y trazabilidad asistidos por vision de instrumental quirurgico (PEF UDEM).
 
-Stack actual: **Flask** (portal operador/SPD/admin), **Auth Service** (Flask/JWT), **AdminService** (Flask, microservicio de administración), **PostgreSQL**, **Redis**, **MongoDB**, **Garage** (S3-compatible; reemplaza MinIO porque su imagen ya no esta en Docker Hub).
+Stack actual: **Flask** (portal operador/SPD/admin), **Auth Service** (Flask/JWT), **AdminService** (Flask, microservicio de administración), **PostgreSQL**, **Redis**, **MongoDB**, **Garage** (S3-compatible).
 
 ## Equipo
-
 
 | Integrante                 | Matricula |
 | -------------------------- | --------- |
 | Benjamin Charles Legorreta | 599860    |
 | Pedro Elidio Sora Gonzalez | 596630    |
 | Angel Uriel Muñoz Moreno   | 604386    |
-
 
 Equipo de apoyo: Luis Carlos Rodriguez Medrano, Carlos Ignacio Huerta Carrizales, Juan Hermilo Reyes Perez. 
 
@@ -31,8 +29,6 @@ docker compose version
 python --version
 ```
 
-
-
 ## Arranque rapido
 
 Desde la **raiz** del repo (`PEF-Instrumental-quirurgico`).
@@ -46,9 +42,11 @@ copy .env.example .env
 copy .env apps\BackendAuthService\.env
 copy .env apps\BackendWebFlask\.env
 copy .env apps\AdminService\.env
+copy .env apps\VisionWorker\.env
+copy .env apps\EvidenceWorker\.env
 ```
 
-Nota: No hace falta repetir `copy` en cada terminal nueva. Auth, AdminService y Web leen el `.env` **de su carpeta** al arrancar una terminal nueva solo necesita `cd` + activar venv + `python ...`.  
+Nota: No hace falta repetir `copy` en cada terminal nueva. Auth, AdminService, Web, VisionWorker y EvidenceWorker leen el `.env` **de su carpeta** (EvidenceWorker tambien acepta el `.env` de la raiz). Al arrancar una terminal nueva solo necesitas `cd` + activar venv + `python ...`.  
 Volver a hacer `copy` sobrescribe esos `.env` con el de la raiz (util si editaste la raiz; malo si solo habias tocado el de un app).
 
 ### 2) Contenedores
@@ -90,7 +88,7 @@ docker exec pef_garage /garage key list
 
 El bucket `evidence` y la key `MedAdmin3` se crean solos con `--default-bucket` si `S3_SECRET_KEY` es valida.
 
-### 3) Auth, AdminService, Web y VisionWorker (cuatro terminales)
+### 3) Auth, AdminService, Web, VisionWorker y EvidenceWorker (cinco terminales)
 
 **Terminal A — Auth**
 
@@ -140,23 +138,45 @@ python main.py
 
 Comprueba: [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) debe reportar `"weights_present": true`.
 
-Opcional Windows: `.\start-services.ps1` (compose + abre Auth, AdminService, Web y VisionWorker).
+**Terminal D — EvidenceWorker** (ring + MP4; requiere Redis del compose)
+
+Proceso local aparte (venv propio). Consume frames JPEG y triggers Redis que publican Web (`start` / `phase` / `close`) y VisionWorker (cola de camara). Sin este proceso no se generan clips.
+
+```powershell
+cd apps\EvidenceWorker
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python main.py
+```
+
+**Evidencia BD-first:** encode → Garage S3 → `media_asset` (PG) → `checkpoint_frame` (Mongo, fase/ratio/reason/…).  
+Portal OP-05/06 lista Mongo + signed URL; local solo si el upload falló (fallback + cola Redis `pef:evidence:upload_retry`). Tras upload OK se puede purgar el MP4 (`EVIDENCE_PURGE_LOCAL_ON_UPLOAD=1`; sidecar de auditoría queda).  
+
+Encode: `ffmpeg` H.264 MP4 → WebM → OpenCV → JPEG. En Windows:
+
+```powershell
+.\tools\ensure-ffmpeg.ps1
+```
+
+Hourly: no dispara en idle; catch-up al reanudar; ratio vía VisionWorker `/state`.  
+Smoke sin Redis: `python smoke_ring.py`.
+
+Opcional Windows: `.\start-services.ps1` (compose + abre Auth, AdminService, Web, VisionWorker y EvidenceWorker).
 
 ### 4) URLs y puertos
 
-
-| Servicio      | Donde                                                        |
-| ------------- | ------------------------------------------------------------ |
-| Portal web    | [http://127.0.0.1:5000](http://127.0.0.1:5000)               |
-| Auth          | [http://127.0.0.1:5001](http://127.0.0.1:5001)               |
-| AdminService  | [http://127.0.0.1:5003/health](http://127.0.0.1:5003/health) |
-| VisionWorker  | [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) |
-| Garage S3 API | [http://127.0.0.1:3900](http://127.0.0.1:3900)               |
-| PostgreSQL    | `localhost:5433` / db `InstruMed`                            |
-| Redis         | `localhost:6379`                                             |
-| MongoDB       | `localhost:27017`                                            |
-
-
+| Servicio        | Donde                                                        |
+| --------------- | ------------------------------------------------------------ |
+| Portal web      | [http://127.0.0.1:5000](http://127.0.0.1:5000)               |
+| Auth            | [http://127.0.0.1:5001](http://127.0.0.1:5001)               |
+| AdminService    | [http://127.0.0.1:5003/health](http://127.0.0.1:5003/health) |
+| VisionWorker    | [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) |
+| EvidenceWorker  | proceso local (logs en terminal; clips en `apps/EvidenceWorker/clips/`) |
+| Garage S3 API   | [http://127.0.0.1:3900](http://127.0.0.1:3900)               |
+| PostgreSQL      | `localhost:5433` / db `InstruMed`                            |
+| Redis           | `localhost:6379` (también bus de evidencia)                  |
+| MongoDB         | `localhost:27017`                                            |
 
 | Puerto | Uso              |
 | ------ | ---------------- |
@@ -171,13 +191,9 @@ Opcional Windows: `.\start-services.ps1` (compose + abre Auth, AdminService, Web
 | 5002   | VisionWorker     |
 | 5003   | AdminService     |
 
-
-
-
 ### 5) Credenciales
 
 **Object storage (Garage / S3)**
-
 
 | Campo      | Valor                           |
 | ---------- | ------------------------------- |
@@ -187,7 +203,6 @@ Opcional Windows: `.\start-services.ps1` (compose + abre Auth, AdminService, Web
 | Secret key | `StorageKeySecret027`           |
 | Path style | si (`S3_FORCE_PATH_STYLE=true`) |
 | Buckets    | `evidence`, `privacy-notices`   |
-
 
 Prueba S3 (opcional, con AWS CLI v2):
 
@@ -202,7 +217,6 @@ aws --endpoint-url http://127.0.0.1:3900 s3 ls s3://evidence
 **Usuarios demo (Postgres seed; hashes Werkzeug 3.1.8)**  
 Códigos de rol RF: `station_operator`, `spd_supervisor`, `it_admin`.
 
-
 | Rol (RF)         | Email                       | Password         |
 | ---------------- | --------------------------- | ---------------- |
 | station_operator | `operator@instrumed.com`    | `DemopwdOP78!`   |
@@ -210,7 +224,6 @@ Códigos de rol RF: `station_operator`, `spd_supervisor`, `it_admin`.
 | spd_supervisor   | `supervisor@instrumed.com`  | `DemopwdSPD78!`  |
 | spd_supervisor   | `supervisor2@instrumed.com` | `DemopwdSPD278!` |
 | it_admin         | `admin@instrumed.com`       | `DemopwdADM78!`  |
-
 
 ```powershell
 curl -i -X POST http://127.0.0.1:5001/login -H "Content-Type: application/json" -d "{\"email\":\"operator@instrumed.com\",\"password\":\"DemopwdOP78!\"}"
@@ -243,11 +256,11 @@ PEF-Instrumental-quirurgico/
     ├── BackendAuthService/
     ├── AdminService/
     ├── BackendWebFlask/
-    └── VisionWorker/
-        └── weights/best.pt   # local only (gitignored)
+    ├── VisionWorker/
+    │   └── weights/best.pt   # local only (gitignored)
+    └── EvidenceWorker/
+        └── clips/            # MP4 locales (gitignored)
 ```
-
-
 
 ## Internationalization / i18n
 
@@ -260,7 +273,7 @@ La UI web (BackendWebFlask) usa **Flask-Babel**.
 - **Cambio de idioma:** el selector del encabezado hace `POST /locale` (Web). Invitado: solo cookie. Autenticado: Web llama `POST /preferences` del Auth Service (merge parcial de `ui_preferences`, conserva `theme`) y actualiza la cookie. La página se recarga en la misma URL (query y `#tab` incluidos).
 - **JavaScript:** los textos visibles de `static/js` vienen traducidos desde `templates/base.html` (`window.PEF_I18N`, se leen con `window.pefT(key)`); no hay traducciones dentro de los `.js`.
 - **No se traducen** datos de negocio (nombres, IDs, códigos de estado/rol/fase, textos capturados por usuarios); sí sus etiquetas visibles controladas por código.
-- **Valores de BD controlados por el sistema** (catálogos `cat_*`, familias, kits, estaciones, quirófanos, roles, técnicas): se localizan solo al mostrarlos, con `localize_db_label` / `localize_db_text` / `localize_known_text` de `i18n.py`, usando el `code` (o UUID) como clave y un msgid inglés. La BD no cambia. Un registro cuyo texto guardado ya no coincide con un texto conocido (p. ej. renombrado por un admin) se muestra tal cual, y los inputs editables siempre muestran el valor guardado. Para un registro nuevo del sistema: agregar su entrada `N_("...")` en `i18n.py`, luego extract → update → traducir → compile.
+- **Valores de BD controlados por el sistema** (catálogos `cat_`*, familias, kits, estaciones, quirófanos, roles, técnicas): se localizan solo al mostrarlos, con `localize_db_label` / `localize_db_text` / `localize_known_text` de `i18n.py`, usando el `code` (o UUID) como clave y un msgid inglés. La BD no cambia. Un registro cuyo texto guardado ya no coincide con un texto conocido (p. ej. renombrado por un admin) se muestra tal cual, y los inputs editables siempre muestran el valor guardado. Para un registro nuevo del sistema: agregar su entrada `N_("...")` en `i18n.py`, luego extract → update → traducir → compile.
 
 Agregar un texto nuevo:
 
@@ -311,7 +324,6 @@ Auth debe tener `Werkzeug==3.1.8` y el seed actual
 
 ## Estado del desarrollo
 
-
 | Fase | Contenido                                                                                                    | Estado       |
 | ---- | ------------------------------------------------------------------------------------------------------------ | ------------ |
 | 0–1  | Empaque Docker (PG/Redis/Mongo/Garage) + seeds + README                                                      | Listo        |
@@ -321,10 +333,8 @@ Auth debe tener `Werkzeug==3.1.8` y el seed actual
 | 3.3  | Seeds D/E + SP-05/06 cierre + detalle RF supervisor                                                          | Listo        |
 | 4    | UI RF OP/SPD (sidebars, listas, schedule, kits SPD, stubs reports/profile/health)                            | Listo        |
 | 5a   | Vision upload + VisionWorker + YOLO (`best.pt`) + matrix_v1 (Hungarian/greedy) + count_event + validacion UI | Listo (demo) |
-| 5b   | Electron WSS camara live + Mongo/Garage evidence-worker                                                      | Pendiente    |
 | 6    | i18n real (Flask-Babel): `en` + `es-MX`, selector persistente en `ui_preferences`                            | Listo        |
 | 7    | AdminService (microservicio): CRUD real de catálogos, usuarios, roles, modelos y configuración; dashboard y bitácora reales; auditoría de cada operación y de LOGIN/LOGOUT | Listo        |
-
 
 Idioma: **ingles** como fuente, traduccion `es-MX` con Flask-Babel (ver **Internationalization / i18n**). Rutas pre-RF del operador viven en `/legacy/...` (ver `apps/BackendWebFlask/legacy/README.md`). Plantillas V2/mocks retiradas estan en `Legacy/` (raiz del repo).
 
@@ -357,11 +367,11 @@ Esperado con semilla limpia: roles RF; kit **Video Demo Kit 1** (13 familias, FA
 
 1. SPD: **New session** (`/supervisor/sessions/new`). Sin phase dropdown (fase inicial del procedimiento). Sin privacy → OP vera Manual; con privacy Via A → Vision.
 2. OP: sesion **No notice · Manual** → Review & Start → Start → Continue → reporte de cantidades.
-  - Match → `awaiting_spd_review`.
-  - Baja una cantidad + reason → `correction_required` + discrepancia.
+   - Match → `awaiting_spd_review`.
+   - Baja una cantidad + reason → `correction_required` + discrepancia.
 3. SPD:
-  - **Correction Required** → Review → resolve → `awaiting_spd_review`.
-  - **Awaiting Review** → Confirm close → `closed`.
+   - **Correction Required** → Review → resolve → `awaiting_spd_review`.
+   - **Awaiting Review** → Confirm close → `closed`.
 4. Detalles OP/SPD: expected vs reported, privacy badge, timeline cuando aplica. OP no cierra sesiones.
 
 **4) Rama vision (upload video + YOLO + worker)**
@@ -369,7 +379,6 @@ Esperado con semilla limpia: roles RF; kit **Video Demo Kit 1** (13 familias, FA
 Prerrequisitos: VisionWorker en `:5002` y pesos en `apps/VisionWorker/weights/best.pt` (no estan en GitHub). Seed incluye `yolo_model` activo `yolo26l-demo` + `model_class` (17 etiquetas). Pipeline demo: `matrix_v1` (NMS con scores por clase + matching por cupos; solver default **Hungarian**, `VISION_ASSIGN_SOLVER=greedy` para A/B).
 
 Umbrales por defecto (override con env `VISION_*`):
-
 
 | Variable                        | Default     | Rol                                                                                                                |
 | ------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -386,13 +395,14 @@ Umbrales por defecto (override con env `VISION_*`):
 | `VISION_WORKER_WS_URL`          | `ws://127.0.0.1:5002/ws` | URL que el navegador usa para el WS (Flask solo emite el ticket)                                      |
 | `VISION_WS_SECRET`              | demo        | HMAC compartido Flask ↔ worker. Cambiar fuera de demo.                                                             |
 | `VISION_WS_ORIGINS`             | localhost:5000 | Orígenes permitidos en el handshake WS                                                                          |
-| `VISION_HOLD_SECONDS`           | `2.5`       | Hold largo mientras hay caja / oclusion en zona                                                                    |
-| `VISION_NAME_HOLD_SECONDS`      | `4.0`       | Sticky naming: mientras YOLO siga viendo caja en el hueco (aunque conf < 0.70) se renueva; sin caja, caduca        |
+| `VISION_HOLD_SECONDS`           | `1.25`      | Hold largo mientras hay caja / oclusion en zona (PoC: mitad del 2.5 previo)                                        |
+| `VISION_NAME_HOLD_SECONDS`      | `6.0`       | Sticky naming: mientras YOLO siga viendo caja en el hueco (aunque conf < 0.70) se renueva; sin caja, caduca        |
+| `VISION_CONFUSION_HOLD_SECONDS` | `2.5`       | Hold top2–N (familias missing); PoC mitad del 5.0 previo                                                           |
 | `VISION_HOLD_MIN_SCORE`         | `0.35`      | No sembrar/refrescar hold con fantasmas debiles                                                                    |
-| `VISION_HOLD_SEED_FRAMES`       | `3`         | Calibrado a stride CPU: se convierte a segundos de cinta (`N × stride_cpu / fps`). CUDA espera el mismo tiempo, no 3 frames |
-| `VISION_HOLD_ABSENT_STREAK`     | `3`         | Igual, gracia de ausencia en tiempo de cinta. Un parpadeo 1-frame no reinicia el reloj ni extiende el hold largo   |
-| `VISION_HOLD_ABSENT_SECONDS`    | `1.1`       | TTL corto cuando se confirma ausencia (sin overlap en zona)                                                        |
-| `VISION_HOLD_ZONE_IOU`          | `0.15`      | Overlap para tratar oclusion (retrasa el hold corto; no reinicia el timeout de 2.5 s)                              |
+| `VISION_HOLD_SEED_FRAMES`       | `2`         | Calibrado a stride CPU: se convierte a segundos de cinta (`N × stride_cpu / fps`). CUDA espera el mismo tiempo     |
+| `VISION_HOLD_ABSENT_STREAK`     | `2`         | Gracia de ausencia en tiempo de cinta. Un parpadeo 1-frame no reinicia el reloj ni extiende el hold largo          |
+| `VISION_HOLD_ABSENT_SECONDS`    | `0.55`      | TTL corto cuando se confirma ausencia (sin overlap en zona)                                                        |
+| `VISION_HOLD_ZONE_IOU`          | `0.15`      | Overlap para tratar oclusion (retrasa el hold corto; no reinicia el timeout de hold)                               |
 | `VISION_TRACK_MEMORY`           | `1`         | Pistas IoU + EMA de scores + prior de familia. Rollback: `0` (vuelve al matching frame-a-frame)                    |
 | `VISION_TRACK_EMA_ALPHA`        | `0.35`      | Peso del frame actual en el promedio (CUDA ~0.2 s de memoria)                                                      |
 | `VISION_TRACK_IOU`              | `0.30`      | IoU minimo para asociar la caja con la pista anterior                                                              |
@@ -400,15 +410,28 @@ Umbrales por defecto (override con env `VISION_*`):
 | `VISION_TRACK_PRIOR`            | `0.20`      | Bonus de contexto hacia la familia que ya tenia esa pista                                                          |
 | `VISION_TRACK_CONTENTION_MIN`   | `0.25`      | Si el top-1 ya esta en otra caja, abre arista al siguiente del top con cupo libre                                  |
 
-
 1. SPD: **New session** con privacy Via A (aviso placeholder) → OP ve **Notice OK · Vision**.
 2. OP (`operator@…` u `operador2@…`): Review & Start → Capture.
 3. En Capture: **Start camera** (gesto) pide `getUserMedia` solo video y abre WS directo al worker (`ws://127.0.0.1:5002/ws`) con ticket HMAC de Flask. El cliente pauta JPEG según `latency_ms` (slot 1, latest-wins; sin cola YOLO). El overlay llega por WS; el poll HTTP ~2.5 s solo persiste `count_event` (máx. 1/s de reloj). Upload de archivo queda para demo/lab; se puede **interrumpir y volver a cámara**. `getUserMedia` en `http://127.0.0.1` / `localhost` (LAN requiere HTTPS después).
+
 3b. Alternativa archivo: subir `.mp4` / `.mkv` / etc. El worker procesa frames (stride CUDA=1 / CPU=5), construye matriz caja×familia, asigna (Hungarian/greedy) hasta cupo esperado, aplica hold/sticky **interno**, dibuja cajas con **color por tipo**. El overlay del archivo se pide al ritmo de `latency_ms`.
 4. **Auditoria temporal:** como máximo 1 sample por segundo de video (`VISION_COUNT_SAMPLE_INTERVAL_S`) → NDJSON local (`*_timeline.ndjson`) con observables (raw/refined, boxes+topk) y latencia de esa ventana. En PG: **un** `count_event` por sample (`family_id` null, `scope=board`, `reason=video_window`) + un board final `video_ready` (con boxes). Discrepancias siguen llevando `family_id` propio y pueden apuntar al board como `origin_event_id`. Serie densa a largo plazo → Mongo DS06. Smoke: `python scripts/smoke_vision_board_events.py`.
 5. **Finish counting** → resumen AI (incluye Raw vs refined) → **Human validation** (AI locked; validated editable). El cierre usa la ruta de conteo manual (discrepancias solo si validated ≠ expected). El worker se desliga al cerrar.
-6. Cambio de fase en Capture es real en PG (`phase_change`) pero stub respecto a Mongo/Garage.
-7. Fuera de alcance en este ciclo: Electron, evidencia Mongo/Garage, GIF de evidencia, disc. automaticas por ausencia temporal. Matching: Hungarian default; greedy via env para A/B. Ticket WS: `VISION_WS_SECRET` (mismo valor en Flask y worker). Smoke WS: `python scripts/smoke_vision_ws.py` con el worker arriba.
+6. Cambio de fase en Capture escribe `phase_change` (`from_phase`/`to_phase`/`occurred_at`) y publica trigger Redis (`start`/`phase`/`close`) para EvidenceWorker (Terminal D).
+7. EvidenceWorker: ring → clip → **S3 + PG `media_asset` + Mongo `checkpoint_frame`** (metadatos completos). Si falla upload: local + retry queue. Cámara y lab alimentan el ring.
+8. OP-05 / OP-06: drawer lee **Mongo/signed URL** primero; local solo pending/fallback. Zoom abre overlay del último frame. Abrir drawer no resetea validación.
+
+**Ciclo evidencia:** Start/fase/cierre → trigger → clip → BD (Garage/PG/Mongo) → portal reproduce por signed URL (o local si sync pendiente).
+
+**Checklist manual evidencia (5A)**
+
+1. Compose + Auth + Web + VisionWorker + EvidenceWorker arriba; `.\tools\ensure-ffmpeg.ps1` si no hay ffmpeg.
+2. SPD crea sesión Via A → OP Start → en Capture aparece fase actual.
+3. Cámara o upload lab → frames llegan al ring (logs EvidenceWorker / Redis).
+4. Cambiar fase → nuevo clip `phase` con fase + `#/#` en drawer OP-05/06.
+5. Finish → clip `close`; drawer reproduce MP4/WebM/JPEG local.
+6. (Opcional) bajar Garage → clip local ok + banner ámbar en resumen/validación.
+7. (Opcional largo) pausar captura >1 h idle sin clip; reanudar → un `hourly` catch-up con ratio fresco del VisionWorker.
 
 **5) Smokes CLI (opcionales; ensucian seed)**
 

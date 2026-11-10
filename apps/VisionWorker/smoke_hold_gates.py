@@ -269,6 +269,167 @@ def main() -> None:
     until_short_cu = float(state_cu._hold_by_family["FOERSTER"]["until"])
     assert until_short_cu <= 1.05 + 1.11 + 1e-6
 
+    # Named sticky: confirmed absence shrinks count, not name_until.
+    state_sticky = SessionState(session_id="smoke-hold-sticky-name")
+    state_sticky.expected = state.expected
+    state_sticky.hold_seed_frames = 3
+    state_sticky.hold_absent_streak = 3
+    state_sticky.hold_absent_seconds = 1.1
+    state_sticky.hold_seconds = 2.5
+    state_sticky.name_hold_seconds = 12.0
+    state_sticky.hold_zone_iou = 0.15
+    for t in (0.0, 0.2, 0.4):
+        _apply_hold(
+            state_sticky,
+            counts=_counts("FOERSTER", 1),
+            public_boxes=[_box("FOERSTER", xy)],
+            video_t=t,
+        )
+    name_until0 = float(state_sticky._hold_by_family["FOERSTER"]["name_until"])
+    for t in (0.6, 0.8, 1.0):
+        _apply_hold(
+            state_sticky,
+            counts=_counts("FOERSTER", 0),
+            public_boxes=[],
+            video_t=t,
+        )
+    assert float(state_sticky._hold_by_family["FOERSTER"]["name_until"]) >= name_until0 - 1e-6
+    assert float(state_sticky._hold_by_family["FOERSTER"]["until"]) <= 1.0 + 1.11 + 1e-6
+
+    # Confusion hold: top2–N of a box whose top1 is already assigned → 5 s renew.
+    # Top1 alone must not seed confusion.
+    state_cf = SessionState(session_id="smoke-hold-confusion")
+    state_cf.expected = {
+        "FOERSTER": {
+            "family_id": "f1",
+            "family_name": "Foerster",
+            "expected_quantity": 1,
+            "category_name": "Grasping",
+        },
+        "ALLIS": {
+            "family_id": "f2",
+            "family_name": "Allis",
+            "expected_quantity": 1,
+            "category_name": "Grasping",
+        },
+    }
+    state_cf.confusion_hold_seconds = 5.0
+    state_cf.hold_seed_frames = 3
+    state_cf.hold_seconds = 2.5
+    state_cf.name_hold_seconds = 12.0
+    foerster_box = {
+        "xyxy": xy,
+        "family_code": "FOERSTER",
+        "family_name": "Foerster",
+        "label": "Foerster",
+        "confidence": 0.92,
+        "high_confidence": True,
+        "resolution_reason": "kept_raw",
+        "raw": {
+            "family_code": "FOERSTER",
+            "confidence": 0.92,
+            "topk": [
+                {"family_code": "FOERSTER", "family_name": "Foerster", "score": 0.92},
+                {"family_code": "ALLIS", "family_name": "Allis", "score": 0.61},
+            ],
+        },
+    }
+    counts_live = {
+        **_counts("FOERSTER", 1),
+        "ALLIS": {
+            "family_id": "f2",
+            "family_code": "ALLIS",
+            "family_name": "Allis",
+            "expected_quantity": 1,
+            "detected_quantity": 0,
+            "raw_detected_quantity": 0,
+            "difference": -1,
+            "best_confidence": None,
+        },
+    }
+    out, boxes = _apply_hold(
+        state_cf,
+        counts=counts_live,
+        public_boxes=[foerster_box],
+        video_t=0.0,
+    )
+    assert "ALLIS" in state_cf._confusion_by_family
+    assert out["ALLIS"].get("confusion_hold") is True
+    assert int(out["ALLIS"]["detected_quantity"]) == 1
+    assert any(b.get("confusion_hold") for b in boxes)
+    until_cf = float(state_cf._confusion_by_family["ALLIS"]["until"])
+    assert abs(until_cf - 5.0) < 1e-6
+
+    # Renew while still in top2–N
+    out, _ = _apply_hold(
+        state_cf,
+        counts=counts_live,
+        public_boxes=[foerster_box],
+        video_t=2.0,
+    )
+    assert float(state_cf._confusion_by_family["ALLIS"]["until"]) >= 6.99
+
+    # Expire after 5 s without renew
+    out, _ = _apply_hold(
+        state_cf,
+        counts=counts_live,
+        public_boxes=[{
+            **foerster_box,
+            "raw": {
+                "family_code": "FOERSTER",
+                "confidence": 0.92,
+                "topk": [
+                    {"family_code": "FOERSTER", "family_name": "Foerster", "score": 0.92},
+                ],
+            },
+        }],
+        video_t=8.0,
+    )
+    assert "ALLIS" not in state_cf._confusion_by_family
+    assert int(out["ALLIS"]["detected_quantity"]) == 0
+
+    # Top1-only must never seed confusion for FOERSTER when it is top1.
+    state_top1 = SessionState(session_id="smoke-hold-no-top1-confusion")
+    state_top1.expected = state_cf.expected
+    state_top1.confusion_hold_seconds = 5.0
+    empty_allis = {
+        "FOERSTER": {
+            "family_id": "f1",
+            "family_code": "FOERSTER",
+            "family_name": "Foerster",
+            "expected_quantity": 1,
+            "detected_quantity": 0,
+            "raw_detected_quantity": 0,
+            "difference": -1,
+        },
+        "ALLIS": {
+            "family_id": "f2",
+            "family_code": "ALLIS",
+            "family_name": "Allis",
+            "expected_quantity": 1,
+            "detected_quantity": 0,
+            "raw_detected_quantity": 0,
+            "difference": -1,
+        },
+    }
+    orphan = {
+        "xyxy": xy,
+        "family_code": None,
+        "label": "Grasping",
+        "confidence": 0.5,
+        "high_confidence": False,
+        "resolution_reason": "type_degraded",
+        "raw": {
+            "family_code": "FOERSTER",
+            "confidence": 0.5,
+            "topk": [
+                {"family_code": "FOERSTER", "family_name": "Foerster", "score": 0.5},
+            ],
+        },
+    }
+    _apply_hold(state_top1, counts=empty_allis, public_boxes=[orphan], video_t=0.0)
+    assert "FOERSTER" not in state_top1._confusion_by_family
+
     print("OK smoke_hold_gates")
 
 

@@ -265,6 +265,7 @@ redis-data/
 # --- PEF: herramientas locales ---
 .qodo/
 _demo_hashes.txt
+tools/ffmpeg/
 
 # --- PEF: OS / OneDrive / editores ---
 .DS_Store

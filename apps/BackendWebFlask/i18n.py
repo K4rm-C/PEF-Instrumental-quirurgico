@@ -145,6 +145,7 @@ DB_CODE_LABELS = {
         'closed': N_('Closed'),
         'correction_required': N_('Correction Required'),
         'in_progress': N_('In Progress'),
+        'or_hold': N_('OR hold'),
         'scheduled': N_('Scheduled'),
     },
     'cycle_status': {
@@ -182,8 +183,10 @@ DB_CODE_LABELS = {
         'discrepancy': N_('Discrepancy recorded'),
         'hourly': N_('Periodic capture'),
         'manual_pin': N_('Operator manual mark'),
+        'phase': N_('Surgical phase change'),  # UI alias of state_change (evidence drawer)
         'start': N_('Session start'),
         'state_change': N_('Relevant state change'),
+        'unknown': N_('Unknown'),
     },
     'operation_phase': {
         'closure': N_('Closure'),
@@ -205,6 +208,9 @@ DB_CODE_LABELS = {
         'discrepancy_raised': N_('Discrepancy detected'),
         'manual_close': N_('Close with manual quantity report'),
         'manual_count': N_('Manually captured count'),
+        'or_hold_comment': N_('OR hold comment'),
+        'or_hold_opened': N_('OR hold opened'),
+        'or_hold_released': N_('OR hold released'),
         'phase_change': N_('Surgical phase change'),
         'session_close': N_('Session close'),
         'session_open': N_('Session opened'),

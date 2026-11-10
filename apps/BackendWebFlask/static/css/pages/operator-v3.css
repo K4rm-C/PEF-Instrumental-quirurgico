@@ -262,3 +262,365 @@
     white-space: pre-line;
     overflow-wrap: anywhere;
 }
+
+/* ---- Live capture (RF-OP-04): camera first, count board below ---- */
+.v3-op-capture {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.v3-op-capture__stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.v3-op-capture__session-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+    margin: 0 0 var(--space-4);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.v3-op-capture__session-id {
+    font-variant-numeric: tabular-nums;
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-op-capture__stage-card {
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+}
+
+.v3-op-capture__stage {
+    --capture-stage-pad: var(--space-2);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: min(62vh, 640px);
+    overflow: hidden;
+    border: 1px solid #334155;
+    border-radius: calc(var(--radius-lg) - var(--capture-stage-pad));
+    background: #0b1220;
+    color: #e2e8f0;
+}
+
+.v3-op-capture__stage img:not([hidden]),
+.v3-op-capture__stage video:not([hidden]) {
+    display: block;
+    width: 100%;
+    max-height: min(62vh, 640px);
+    object-fit: contain;
+    background: #000;
+}
+
+/* Author `display` must not override the HTML hidden attribute (raw camera
+   grabber stays off-screen; only the annotated JPEG is shown). */
+.v3-op-capture__stage [hidden] {
+    display: none !important;
+}
+
+.v3-op-capture__placeholder {
+    padding: var(--space-8) var(--space-5);
+    text-align: center;
+    color: #94a3b8;
+    font-size: var(--font-size-md);
+}
+
+.v3-op-capture__stage-loading {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    background: rgba(11, 18, 32, 0.72);
+    color: #e2e8f0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-medium);
+    z-index: 2;
+}
+
+.v3-op-capture__stage.is-loading .v3-op-capture__stage-loading {
+    display: flex;
+}
+
+.v3-op-capture__spinner {
+    width: 1.1rem;
+    height: 1.1rem;
+    border: 2px solid rgba(226, 232, 240, 0.25);
+    border-top-color: #e2e8f0;
+    border-radius: 50%;
+    animation: v3-op-capture-spin 0.7s linear infinite;
+}
+
+@keyframes v3-op-capture-spin {
+    to { transform: rotate(360deg); }
+}
+
+.v3-op-capture__controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--space-4) var(--space-6);
+    margin-top: var(--space-4);
+    align-items: start;
+}
+
+.v3-op-capture__controls-main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.v3-op-capture__controls-phase {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-secondary);
+}
+
+.v3-op-capture__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.v3-op-capture__toolbar .form-field__input,
+.v3-op-capture__controls-phase .form-field__input,
+.v3-op-capture__secondary .form-field__input {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 12rem;
+}
+
+.v3-op-capture__toolbar-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2) var(--space-4);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+.v3-op-capture__toolbar-meta[data-empty="true"] {
+    display: none;
+}
+
+.v3-op-capture__secondary {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+}
+
+.v3-op-capture__secondary-label {
+    margin: 0;
+    color: var(--color-text-tertiary);
+    font-size: var(--font-size-xs);
+}
+
+.v3-op-capture__board-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-3) var(--space-6);
+    margin-bottom: var(--space-3);
+}
+
+.v3-op-capture__board-head .card__title {
+    margin: 0;
+}
+
+.v3-op-capture__board-head .card__subtitle {
+    margin: var(--space-1) 0 0;
+}
+
+.v3-op-capture__presence-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.v3-op-capture__presence-legend li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.v3-op-capture__dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.v3-op-capture__dot--ok { background: var(--color-success); }
+.v3-op-capture__dot--partial { background: var(--color-warning); }
+.v3-op-capture__dot--missing { background: var(--color-danger); }
+
+.v3-op-capture__type-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin: 0 0 var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.v3-op-capture__type-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.v3-op-capture__swatch {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 2px;
+    background: var(--kit-swatch, var(--kit-other));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-text-primary) 12%, transparent);
+}
+
+.v3-op-capture__swatch--soft {
+    background: var(--kit-swatch-soft, var(--kit-other-soft));
+}
+
+.v3-op-capture__counts .data-table__numeric-column {
+    font-variant-numeric: tabular-nums;
+}
+
+.v3-op-capture__counts .capture-cat-header td {
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+    padding-top: var(--space-3);
+    padding-bottom: var(--space-3);
+    border-left: 4px solid var(--kit-swatch, var(--kit-other));
+    background: color-mix(in srgb, var(--kit-swatch, var(--kit-other)) 14%, var(--color-surface));
+}
+
+.v3-op-capture__counts .capture-cat-header[data-presence="ok"] {
+    box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--color-success) 10%, transparent);
+}
+
+.v3-op-capture__counts .capture-cat-header[data-presence="partial"] {
+    box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--color-warning) 12%, transparent);
+}
+
+.v3-op-capture__counts .capture-cat-header[data-presence="missing"] {
+    box-shadow: inset 0 0 0 9999px color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+.v3-op-capture__counts .capture-cat-header[data-category-code="cutting"] { --kit-swatch: var(--kit-cutting); }
+.v3-op-capture__counts .capture-cat-header[data-category-code="dissection"] { --kit-swatch: var(--kit-dissection); }
+.v3-op-capture__counts .capture-cat-header[data-category-code="grasping"] { --kit-swatch: var(--kit-grasping); }
+.v3-op-capture__counts .capture-cat-header[data-category-code="hemostasis"] { --kit-swatch: var(--kit-hemostasis); }
+.v3-op-capture__counts .capture-cat-header[data-category-code="retraction"] { --kit-swatch: var(--kit-retraction); }
+.v3-op-capture__counts .capture-cat-header[data-category-code="suturing"] { --kit-swatch: var(--kit-suturing); }
+.v3-op-capture__counts .capture-cat-header[data-category-code="suction"] { --kit-swatch: var(--kit-suction); }
+
+.v3-op-capture__counts .capture-family-row td:first-child {
+    border-left: 3px solid var(--kit-swatch-soft, transparent);
+    padding-left: var(--space-3);
+}
+
+.v3-op-capture__counts .capture-family-row[data-category-code="cutting"] { --kit-swatch-soft: var(--kit-cutting-soft); }
+.v3-op-capture__counts .capture-family-row[data-category-code="dissection"] { --kit-swatch-soft: var(--kit-dissection-soft); }
+.v3-op-capture__counts .capture-family-row[data-category-code="grasping"] { --kit-swatch-soft: var(--kit-grasping-soft); }
+.v3-op-capture__counts .capture-family-row[data-category-code="hemostasis"] { --kit-swatch-soft: var(--kit-hemostasis-soft); }
+.v3-op-capture__counts .capture-family-row[data-category-code="retraction"] { --kit-swatch-soft: var(--kit-retraction-soft); }
+.v3-op-capture__counts .capture-family-row[data-category-code="suturing"] { --kit-swatch-soft: var(--kit-suturing-soft); }
+.v3-op-capture__counts .capture-family-row[data-category-code="suction"] { --kit-swatch-soft: var(--kit-suction-soft); }
+
+.v3-op-capture__cat-meta {
+    margin-left: var(--space-2);
+    font-weight: var(--font-weight-medium);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.v3-op-capture__cat-pending {
+    margin-top: var(--space-1);
+    color: var(--color-warning);
+    font-size: var(--font-size-xs);
+}
+
+.v3-op-capture__counts [data-detected].is-waiting,
+.v3-op-capture__counts [data-diff].is-waiting,
+.v3-op-capture__counts [data-total-detected].is-waiting,
+.v3-op-capture__counts [data-total-diff].is-waiting {
+    color: var(--color-text-tertiary);
+}
+
+.v3-op-capture__phase-label {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.v3-op-capture__phase-current {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.v3-op-capture__phase-current strong {
+    color: var(--color-text-primary);
+    font-weight: var(--font-weight-semibold);
+}
+
+.v3-op-capture__phase-msg {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.v3-op-capture__phase-msg:empty {
+    display: none;
+}
+
+.v3-op-capture__error {
+    margin: var(--space-2) 0 0;
+    color: var(--color-danger);
+    font-size: var(--font-size-sm);
+}
+
+@media (max-width: 900px) {
+    .v3-op-capture__controls {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 720px) {
+    .v3-op-capture__stage {
+        min-height: 240px;
+    }
+
+    .v3-op-capture__stage img:not([hidden]),
+    .v3-op-capture__stage video:not([hidden]) {
+        max-height: 50vh;
+    }
+}

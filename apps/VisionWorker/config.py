@@ -19,6 +19,15 @@ _ws_origins = os.getenv(
 )
 WS_ORIGINS = {o.strip() for o in _ws_origins.split(",") if o.strip()}
 
+# EvidenceWorker fan-out (camera JPEG only; never blocks YOLO).
+REDIS_URL = os.getenv("REDIS_URL", "redis://:MedRedis@localhost:6379/0")
+EVIDENCE_QUEUE_ENABLED = str(os.getenv("EVIDENCE_QUEUE_ENABLED", "1")).strip().lower() in {
+    "1", "true", "yes", "on",
+}
+EVIDENCE_FRAME_LIST_PREFIX = os.getenv("EVIDENCE_FRAME_LIST_PREFIX", "pef:evidence:frames:")
+# ~6 s @ 30 fps camera; LTRIM drop-oldest.
+EVIDENCE_FRAME_MAX = max(30, int(os.getenv("EVIDENCE_FRAME_MAX", "180")))
+
 # Recall (caja existe) — permisivo para demo externos
 BOX_RECALL_CONF = float(os.getenv("VISION_BOX_RECALL_CONF", "0.12"))
 # Overlay: familia vs Type (kept_raw / naming principal)
@@ -58,18 +67,22 @@ FRAME_STRIDE_CUDA = _env_int("VISION_FRAME_STRIDE_CUDA") or _stride_pin or 1
 FRAME_STRIDE_CPU = _env_int("VISION_FRAME_STRIDE_CPU") or _stride_pin or 5
 FRAME_STRIDE = FRAME_STRIDE_CPU
 # Keep last good family tally/boxes for this many seconds of *video time*
-HOLD_SECONDS = float(os.getenv("VISION_HOLD_SECONDS", "2.5"))
-# Keep family *name* on overlay longer than count-hold (model jitter)
-NAME_HOLD_SECONDS = float(os.getenv("VISION_NAME_HOLD_SECONDS", "4.0"))
+# PoC: halved vs prior defaults so the count board tracks live removals sooner.
+HOLD_SECONDS = float(os.getenv("VISION_HOLD_SECONDS", "1.25"))
+# Keep family *name* on overlay after last renew (named sticky does not shrink on absent).
+NAME_HOLD_SECONDS = float(os.getenv("VISION_NAME_HOLD_SECONDS", "6.0"))
+# Confusion / missing-family retention when the family appears only in top2–N
+# (top1 already assigned). Renew while it stays in selectable top2–N. Never for top1.
+CONFUSION_HOLD_SECONDS = float(os.getenv("VISION_CONFUSION_HOLD_SECONDS", "2.5"))
 # Do not seed/refresh holds with weaker ghosts
 HOLD_MIN_SCORE = float(os.getenv("VISION_HOLD_MIN_SCORE", "0.35"))
 # When family is confirmed absent (0 live), shrink count hold to this TTL (video seconds).
 # Longer than a blink; shorter than full HOLD so removals clear faster than occlusions.
-HOLD_ABSENT_SECONDS = float(os.getenv("VISION_HOLD_ABSENT_SECONDS", "1.1"))
+HOLD_ABSENT_SECONDS = float(os.getenv("VISION_HOLD_ABSENT_SECONDS", "0.55"))
 # Seed / absent grace: N inferences *at CPU stride*, converted to tape seconds via fps.
-# CUDA (stride 1) waits the same video time as CPU (stride 5), not 3 raw frames.
-HOLD_ABSENT_STREAK = max(1, int(os.getenv("VISION_HOLD_ABSENT_STREAK", "3")))
-HOLD_SEED_FRAMES = max(1, int(os.getenv("VISION_HOLD_SEED_FRAMES", "3")))
+# CUDA (stride 1) waits the same video time as CPU (stride 5), not N raw frames.
+HOLD_ABSENT_STREAK = max(1, int(os.getenv("VISION_HOLD_ABSENT_STREAK", "2")))
+HOLD_SEED_FRAMES = max(1, int(os.getenv("VISION_HOLD_SEED_FRAMES", "2")))
 # If any live box overlaps last hold geometry ≥ this IoU, treat as occlusion
 # (delay absent shrink; do not refresh the hold clock).
 HOLD_ZONE_IOU = float(os.getenv("VISION_HOLD_ZONE_IOU", "0.15"))

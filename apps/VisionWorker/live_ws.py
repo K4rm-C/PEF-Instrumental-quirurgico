@@ -5,9 +5,8 @@ Two buffers that must not be mixed:
 - Slot YOLO (this module): at most one pending JPEG. While run_frame is busy the
   latest frame overwrites the slot; there is no YOLO backlog. Camera 30 fps always
   outruns inference on this hardware.
-- Ring clip (future, not implemented): JPEG of the *camera* at camera fps, ~5–8 s
-  RAM window, encoded off the hot path into a DS05 MP4 (H.264, no audio) + DS06 checkpoint.
-  Mongo/Garage/MP4 encoding are out of this delivery.
+- Evidence fan-out: camera JPEG is copied to Redis (drop-oldest) without awaiting
+  the EvidenceWorker ring / MP4 / Garage path.
 """
 
 from __future__ import annotations
@@ -22,6 +21,7 @@ from typing import Any, Callable
 from flask import request
 
 from config import WS_ORIGINS, WS_SECRET
+from evidence_queue import push_camera_jpeg
 from inference import (
     SessionState,
     cancel_capture,
@@ -218,10 +218,13 @@ def register_live_ws(sock, *, get_state: GetState) -> None:
                     continue
 
                 frame_id = str(msg.get("frame_id") or uuid.uuid4())
-                frame = decode_jpeg_b64(str(msg.get("image_base64") or ""))
+                jpeg_b64 = str(msg.get("image_base64") or "")
+                frame = decode_jpeg_b64(jpeg_b64)
                 if frame is None:
                     _error(ws, code="invalid_frame", message="JPEG vacío o corrupto", frame_id=frame_id)
                     continue
+                # Evidence ring feed: camera JPEG only; must not wait on YOLO or encode.
+                push_camera_jpeg(bound.session_id, jpeg_b64, captured_at=time.time())
                 with slot_lock:
                     slot = {
                         "frame": frame,

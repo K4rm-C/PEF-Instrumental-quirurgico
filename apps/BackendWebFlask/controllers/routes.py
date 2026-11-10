@@ -1106,7 +1106,7 @@ def operator_session_capture_finish(session_id):
 @web_bp.route('/operator/sessions/<session_id>/capture/phase', methods=['POST'])
 @require_role('station_operator')
 def operator_session_capture_phase(session_id):
-    from services.rf_session import RfSessionError, change_phase_stub
+    from services.rf_session import RfSessionError, change_phase
 
     user = _current_user()
     detail = operator_session_detail(session_id, user['id'])
@@ -1118,7 +1118,7 @@ def operator_session_capture_phase(session_id):
     if not to_phase:
         return jsonify({'ok': False, 'error': 'phase_code required'}), 400
     try:
-        result = change_phase_stub(
+        result = change_phase(
             session_id=UUID(session_id),
             operator_user_id=UUID(user['id']),
             institution_id=UUID(user['institution_id']) if user.get('institution_id') else None,
@@ -1133,7 +1133,7 @@ def operator_session_capture_phase(session_id):
 @web_bp.route('/operator/sessions/<session_id>/detection-summary')
 @require_role('station_operator')
 def operator_session_detection_summary(session_id):
-    """RF-OP-05 AI detection summary (demo: last annotated frame from worker, no Mongo)."""
+    """RF-OP-05 AI detection summary + last frame + evidence drawer."""
     from services.rf_session import get_vision_snapshot
 
     user = _current_user()
@@ -1166,9 +1166,6 @@ def operator_session_detection_summary(session_id):
             **item,
             'ai_detected_quantity': detected,
             'difference': diff,
-            'avg_confidence': meta.get('avg_confidence'),
-            'best_confidence': meta.get('best_confidence'),
-            'weakest_confidence': meta.get('weakest_confidence'),
             'raw_detected_quantity': meta.get('raw_detected_quantity'),
             'result_label': result_label,
             'result_variant': result_variant,
@@ -1179,6 +1176,7 @@ def operator_session_detection_summary(session_id):
         session_id=session_id,
         snapshot=snapshot,
         detection_rows=rows,
+        clips_url=url_for('web.operator_session_evidence_clips', session_id=session_id),
         validation_url=url_for('web.operator_session_vision_validation', session_id=session_id),
         capture_url=url_for('web.operator_session_capture', session_id=session_id),
     )
@@ -1237,6 +1235,7 @@ def operator_session_vision_validation(session_id):
                     form_error=gettext('Enter a whole number for every validated count.'),
                     reason_options=_manual_reason_options(),
                     report_values=_default_values(),
+                    clips_url=url_for('web.operator_session_evidence_clips', session_id=session_id),
                     summary_url=url_for('web.operator_session_detection_summary', session_id=session_id),
                 ), 400
             reason = request.form.get(f'reason_{family_id}', '').strip()
@@ -1270,6 +1269,7 @@ def operator_session_vision_validation(session_id):
                 form_error=_error_message(exc),
                 reason_options=_manual_reason_options(),
                 report_values=report_values,
+                clips_url=url_for('web.operator_session_evidence_clips', session_id=session_id),
                 summary_url=url_for('web.operator_session_detection_summary', session_id=session_id),
             ), exc.status_code
         return redirect(url_for(
@@ -1285,8 +1285,106 @@ def operator_session_vision_validation(session_id):
         snapshot=snapshot,
         reason_options=_manual_reason_options(),
         report_values=_default_values(),
+        clips_url=url_for('web.operator_session_evidence_clips', session_id=session_id),
         summary_url=url_for('web.operator_session_detection_summary', session_id=session_id),
     )
+
+
+@web_bp.route('/operator/sessions/<session_id>/evidence-clips')
+@require_role('station_operator')
+def operator_session_evidence_clips(session_id):
+    """JSON catalog of evidence clips (local sidecars + optional Mongo)."""
+    from services.evidence_catalog import list_session_clips, resolve_play_url
+    from services.rf_session import get_vision_snapshot
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    snapshot = get_vision_snapshot(session_id) or {}
+    expected_total = 0
+    detected_total = 0
+    counts_by_family = {}
+    for _code, meta in (snapshot.get('counts') or {}).items():
+        fid = str(meta.get('family_id') or '')
+        if fid:
+            counts_by_family[fid] = meta
+    for item in detail.get('expected_items') or []:
+        expected_total += int(item.get('expected_quantity') or 0)
+        meta = counts_by_family.get(item['family_id'], {})
+        detected_total += int(meta.get('detected_quantity') or 0)
+    # Live board ratio (hint); each clip keeps its own sidecar/Mongo ratio_label when present.
+    session_ratio_label = f'{detected_total}/{expected_total}' if expected_total else None
+    phase_label_by_code = {
+        str(p.get('code')): p.get('name')
+        for p in (detail.get('phases') or [])
+        if isinstance(p, dict) and p.get('code')
+    }
+    from i18n import localize_db_label
+
+    clips = []
+    garage_fail_count = 0
+    for row in list_session_clips(session_id):
+        local_url = None
+        if row.get('has_file') and row.get('clip_id'):
+            local_url = url_for(
+                'web.operator_session_evidence_clip_file',
+                session_id=session_id,
+                clip_id=row['clip_id'],
+            )
+        play_url = resolve_play_url(row, local_file_url=local_url)
+        clip_ratio = row.get('ratio_label') or None
+        phase_code = row.get('phase_code')
+        phase_name = row.get('phase_name') or phase_label_by_code.get(str(phase_code or ''))
+        if not phase_name and detail.get('phase_label') and not phase_code:
+            phase_name = detail.get('phase_label')
+        phase_name = localize_db_label('operation_phase', phase_code, phase_name)
+        status = (row.get('upload_status') or '').lower()
+        if row.get('garage_ok') is False or status in {'pending_upload', 'local_only'}:
+            # local_only with garage disabled is fine; banner only for failed/pending sync.
+            if status == 'pending_upload' or row.get('garage_ok') is False:
+                garage_fail_count += 1
+        clips.append({
+            **row,
+            'play_url': play_url,
+            'ratio_label': clip_ratio,
+            'phase_name': phase_name,
+        })
+    return jsonify({
+        'ok': True,
+        'session_id': session_id,
+        'ratio_label': session_ratio_label,
+        'garage_fail': garage_fail_count > 0,
+        'garage_fail_count': garage_fail_count,
+        'clips': clips,
+    })
+
+
+@web_bp.route('/operator/sessions/<session_id>/evidence-clips/<clip_id>/file')
+@require_role('station_operator')
+def operator_session_evidence_clip_file(session_id, clip_id):
+    """Stream local MP4/JPEG for an evidence clip (auth-gated)."""
+    from flask import send_file
+    from services.evidence_catalog import resolve_local_media
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    path = resolve_local_media(session_id, clip_id)
+    if path is None:
+        abort(404)
+    mime = 'video/mp4'
+    suffix = path.suffix.lower()
+    if suffix in {'.jpg', '.jpeg'}:
+        mime = 'image/jpeg'
+    elif suffix == '.webm':
+        mime = 'video/webm'
+    elif suffix == '.mkv':
+        mime = 'video/x-matroska'
+    elif suffix == '.mkv':
+        mime = 'video/x-matroska'
+    return send_file(path, mimetype=mime, conditional=True, download_name=path.name)
 
 
 @web_bp.route('/operator/sessions/<session_id>/tray-verification')
@@ -1575,7 +1673,7 @@ def supervisor_services_health():
             {'name': 'Auth', 'status': 'direct', 'detail': gettext('Local Auth service (no MS mesh yet)')},
             {'name': gettext('Web / Session'), 'status': 'direct', 'detail': gettext('Monolith BackendWebFlask')},
             _vision_health_row(),
-            {'name': gettext('Evidence worker'), 'status': 'pending', 'detail': gettext('Mongo/Garage evidence cycle — deferred')},
+            {'name': gettext('Evidence worker'), 'status': 'ready', 'detail': gettext('Ring + local video; Garage on by default (EVIDENCE_GARAGE_ENABLED)')},
         ],
     )
 
