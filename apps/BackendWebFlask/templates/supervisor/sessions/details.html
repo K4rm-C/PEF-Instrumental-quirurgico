@@ -1,0 +1,63 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Supervisor Session Details (V3 tab shell) for V3 demo session ids only.
+    UUID-backed sessions render supervisor/sessions/rf_details.html instead (see routes).
+
+    Context: v3 (view_data.supervisor_v3_view), tab ('overview' | 'counts' | 'activity'),
+    tab_urls. Tabs are server-rendered links (?tab=...), so they survive reload without JS.
+    v3 is used across blocks, so it is read from the render context, never set inside a block.
+#}
+
+{% block title %}{{ v3.session.session_id }} · {{ _("Session Details") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'sessions' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Monitoring") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item"><a href="{{ url_for('web.supervisor_sessions') }}">{{ _("Sessions") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ v3.session.session_id }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{% set tab_labels = [('overview', _('Overview')), ('counts', _('Counts & Evidence')), ('activity', _('Review & Activity'))] %}
+<div class="v3-page">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-heading__title">{{ _("Supervisor Session Details") }}</h1>
+            <p class="page-heading__subtitle">
+                {% if tab == 'overview' %}{{ _("Review the core session summary and pre/post procedure status before moving into deeper review workflows.") }}
+                {% elif tab == 'counts' %}{{ _("Read-only count summary, final evidence, and AI analysis details.") }}
+                {% else %}{{ _("Review activity for %(session)s", session=v3.session.session_id) }}{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <nav class="v3-tabs" aria-label="{{ _('Session details sections') }}">
+        {% for key, label in tab_labels %}
+        <a class="v3-tabs__link{% if tab == key %} v3-tabs__link--active{% endif %}" href="{{ tab_urls[key] }}"
+           {% if tab == key %}aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+    </nav>
+
+    {% if tab == 'counts' %}
+        {% include "supervisor/sessions/_details_counts.html" %}
+    {% elif tab == 'activity' %}
+        {% include "supervisor/sessions/_details_activity.html" %}
+    {% else %}
+        {% include "supervisor/sessions/_details_overview.html" %}
+    {% endif %}
+</div>
+{% endblock %}

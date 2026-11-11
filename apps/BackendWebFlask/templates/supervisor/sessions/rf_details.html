@@ -1,0 +1,487 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Supervisor RF Session Details (/supervisor/sessions/<session_id> for real sessions).
+    - Default: free client-side tabs Session / Expected Inventory / Timeline (js/pages/v3-tabs.js,
+      shared with Operator Session Details).
+    - awaiting_spd_review with no open discrepancies: 4-step close review wizard
+      (js/pages/v3-wizard.js). The close form, its POST, the required material_recovered
+      checkbox and the appConfirm modal are unchanged.
+    Section contents are rendered once ({% set %} blocks) and placed in one of the two layouts.
+#}
+
+{% block title %}{{ session.session_id }} · {{ _("Session details") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'sessions' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item"><a href="{{ url_for('web.supervisor_sessions') }}">{{ _("Sessions") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ session.session_id }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{% set inventory_view = inventory_view|default('table') %}
+{% set close_review = session.status_code == 'awaiting_spd_review' and (session.discrepancy_count|default(0)) == 0 %}
+
+{% set session_section %}
+<div class="v3-metric-tiles">
+    <div class="v3-metric-tile">
+        <div class="v3-metric-tile__label">{{ _("Status") }}</div>
+        <div class="v3-metric-tile__value v3-metric-tile__value--text">{{ macros.status_badge(session.status_label, session.status_variant) }}</div>
+    </div>
+    <div class="v3-metric-tile">
+        <div class="v3-metric-tile__label">{{ _("Capture mode") }}</div>
+        <div class="v3-metric-tile__value v3-metric-tile__value--text">{{ session.capture_mode or '—' }}</div>
+    </div>
+    <div class="v3-metric-tile">
+        <div class="v3-metric-tile__label">{{ _("Privacy") }}</div>
+        <div class="v3-metric-tile__value v3-metric-tile__value--text">{{ macros.status_badge(session.privacy_label, session.privacy_variant) }}</div>
+    </div>
+    <div class="v3-metric-tile{% if session.discrepancy_count %} v3-metric-tile--warning{% endif %}">
+        <div class="v3-metric-tile__label">{{ _("Open discrepancies") }}</div>
+        <div class="v3-metric-tile__value">{{ session.discrepancy_count }}</div>
+    </div>
+</div>
+<div class="v3-columns">
+    <div class="v3-panel">
+        <h3 class="v3-panel__title">{{ _("Assignment") }}</h3>
+        <dl class="v3-kv-list">
+            <div><dt>{{ _("Operator") }}</dt><dd>{{ session.operator_name }}</dd></div>
+            <div><dt>{{ _("Patient") }}</dt><dd>{{ session.patient_name or '—' }}</dd></div>
+            <div><dt>{{ _("Kit") }}</dt><dd>{{ session.kit_name }}</dd></div>
+            <div><dt>{{ _("Capture station") }}</dt><dd>{{ session.capture_station_name }}</dd></div>
+        </dl>
+    </div>
+    <div class="v3-panel">
+        <h3 class="v3-panel__title">{{ _("Timing") }}</h3>
+        <dl class="v3-kv-list">
+            <div><dt>{{ _("Scheduled start") }}</dt><dd>{{ session.scheduled_at or '—' }}</dd></div>
+            <div><dt>{{ _("Started") }}</dt><dd>{{ session.started_at or '—' }}</dd></div>
+            <div><dt>{{ _("Ended") }}</dt><dd>{{ session.closed_at or '—' }}</dd></div>
+        </dl>
+    </div>
+</div>
+{% if session.surgical_team or session.privacy %}
+<div class="v3-columns">
+    {% if session.surgical_team %}
+    <div class="v3-panel">
+        <h3 class="v3-panel__title">{{ _("Surgical team") }}</h3>
+        <dl class="v3-kv-list">
+            {% for member in session.surgical_team %}
+            <div><dt>{{ member.name }}</dt><dd>{{ _(member.role) }}</dd></div>
+            {% endfor %}
+        </dl>
+    </div>
+    {% endif %}
+    {% if session.privacy %}
+    <div class="v3-panel">
+        <h3 class="v3-panel__title">{{ _("Privacy notice") }}</h3>
+        {% if session.privacy.has_agreement %}
+        <p class="text-muted">{{ _("Notice") }} {{ session.privacy.version }} · {{ session.privacy.agreed_at or '—' }}</p>
+        {% else %}
+        <p class="text-muted">{{ _(session.privacy.message) }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+{% endset %}
+
+{% set inventory_toggle %}
+<div class="page-heading__actions">
+    <a class="btn btn--secondary btn--small{% if inventory_view != 'by_type' %} btn--primary{% endif %}"
+       href="{{ url_for('web.supervisor_session_details', session_id=session.id, inventory_view='table', _anchor='inventory') }}">{{ _("Table") }}</a>
+    <a class="btn btn--secondary btn--small{% if inventory_view == 'by_type' %} btn--primary{% endif %}"
+       href="{{ url_for('web.supervisor_session_details', session_id=session.id, inventory_view='by_type', _anchor='inventory') }}">{{ _("By type") }}</a>
+</div>
+{% endset %}
+
+{% set inventory_section %}
+{% if inventory_view == 'by_type' %}
+    {% for group in session.expected_groups|default([]) %}
+    <h3 class="form-field__label">{{ _(group.label) }}</h3>
+    <div class="table-wrapper" style="margin-bottom: 1rem;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Family") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
+                    <th scope="col">{{ _("Source") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in group.lines %}
+                <tr>
+                    <td>{{ item.family_name }}</td>
+                    <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                    <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
+                    <td><span class="status-badge status-badge--neutral">{{ _(item.source_label) }}</span></td>
+                    <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p>{{ _("No expected inventory rows.") }}</p>
+    {% endfor %}
+{% else %}
+<div class="table-wrapper">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th scope="col">{{ _("Family") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Reported") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Diff") }}</th>
+                <th scope="col">{{ _("Source") }}</th>
+                <th scope="col">{{ _("Status") }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in session.expected_items|default([]) %}
+            <tr>
+                <td>{{ item.family_name }}</td>
+                <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                <td class="data-table__numeric-column">{{ item.reported_quantity if item.reported_quantity is not none else '—' }}</td>
+                <td class="data-table__numeric-column">{{ item.difference if item.difference is not none else '—' }}</td>
+                <td><span class="status-badge status-badge--neutral">{{ _(item.source_label) }}</span></td>
+                <td>{{ macros.status_badge(item.status_label, item.status_variant) }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6">{{ _("No expected inventory rows.") }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endset %}
+
+{% set timeline_section %}
+<div class="table-wrapper">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th scope="col">{{ _("When") }}</th>
+                <th scope="col">{{ _("Event") }}</th>
+                <th scope="col">{{ _("Scope") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                <th scope="col" class="data-table__numeric-column">{{ _("Detected") }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in session.timeline|default([]) %}
+            <tr>
+                <td>{{ event.occurred_at or '—' }}</td>
+                <td>
+                    {{ event.event_label or event.event_name }}
+                    <code>{{ event.event_code }}</code>
+                    {% if event.family_name %}
+                    <div class="muted">{{ event.family_name }}</div>
+                    {% elif event.scope == 'board' and event.board_family_count %}
+                    <div class="muted">{{ _("Board") }} · {{ event.board_family_count }} {{ _("families") }}{% if event.frames_processed %} · f{{ event.frames_processed }}{% endif %}{% if event.solver %} · {{ event.solver }}{% endif %}</div>
+                    {% endif %}
+                    {# MS-11 (R11): tracking of the accepted run — traceability only, never a count. #}
+                    {% set tracking = (event.payload or {}).get('tracking') if event.payload is mapping else none %}
+                    {% if tracking %}
+                    <div class="muted" data-tracking-summary title="{{ _('Tracking statistics are not counts; the final count is the last valid frame.') }}">
+                        {{ _("Tracking") }}: {{ tracking.unique_confirmed_tracks }} {{ _("stable tracks") }}
+                        · {{ _("lost") }} {{ tracking.stats.lost }} / {{ _("recovered") }} {{ tracking.stats.recovered }}
+                        · {{ _("class changes") }} {{ tracking.stats.class_changes }}
+                        {% if tracking.active_tracks_match_final_frame is sameas true %}· {{ _("active tracks match the final frame") }}
+                        {% elif tracking.active_tracks_match_final_frame is sameas false %}· <strong>{{ _("active tracks differ from the final frame (review the evidence)") }}</strong>{% endif %}
+                    </div>
+                    {% endif %}
+                </td>
+                <td>{% if event.scope == 'board' %}{{ _("Board") }}{% elif event.family_id %}{{ _("Family") }}{% else %}—{% endif %}</td>
+                <td class="data-table__numeric-column">{{ event.expected_quantity if event.expected_quantity is not none else '—' }}</td>
+                <td class="data-table__numeric-column">{{ event.detected_quantity if event.detected_quantity is not none else '—' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5">{{ _("No count events yet.") }}</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if evidence %}
+{# MS-03: real evidence (EvidenceService images, DS06 checkpoints, pinned model, AI/human counts). #}
+<div style="margin-top:1.25rem;">{% include "supervisor/sessions/_evidence_traceability.html" %}</div>
+{% endif %}
+{% if integrity %}
+{# MS-12: integrity seal of the Operator's validation and tracking log of the accepted run (traceability only). #}
+<section class="card" style="margin-top:1.25rem;" data-session-integrity>
+    <h2 class="card__title">{{ _("Validation integrity and tracking log") }}</h2>
+    {% if integrity.unavailable %}
+    <p class="form-field__helper" data-integrity-unavailable>{{ _("The session service is temporarily unavailable. Try again in a moment.") }}</p>
+    {% else %}
+    {% set seal = integrity.seal %}
+    {% set seal_labels = {'intact': _('Intact: the stored validation produces its seal'), 'altered': _('Altered: the stored validation no longer matches its seal'), 'not_sealed': _('Not sealed (closed before MS-12 or by escalation)'), 'no_validation': _('The Operator has not validated the count yet')} %}
+    <p data-seal-status="{{ seal.status }}">{{ macros.status_badge(seal_labels.get(seal.status, seal.status), {'intact': 'success', 'altered': 'danger'}.get(seal.status, 'neutral')) }}
+        {% if seal.stored_sha256 %}<br><small>SHA-256 <code>{{ seal.stored_sha256 }}</code></small>{% endif %}</p>
+    <p class="muted">{{ _("Integrity check of the stored validation; it is not an electronic signature.") }}</p>
+    {% set tr = integrity.tracking %}
+    {% if tr and tr.count_event_id %}
+    <p data-tracking-log>{{ _("Tracking events persisted") }}: {{ tr.events_persisted }}{% if tr.events_recorded is not none %} / {{ tr.events_recorded }}{% endif %}
+        {% if tr.complete is sameas false %}· <strong>{{ _("incomplete log") }}</strong>{% endif %}</p>
+    <details>
+        <summary>{{ _("Show tracking events") }}</summary>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead><tr><th>#</th><th>{{ _("Video time (s)") }}</th><th>{{ _("Track") }}</th><th>{{ _("Event") }}</th><th>{{ _("Family") }}</th><th>{{ _("Confidence") }}</th></tr></thead>
+                <tbody>
+                    {% for e in tr.events %}
+                    <tr data-tracking-event="{{ e.event }}"><td>{{ e.seq }}</td><td>{{ e.video_t }}</td><td>{{ e.track_id }}</td><td><code>{{ e.event }}</code></td><td>{{ e.family_code or '—' }}</td><td>{{ e.confidence if e.confidence is not none else '—' }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </details>
+    {% else %}
+    <p class="muted">{{ _("No tracking log: there is no accepted final count of a video run.") }}</p>
+    {% endif %}
+    {% endif %}
+</section>
+{% endif %}
+{% if vision_panel and vision_panel.available and vision_panel.telemetry %}
+<p class="text-muted" data-telemetry-summary>
+    {{ _("Processing telemetry: %(samples)s samples · %(fps).1f FPS average · %(latency).0f ms average latency · %(drops)s frames skipped.", samples=vision_panel.telemetry.samples, fps=vision_panel.telemetry.fps_avg or 0, latency=vision_panel.telemetry.latency_ms_avg or 0, drops=vision_panel.telemetry.drops or 0) }}
+</p>
+{% endif %}
+{% endset %}
+
+<div class="v3-page">
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ session.session_id }}</h1>
+        <p class="page-heading__subtitle">{{ session.procedure_name }} · {{ session.operating_room }}</p>
+    </div>
+    <div class="page-heading__actions">
+        <a class="btn btn--secondary" href="{{ url_for('web.supervisor_sessions') }}">{{ _("Back") }}</a>
+        {% if session.can_edit_inventory %}
+        <a class="btn btn--secondary" href="{{ url_for('web.supervisor_session_inventory', session_id=session.id) }}">
+            {{ _("Modify session") if session.can_edit_session_fields else _("Modify expected inventory") }}
+        </a>
+        {% endif %}
+        {% if session.discrepancy_count and session.discrepancy_count > 0 %}
+        <a class="btn btn--primary" href="{{ url_for('web.supervisor_discrepancy_review', session_id=session.id) }}">{{ _("Review discrepancies") }}</a>
+        {% endif %}
+    </div>
+</div>
+
+{% if form_error %}
+<div class="alert alert--danger" role="alert">{{ form_error }}</div>
+{% endif %}
+
+{% if close_review %}
+{% set close_step = 4 if form_error else 1 %}
+{% set close_labels = [_('Session'), _('Expected vs Reported'), _('Timeline'), _('Close Confirmation')] %}
+<div class="v3-stack" data-v3-wizard>
+    <ol class="v3-stepper" aria-label="{{ _('Confirm close steps') }}">
+        {% for label in close_labels %}
+        {% set number = loop.index %}
+        <li class="v3-stepper__step{% if number < close_step %} v3-stepper__step--complete{% elif number == close_step %} v3-stepper__step--current{% endif %}"
+            data-wizard-indicator="{{ number }}"{% if number == close_step %} aria-current="step"{% endif %}>
+            <span class="v3-stepper__marker">
+                <span class="v3-stepper__marker-number">{{ number }}</span>
+                <svg class="icon v3-stepper__marker-check" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M5 10.5l3.2 3.2L15 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </span>
+            <span class="v3-stepper__label">{{ label }}</span>
+        </li>
+        {% endfor %}
+    </ol>
+
+    {# ------------------------------------------------------------ Step 1 #}
+    <section class="card v3-wizard-panel" data-wizard-step="1" data-wizard-key="session" aria-labelledby="close-step-1-title" {% if close_step != 1 %}hidden{% endif %}>
+        <div class="card__header">
+            <h2 class="card__title" id="close-step-1-title" tabindex="-1">{{ _("Session") }}</h2>
+            <p class="card__subtitle">{{ _("Review the session information before administrative close.") }}</p>
+        </div>
+        {{ session_section }}
+        <div class="v3-form-footer">
+            <a class="btn btn--secondary" href="{{ url_for('web.supervisor_sessions') }}">{{ _("Back to Sessions") }}</a>
+            <button type="button" class="btn btn--primary" data-wizard-next>{{ _("Continue") }}</button>
+        </div>
+    </section>
+
+    {# ------------------------------------------------------------ Step 2 #}
+    <section class="card v3-wizard-panel" data-wizard-step="2" data-wizard-key="inventory" aria-labelledby="close-step-2-title" {% if close_step != 2 %}hidden{% endif %}>
+        <div class="v3-card-header">
+            <div class="card__header">
+                <h2 class="card__title" id="close-step-2-title" tabindex="-1">{{ _("Expected vs reported") }}</h2>
+                <p class="card__subtitle">{{ _("Verify the expected and reported quantities and confirm that there are no unresolved discrepancies.") }}</p>
+            </div>
+            {{ inventory_toggle }}
+        </div>
+        {{ inventory_section }}
+        <div class="v3-form-footer">
+            <button type="button" class="btn btn--secondary" data-wizard-back>{{ _("Back") }}</button>
+            <button type="button" class="btn btn--primary" data-wizard-next>{{ _("Continue") }}</button>
+        </div>
+    </section>
+
+    {# ------------------------------------------------------------ Step 3 #}
+    <section class="card v3-wizard-panel" data-wizard-step="3" data-wizard-key="timeline" aria-labelledby="close-step-3-title" {% if close_step != 3 %}hidden{% endif %}>
+        <div class="card__header">
+            <h2 class="card__title" id="close-step-3-title" tabindex="-1">{{ _("Timeline") }}</h2>
+            <p class="card__subtitle">{{ _("Review the session timeline and counting events before closing.") }}</p>
+        </div>
+        {{ timeline_section }}
+        <div class="v3-form-footer">
+            <button type="button" class="btn btn--secondary" data-wizard-back>{{ _("Back") }}</button>
+            <button type="button" class="btn btn--primary" data-wizard-next>{{ _("Continue") }}</button>
+        </div>
+    </section>
+
+    {# ------------------------------------------------------------ Step 4 #}
+    <section class="card v3-wizard-panel" data-wizard-step="4" data-wizard-key="close" aria-labelledby="close-step-4-title" {% if close_step != 4 %}hidden{% endif %}>
+        <div class="card__header">
+            <h2 class="card__title" id="close-step-4-title" tabindex="-1">{{ _("Close Confirmation") }}</h2>
+            <p class="card__subtitle">{{ _("Confirm material recovery and close the session administratively.") }}</p>
+        </div>
+        <form method="post" action="{{ url_for('web.supervisor_session_close', session_id=session.id) }}"
+              class="v3-stack"
+              data-session-close-form
+              data-session-label="{{ session.session_id }}"
+              data-procedure="{{ session.procedure_name }}">
+{{ csrf_field() }}
+            <div class="v3-panel">
+                <h3 class="card__title">{{ _("Confirm close (SP-05)") }}</h3>
+                <p>{{ _("Confirm that material was recovered and reprocessing can start. This closes the session administratively.") }}</p>
+                <label class="form-field__checkbox">
+                    <input type="checkbox" name="material_recovered" value="1" required data-material-recovered>
+                    <span>{{ _("Material recovered / reprocessing started") }}</span>
+                </label>
+                {% set physical_shortages = (session.discrepancies|default([]))|selectattr('physical_shortage')|list %}
+                {% if physical_shortages %}
+                <div class="alert alert--danger" role="note" data-unreconciled-shortage>
+                    <strong>{{ _("Unreconciled physical shortage") }}:</strong>
+                    {{ _("%(count)s physically missing instrument(s) were recorded and not documented as recovered. This session cannot be confirmed as a safe close: it will be closed and recorded as an unreconciled shortage.", count=physical_shortages|length) }}
+                </div>
+                <label class="form-field__checkbox">
+                    <input type="checkbox" name="unreconciled_shortage_acknowledged" value="1" required>
+                    <span>{{ _("I acknowledge that the missing instrument was not recovered and the session is closed as an unreconciled shortage, not as a safe close") }}</span>
+                </label>
+                {% endif %}
+                {% if contingency %}
+                <div class="alert alert--warning" role="note" data-contingency-summary>
+                    <strong>{{ _("Contingency count") }}:</strong>
+                    {{ _("reason %(reason)s, by %(user)s at %(when)s, verified total %(total)s.", reason=contingency.reason_code, user=contingency.user_name or '—', when=contingency.occurred_at.strftime('%Y-%m-%d %H:%M') if contingency.occurred_at else '—', total=contingency.verified_total if contingency.verified_total is not none else '—') }}
+                    {% if contingency.notes %}<br>{{ contingency.notes }}{% endif %}
+                </div>
+                <label class="form-field__checkbox">
+                    <input type="checkbox" name="contingency_reviewed" value="1" required>
+                    <span>{{ _("I reviewed the contingency count and its verified quantities") }}</span>
+                </label>
+                {% set verification = (contingency.verification or {}).get('status') or 'declared' %}
+                <p data-contingency-verification="{{ verification }}">
+                    {% if verification == 'verified' %}{{ _("The technical reason was verified by the system.") }}{% else %}<strong>{{ _("The technical reason was declared by the Operator and could not be verified by the system.") }}</strong>{% endif %}
+                </p>
+                {% if verification != 'verified' %}
+                <label class="form-field__checkbox">
+                    <input type="checkbox" name="unverified_contingency_acknowledged" value="1" required>
+                    <span>{{ _("I acknowledge that the contingency reason was not verified by the system") }}</span>
+                </label>
+                {% endif %}
+                {% endif %}
+                {% if escalation %}
+                <div class="alert alert--danger" role="note" data-final-count-escalation="{{ escalation.kind }}">
+                    <strong>{{ _("Possible physical difference reported by the Operator") }}:</strong>
+                    {{ _("the rejected final capture saw %(final)s instruments against a reference of %(reference)s. No valid final count exists: this session cannot be confirmed as a safe close.", final=escalation.final, reference=escalation.reference) }}
+                    {% if escalation.notes %}<br>{{ escalation.notes }}{% endif %}
+                </div>
+                <label class="form-field__checkbox">
+                    <input type="checkbox" name="escalation_acknowledged" value="1" required>
+                    <span>{{ _("I acknowledge that the session is closed without a valid final count") }}</span>
+                </label>
+                {% endif %}
+            </div>
+            <div class="v3-form-footer">
+                <button type="button" class="btn btn--secondary" data-wizard-back>{{ _("Back") }}</button>
+                <button class="btn btn--primary" type="submit">{{ _("Confirm close") }}</button>
+            </div>
+        </form>
+    </section>
+</div>
+{% else %}
+{% set detail_tabs = [('session', _('Session')), ('inventory', _('Expected Inventory')), ('timeline', _('Timeline'))] %}
+<div class="v3-stack" data-v3-tabs data-v3-tabs-hash>
+    <div class="v3-tabs" role="tablist" aria-label="{{ _('Session details sections') }}">
+        {% for key, label in detail_tabs %}
+        <button type="button" class="v3-tabs__link{% if loop.first %} v3-tabs__link--active{% endif %}" role="tab"
+                id="tab-{{ key }}" data-tab-target="{{ key }}" aria-controls="tab-panel-{{ key }}"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"{% if not loop.first %} tabindex="-1"{% endif %}>{{ label }}</button>
+        {% endfor %}
+    </div>
+
+    <section class="card v3-tab-panel" role="tabpanel" id="tab-panel-session" aria-labelledby="tab-session" data-tab-panel="session">
+        <h2 class="card__title">{{ _("Session") }}</h2>
+        {{ session_section }}
+    </section>
+
+    <section class="card v3-tab-panel" role="tabpanel" id="tab-panel-inventory" aria-labelledby="tab-inventory" data-tab-panel="inventory" hidden>
+        <div class="v3-card-header">
+            <h2 class="card__title">{{ _("Expected vs reported") }}</h2>
+            {{ inventory_toggle }}
+        </div>
+        {{ inventory_section }}
+    </section>
+
+    <section class="card v3-tab-panel" role="tabpanel" id="tab-panel-timeline" aria-labelledby="tab-timeline" data-tab-panel="timeline" hidden>
+        <h2 class="card__title">{{ _("Timeline") }}</h2>
+        {{ timeline_section }}
+    </section>
+</div>
+{% endif %}
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/v3-tabs.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/pages/v3-wizard.js') }}" defer></script>
+<script>
+(function () {
+    var form = document.querySelector("[data-session-close-form]");
+    if (!form) return;
+    form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var recovered = !!form.querySelector("[data-material-recovered]:checked");
+        var html =
+            "<p>" + {{ _("Confirm administrative close for %(session)s?")|tojson }}.replace(
+                "%(session)s",
+                "<strong>" + (form.getAttribute("data-session-label") || {{ _("session")|tojson }}) + "</strong>"
+            ) + "</p>" +
+            '<div class="app-modal__audit"><dl class="app-modal__kv">' +
+            "<dt>" + {{ _("Procedure")|tojson }} + "</dt><dd>" + (form.getAttribute("data-procedure") || "—") + "</dd>" +
+            "<dt>" + {{ _("Material recovered")|tojson }} + "</dt><dd>" + (recovered ? {{ _("Yes")|tojson }} : {{ _("No")|tojson }}) + "</dd>" +
+            "</dl></div>";
+        if (window.appConfirm) {
+            window.appConfirm({
+                title: {{ _("Close Counting Session?")|tojson }},
+                html: html,
+                okLabel: {{ _("Close Session")|tojson }},
+                cancelLabel: window.pefT("cancel"),
+            }).then(function (ok) {
+                if (ok && window.appConfirmProceed) window.appConfirmProceed(form);
+            });
+            return;
+        }
+        if (window.appConfirmProceed) window.appConfirmProceed(form);
+    });
+})();
+</script>
+{% endblock %}

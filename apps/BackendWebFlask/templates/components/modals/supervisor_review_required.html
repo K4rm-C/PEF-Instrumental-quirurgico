@@ -1,0 +1,45 @@
+{% import "components/macros.html" as macros %}
+{#
+    Reusable "Supervisor Review Required" modal, opened from Count Validation's "Confirm
+    Validation" action when an unresolved discrepancy exists (has_discrepancy is true).
+    Opened/closed by the generic static/js/modal.js via data-modal-open / data-modal-close —
+    no dedicated JavaScript for this modal.
+
+    Expected context:
+    - discrepancy_summary: {session_id, instrument_name, expected_quantity, counted_quantity}
+    - submit_for_review_url (string, defaults to "#")
+    Integration point: in production, "Submit for Review" should route the session and its
+    discrepancy to Supervisor review (Pending Review) — not implemented here. Supervisor-side
+    screens belong to a later, separate iteration.
+#}
+{% set submit_for_review_url = submit_for_review_url|default('#') %}
+<div class="modal-overlay" id="supervisor-review-required-modal" hidden>
+    <div class="modal-dialog" role="dialog" aria-modal="true"
+         aria-labelledby="supervisor-review-required-modal-title" aria-describedby="supervisor-review-required-modal-description">
+        <span class="modal-dialog__icon modal-dialog__icon--warning" aria-hidden="true">{{ macros.icon_alert_triangle() }}</span>
+        <h2 class="modal-dialog__title" id="supervisor-review-required-modal-title">{{ _("Supervisor Review Required") }}</h2>
+        <p class="modal-dialog__description" id="supervisor-review-required-modal-description">
+            {{ _("This session contains an unresolved discrepancy. The discrepancy must be reviewed by a Supervisor before the session can be closed.") }}
+        </p>
+        {% if discrepancy_summary %}
+        <div class="modal-dialog__info-box">
+            <p>
+                <strong>{{ _("Session") }}:</strong> {{ discrepancy_summary.session_id }}
+            </p>
+            <p>
+                <strong>{{ _("Discrepancy") }}:</strong>
+                <span class="modal-dialog__info-highlight">{{ discrepancy_summary.instrument_name }}</span>
+            </p>
+            <p>
+                <strong>{{ _("Expected") }}:</strong> {{ discrepancy_summary.expected_quantity }}
+                <span class="modal-dialog__info-separator">|</span>
+                <strong>{{ _("Counted") }}:</strong> {{ discrepancy_summary.counted_quantity }}
+            </p>
+        </div>
+        {% endif %}
+        <div class="modal-dialog__actions">
+            <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Back to Validation") }}</button>
+            <a class="btn btn--primary" href="{{ submit_for_review_url }}">{{ _("Submit for Review") }}</a>
+        </div>
+    </div>
+</div>

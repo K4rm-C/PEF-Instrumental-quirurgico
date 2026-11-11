@@ -1,0 +1,169 @@
+/*
+  Lightweight CSS-only chart visuals for dashboard cards (no charting library).
+  Bar height and progress fill are driven by inline custom properties set per item
+  in the template (--bar-chart-fill / --status-progress-fill).
+*/
+
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--space-3);
+    height: 140px;
+    padding-top: var(--space-3);
+}
+
+.bar-chart__column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    height: 100%;
+}
+
+.bar-chart__track {
+    flex: 1;
+    width: 100%;
+    max-width: 32px;
+    display: flex;
+    align-items: flex-end;
+}
+
+.bar-chart__bar {
+    width: 100%;
+    height: var(--bar-chart-fill, 0%);
+    background-color: var(--color-primary);
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+/* Recolors a bar chart's bars for a non-default metric (e.g. Indicators' "Discrepancies by
+   Kit", where a taller bar represents a worse outcome, not more volume). */
+.bar-chart__bar--danger {
+    background-color: var(--color-danger);
+}
+
+.bar-chart__label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    white-space: nowrap;
+}
+
+.status-progress-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.status-progress-item__header {
+    display: flex;
+    justify-content: space-between;
+    font-size: var(--font-size-sm);
+    margin-bottom: var(--space-1);
+}
+
+.status-progress-item__value {
+    font-weight: var(--font-weight-semibold);
+}
+
+.status-progress-item__track {
+    height: 8px;
+    border-radius: var(--radius-pill);
+    background-color: var(--color-surface-secondary);
+    overflow: hidden;
+}
+
+.status-progress-item__fill {
+    height: 100%;
+    width: var(--status-progress-fill, 0%);
+    border-radius: var(--radius-pill);
+}
+
+.status-progress-item__fill--info {
+    background-color: var(--color-info);
+}
+
+.status-progress-item__fill--success {
+    background-color: var(--color-success);
+}
+
+.status-progress-item__fill--danger {
+    background-color: var(--color-danger);
+}
+
+.status-progress-item__fill--warning {
+    background-color: var(--color-warning);
+}
+
+.status-progress-item__fill--primary {
+    background-color: var(--color-primary);
+}
+
+.status-progress-item__fill--neutral {
+    background-color: var(--color-neutral);
+}
+
+/*
+  Lightweight CSS-only donut chart (Indicators' "Session Status"). The colored ring is drawn
+  with a conic-gradient built from backend-supplied segment percentages (see
+  supervisor/indicators.html); the center hole is a plain surface-colored circle overlay.
+  No charting library / SVG path math involved.
+*/
+.donut-chart {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.donut-chart__hole {
+    position: absolute;
+    inset: 22%;
+    background-color: var(--color-surface);
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.donut-chart__value {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    color: var(--color-text-primary);
+}
+
+.donut-chart__label {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.donut-chart-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    flex-wrap: wrap;
+}
+
+.legend-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-primary);
+}
+
+.legend-item__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}

@@ -1,0 +1,39 @@
+{#
+    Reusable pagination controls.
+    Expected context:
+      previous_url / next_url   optional URLs; omit/None hides the control
+      current_page, total_pages integers
+      go_to_action              form action for "Go to:" (GET)
+      pagination_query          dict of preserved query params (excluding page)
+#}
+{% set current_page = current_page|default(1, true) %}
+{% set total_pages = total_pages|default(1, true) %}
+{% set pagination_query = pagination_query|default({}, true) %}
+
+<nav class="pagination" aria-label="{{ _('Pagination') }}">
+    {% if pagination_info %}
+    <p class="pagination__info">{{ pagination_info }}</p>
+    {% endif %}
+    <div class="pagination__controls">
+        {% if previous_url %}
+        <a class="btn btn--secondary btn--small" href="{{ previous_url }}">{{ _("Previous") }}</a>
+        {% endif %}
+        <span class="pagination__current">{{ _("Page %(current)s of %(total)s", current=current_page, total=total_pages) }}</span>
+        {% if next_url %}
+        <a class="btn btn--secondary btn--small" href="{{ next_url }}">{{ _("Next") }}</a>
+        {% endif %}
+        {% if go_to_action %}
+        <form class="pagination__goto" action="{{ go_to_action }}" method="get">
+            {% for key, value in pagination_query.items() %}
+            {% if key != 'page' %}
+            <input type="hidden" name="{{ key }}" value="{{ value }}">
+            {% endif %}
+            {% endfor %}
+            <label class="pagination__goto-label" for="pagination-goto-page">{{ _("Go to:") }}</label>
+            <input class="pagination__goto-input" type="number" id="pagination-goto-page" name="page"
+                   min="1" max="{{ total_pages }}" value="{{ current_page }}" inputmode="numeric">
+            <button type="submit" class="btn btn--secondary btn--small">{{ _("Go") }}</button>
+        </form>
+        {% endif %}
+    </div>
+</nav>

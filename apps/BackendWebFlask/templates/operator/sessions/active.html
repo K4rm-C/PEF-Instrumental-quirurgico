@@ -1,0 +1,142 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Counting Session") }} {{ session.session_id }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Counting Session") }} {{ session.session_id }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/active-counting-session.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{% set session = session|default({
+    'session_id': '',
+    'procedure_name': '',
+    'operating_room': '',
+    'patient_name': '',
+    'physician_name': '',
+    'kit_name': '',
+    'capture_station_name': '',
+    'operator_name': '',
+    'status_label': '',
+    'status_variant': 'neutral'
+}) %}
+{% set instrument_counts = instrument_counts|default([]) %}
+{% set session_summary = session_summary|default({
+    'expected_total': 0,
+    'counted_total': 0,
+    'discrepancy_count': 0,
+    'discrepancy_variant': 'neutral'
+}) %}
+{% set current_alerts = current_alerts|default([]) %}
+{% set cancel_session_url = cancel_session_url|default('#') %}
+{% set save_progress_url = save_progress_url|default('#') %}
+{% set validate_count_url = validate_count_url|default('#') %}
+
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ session.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ session.procedure_name }} - {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ session.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Physician") }}:</strong> {{ session.physician_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("OR") }}:</strong> {{ session.operating_room }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Kit") }}:</strong> {{ session.kit_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Station") }}:</strong> {{ session.capture_station_name }}</span>
+        <span class="session-context-bar__status">{{ macros.status_badge(session.status_label, session.status_variant) }}</span>
+    </div>
+</section>
+
+<section class="session-workspace-grid">
+    <div class="card capture-area">
+        <span class="capture-area__frame" aria-hidden="true">{{ macros.icon_camera() }}</span>
+        <p class="capture-area__title">{{ _("Capture Area") }}</p>
+        <p class="capture-area__subtitle">{{ _("Capture Area - Reserved for camera-assisted instrument counting.") }}</p>
+    </div>
+
+    <div class="card">
+        <h2 class="card__title">{{ _("Instrument Count") }}</h2>
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Instrument") }}</th>
+                        <th scope="col">{{ _("Expected") }}</th>
+                        <th scope="col">{{ _("Counted") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Difference") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in instrument_counts %}
+                    <tr class="{{ 'data-table__row--highlight-danger' if item.status_variant == 'danger' else '' }}">
+                        <th scope="row">{{ item.instrument_name }}</th>
+                        <td>{{ item.expected_quantity }}</td>
+                        <td>
+                            <div class="counter-control">
+                                <button type="button" class="counter-control__button" data-counter-decrement
+                                        {% if item.counted_quantity <= 0 %}disabled{% endif %}
+                                        aria-label="{{ _('Decrease %(name)s count', name=item.instrument_name) }}">
+                                    {{ macros.icon_minus() }}
+                                </button>
+                                <span class="counter-control__value" data-counter-value data-expected="{{ item.expected_quantity }}">{{ item.counted_quantity }}</span>
+                                <button type="button" class="counter-control__button" data-counter-increment
+                                        aria-label="{{ _('Increase %(name)s count', name=item.instrument_name) }}">
+                                    {{ macros.icon_plus() }}
+                                </button>
+                            </div>
+                        </td>
+                        <td class="data-table__numeric-column {{ 'text-danger' if item.difference != 0 else 'text-success' }}" data-counter-difference>{{ item.difference }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="comparison-row">
+            <div class="comparison-row__item">
+                <span class="comparison-row__label">{{ _("Total Expected") }}</span>
+                <span class="comparison-row__value">{{ session_summary.expected_total }}</span>
+            </div>
+            <div class="comparison-row__item">
+                <span class="comparison-row__label">{{ _("Total Counted") }}</span>
+                <span class="comparison-row__value">{{ session_summary.counted_total }}</span>
+            </div>
+            <div class="comparison-row__item comparison-row__item--end">
+                {{ macros.status_badge(_("Discrepancies") ~ ": " ~ session_summary.discrepancy_count, session_summary.discrepancy_variant) }}
+            </div>
+        </div>
+
+        {% for alert in current_alerts %}
+        {{ macros.alert_banner(alert.variant, alert.title, alert.message) }}
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
+
+{% block page_action_bar %}
+<div class="page-action-bar">
+    <a class="btn btn--danger" href="{{ cancel_session_url }}">{{ _("Cancel Session") }}</a>
+    <div class="page-action-bar__group">
+        <a class="btn btn--secondary" href="{{ save_progress_url }}">{{ _("Save Progress") }}</a>
+        <a class="btn btn--primary" href="{{ validate_count_url }}">
+            {{ macros.icon_check_square() }}
+            <span>{{ _("Validate Count") }}</span>
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/counting-session.js') }}" defer></script>
+{% endblock %}

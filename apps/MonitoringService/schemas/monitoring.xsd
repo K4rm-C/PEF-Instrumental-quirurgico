@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PEF Monitoring Service API v1: every XML response (Accept: application/xml). Request bodies: only the MS-05 heartbeat (JSON). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+  <xs:simpleType name="Status">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="up"/><xs:enumeration value="degraded"/>
+      <xs:enumeration value="down"/><xs:enumeration value="unknown"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="Freshness">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="current"/><xs:enumeration value="stale"/><xs:enumeration value="never_checked"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Dependency">
+    <xs:all>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="status" type="xs:string"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Details">
+    <xs:all>
+      <xs:element name="pending_events" type="xs:integer" minOccurs="0" nillable="true"/>
+      <xs:element name="oldest_pending_seconds" type="xs:decimal" minOccurs="0" nillable="true"/>
+      <xs:element name="bound_sessions" type="xs:integer" minOccurs="0" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Check">
+    <xs:all>
+      <xs:element name="id" type="xs:string" minOccurs="0"/>
+      <xs:element name="run_id" type="xs:string" minOccurs="0"/>
+      <xs:element name="component" type="xs:string"/>
+      <xs:element name="status" type="Status"/>
+      <xs:element name="checked_at" type="xs:dateTime"/>
+      <xs:element name="latency_ms" type="xs:decimal" minOccurs="0" nillable="true"/>
+      <xs:element name="http_status" type="xs:integer" minOccurs="0" nillable="true"/>
+      <xs:element name="error_type" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="endpoint" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="dependencies" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="dependency" type="Dependency" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="details" type="Details" minOccurs="0"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Stats">
+    <xs:all>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="label" type="xs:string"/>
+      <xs:element name="checks" type="xs:integer"/>
+      <xs:element name="up" type="xs:integer" minOccurs="0"/>
+      <xs:element name="degraded" type="xs:integer" minOccurs="0"/>
+      <xs:element name="down" type="xs:integer" minOccurs="0"/>
+      <xs:element name="unknown" type="xs:integer" minOccurs="0"/>
+      <xs:element name="availability_pct" type="xs:decimal" nillable="true"/>
+      <xs:element name="up_pct" type="xs:decimal" nillable="true"/>
+      <xs:element name="avg_latency_ms" type="xs:decimal" minOccurs="0" nillable="true"/>
+      <xs:element name="p95_latency_ms" type="xs:decimal" minOccurs="0" nillable="true"/>
+      <xs:element name="min_latency_ms" type="xs:decimal" minOccurs="0" nillable="true"/>
+      <xs:element name="max_latency_ms" type="xs:decimal" minOccurs="0" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Service">
+    <xs:all>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="label" type="xs:string"/>
+      <xs:element name="status" type="Status"/>
+      <xs:element name="checked_at" type="xs:dateTime" nillable="true"/>
+      <xs:element name="freshness" type="Freshness"/>
+      <xs:element name="kind" type="xs:string" minOccurs="0"/>
+      <xs:element name="measured_status" type="Status" minOccurs="0" nillable="true"/>
+      <xs:element name="check" type="Check" minOccurs="0" nillable="true"/>
+      <xs:element name="recent" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="check" type="Check" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="last_24h" type="Stats" minOccurs="0"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:element name="service" type="Service"/>
+
+  <xs:element name="service_list">
+    <xs:complexType><xs:all>
+      <xs:element name="items">
+        <xs:complexType><xs:sequence>
+          <xs:element name="service" type="Service" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="counts">
+        <xs:complexType><xs:all>
+          <xs:element name="up" type="xs:integer"/><xs:element name="degraded" type="xs:integer"/>
+          <xs:element name="down" type="xs:integer"/><xs:element name="unknown" type="xs:integer"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="collector" minOccurs="0">
+        <xs:complexType><xs:all>
+          <xs:element name="last_run_at" type="xs:dateTime" nillable="true"/>
+          <xs:element name="interval_seconds" type="xs:decimal"/>
+          <xs:element name="stale_after_seconds" type="xs:decimal"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="check_page">
+    <xs:complexType><xs:all>
+      <xs:element name="items">
+        <xs:complexType><xs:sequence>
+          <xs:element name="check" type="Check" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="page" type="xs:integer"/>
+      <xs:element name="per_page" type="xs:integer"/>
+      <xs:element name="total" type="xs:integer"/>
+      <xs:element name="total_pages" type="xs:integer"/>
+      <xs:element name="sort" type="xs:string"/>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="summary">
+    <xs:complexType><xs:all>
+      <xs:element name="window">
+        <xs:complexType><xs:all>
+          <xs:element name="from" type="xs:dateTime"/><xs:element name="to" type="xs:dateTime"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="components">
+        <xs:complexType><xs:sequence>
+          <xs:element name="component" type="Stats" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="bucket" type="xs:string" minOccurs="0"/>
+      <xs:element name="series" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="component_series" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="name" type="xs:string"/>
+              <xs:element name="points">
+                <xs:complexType><xs:sequence>
+                  <xs:element name="point" minOccurs="0" maxOccurs="unbounded">
+                    <xs:complexType><xs:all>
+                      <xs:element name="bucket_start" type="xs:dateTime"/>
+                      <xs:element name="checks" type="xs:integer"/>
+                      <xs:element name="availability_pct" type="xs:decimal" nillable="true"/>
+                      <xs:element name="avg_latency_ms" type="xs:decimal" minOccurs="0" nillable="true"/>
+                    </xs:all></xs:complexType>
+                  </xs:element>
+                </xs:sequence></xs:complexType>
+              </xs:element>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="health">
+    <xs:complexType><xs:all>
+      <xs:element name="status" type="xs:string"/>
+      <xs:element name="checks">
+        <xs:complexType><xs:sequence>
+          <xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="error_response">
+    <xs:complexType><xs:all>
+      <xs:element name="error" type="xs:string"/>
+      <xs:element name="message" type="xs:string"/>
+      <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+      <xs:element name="details">
+        <xs:complexType><xs:sequence>
+          <xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <!-- MS-05: capture stations, cameras and technical alerts (GET /stations, /stations/{id}, /alerts;
+       the response of POST /stations/{id}/heartbeat is a <station>). -->
+  <xs:simpleType name="StationStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="online"/><xs:enumeration value="offline"/>
+      <xs:enumeration value="never_seen"/><xs:enumeration value="disabled"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="CameraStatus">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="ok"/><xs:enumeration value="unverified"/><xs:enumeration value="error"/>
+      <xs:enumeration value="unknown"/><xs:enumeration value="disabled"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:simpleType name="AlertKind">
+    <xs:restriction base="xs:string">
+      <xs:enumeration value="heartbeat_lost"/><xs:enumeration value="heartbeat_recovered"/>
+      <xs:enumeration value="camera_error"/><xs:enumeration value="camera_recovered"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Camera">
+    <xs:all>
+      <xs:element name="id" type="xs:string"/>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="device_type" type="xs:string"/>
+      <xs:element name="active" type="xs:boolean"/>
+      <xs:element name="status" type="CameraStatus"/>
+      <xs:element name="reported_status" type="xs:string" nillable="true"/>
+      <xs:element name="reported_at" type="xs:dateTime" nillable="true"/>
+      <xs:element name="error" type="xs:string" nillable="true"/>
+      <xs:element name="frames_seen_at" type="xs:dateTime" nillable="true"/>
+      <xs:element name="verified_by_server" type="xs:boolean"/>
+      <xs:element name="resolution" type="xs:string" nillable="true"/>
+      <xs:element name="fps" type="xs:integer" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="StationEvent">
+    <xs:all>
+      <xs:element name="station_id" type="xs:string" minOccurs="0"/>
+      <xs:element name="station_name" type="xs:string" minOccurs="0"/>
+      <xs:element name="id" type="xs:string"/>
+      <xs:element name="kind" type="AlertKind"/>
+      <xs:element name="camera_id" type="xs:string" nillable="true"/>
+      <xs:element name="error" type="xs:string" nillable="true"/>
+      <xs:element name="occurred_at" type="xs:dateTime"/>
+      <xs:element name="resolved_at" type="xs:dateTime" nillable="true"/>
+      <xs:element name="open" type="xs:boolean"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Station">
+    <xs:all>
+      <xs:element name="id" type="xs:string"/>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="active" type="xs:boolean"/>
+      <xs:element name="room">
+        <xs:complexType><xs:all>
+          <xs:element name="id" type="xs:string"/>
+          <xs:element name="code" type="xs:string"/>
+          <xs:element name="name" type="xs:string"/>
+          <xs:element name="active" type="xs:boolean"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="status" type="StationStatus"/>
+      <xs:element name="last_seen_at" type="xs:dateTime" nillable="true"/>
+      <xs:element name="seconds_since_seen" type="xs:integer" nillable="true"/>
+      <xs:element name="client" type="xs:string" nillable="true"/>
+      <xs:element name="open_alerts" type="xs:integer"/>
+      <xs:element name="cameras">
+        <xs:complexType><xs:sequence>
+          <xs:element name="camera" type="Camera" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="events" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="event" type="StationEvent" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="events_recorded" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="event" type="AlertKind" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:element name="station" type="Station"/>
+
+  <xs:element name="station_list">
+    <xs:complexType><xs:all>
+      <xs:element name="generated_at" type="xs:dateTime"/>
+      <xs:element name="stale_seconds" type="xs:decimal"/>
+      <xs:element name="camera_frames_seconds" type="xs:decimal"/>
+      <xs:element name="totals">
+        <xs:complexType><xs:all>
+          <xs:element name="stations">
+            <xs:complexType><xs:all>
+              <xs:element name="online" type="xs:integer"/><xs:element name="offline" type="xs:integer"/>
+              <xs:element name="never_seen" type="xs:integer"/><xs:element name="disabled" type="xs:integer"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+          <xs:element name="cameras">
+            <xs:complexType><xs:all>
+              <xs:element name="ok" type="xs:integer"/><xs:element name="unverified" type="xs:integer"/>
+              <xs:element name="error" type="xs:integer"/><xs:element name="unknown" type="xs:integer"/>
+              <xs:element name="disabled" type="xs:integer"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="items">
+        <xs:complexType><xs:sequence>
+          <xs:element name="station" type="Station" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="alert_list">
+    <xs:complexType><xs:all>
+      <xs:element name="status" type="xs:string"/>
+      <xs:element name="items">
+        <xs:complexType><xs:sequence>
+          <xs:element name="alert" type="StationEvent" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+</xs:schema>

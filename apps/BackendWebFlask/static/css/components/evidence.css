@@ -1,0 +1,240 @@
+/*
+  V3 evidence + traceability components (ui_reference_v3). Rendered by the
+  macros.evidence_figure() macro and shared by Operator and Supervisor screens.
+  All classes are v3-prefixed and new; the existing .evidence-image placeholder in
+  pages/active-counting-session.css is untouched.
+*/
+
+/* Side-by-side evidence layout (Original Capture | YOLO Detection Overlay). */
+.v3-evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+}
+
+/* Single-column variant for narrow containers (e.g. one side of a two-column layout). */
+.v3-evidence-grid--stacked {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.v3-evidence {
+    margin: 0;
+    padding: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-width: 0;
+}
+
+.v3-evidence__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.v3-evidence__title {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+/* Small square-cornered tag ("Reference", "AI Output", "Verified") — no status dot. */
+.v3-evidence__tag {
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+}
+
+.v3-evidence__tag--info {
+    background-color: var(--color-info-surface);
+    color: var(--color-info);
+}
+
+.v3-evidence__tag--success {
+    background-color: var(--color-success-surface);
+    color: var(--color-success);
+}
+
+.v3-evidence__tag--warning {
+    background-color: var(--color-warning-surface);
+    color: var(--color-warning);
+}
+
+.v3-evidence__tag--danger {
+    background-color: var(--color-danger-surface);
+    color: var(--color-danger);
+}
+
+.v3-evidence__frame {
+    position: relative;
+    aspect-ratio: 3 / 1;
+    /* Full-width figures would otherwise grow to ~1/3 of the content width in height. */
+    max-height: 240px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background-color: var(--color-surface-secondary);
+}
+
+.v3-evidence--tall .v3-evidence__frame {
+    aspect-ratio: 2 / 1;
+}
+
+.v3-evidence__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    /* contain: the whole tray stays visible and is never stretched or cropped when the frame
+       height is capped. */
+    object-fit: contain;
+}
+
+/* Missing-asset fallback: same gradient treatment as the existing evidence placeholder. */
+.v3-evidence__frame--placeholder {
+    border: 1px dashed var(--color-border-strong);
+    background: linear-gradient(135deg, var(--color-primary-surface), var(--color-surface-secondary));
+}
+
+.v3-evidence__placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-4);
+    text-align: center;
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.v3-evidence__placeholder .icon {
+    width: 40px;
+    height: 40px;
+    color: var(--color-primary);
+    opacity: 0.45;
+}
+
+.v3-evidence__overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* Coordinates come from data as percentages via --v3-box-* custom properties. */
+.v3-evidence__box {
+    position: absolute;
+    left: var(--v3-box-x, 0%);
+    top: var(--v3-box-y, 0%);
+    width: var(--v3-box-w, 0%);
+    height: var(--v3-box-h, 0%);
+    border: 2px solid var(--color-primary);
+    border-radius: var(--radius-sm);
+    background-color: color-mix(in srgb, var(--color-primary) 16%, transparent);
+}
+
+.v3-evidence__box-label {
+    display: inline-block;
+    max-width: 100%;
+    padding: 1px var(--space-1);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.3;
+    color: var(--color-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.v3-evidence__meta {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+/*
+  Activity / traceability timeline (Supervisor Session Activity, Validation & Correction
+  Traceability). Markup:
+    <ol class="v3-timeline">
+      <li class="v3-timeline__item v3-timeline__item--warning">
+        <span class="v3-timeline__time">15:41</span>
+        <div class="v3-timeline__body">
+          <p class="v3-timeline__title">...</p><p class="v3-timeline__detail">...</p>
+        </div>
+      </li>
+    </ol>
+  Add .v3-timeline--dots for the dot-marker variant (no time column).
+*/
+.v3-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.v3-timeline__item {
+    display: grid;
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: var(--space-3);
+    align-items: start;
+}
+
+.v3-timeline__time {
+    font-size: var(--font-size-sm);
+    color: var(--color-text-secondary);
+}
+
+.v3-timeline__title {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.v3-timeline__detail {
+    margin: 2px 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.v3-timeline--dots .v3-timeline__item {
+    grid-template-columns: 10px minmax(0, 1fr);
+}
+
+.v3-timeline--dots .v3-timeline__time {
+    width: 10px;
+    height: 10px;
+    margin-top: 4px;
+    border-radius: 50%;
+    background-color: var(--color-primary);
+    font-size: 0;
+}
+
+.v3-timeline--dots .v3-timeline__item--warning .v3-timeline__time {
+    background-color: var(--color-warning);
+}
+
+.v3-timeline--dots .v3-timeline__item--neutral .v3-timeline__time {
+    background-color: var(--color-neutral);
+}
+
+@media (max-width: 900px) {
+    .v3-evidence-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .v3-evidence__meta {
+        flex-direction: column;
+        gap: 2px;
+    }
+}

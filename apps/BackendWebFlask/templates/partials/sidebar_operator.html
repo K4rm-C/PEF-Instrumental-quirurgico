@@ -1,0 +1,57 @@
+{% import "components/macros.html" as macros %}
+{% set active_nav_item = active_nav_item|default('counting_sessions') %}
+{% set nav_urls = nav_urls|default({}) %}
+
+{#
+    Operator sidebar — ordered by use frequency (RF):
+    Assigned Sessions → Session History → Account.
+#}
+
+<div class="sidebar__brand">
+    <p class="sidebar__brand-name">{{ _("Surgical Instrument") }}</p>
+    <p class="sidebar__brand-subtitle">{{ _("Traceability System") }}</p>
+</div>
+
+<nav class="sidebar__nav" aria-label="{{ _('Operator navigation') }}">
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Work") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'counting_sessions' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.counting_sessions|default('#') }}"
+                   {% if active_nav_item == 'counting_sessions' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_clipboard() }}
+                    <span>{{ _("Assigned Sessions") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'session_history' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.session_history|default('#') }}"
+                   {% if active_nav_item == 'session_history' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_history() }}
+                    <span>{{ _("Session History") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Account") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'profile' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.profile|default('#') }}"
+                   {% if active_nav_item == 'profile' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_user() }}
+                    <span>{{ _("My Profile") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link" href="{{ nav_urls.sign_out|default('#') }}" data-auth-logout>
+                    {{ macros.icon_sign_out() }}
+                    <span>{{ _("Sign Out") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+</nav>

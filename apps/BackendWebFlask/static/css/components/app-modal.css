@@ -1,0 +1,134 @@
+/* Formal confirm / privacy overlays — follow light/dark page theme */
+
+.app-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.55);
+}
+
+.app-modal.is-open {
+    display: flex;
+}
+
+.app-modal__panel {
+    width: min(32rem, 100%);
+    max-height: min(85vh, 40rem);
+    overflow: auto;
+    border-radius: 0.75rem;
+    padding: 1.35rem 1.5rem;
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border, #e2e8f0);
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.28);
+}
+
+.app-modal__panel,
+.app-modal__panel .app-modal__title,
+.app-modal__panel .app-modal__body,
+.app-modal__panel .app-modal__label,
+.app-modal__panel .app-modal__check span,
+.app-modal__panel .text-muted,
+.app-modal__panel label,
+.app-modal__panel p,
+.app-modal__panel dt,
+.app-modal__panel dd {
+    color: var(--color-text-primary);
+}
+
+.app-modal__panel .text-muted,
+.app-modal__panel .app-modal__body {
+    color: var(--color-text-secondary);
+}
+
+.app-modal__title {
+    margin: 0 0 0.5rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+}
+
+.app-modal__body {
+    margin: 0 0 1rem;
+    line-height: 1.45;
+}
+
+.app-modal__audit {
+    margin: 0 0 1rem;
+    padding: 0.85rem 1rem;
+    border-radius: 0.5rem;
+    background: var(--color-surface-muted, #f1f5f9);
+    color: inherit;
+}
+
+[data-theme="dark"] .app-modal__audit,
+.theme-dark .app-modal__audit,
+body.dark .app-modal__audit {
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.app-modal__audit-title {
+    margin: 0 0 0.5rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+.app-modal__kv {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.35rem 1rem;
+    margin: 0;
+    font-size: 0.9rem;
+}
+
+.app-modal__kv dt {
+    margin: 0;
+    opacity: 0.75;
+}
+
+.app-modal__kv dd {
+    margin: 0;
+    text-align: right;
+    font-weight: 600;
+}
+
+.app-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+}
+
+.app-modal__field {
+    display: block;
+    margin: 0 0 0.85rem;
+}
+
+.app-modal__field > span,
+.app-modal__field > .app-modal__label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.app-modal__check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    margin: 0 0 0.75rem;
+}
+
+.app-modal__check input {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+}
+
+.app-modal__check span {
+    line-height: 1.35;
+}

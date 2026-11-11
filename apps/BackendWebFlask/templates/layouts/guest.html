@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block body_class %}guest-page{% endblock %}
+
+{% block content %}
+<div class="guest-shell">
+    <div class="guest-shell__controls">
+        {% include "partials/language_selector.html" %}
+        {% include "partials/theme_selector.html" %}
+    </div>
+    <main class="guest-shell__card" id="main-content">
+        {% block guest_content %}{% endblock %}
+    </main>
+</div>
+{% endblock %}

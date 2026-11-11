@@ -1,0 +1,25 @@
+{% import "components/macros.html" as macros %}
+{#
+    Operator V3 session context bar (Capture, Tray Verification, AI Detection, Human
+    Validation, Validation Summary, Discrepancy Escalation, Ready to Close).
+
+    Reads v3.session (view_data.operator_v3_view) and context_status (set by the route per
+    screen). Optional context_meta: list of extra strings (e.g. "Started 15:20"), passed with
+    {% with context_meta=[...] %}{% include ... %}{% endwith %}. No values are hardcoded here.
+#}
+{% set s = v3.session %}
+<section class="card">
+    <div class="session-context-bar">
+        <span class="session-context-bar__item"><strong>{{ _("Session") }}:</strong> {{ s.session_id }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Procedure") }}:</strong> {{ s.procedure_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Patient") }}:</strong> {{ s.patient_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Surgical Team") }}:</strong> {{ _(s.surgical_team_summary) }}</span>
+        <span class="session-context-bar__item">{{ s.operating_room }}</span>
+        <span class="session-context-bar__item">{{ s.kit_name }}</span>
+        <span class="session-context-bar__item"><strong>{{ _("Station") }}:</strong> {{ s.capture_station }}</span>
+        {% for item in context_meta|default([]) %}
+        <span class="session-context-bar__item">{{ item }}</span>
+        {% endfor %}
+        <span class="session-context-bar__status">{{ macros.status_badge(_(context_status.label), context_status.variant) }}</span>
+    </div>
+</section>

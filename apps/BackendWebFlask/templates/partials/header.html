@@ -1,0 +1,22 @@
+{% import "components/macros.html" as macros %}
+
+{#
+    Right-hand cluster of the top header: notifications, language, theme, and user menu.
+    The surrounding <header> element and the breadcrumb live in layouts/authenticated.html
+    since the breadcrumb content differs per page.
+#}
+<div class="top-header__controls">
+    {# Notifications (NotificationsService): a plain link to /notifications; the unread badge is
+       filled by static/js/notifications.js after the page has rendered, so rendering never waits
+       on the service and a service outage only leaves the bell without a badge. #}
+    <a class="icon-button notification-bell" href="{{ url_for('web.notifications') }}"
+       aria-label="{{ _('Notifications') }}" title="{{ _('Notifications') }}"
+       data-notifications-bell data-unread-url="{{ url_for('web.notifications_unread_count') }}">
+        {{ macros.icon_bell() }}
+        <span class="notification-bell__badge" data-notifications-badge hidden></span>
+    </a>
+
+    {% include "partials/language_selector.html" %}
+    {% include "partials/theme_selector.html" %}
+    {% include "partials/user_menu.html" %}
+</div>

@@ -1,0 +1,81 @@
+{# Review Detail -> Evidence & Traceability (supervisor-review-detail-evidence.png). Read-only. #}
+{% if v3.is_full_case %}
+{% set ev = v3.evidence %}
+<div class="v3-columns">
+    <div class="v3-stack">
+        <section class="card">
+            <h2 class="card__title">{{ _("Count Comparison") }}</h2>
+            <div class="table-wrapper">
+                <table class="data-table v3-wrap-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ _("Instrument") }}</th>
+                            <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                            <th scope="col" class="data-table__numeric-column">{{ _("AI") }}</th>
+                            <th scope="col" class="data-table__numeric-column">{{ _("Validated") }}</th>
+                            <th scope="col" class="data-table__numeric-column">{{ _("Difference") }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in v3.counts %}
+                        <tr>
+                            <th scope="row">{{ row.instrument_name }}</th>
+                            <td class="data-table__numeric-column">{{ row.expected_quantity }}</td>
+                            <td class="data-table__numeric-column">{{ row.ai_detected }}</td>
+                            <td class="data-table__numeric-column">{{ row.validated }}</td>
+                            <td class="data-table__numeric-column {{ 'text-danger' if row.difference else 'text-success' }}"><strong>{{ row.difference }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="v3-total-row">
+                            <th scope="row">{{ _("TOTAL") }}</th>
+                            <td class="data-table__numeric-column">{{ v3.totals.expected }}</td>
+                            <td class="data-table__numeric-column">{{ v3.totals.ai_detected }}</td>
+                            <td class="data-table__numeric-column">{{ v3.totals.validated }}</td>
+                            <td class="data-table__numeric-column {{ 'text-danger' if v3.totals.difference else 'text-success' }}">{{ v3.totals.difference }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2 class="card__title">{{ _("Validation & Correction Traceability") }}</h2>
+            <ol class="v3-timeline v3-timeline--dots">
+                {% for event in v3.traceability %}
+                <li class="v3-timeline__item{% if event.code == 'DISCREPANCIES_ESCALATED' %} v3-timeline__item--warning{% elif event.code in ('SESSION_CLOSED', 'SUPERVISOR_REVIEW_STARTED') %} v3-timeline__item--neutral{% endif %}">
+                    <span class="v3-timeline__time">{{ event.time }}</span>
+                    <div class="v3-timeline__body">
+                        <p class="v3-timeline__title">{{ _(event.traceability_label) }}</p>
+                        <p class="v3-timeline__detail">{{ v3.date_display }} • {{ event.time }} • {{ event.actor or ev.station }}</p>
+                    </div>
+                </li>
+                {% endfor %}
+            </ol>
+        </section>
+    </div>
+
+    <section class="v3-evidence-grid v3-evidence-grid--stacked" aria-label="{{ _('Final evidence') }}">
+        {{ macros.evidence_figure(
+            image_url=ev.image_url, image_available=ev.image_available, alt=_(ev.alt),
+            title=_("Original Capture"), tag_label=_("Reference"), tag_variant='success',
+            caption_left=ev.capture_timestamp_display, caption_right=_("Capture Station") ~ ': ' ~ ev.station,
+            fallback_label=_("Final tray image not available yet"), size='tall'
+        ) }}
+        {{ macros.evidence_figure(
+            image_url=ev.image_url, image_available=ev.image_available, alt=_(ev.alt),
+            title=_("YOLO Detection Overlay"), tag_label=_("AI Output"), tag_variant='info',
+            caption_left=ev.capture_timestamp_display, caption_right=_("Capture Station") ~ ': ' ~ ev.station,
+            overlay_boxes=ev.overlay_boxes, fallback_label=_("YOLO overlay will appear once the final tray image is available"), size='tall'
+        ) }}
+    </section>
+</div>
+{% else %}
+<section class="card">
+    <p class="v3-empty-state">{{ _("Detailed evidence and traceability are available for WS-026 in this demo.") }}</p>
+</section>
+{% endif %}
+
+<div class="v3-form-footer">
+    <a class="btn btn--secondary" href="{{ tab_urls.overview }}">{{ _("Back to Overview") }}</a>
+    <a class="btn btn--primary" href="{{ tab_urls.resolution }}">{{ _("Continue to Resolution") }}</a>
+</div>

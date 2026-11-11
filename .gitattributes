@@ -1,0 +1,19 @@
+# Archivos que se ejecutan dentro de contenedores Linux o con psql: siempre LF.
+*.sh       text eol=lf
+*.sql      text eol=lf
+Dockerfile text eol=lf
+*.toml     text eol=lf
+*.yml      text eol=lf
+*.yaml     text eol=lf
+# MS-10: files read on the Linux VM (systemd, nginx, environment templates)
+*.service  text eol=lf
+*.target   text eol=lf
+*.template text eol=lf
+*.conf     text eol=lf
+*.example  text eol=lf
+# Binarios
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.mo  binary
+*.docx binary

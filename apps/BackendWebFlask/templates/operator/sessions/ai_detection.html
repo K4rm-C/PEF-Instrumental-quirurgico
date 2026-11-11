@@ -1,0 +1,140 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Operator AI Detection (V3 — ui_reference_v3/operator/operator-active-session-ai-detection.png),
+    for V3 demo session ids only. Other ids render operator/sessions/v2/ai_detection.html.
+
+    Shared final evidence (view_data.v3_evidence via v3.evidence) shown once: Original Capture
+    | YOLO Detection Overlay, then the AI Suggested Count. All counts and confidence values
+    come from the fixture projection (v3.counts / v3.totals); nothing is recomputed here.
+#}
+
+{% block title %}{{ _("AI Suggested Count") }} · {{ v3.session.session_id }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item"><a href="{{ flow.sessions }}">{{ _("Operations") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Counting Session %(session)s", session=v3.session.session_id) }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operator-v3.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{% set ev = v3.evidence %}
+{% set ai = v3.ai_analysis %}
+<div class="v3-page">
+    {% include "operator/sessions/_context_bar.html" %}
+
+    <section class="card v3-stack">
+        <div>
+            <h2 class="card__title">{{ _("AI Suggested Count") }}</h2>
+            <p class="card__subtitle">{{ _("AI detection results - these are suggestions only and require human validation.") }}</p>
+        </div>
+
+        <div class="v3-evidence-grid">
+            {{ macros.evidence_figure(
+                image_url=ev.image_url, image_available=ev.image_available, alt=_(ev.alt),
+                title=_("Original Capture"), tag_label=_("Reference"), tag_variant='success',
+                caption_left=_("Final Capture") ~ ': ' ~ ai.final_capture_at,
+                caption_right=_("Capture Station") ~ ': ' ~ ev.station,
+                fallback_label=_("Final tray image not available yet")
+            ) }}
+            {{ macros.evidence_figure(
+                image_url=ev.image_url, image_available=ev.image_available, alt=_(ev.alt),
+                title=_("YOLO Detection Overlay"), tag_label=_("AI Output"), tag_variant='info',
+                caption_left=_("AI Analysis") ~ ': ' ~ ai.analysis_at,
+                caption_right=_("Capture Station") ~ ': ' ~ ev.station,
+                overlay_boxes=ev.overlay_boxes,
+                fallback_label=_("YOLO overlay will appear once the final tray image is available")
+            ) }}
+        </div>
+
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Instrument") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("AI Detected") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Difference") }}</th>
+                        <th scope="col" class="data-table__numeric-column">{{ _("Avg Confidence") }}</th>
+                        <th scope="col">{{ _("Result") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in v3.counts %}
+                    {% set flagged = row.ai_result.code != 'matched' %}
+                    <tr class="{{ 'data-table__row--highlight-warning' if flagged else '' }}">
+                        <th scope="row">{{ row.instrument_name }}</th>
+                        <td class="data-table__numeric-column">{{ row.expected_quantity }}</td>
+                        <td class="data-table__numeric-column"><span class="v3-op-count-box{{ ' v3-op-count-box--danger' if flagged }}">{{ row.ai_detected }}</span></td>
+                        <td class="data-table__numeric-column {{ 'text-danger' if row.ai_difference else '' }}">{{ row.ai_difference }}</td>
+                        <td class="data-table__numeric-column {{ 'text-warning' if flagged else 'text-success' }}"><strong>{{ row.avg_confidence_label }}</strong></td>
+                        <td>
+                            {% if flagged %}
+                            <span class="status-badge status-badge--{{ row.ai_result.variant }} status-badge--outline">{{ _(row.ai_result.label) }}</span>
+                            {% else %}
+                            {{ macros.status_badge(_(row.ai_result.label), row.ai_result.variant) }}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% if row.instance_confidences %}
+                    <tr class="v3-op-instances">
+                        <td colspan="6">
+                            <details{% if row.instance_confidences|length > 1 %} open{% endif %}>
+                                <summary>{{ _("%(name)s instances", name=row.instrument_name) }} · {{ _("Avg %(avg)s", avg=row.avg_confidence_label) }}</summary>
+                                <ul class="v3-op-instance-list">
+                                    {% for confidence in row.instance_confidences %}
+                                    <li><span>#{{ loop.index }}</span><strong class="text-success">{{ confidence }}</strong></li>
+                                    {% endfor %}
+                                </ul>
+                            </details>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                    <tr class="v3-total-row">
+                        <th scope="row">{{ _("Total Expected: %(count)s", count=v3.totals.expected) }}</th>
+                        <td colspan="4"></td>
+                        <td class="{{ 'text-danger' if v3.totals.ai_detected != v3.totals.expected else 'text-success' }}">{{ _("Total AI Detected: %(count)s", count=v3.totals.ai_detected) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="alert alert--warning" role="status">
+            {{ macros.icon_alert_triangle() }}
+            <span class="alert__message">{{ _("AI results are suggestions only. Proceed to human validation to confirm or correct counts.") }}</span>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2 class="card__title">{{ _("AI Analysis Details") }}</h2>
+        <dl class="v3-kv-list v3-kv-list--grid">
+            <div><dt>{{ _("Vision Model") }}</dt><dd>{{ ai.vision_model }}</dd></div>
+            <div><dt>{{ _("Model Version") }}</dt><dd>{{ ai.model_version }}</dd></div>
+            <div><dt>{{ _("Confidence Threshold") }}</dt><dd>{{ ai.confidence_threshold }}</dd></div>
+            <div><dt>{{ _("Final Capture") }}</dt><dd>{{ ai.final_capture_at }}</dd></div>
+            <div><dt>{{ _("Analysis Timestamp") }}</dt><dd>{{ ai.analysis_at }}</dd></div>
+        </dl>
+    </section>
+
+    <div>
+        <a class="btn btn--primary" href="{{ flow.validation }}">
+            <span>{{ _("Proceed to Human Validation") }}</span>
+            {{ macros.icon_arrow_right() }}
+        </a>
+    </div>
+</div>
+{% endblock %}

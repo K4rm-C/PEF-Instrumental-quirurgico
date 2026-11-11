@@ -1,0 +1,122 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Dashboard") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'dashboard' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Dashboard") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/dashboard.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{# Session status terminology is fixed per prompts/09_Operator_V2.md: In Progress /
+   Awaiting Review / Correction Required / Ready to Close / Closed. #}
+
+{% set dashboard_stats = dashboard_stats|default({
+    'sessions_today': 0,
+    'active_sessions': 0,
+    'closed_sessions': 0,
+    'open_discrepancies': 0
+}, true) %}
+{% set sessions_by_day = sessions_by_day|default([]) %}
+{% set sessions_by_day_max = sessions_by_day|map(attribute='count')|max if sessions_by_day else 1 %}
+{% set session_status_breakdown = session_status_breakdown|default([]) %}
+{% set session_status_max = session_status_breakdown|map(attribute='value')|max if session_status_breakdown else 1 %}
+{% set recent_sessions = recent_sessions|default([]) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Dashboard") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Overview of instrument counting operations") }}</p>
+    </div>
+    <a class="btn btn--primary" href="{{ url_for('web.operator_session_new') }}">
+        {{ macros.icon_plus() }}
+        <span>{{ _("New Counting Session") }}</span>
+    </a>
+</div>
+
+<section class="stat-card-grid" aria-label="{{ _('Key counting metrics') }}">
+    {{ macros.stat_card(_("Sessions Today"), dashboard_stats.sessions_today, 'neutral') }}
+    {{ macros.stat_card(_("Active Sessions"), dashboard_stats.active_sessions, 'info') }}
+    {{ macros.stat_card(_("Closed Sessions"), dashboard_stats.closed_sessions, 'neutral') }}
+    {{ macros.stat_card(_("Open Discrepancies"), dashboard_stats.open_discrepancies, 'danger') }}
+</section>
+
+<section class="dashboard-panels">
+    <div class="card">
+        <h2 class="card__title">{{ _("Sessions by Day") }}</h2>
+        <div class="bar-chart" role="img" aria-label="{{ _('Counting sessions per day this week') }}">
+            {% for day in sessions_by_day %}
+            <div class="bar-chart__column">
+                <div class="bar-chart__track">
+                    <div class="bar-chart__bar" style="--bar-chart-fill: {{ (day.count / sessions_by_day_max * 100)|round(0, 'floor')|int }}%"></div>
+                </div>
+                <span class="bar-chart__label">{{ day.label }} ({{ day.count }})</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card">
+        <h2 class="card__title">{{ _("Session Status") }}</h2>
+        <ul class="status-progress-list">
+            {% for status in session_status_breakdown %}
+            <li class="status-progress-item">
+                <div class="status-progress-item__header">
+                    <span>{{ status.label }}</span>
+                    <span class="status-progress-item__value">{{ status.value }}</span>
+                </div>
+                <div class="status-progress-item__track">
+                    <div class="status-progress-item__fill status-progress-item__fill--{{ status.variant }}"
+                         style="--status-progress-fill: {{ (status.value / session_status_max * 100)|round(0, 'floor')|int }}%"></div>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("Recent Counting Sessions") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Session ID") }}</th>
+                    <th scope="col">{{ _("Procedure / Operation") }}</th>
+                    <th scope="col">{{ _("Kit") }}</th>
+                    <th scope="col">{{ _("Operator") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in recent_sessions %}
+                <tr>
+                    <th scope="row">{{ session.session_id }}</th>
+                    <td>{{ session.procedure_label }}</td>
+                    <td>{{ session.kit_name }}</td>
+                    <td>{{ session.operator_name }}</td>
+                    <td>{{ macros.status_badge(session.status_label, session.status_variant) }}</td>
+                    <td class="data-table__action-column">
+                        <a class="btn btn--secondary btn--small" href="{{ session.action_url }}">{{ _(session.action_label) }}</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

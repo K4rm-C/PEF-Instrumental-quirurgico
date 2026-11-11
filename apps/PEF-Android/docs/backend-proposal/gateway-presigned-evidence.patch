@@ -1,0 +1,49 @@
+diff --git a/infra/gateway/templates/00-pef-http.conf.template b/infra/gateway/templates/00-pef-http.conf.template
+index d5b07b7..87a7f12 100644
+--- a/infra/gateway/templates/00-pef-http.conf.template
++++ b/infra/gateway/templates/00-pef-http.conf.template
+@@ -19,6 +19,7 @@ upstream pef_notifications { zone pef_up_notifications 64k; server ${PEF_GW_NOTI
+ upstream pef_monitoring { zone pef_up_monitoring 64k; server ${PEF_GW_MONITORING_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+ upstream pef_integration { zone pef_up_integration 64k; server ${PEF_GW_INTEGRATION_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+ upstream pef_vision { zone pef_up_vision 64k; server ${PEF_GW_VISION_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
++upstream pef_garage { zone pef_up_garage 64k; server ${PEF_GW_GARAGE_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+ upstream pef_portal { zone pef_up_portal 64k; server ${PEF_GW_PORTAL_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+ 
+ # DS09: X-Correlation-ID is kept when it is well formed, otherwise the gateway generates one.
+diff --git a/infra/gateway/templates/pef/routes.conf.template b/infra/gateway/templates/pef/routes.conf.template
+index be89698..1bb91cf 100644
+--- a/infra/gateway/templates/pef/routes.conf.template
++++ b/infra/gateway/templates/pef/routes.conf.template
+@@ -119,6 +119,32 @@ location ~ "^/fhir/r4/(metadata|(Location|Practitioner|Encounter)|(Organization|
+     proxy_pass http://pef_integration;
+ }
+ 
++# --- PROTOTYPE (ANDROID-02): presigned evidence downloads through the gateway --------------------------------
++# EvidenceService signs URLs for S3_PUBLIC_ENDPOINT = this gateway's public URL (path-style: /<bucket>/<key>?X-Amz-*).
++# Only GET/HEAD, only requests that carry a SigV4 query signature, path and Host forwarded UNCHANGED (they are part
++# of the signature). Garage validates the signature and expiry; the bucket stays private. No Bearer/Cookie forwarded.
++location ^~ /${PEF_GW_EVIDENCE_BUCKET}/ {
++    limit_except GET { deny all; }
++    if ($args !~ "(^|&)X-Amz-Signature=[0-9a-f]{64}(&|$)") {
++        return 403 '{"error":"forbidden","message":"A presigned URL is required"}';
++    }
++    limit_req  zone=pef_api burst=${PEF_GW_BURST_API} nodelay;
++    limit_conn pef_conn ${PEF_GW_MAX_CONN_PER_IP};
++    proxy_http_version 1.1;
++    proxy_set_header Connection "";
++    proxy_set_header Host $http_host;
++    proxy_set_header Authorization "";
++    proxy_set_header Cookie "";
++    proxy_hide_header Set-Cookie;
++    proxy_hide_header Server;
++    proxy_connect_timeout 5s;
++    proxy_read_timeout ${PEF_GW_UPSTREAM_TIMEOUT};
++    proxy_next_upstream off;
++    add_header Cache-Control "private, no-store" always;
++    add_header X-Content-Type-Options nosniff always;
++    proxy_pass http://pef_garage;
++}
++
+ # --- VisionWorker live preview (WSS in production) ----------------------------------------------------------
+ location = /ws {
+     include /etc/nginx/conf.d/pef/ws.conf;

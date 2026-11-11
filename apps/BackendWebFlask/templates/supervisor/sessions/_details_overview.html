@@ -1,0 +1,51 @@
+{# Session Details -> Overview (supervisor-session-details-overview.png). Read-only. #}
+{% set s = v3.session %}
+<section class="card">
+    <h2 class="card__title">{{ _("Session Summary") }}</h2>
+    <dl class="v3-summary-list v3-summary-list--grid">
+        <div><dt>{{ _("Session") }}</dt><dd>{{ s.session_id }}</dd></div>
+        <div><dt>{{ _("Procedure") }}</dt><dd>{{ s.procedure_name }}</dd></div>
+        <div><dt>{{ _("Patient") }}</dt><dd>{{ s.patient_name or '—' }}</dd></div>
+        <div><dt>{{ _("Patient Record") }}</dt><dd>{{ s.patient_record|default('—', true) }}</dd></div>
+        <div><dt>{{ _("Operating Room") }}</dt><dd>{{ s.operating_room }}</dd></div>
+        <div><dt>{{ _("Kit") }}</dt><dd>{{ s.kit_name }}</dd></div>
+        <div><dt>{{ _("Capture Station") }}</dt><dd>{{ s.capture_station }}</dd></div>
+        <div><dt>{{ _("Assigned Operator") }}</dt><dd>{{ s.operator_name }}</dd></div>
+        <div><dt>{{ _("Session Status") }}</dt><dd>{{ macros.status_badge(_(s.session_status.label), s.session_status.variant) }}</dd></div>
+        <div><dt>{{ _("Review Status") }}</dt><dd>{{ macros.status_badge(_(s.review_status.label), s.review_status.variant) }}</dd></div>
+        <div class="v3-summary-list__wide">
+            <dt>{{ _("Surgical Team") }}</dt>
+            <dd>{{ s.surgical_team|default([])|map(attribute='name')|join(', ') or '—' }}</dd>
+        </div>
+    </dl>
+</section>
+
+<section class="card">
+    <div class="v3-card-header">
+        <h2 class="card__title">{{ _("PRE/POST Procedure Status") }}</h2>
+        {% if v3.totals %}
+        <span class="{{ 'text-danger' if v3.totals.difference else 'text-success' }}"><strong>{{ _("Net Count Difference: %(diff)s", diff=v3.totals.difference) }}</strong></span>
+        {% endif %}
+    </div>
+    {% if v3.totals %}
+    <div class="v3-metric-tiles">
+        <div class="v3-metric-tile">
+            <p class="v3-metric-tile__label">{{ _("Pre-Procedure") }}</p>
+            <p class="v3-metric-tile__value">{{ v3.totals.expected }} <span class="v3-metric-tile__note">{{ _("Expected Instruments") }}</span></p>
+        </div>
+        <div class="v3-metric-tile">
+            <p class="v3-metric-tile__label">{{ _("Post-Procedure") }}</p>
+            <p class="v3-metric-tile__value">{{ v3.totals.validated }} <span class="v3-metric-tile__note">{{ _("Counted/Validated Instruments") }}</span></p>
+        </div>
+        <div class="v3-metric-tile{{ ' v3-metric-tile--warning' if v3.totals.difference or v3.review_cases }}">
+            <p class="v3-metric-tile__label">{{ _("Net Count Difference") }}</p>
+            <p class="v3-metric-tile__value">
+                <span class="{{ 'text-danger' if v3.totals.difference }}">{{ v3.totals.difference }}</span>
+                <span class="v3-metric-tile__note">{{ _("Review Cases: %(count)s", count=v3.review_cases|length) }}</span>
+            </p>
+        </div>
+    </div>
+    {% else %}
+    <p class="v3-empty-state">{{ _("No pre/post count data has been recorded for this session yet.") }}</p>
+    {% endif %}
+</section>

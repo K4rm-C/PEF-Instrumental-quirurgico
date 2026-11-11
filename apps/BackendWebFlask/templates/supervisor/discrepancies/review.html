@@ -1,0 +1,84 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Supervisor Review Detail (V3 tab shell) for V3 demo session ids only.
+    UUID-backed sessions render supervisor/sessions/rf_review.html instead (see routes).
+
+    Context (routes._v3_supervisor_review):
+      v3            view_data.supervisor_v3_view(...) with the current demo review projection
+      tab           'overview' | 'evidence' | 'resolution' | 'final'
+      tab_urls      per-tab links that carry the demo projection (?resolved=/unresolved=/case=)
+      selected_case case shown in the header and the Resolution tab
+      case_urls, final_url, form_action, state_fields
+    Demo actions POST back to this URL and only change the projection in the redirect URL;
+    no RF state is written. V3 exposes no Request Correction / Reject actions — the V3
+    replacement is "Mark as Reviewed – Unresolved".
+#}
+
+{% block title %}{{ _("Discrepancy Resolution") }} · {{ v3.session.session_id }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'discrepancies' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Monitoring") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item"><a href="{{ url_for('web.supervisor_discrepancies') }}">{{ _("Discrepancies") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ v3.session.session_id }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{% set s = v3.session %}
+{% set tab_labels = [('overview', _('Overview')), ('evidence', _('Evidence & Traceability')), ('resolution', _('Resolution')), ('final', _('Final Validation'))] %}
+<div class="v3-page">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-heading__title">{{ _("Discrepancy Resolution - %(session)s", session=s.session_id) }}</h1>
+            <p class="page-heading__subtitle">{{ _("Investigate discrepancies, document Supervisor resolution, and validate the final outcome before closing the case.") }}</p>
+        </div>
+    </div>
+
+    <nav class="v3-tabs" aria-label="{{ _('Review sections') }}">
+        {% for key, label in tab_labels %}
+        <a class="v3-tabs__link{% if tab == key %} v3-tabs__link--active{% endif %}" href="{{ tab_urls[key] }}"
+           {% if tab == key %}aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+    </nav>
+
+    <section class="card">
+        <div class="v3-case-header">
+            <div>
+                <p class="v3-case-header__title">{{ s.session_id }}</p>
+                <p class="v3-case-header__subtitle">{{ s.procedure_label }}</p>
+                {% if selected_case %}<p><strong>{{ selected_case.instrument_name }}</strong></p>{% endif %}
+            </div>
+            <div class="v3-case-header__badges">
+                {% if selected_case %}
+                {{ macros.status_badge(_(selected_case.type_short), 'danger' if selected_case.difference else 'warning') }}
+                {% endif %}
+                {{ macros.status_badge(_(s.review_status.label), s.review_status.variant) }}
+            </div>
+        </div>
+    </section>
+
+    {% if tab == 'evidence' %}
+        {% include "supervisor/discrepancies/_review_evidence.html" %}
+    {% elif tab == 'resolution' %}
+        {% include "supervisor/discrepancies/_review_resolution.html" %}
+    {% elif tab == 'final' %}
+        {% include "supervisor/discrepancies/_review_final.html" %}
+    {% else %}
+        {% include "supervisor/discrepancies/_review_overview.html" %}
+    {% endif %}
+</div>
+{% endblock %}

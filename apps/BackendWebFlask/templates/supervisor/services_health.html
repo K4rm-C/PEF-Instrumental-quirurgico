@@ -1,0 +1,131 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Supervisor · Services health: the availability summary MonitoringService authorizes for the
+    Supervisor (status, last check, availability over 24 h). No latencies, endpoints or errors.
+    Context: overview {rows, counts} or none, monitoring_notice. Also shown (503) when a Supervisor
+    screen could not reach SessionService.
+#}
+
+{% block title %}{{ _("Services health") }} · {{ _("SPD") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'services_health' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Services health") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Availability of the PEF services, measured by the monitoring service") }}</p>
+    </div>
+</div>
+
+{% if monitoring_notice %}
+<div class="alert alert--warning" role="status" data-monitoring-unavailable>
+    <span class="alert__message">{{ monitoring_notice }}</span>
+</div>
+{% endif %}
+
+{% if overview %}
+<section class="card">
+    <div class="table-wrapper">
+        <table class="data-table" data-services-health-table>
+            <thead>
+                <tr>
+                    <th>{{ _("Service") }}</th>
+                    <th>{{ _("Status") }}</th>
+                    <th>{{ _("Last check") }}</th>
+                    <th class="data-table__numeric-column">{{ _("Availability (24 h)") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in overview.rows %}
+                <tr data-component="{{ item.name }}" data-status="{{ item.status }}">
+                    <td>{{ _(item.label) }}</td>
+                    <td>{{ macros.status_badge(item.status_label, item.variant) }}</td>
+                    <td>{{ item.checked_at or '—' }}</td>
+                    <td class="data-table__numeric-column">{% if item.availability_pct is not none %}{{ '%.1f'|format(item.availability_pct) }} %{% else %}{{ _("No data") }}{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+
+{% if stations_notice %}
+<div class="alert alert--warning" role="status" data-stations-unavailable>
+    <span class="alert__message">{{ stations_notice }}</span>
+</div>
+{% endif %}
+
+{% if stations %}
+<section class="card" data-technical-alerts>
+    <h2 class="card__title">{{ _("Pending technical alerts") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>{{ _("Station") }}</th>
+                    <th>{{ _("Alert") }}</th>
+                    <th>{{ _("Detail") }}</th>
+                    <th>{{ _("Since") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for alert in stations.alerts %}
+                <tr data-alert-kind="{{ alert.kind }}">
+                    <td>{{ alert.station }}</td>
+                    <td>{{ _(alert.label) }}</td>
+                    <td>{{ alert.error or '—' }}</td>
+                    <td>{{ alert.since }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="data-table__empty-state">{{ _("No pending technical alerts.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="card" data-stations-health>
+    <h2 class="card__title">{{ _("Capture stations and cameras") }}</h2>
+    <p class="form-field__helper">{{ _("A station is connected when it reported within the last %(seconds)s s. A camera is working only when the vision worker receives its frames; what the station reports alone is not enough.", seconds=(stations.stale_seconds|int)) }}</p>
+    <div class="table-wrapper">
+        <table class="data-table" data-stations-table>
+            <thead>
+                <tr>
+                    <th>{{ _("Station") }}</th>
+                    <th>{{ _("Room") }}</th>
+                    <th>{{ _("Status") }}</th>
+                    <th>{{ _("Last communication") }}</th>
+                    <th>{{ _("Cameras") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for station in stations.rows %}
+                <tr data-station="{{ station.name }}" data-status="{{ station.status }}">
+                    <td>{{ station.name }}</td>
+                    <td>{{ station.room }}</td>
+                    <td>{{ macros.status_badge(station.status_label, station.variant) }}</td>
+                    <td>{{ station.last_seen or '—' }}</td>
+                    <td>
+                        {% for camera in station.cameras %}
+                        <div data-camera="{{ camera.name }}" data-camera-status="{{ camera.status }}">{{ camera.name }}: {{ macros.status_badge(camera.status_label, camera.variant) }}{% if camera.error %} <span class="text-muted">({{ camera.error }})</span>{% endif %}</div>
+                        {% else %}
+                        <span class="text-muted">{{ _("No cameras") }}</span>
+                        {% endfor %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="data-table__empty-state">{{ _("No capture stations registered.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endif %}
+{% endblock %}

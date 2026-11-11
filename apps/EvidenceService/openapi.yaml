@@ -1,0 +1,401 @@
+openapi: 3.0.3
+info:
+  title: PEF Evidence / File Service — Phase A/B/C
+  version: 0.3.0
+  description: |
+    Implemented part of the Evidence API (contract owner: PEF-DS09 §1.3.5 v0.1.8; data and
+    storage rules: PEF-DS05 v0.2.0). Phase A: health checks (PostgreSQL, Redis, object storage).
+    Phase B: the read API — `GET /api/v1/evidence/{id}` and `GET /api/v1/sessions/{id}/evidence`.
+    Phase C: `POST /api/v1/evidence` — multipart upload. There is no PUT/DELETE, block or purge
+    endpoint (purge/retention and reconciliation are internal jobs of a later phase).
+
+    - **Auth:** `Authorization: Bearer <access_token>` issued by Auth (exact `JWT_ALGORITHM`, Redis
+      session `auth:jwt:{jti}`, active user and institution). Roles are the effective `user_role` →
+      `role` rows (never the JWT claim). Only `station_operator` and `spd_supervisor`; `it_admin` or
+      any other role → **403**, decided before any lookup.
+    - **Tenant / scope:** tenant(asset) = `media_asset.session_id` → `work_session.operation_id` →
+      `operation.institution_id` = the user's institution. `spd_supervisor` (also with
+      `station_operator`) sees every session of the tenant; `station_operator` only sessions with
+      `work_session.user_id` = the user. `bucket`, `object_key` and URIs are never used to authorize.
+      Unknown or malformed id, other tenant, operator not assigned, asset without session or session
+      without operation → one indistinguishable **404**.
+    - **Signed URL:** only the detail of an asset that is neither blocked nor purged gets a SigV4
+      presigned GET signed against the PUBLIC storage endpoint, valid `EVIDENCE_SIGNED_URL_TTL_SECONDS`
+      (default 300). Each emission writes one `access_audit` row (`evidence.download_url`,
+      `resource_type = media_asset`, the effective correlation id) and the URL is returned only after
+      that row is committed. No HeadObject is made per request (presigning is local; a missing blob is
+      a reconciliation concern), so a detail can still emit a URL while `/health/storage` is 503.
+      `retention_until` alone does not stop serving (the purge job handles it).
+
+    - **Public:** health endpoints need no token. They never expose credentials, endpoints,
+      bucket internals, raw driver/storage messages or stack traces: only `ok` / `error` per
+      dependency.
+    - **Storage check:** a single read-only `HeadBucket` on the evidence bucket through the
+      internal endpoint (endpoint reachable, credentials accepted, bucket present). It never
+      creates buckets or objects.
+    - **Formats:** `Accept: application/xml` → XML (root `health`, errors `error_response`);
+      otherwise JSON.
+    - **Correlation:** `X-Correlation-ID` is echoed when it fully matches `^[A-Za-z0-9._:-]{1,64}$`;
+      otherwise (missing, invalid or longer than 64) a UUID is generated — never truncated
+      (DS09 v0.1.5). The same value is returned in the header, error bodies and logs.
+servers:
+  - url: http://127.0.0.1:5005
+    description: Local docker compose (port is a deployment choice, not part of the contract)
+tags:
+  - name: evidence
+  - name: health
+paths:
+  /api/v1/sessions/{id}/evidence:
+    get:
+      tags: [evidence]
+      summary: Evidence metadata of a session (no URLs, not audited)
+      description: |
+        The session is authorized first (tenant + operator scope); only then are its assets read.
+        Every asset of the session is listed, blocked and purged included (flags), ordered by
+        `created_at` ASC, `id` ASC; no pagination, no filters. `signed_url` and
+        `signed_url_expires_at` are always null and nothing is audited: listing is not a download.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Evidence metadata list (XML `evidence_list/evidence`)
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Evidence' } }
+            application/xml:
+              schema: { type: array, xml: { name: evidence_list, wrapped: true }, items: { $ref: '#/components/schemas/Evidence' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/evidence:
+    post:
+      tags: [evidence]
+      summary: Upload one JPEG/GIF of a session (assigned station_operator)
+      description: |
+        `multipart/form-data` with exactly one `session_id` (text, UUID), one `kind` (text, `jpeg` |
+        `gif`) and one `file` (file part). A missing, repeated or extra part (e.g. `institution_id`,
+        `object_key`, `bucket`, `sha256`, `size_bytes`, `retention_until`, `reason`) → 400. Any other
+        request Content-Type (JSON, XML, octet-stream, base64) → 400. The filename and the part's
+        declared Content-Type are ignored.
+
+        **Who:** `station_operator` assigned to the session (`work_session.user_id`) in the same
+        institution; supervisors have no upload scope (SPD-only → 403; a multi-role user uploads only
+        to a session assigned to them). Unknown session, other tenant, not assigned or session without
+        operation → 404. **Privacy:** `capture_mode` must be `vision` (else 409, `details.capture_mode`).
+        **State:** `in_progress`, `correction_required` or `awaiting_spd_review` (else 409,
+        `details.status_code`).
+
+        **File:** streamed to an on-disk temporary file (never fully in memory): bytes counted against
+        the per-kind limit (`EVIDENCE_JPEG_MAX_BYTES` 2 MiB, `EVIDENCE_GIF_MAX_BYTES` 5 MiB → 413),
+        SHA-256 computed incrementally, type decided by the bytes (JPEG `FF D8 FF`, GIF `GIF87a`/`GIF89a`)
+        and required to match `kind` (else 422). Empty file → 400. The request envelope is capped at the
+        largest per-kind limit + 64 KiB (413).
+
+        **Persistence (storage first):** the server generates the asset id and the key
+        `{institution_id}/{session_id}/{yyyy}/{id}.{jpg|gif}`, PUTs the object (Content-Type only, no
+        user metadata), verifies the stored size (HeadObject), then in ONE transaction locks the session,
+        re-validates tenant/owner/capture_mode/state, inserts `media_asset` (`storage_provider = other`,
+        `retention_until` = created_at + 90 days, 180 with extended retention) and the `evidence.upload`
+        audit row. If anything after the PUT fails (verification → 503, re-validation → 404/409,
+        database/audit → 500) the object is deleted; nothing partial remains. No idempotency key: two
+        uploads create two assets.
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [session_id, kind, file]
+              properties:
+                session_id: { type: string, format: uuid }
+                kind: { type: string, enum: [jpeg, gif] }
+                file: { type: string, format: binary }
+      responses:
+        '201':
+          description: Evidence metadata (signed_url and signed_url_expires_at are always null on POST; XML root `evidence`)
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Evidence' }
+            application/xml:
+              schema: { $ref: '#/components/schemas/Evidence' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /api/v1/evidence/{id}:
+    get:
+      tags: [evidence]
+      summary: Evidence metadata + temporary signed URL (audited)
+      description: |
+        Asset, session and operation are resolved inside the caller's scope (404 otherwise).
+        Blocked (`blocked_at`) or purged (`purged_at`) → 200 metadata with `signed_url` and
+        `signed_url_expires_at` null: no signing, no audit, no bytes. Otherwise a presigned GET is
+        generated (public endpoint, TTL), `evidence.download_url` is committed in `access_audit`, and the
+        URL is returned with `signed_url_expires_at` = generation time + TTL. If the audit cannot be
+        written → 500 and the URL is never delivered. Signing failure → 503 (`dependency: storage`), no
+        audit. Every call that emits a URL is a new audited access (no URL caching).
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: media_asset id (malformed → 404)
+          schema: { type: string }
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Evidence metadata (XML root `evidence`)
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Evidence' }
+              example:
+                id: m1000001-0000-4000-8000-000000000001
+                session_id: cccccccc-cccc-cccc-cccc-cccccccccccc
+                kind: jpeg
+                content_type: image/jpeg
+                size_bytes: 245760
+                sha256: a3f5c8e2b91d0476f0aa1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcd
+                storage_provider: other
+                retention_until: '2026-12-04T18:20:00Z'
+                created_at: '2026-09-05T18:20:01Z'
+                blocked: false
+                purged: false
+                signed_url: 'http://localhost:3900/evidence/...?X-Amz-Algorithm=AWS4-HMAC-SHA256&...'
+                signed_url_expires_at: '2026-09-05T18:25:01Z'
+            application/xml:
+              schema: { $ref: '#/components/schemas/Evidence' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/DependencyUnavailable' }
+  /health/live:
+    get:
+      tags: [health]
+      summary: Process is up (no dependency is checked)
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: Live
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { service: evidence, status: live, checks: {}, correlation_id: corr-health-1 }
+            application/xml:
+              schema: { $ref: '#/components/schemas/Health' }
+  /health/database:
+    get:
+      tags: [health]
+      summary: PostgreSQL reachable (SELECT 1)
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /health/redis:
+    get:
+      tags: [health]
+      summary: Redis reachable (PING)
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /health/storage:
+    get:
+      tags: [health]
+      summary: Evidence bucket usable (HeadBucket through the internal endpoint)
+      description: 503 when the endpoint is unreachable, the credentials are rejected or the bucket does not exist. Read-only; never creates the bucket.
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200': { $ref: '#/components/responses/HealthOk' }
+        '503': { $ref: '#/components/responses/HealthFailed' }
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Ready for traffic — PostgreSQL, Redis and storage all ok
+      parameters:
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/Accept'
+      responses:
+        '200':
+          description: All dependencies ok
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { service: evidence, status: ready, checks: { database: ok, redis: ok, storage: ok }, correlation_id: corr-health-1 }
+            application/xml:
+              schema: { $ref: '#/components/schemas/Health' }
+        '503':
+          description: At least one dependency failed
+          headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { service: evidence, status: not_ready, checks: { database: ok, redis: ok, storage: error }, correlation_id: corr-health-1 }
+            application/xml:
+              schema: { $ref: '#/components/schemas/Health' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    SessionId:
+      name: id
+      in: path
+      required: true
+      description: work_session id (malformed → 404)
+      schema: { type: string }
+    CorrelationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema: { type: string, pattern: '^[A-Za-z0-9._:-]{1,64}$' }
+    Accept:
+      name: Accept
+      in: header
+      required: false
+      schema: { type: string, enum: [application/json, application/xml] }
+  headers:
+    CorrelationId:
+      schema: { type: string }
+  schemas:
+    Evidence:
+      type: object
+      xml: { name: evidence }
+      description: PEF-DS09 §1.3.5 Evidence metadata. Never contains bucket, object_key, gcs_uri, endpoints or credentials.
+      required: [id, session_id, kind, content_type, size_bytes, sha256, storage_provider, retention_until, created_at, blocked, purged, signed_url, signed_url_expires_at]
+      properties:
+        id: { type: string, format: uuid }
+        session_id: { type: string, format: uuid }
+        kind: { type: string, description: 'jpeg | gif for clinical evidence' }
+        content_type: { type: string, nullable: true }
+        size_bytes: { type: integer, nullable: true }
+        sha256: { type: string, nullable: true, description: 64 lowercase hex characters }
+        storage_provider: { type: string, enum: [gcs, minio, other], description: '`other` = Garage in the current deployment' }
+        retention_until: { type: string, format: date-time, nullable: true }
+        created_at: { type: string, format: date-time }
+        blocked: { type: boolean, description: blocked_at is set }
+        purged: { type: boolean, description: purged_at is set }
+        signed_url: { type: string, nullable: true, description: 'Detail only, when neither blocked nor purged; always null in lists' }
+        signed_url_expires_at: { type: string, format: date-time, nullable: true }
+    Health:
+      type: object
+      xml: { name: health }
+      required: [service, status, checks, correlation_id]
+      properties:
+        service: { type: string, enum: [evidence] }
+        status: { type: string, enum: [live, ok, unavailable, ready, not_ready] }
+        checks:
+          type: object
+          additionalProperties: { type: string, enum: [ok, error] }
+        correlation_id: { type: string }
+    Error:
+      type: object
+      xml: { name: error_response }
+      required: [error, message, correlation_id, details]
+      properties:
+        error: { type: string }
+        message: { type: string }
+        correlation_id: { type: string }
+        details: { type: object }
+  responses:
+    InvalidRequest:
+      description: Not multipart/form-data, missing/repeated/unknown parts, session_id not a UUID, kind other than jpeg/gif, empty file (`invalid_request`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: invalid_request, message: Unknown parts in multipart body, correlation_id: corr-1, details: { unknown_fields: [object_key] } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Conflict:
+      description: Session not in a vision capture mode (`details.capture_mode`) or not in an upload state (`details.status_code`) — also when it changed while the object was being stored (`conflict`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: conflict, message: Session does not accept evidence in its current state, correlation_id: corr-1, details: { status_code: closed } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    PayloadTooLarge:
+      description: File above the limit of its kind (`details.max_bytes`) or request envelope above the multipart limit (`payload_too_large`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unprocessable:
+      description: The file bytes are not of the declared kind (`validation_error`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unauthorized:
+      description: Missing/invalid/expired token, wrong type or algorithm, revoked or absent Redis session, inactive user/institution (`unauthorized`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Forbidden:
+      description: Role without access to the action — it_admin or other roles on any endpoint; supervisor-only on upload — decided before any lookup (`forbidden`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    NotFound:
+      description: Unknown or malformed id, other tenant, operator not assigned, asset without session or session without operation — indistinguishable (`not_found`).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: not_found, message: Evidence not found, correlation_id: corr-1, details: {} }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    InternalError:
+      description: Unexpected error, e.g. an audit row could not be written — the signed URL is NOT returned / the uploaded object is deleted (`internal_error`).
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    DependencyUnavailable:
+      description: PostgreSQL or Redis unavailable, the signed URL could not be generated, or the object could not be stored/verified (`dependency_unavailable`, `details.dependency` database | redis | storage).
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { error: dependency_unavailable, message: Storage is unavailable, correlation_id: corr-1, details: { dependency: storage } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    HealthOk:
+      description: Dependency ok
+      headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Health' }
+          example: { service: evidence, status: ok, checks: { storage: ok }, correlation_id: corr-health-1 }
+        application/xml:
+          schema: { $ref: '#/components/schemas/Health' }
+    HealthFailed:
+      description: Dependency unavailable (no internal details)
+      headers: { X-Correlation-ID: { $ref: '#/components/headers/CorrelationId' } }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Health' }
+          example: { service: evidence, status: unavailable, checks: { storage: error }, correlation_id: corr-health-1 }
+        application/xml:
+          schema: { $ref: '#/components/schemas/Health' }

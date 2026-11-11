@@ -1,0 +1,187 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Single reusable template for both New User and Edit User (implementation prompt sections
+    21/23), distinguished purely by form_mode ("create" | "edit"). New User additionally
+    collects Password + Confirm Password (never shown/exposed again once saved); Edit User
+    instead exposes the Change Password / Deactivate User actions and their modals. No
+    Forgot Password / Password Recovery / Temporary Password Email / Security Questions
+    exist anywhere in this flow, per section 21.
+
+    Expected context:
+      form_mode                          "create" | "edit", defaults to "create"
+      user                                dict: name, email, institution, assigned_role_codes,
+                                           status — a user may hold more than one role, so
+                                           Assigned Roles renders as a checkbox group, never a
+                                           single-select
+      institutions, roles                 lists of {value, label} for their selects/checkboxes
+      save_url, cancel_url                URL strings, default "#"
+      change_password_url, deactivate_user_url   URL strings, default "#" (edit mode only;
+                                           feed components/modals/change_password.html and
+                                           deactivate_user.html)
+    Save posts to save_url; the view forwards it to BackendWebFlask (Admin local) (POST/PUT /api/v1/users),
+    which hashes the password, persists the user and audits the change. Password fields are
+    never pre-filled and never round-tripped back from the server.
+#}
+{% set form_mode = form_mode|default('create') %}
+{% set is_edit = form_mode == 'edit' %}
+{% set user = user|default({'name': '', 'email': '', 'institution': '', 'assigned_role_codes': [], 'status': 'active', 'active': true}, true) %}
+{% set operating_rooms = operating_rooms|default([], true) %}
+{% set roles = roles|default([], true) %}
+{% set page_title = _("Edit User") if is_edit else _("New User") %}
+{% set page_subtitle = _("Update user information and assigned role.") if is_edit else _("Create an authorized system user and assign a role.") %}
+
+{% block title %}{{ page_title }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'users' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Administration") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item"><a href="{{ cancel_url|default('/admin/users') }}">{{ _("Users") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Edit") if is_edit else _("New") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ page_title }}</h1>
+        <p class="page-heading__subtitle">{{ page_subtitle }}</p>
+    </div>
+</div>
+
+<section class="card card--form">
+    <form class="form" id="user-form" action="{{ save_url|default('#') }}" method="post"
+          data-password-mismatch-message="{{ _('Passwords do not match.') }}">
+{{ csrf_field() }}
+        {% if form_error %}
+        <p class="form-field__helper form-field__helper--error" role="alert">{{ form_error }}</p>
+        {% endif %}
+        <div class="form-field">
+            <label class="form-field__label" for="user-name">{{ _("Name") }}</label>
+            <input class="form-field__input form-field__input--plain" type="text" id="user-name" name="name" maxlength="160" required
+                   value="{{ user.name }}" placeholder="{{ _('Enter full name') }}">
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="user-email">{{ _("Institutional Email") }}</label>
+            <input class="form-field__input form-field__input--plain" type="email" id="user-email" name="email" maxlength="255" required
+                   value="{{ user.email }}" placeholder="{{ _('Enter institutional email address') }}">
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="user-institution">{{ _("Institution") }}</label>
+            <input class="form-field__input form-field__input--plain" type="text" id="user-institution"
+                   value="{{ institution_name }}" readonly aria-readonly="true">
+            <p class="form-field__helper">{{ _("Users are created in your institution.") }}</p>
+        </div>
+
+        <div class="form-field">
+            <span class="form-field__label">{{ _("Assigned Roles") }}</span>
+            <div class="checkbox-group">
+                {% for role in roles %}
+                <div class="form-checkbox">
+                    <input type="checkbox" id="user-role-{{ role.value }}" name="roles[]" value="{{ role.value }}"
+                           {% if role.value in user.assigned_role_codes %}checked{% endif %}>
+                    <label for="user-role-{{ role.value }}">{{ role.label }}</label>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if operating_rooms %}
+        <div class="form-field">
+            <span class="form-field__label">{{ _("Operating Rooms (Floor Supervisor)") }}</span>
+            <div class="checkbox-group">
+                {% for room in operating_rooms %}
+                <div class="form-checkbox">
+                    <input type="checkbox" id="user-room-{{ room.value }}" name="rooms[]" value="{{ room.value }}"
+                           {% if room.value in user.assigned_room_ids|default([]) %}checked{% endif %}>
+                    <label for="user-room-{{ room.value }}">{{ room.label }}</label>
+                </div>
+                {% endfor %}
+            </div>
+            <p class="form-field__helper">{{ _("Only for users with the or_charge role: they are notified about holds in these rooms.") }}</p>
+        </div>
+        {% endif %}
+
+        {% if not is_edit %}
+        <div class="form-field">
+            <label class="form-field__label" for="user-password">{{ _("Password") }}</label>
+            <input class="form-field__input form-field__input--plain" type="password" id="user-password" name="password" autocomplete="new-password" minlength="{{ password_min_length|default(8) }}" required>
+            <p class="form-field__helper">{{ _("Set the initial password for this user (at least %(count)s characters).", count=password_min_length|default(8)) }}</p>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="user-confirm-password">{{ _("Confirm Password") }}</label>
+            <input class="form-field__input form-field__input--plain" type="password" id="user-confirm-password" name="confirm_password" autocomplete="new-password">
+            <p class="form-field__helper form-field__helper--error" id="user-password-mismatch" hidden></p>
+        </div>
+        {% endif %}
+
+        <div class="form-field">
+            <label class="form-field__label" for="user-status">{{ _("Status") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="user-status" name="status">
+                    <option value="active" {% if user.status == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
+                    <option value="inactive" {% if user.status == 'inactive' %}selected{% endif %}>{{ _("Inactive") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+
+        {% if is_edit %}
+        {% if user.last_login %}<p class="form-field__helper">{{ _("Last sign in: %(date)s", date=user.last_login) }}</p>{% endif %}
+        {% if user.password_updated_at %}<p class="form-field__helper">{{ _("Password last changed: %(date)s", date=user.password_updated_at) }}</p>{% endif %}
+        <div>
+            <button type="button" class="link-action" data-modal-open="change-password-modal">{{ _("Change Password") }}</button>
+        </div>
+
+        <div class="form-field form-section-divider">
+            <h2 class="card__title">{{ _("Account Status") }}</h2>
+            {% if is_self %}
+            <p class="form-field__helper">{{ _("You cannot deactivate your own account.") }}</p>
+            {% elif user.active %}
+            <p class="form-field__helper">{{ _("Deactivate this user to prevent system access while preserving historical records.") }}</p>
+            <div>
+                <button type="button" class="btn btn--danger-solid" data-modal-open="deactivate-user-modal">{{ _("Deactivate User") }}</button>
+            </div>
+            {% else %}
+            <p class="form-field__helper">{{ _("This user is inactive and cannot sign in. Their historical records are preserved.") }}</p>
+            <div>
+                <button type="submit" class="btn btn--primary" form="activate-user-form">{{ _("Reactivate User") }}</button>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="form-actions">
+            <a class="btn btn--secondary" href="{{ cancel_url|default('/admin/users') }}">{{ _("Cancel") }}</a>
+            <button type="submit" class="btn btn--primary">{{ _("Save Changes") if is_edit else _("Save User") }}</button>
+        </div>
+    </form>
+</section>
+
+{% if is_edit %}
+{% with target_user={'name': user.name, 'role_label': user.role_label|default(''), 'avatar_url': none}, change_password_url=change_password_url, deactivate_user_url=deactivate_user_url %}
+{% include "components/modals/change_password.html" %}
+{% if user.active and not is_self %}
+{% include "components/modals/deactivate_user.html" %}
+{% endif %}
+{% endwith %}
+{% if not user.active %}
+<form id="activate-user-form" action="{{ activate_user_url }}" method="post" hidden>
+{{ csrf_field() }}</form>
+{% endif %}
+{% endif %}
+{% endblock %}
+
+{% if not is_edit %}
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/user-form.js') }}" defer></script>
+{% endblock %}
+{% endif %}

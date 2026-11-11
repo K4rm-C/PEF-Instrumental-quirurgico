@@ -1,0 +1,71 @@
+{% import "components/macros.html" as macros %}
+{#
+    V3 "Confirm Resolution Validation" modal (ui_reference_v3/supervisor/supervisor-resolution-approve.png).
+    Included only by the V3 Review Detail Final Validation tab (the V2 one-page review that
+    used the old "Approve Discrepancy?" content has been replaced; no RF template includes
+    this modal). Confirmation only: resolution types are read-only here, all three
+    acknowledgements start unchecked and are required.
+
+    Expected context: v3 (view_data.supervisor_v3_view), form_action, state_fields.
+    Demo only: the route redirects to the Review Queue and does not write RF state.
+#}
+{% set fv = v3.final_validation %}
+<div class="modal-overlay" id="approve-review-modal" hidden>
+    <div class="modal-dialog modal-dialog--wide" role="dialog" aria-modal="true"
+         aria-labelledby="approve-review-modal-title" aria-describedby="approve-review-modal-description">
+        <span class="modal-dialog__icon modal-dialog__icon--warning" aria-hidden="true">{{ macros.icon_alert_triangle() }}</span>
+        <h2 class="modal-dialog__title" id="approve-review-modal-title">{{ _("Confirm Resolution Validation") }}</h2>
+        <p class="modal-dialog__description" id="approve-review-modal-description">
+            {{ _("Confirm that all discrepancies for %(session)s have been reviewed, captured evidence has been checked, and the Supervisor confirms the final session outcome.", session=v3.session.session_id) }}
+        </p>
+        <form method="post" action="{{ form_action }}">
+{{ csrf_field() }}
+            <input type="hidden" name="v3_action" value="confirm_resolution">
+            <input type="hidden" name="resolved" value="{{ state_fields.resolved }}">
+            <input type="hidden" name="unresolved" value="{{ state_fields.unresolved }}">
+
+            <dl class="modal-dialog__info-box">
+                <div class="modal-dialog__info-title">{{ _("Session Details") }}</div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Session") }}</dt><dd>{{ v3.session.session_id }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Procedure") }}</dt><dd>{{ v3.session.procedure_label }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Operator") }}</dt><dd>{{ v3.session.operator_name }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Room") }}</dt><dd>{{ v3.session.operating_room }}</dd></div>
+            </dl>
+
+            <dl class="modal-dialog__info-box">
+                <div class="modal-dialog__info-title">{{ _("Resolution Summary") }}</div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Discrepancies Reviewed") }}</dt><dd>{{ fv.reviewed }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Resolved") }}</dt><dd>{{ fv.resolved }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Unresolved") }}</dt><dd>{{ fv.unresolved }}</dd></div>
+                {% for case in v3.review_cases %}
+                <div class="modal-dialog__info-row"><dt>{{ _("Instrument %(n)s", n=loop.index) }}</dt><dd>{{ case.instrument_name }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Resolution %(n)s", n=loop.index) }}</dt><dd>{{ _(case.applied_resolution.resolution_type) if case.applied_resolution else '—' }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Resolved by %(n)s", n=loop.index) }}</dt><dd>{{ case.applied_resolution.resolved_by if case.applied_resolution and case.applied_resolution.resolved_by else '—' }}</dd></div>
+                {% endfor %}
+            </dl>
+
+            <dl class="modal-dialog__info-box">
+                <div class="modal-dialog__info-row"><dt>{{ _("Reviewed By") }}</dt><dd>{{ fv.reviewed_by }}</dd></div>
+                <div class="modal-dialog__info-row"><dt>{{ _("Review Timestamp") }}</dt><dd>{{ fv.review_timestamp }}</dd></div>
+            </dl>
+
+            <div class="form-checkbox">
+                <input type="checkbox" id="confirm-ack-1" name="ack_1" value="1" required>
+                <label for="confirm-ack-1">{{ _("I have reviewed all discrepancies for %(session)s.", session=v3.session.session_id) }}</label>
+            </div>
+            <div class="form-checkbox">
+                <input type="checkbox" id="confirm-ack-2" name="ack_2" value="1" required>
+                <label for="confirm-ack-2">{{ _("I have checked the captured evidence and validation notes for this session.") }}</label>
+            </div>
+            <div class="form-checkbox">
+                <input type="checkbox" id="confirm-ack-3" name="ack_3" value="1" required>
+                <label for="confirm-ack-3">{{ _("I confirm the final session outcome and acknowledge this review will be recorded in the audit trail.") }}</label>
+            </div>
+
+            <div class="modal-dialog__actions">
+                <button type="button" class="btn btn--secondary" data-modal-close>{{ _("Cancel") }}</button>
+                <button type="submit" class="btn btn--primary">{{ _("Confirm Resolution") }}</button>
+            </div>
+        </form>
+    </div>
+</div>

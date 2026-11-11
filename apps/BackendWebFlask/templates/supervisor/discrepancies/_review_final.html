@@ -1,0 +1,96 @@
+{#
+    Review Detail -> Final Validation (supervisor-review-detail-final-validation.png and
+    -final-validation-ready.png). State comes from v3.final_validation, i.e. the demo
+    projection (?outcome=resolved|unresolved or the resolved=/unresolved= case keys).
+#}
+{% if v3.is_full_case %}
+{% set fv = v3.final_validation %}
+<section class="card">
+    <h2 class="card__title">{{ _("Final Validation") }}</h2>
+    <div class="v3-columns v3-columns--narrow-wide">
+        <div class="v3-panel">
+            <p class="v3-panel__title">{{ _("Resolution Validation") }}</p>
+            <div class="v3-metric-tiles">
+                <div class="v3-metric-tile">
+                    <p class="v3-metric-tile__label">{{ _("Reviewed") }}</p>
+                    <p class="v3-metric-tile__value">{{ fv.reviewed }}</p>
+                </div>
+                <div class="v3-metric-tile">
+                    <p class="v3-metric-tile__label">{{ _("Resolved") }}</p>
+                    <p class="v3-metric-tile__value text-success">{{ fv.resolved }}</p>
+                </div>
+                <div class="v3-metric-tile">
+                    <p class="v3-metric-tile__label">{{ _("Unresolved") }}</p>
+                    <p class="v3-metric-tile__value text-danger">{{ fv.unresolved }}</p>
+                </div>
+                <div class="v3-metric-tile{{ ' v3-metric-tile--danger' if fv.blocking }}">
+                    <p class="v3-metric-tile__label">{{ _("Blocking") }}</p>
+                    <p class="v3-metric-tile__value text-danger">{{ fv.blocking }}</p>
+                </div>
+            </div>
+            <p style="margin-top: var(--space-3);">
+                {% if fv.ready %}
+                {{ macros.status_badge(_("Ready for validation"), 'success') }}
+                {% else %}
+                {{ macros.status_badge(_("%(count)s unresolved discrepancy", count=fv.unresolved) if fv.unresolved == 1 else _("%(count)s unresolved discrepancies", count=fv.unresolved), 'warning') }}
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="v3-panel">
+            <p class="v3-panel__title">{{ _("Validation Summary") }}</p>
+            <p class="v3-metric-tile__label">{{ _("Per-Discrepancy Summary") }}</p>
+            <div class="table-wrapper">
+                <table class="data-table v3-wrap-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ _("Instrument") }}</th>
+                            <th scope="col">{{ _("Resolution") }}</th>
+                            <th scope="col">{{ _("Status") }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for case in v3.review_cases %}
+                        <tr>
+                            <th scope="row">{{ case.instrument_name }}</th>
+                            <td>{{ _(case.applied_resolution.resolution_type) if case.applied_resolution else _("Pending review") }}</td>
+                            <td>{{ macros.status_badge(_(case.review_status.label), case.review_status.variant) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if fv.ready %}
+            <div class="alert alert--success" role="status" style="margin-top: var(--space-3);">
+                {{ macros.icon_check_circle() }}
+                <span class="alert__message">{{ _("All discrepancies have been resolved. Final validation is ready.") }}</span>
+            </div>
+            {% else %}
+            <div class="alert alert--warning" role="status" style="margin-top: var(--space-3);">
+                {{ macros.icon_alert_triangle() }}
+                <div class="alert__content">
+                    <p class="alert__title">{{ _("Warning") }}</p>
+                    <p class="alert__description">{{ _("All discrepancies must be resolved before final validation. Resolve the remaining unresolved discrepancy before validating this resolution.") }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<div class="v3-form-footer">
+    {% if fv.ready %}
+    <button type="button" class="btn btn--primary" data-modal-open="approve-review-modal">{{ _("Validate Resolution") }}</button>
+    {% else %}
+    <button type="button" class="btn btn--primary" disabled aria-disabled="true">{{ _("Validate Resolution") }}</button>
+    {% endif %}
+</div>
+
+{% if fv.ready %}
+{% include "components/modals/approve_review.html" %}
+{% endif %}
+{% else %}
+<section class="card">
+    <p class="v3-empty-state">{{ _("Final validation is demonstrated for WS-026 in this demo.") }}</p>
+</section>
+{% endif %}

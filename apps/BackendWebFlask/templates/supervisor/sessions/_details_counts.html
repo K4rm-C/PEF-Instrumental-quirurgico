@@ -1,0 +1,71 @@
+{# Session Details -> Counts & Evidence (supervisor-session-details-counts-evidence.png). Read-only. #}
+{% if v3.is_full_case %}
+{% set ev = v3.evidence %}
+<section class="card">
+    <h2 class="card__title">{{ _("Count Summary") }}</h2>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Instrument") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("AI Detected") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Operator Validated") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Difference") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in v3.counts %}
+                <tr>
+                    <th scope="row">{{ row.instrument_name }}</th>
+                    <td class="data-table__numeric-column">{{ row.expected_quantity }}</td>
+                    <td class="data-table__numeric-column">{{ row.ai_detected }}</td>
+                    <td class="data-table__numeric-column">{{ row.validated }}</td>
+                    <td class="data-table__numeric-column {{ 'text-danger' if row.difference else 'text-success' }}"><strong>{{ row.difference }}</strong></td>
+                </tr>
+                {% endfor %}
+                <tr class="v3-total-row">
+                    <th scope="row">{{ _("TOTAL") }}</th>
+                    <td class="data-table__numeric-column">{{ v3.totals.expected }}</td>
+                    <td class="data-table__numeric-column">{{ v3.totals.ai_detected }}</td>
+                    <td class="data-table__numeric-column">{{ v3.totals.validated }}</td>
+                    <td class="data-table__numeric-column {{ 'text-danger' if v3.totals.difference else 'text-success' }}">{{ v3.totals.difference }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="v3-evidence-grid" aria-label="{{ _('Final evidence') }}">
+    {{ macros.evidence_figure(
+        image_url=ev.image_url, image_available=ev.image_available, alt=_(ev.alt),
+        title=_("Original Capture"), tag_label=_("Reference"), tag_variant='success',
+        caption_left=_("Final Capture") ~ ': ' ~ v3.ai_analysis.final_capture_at,
+        caption_right=_("Capture Station") ~ ': ' ~ ev.station,
+        fallback_label=_("Final tray image not available yet")
+    ) }}
+    {{ macros.evidence_figure(
+        image_url=ev.image_url, image_available=ev.image_available, alt=_(ev.alt),
+        title=_("YOLO Detection Overlay"), tag_label=_("AI Output"), tag_variant='info',
+        caption_left=_("AI Analysis") ~ ': ' ~ v3.ai_analysis.analysis_at,
+        caption_right=_("Capture Station") ~ ': ' ~ ev.station,
+        overlay_boxes=ev.overlay_boxes,
+        fallback_label=_("YOLO overlay will appear once the final tray image is available")
+    ) }}
+</section>
+
+<section class="card">
+    <h2 class="card__title">{{ _("AI Analysis Details") }}</h2>
+    <dl class="v3-kv-list v3-kv-list--grid">
+        <div><dt>{{ _("Vision Model") }}</dt><dd>{{ v3.ai_analysis.vision_model }}</dd></div>
+        <div><dt>{{ _("Model Version") }}</dt><dd>{{ v3.ai_analysis.model_version }}</dd></div>
+        <div><dt>{{ _("Confidence Threshold") }}</dt><dd>{{ v3.ai_analysis.confidence_threshold }}</dd></div>
+        <div><dt>{{ _("Final Capture") }}</dt><dd>{{ v3.ai_analysis.final_capture_at }}</dd></div>
+        <div><dt>{{ _("Analysis Timestamp") }}</dt><dd>{{ v3.ai_analysis.analysis_at }}</dd></div>
+    </dl>
+</section>
+{% else %}
+<section class="card">
+    <p class="v3-empty-state">{{ _("No final count or evidence has been recorded for %(session)s yet.", session=v3.session.session_id) }}</p>
+</section>
+{% endif %}

@@ -1,0 +1,34 @@
+{% import "components/macros.html" as macros %}
+{% set current_locale = current_locale|default('en') %}
+{# Language names are endonyms and EN / ES are codes: intentionally not translated. #}
+{% set language_options = [
+    {'code': 'en', 'label': 'English', 'short_label': 'EN'},
+    {'code': 'es-MX', 'label': 'Español (México)', 'short_label': 'ES'}
+] %}
+{% set current_language_option = (language_options|selectattr('code', 'equalto', current_locale)|first) or language_options[0] %}
+
+{#
+    current_locale comes from user.ui_preferences.locale (authenticated) or pef_locale cookie.
+    static/js/language.js POSTs the selected data-language-code to /locale (cookie + BD for
+    signed-in users) and reloads the current URL.
+#}
+<div class="dropdown" data-dropdown>
+    <button type="button"
+            class="dropdown__trigger"
+            id="language-selector-trigger"
+            aria-haspopup="listbox"
+            aria-expanded="false"
+            data-dropdown-trigger>
+        <span>{{ current_language_option.short_label }}</span>
+        {{ macros.icon_chevron_down() }}
+    </button>
+    <ul class="dropdown__menu" role="listbox" aria-labelledby="language-selector-trigger" data-dropdown-menu hidden>
+        {% for option in language_options %}
+        <li role="option" aria-selected="{{ 'true' if option.code == current_locale else 'false' }}">
+            <button type="button" class="dropdown__item" data-language-code="{{ option.code }}">
+                {{ option.label }}
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+</div>

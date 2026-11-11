@@ -1,0 +1,127 @@
+{% extends "layouts/public.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/landing.css') }}">
+{% endblock %}
+
+{% block public_nav %}
+<a class="public-nav-link" href="#about">{{ _("About") }}</a>
+<a class="public-nav-link" href="#how-it-works">{{ _("How It Works") }}</a>
+<a class="public-nav-link" href="#privacy">{{ _("Privacy") }}</a>
+<a class="public-nav-link" href="#contact">{{ _("Contact") }}</a>
+{% endblock %}
+
+{% block public_header_action %}
+<a class="btn btn--primary" href="{{ url_for('web.sign_in') }}">{{ _("Sign In") }}</a>
+{% endblock %}
+
+{% block public_content %}
+<section class="landing-hero" id="about">
+    <div class="landing-container landing-hero__row">
+        <div>
+            <span class="landing-eyebrow landing-eyebrow--pill">{{ _("System Overview") }}</span>
+            <h1 class="landing-hero__title">{{ _("Instrument Traceability and Validation System") }}</h1>
+            <p class="landing-hero__lede">{{ _("A digital system designed to support instrument traceability, counting, and validation workflows with role-based access controls.") }}</p>
+            <div class="landing-hero__actions">
+                <a class="btn btn--primary" href="{{ url_for('web.sign_in') }}">{{ _("Sign In") }}</a>
+                <a class="btn btn--accent" href="#how-it-works">{{ _("Learn How It Works") }}</a>
+            </div>
+        </div>
+        <div class="landing-media" aria-hidden="true">{{ macros.icon_scan_frame() }}</div>
+    </div>
+</section>
+
+<section class="landing-section landing-section--alt">
+    <div class="landing-container landing-section__row landing-section__row--reverse">
+        <div class="landing-media" aria-hidden="true">{{ macros.icon_box() }}</div>
+        <div>
+            <span class="landing-eyebrow">{{ _("System Purpose") }}</span>
+            <h2 class="landing-section__title">{{ _("Supporting Instrument Traceability and Validation Workflows") }}</h2>
+            <div class="landing-section__body">
+                <p>{{ _("The system is designed to support instrument traceability, counting, and validation workflows by combining visual capture, AI-assisted suggestions, and human review.") }}</p>
+                <p>{{ _("Operational information is accessible only through authenticated, role-based access controls.") }}</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="landing-section" id="how-it-works">
+    <div class="landing-container">
+        <div class="landing-section__heading">
+            <span class="landing-eyebrow">{{ _("Workflow") }}</span>
+            <h2 class="landing-section__title">{{ _("High-Level Workflow") }}</h2>
+        </div>
+        <div class="landing-step-grid">
+            {% set workflow_steps = [
+                {'number': '01', 'icon': macros.icon_clipboard(), 'title': _('Expected Kit'), 'description': _('Select and load the designed tray manifest template to define the expected instrument set.')},
+                {'number': '02', 'icon': macros.icon_camera(), 'title': _('Overhead Capture'), 'description': _('Capture a high-resolution overhead image of the prepared instrument layout.')},
+                {'number': '03', 'icon': macros.icon_scan_frame(), 'title': _('AI Suggested Count'), 'description': _('AI-assisted counting generates suggested instrument locations and counts based on the captured image.')},
+                {'number': '04', 'icon': macros.icon_user(), 'title': _('Human Validation'), 'description': _('Authorized users review the suggested count and confirm or correct the instrument state.')},
+                {'number': '05', 'icon': macros.icon_bell(), 'title': _('Discrepancy Review'), 'description': _('The system highlights discrepancies for review and approval before the session can be closed.')},
+                {'number': '06', 'icon': macros.icon_check_circle(), 'title': _('Session Closure'), 'description': _('The validated session is recorded and stored for future reference and audit.')},
+            ] %}
+            {% for step in workflow_steps %}
+            <div class="card">
+                <div class="landing-step-card__header">
+                    <span class="landing-step-card__number">{{ step.number }}</span>
+                    <span class="landing-step-card__icon">{{ step.icon }}</span>
+                </div>
+                <h3 class="landing-step-card__title">{{ step.title }}</h3>
+                <p class="landing-step-card__description">{{ step.description }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="landing-section landing-section--alt">
+    <div class="landing-container">
+        <div class="landing-section__heading">
+            <span class="landing-eyebrow">{{ _("System Benefits") }}</span>
+            <h2 class="landing-section__title">{{ _("System Benefits") }}</h2>
+        </div>
+        <div class="landing-benefit-grid">
+            {% set benefits = [
+                {'icon': macros.icon_history(), 'title': _('Instrument Traceability'), 'description': _('Track instrument presence and session history across the validation workflow.')},
+                {'icon': macros.icon_scan_frame(), 'title': _('AI-Assisted Counting'), 'description': _('AI-assisted counting helps reduce manual effort and supports faster review.')},
+                {'icon': macros.icon_shield_check(), 'title': _('Human Validation'), 'description': _('Final validation requires human review and confirmation before a session is closed.')},
+                {'icon': macros.icon_bell(), 'title': _('Discrepancy Management'), 'description': _('The system highlights discrepancies and supports a structured review process.')},
+                {'icon': macros.icon_document(), 'title': _('Auditability'), 'description': _('Session records are stored for future review and audit.')},
+                {'icon': macros.icon_database(), 'title': _('Historical Records'), 'description': _('Historical session data is retained for reference and review.')},
+            ] %}
+            {% for benefit in benefits %}
+            <div class="card">
+                <span class="landing-benefit-card__icon">{{ benefit.icon }}</span>
+                <h3 class="landing-benefit-card__title">{{ benefit.title }}</h3>
+                <p class="landing-benefit-card__description">{{ benefit.description }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section class="landing-section" id="privacy">
+    <div class="landing-container landing-section__row">
+        <div class="landing-media landing-media--wide" aria-hidden="true">{{ macros.icon_database() }}</div>
+        <div>
+            <span class="landing-eyebrow">{{ _("Access Controls") }}</span>
+            <h2 class="landing-section__title">{{ _("Operational Information Requires Authenticated Access") }}</h2>
+            <div class="landing-section__body">
+                <p>{{ _("Access to operational information is restricted to authenticated users with appropriate role-based permissions.") }}</p>
+            </div>
+            <p class="landing-access__bullet">{{ _("Access is restricted to authorized users.") }}</p>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block public_footer %}
+<p id="contact">{{ _("© %(year)s Surgical Instrument Traceability System. All Rights Reserved. Hospital Restricted Software.", year=current_year) }}</p>
+<div class="public-footer__links">
+    <a href="#">{{ _("Privacy Policy") }}</a>
+    <a href="#">{{ _("Terms of Service") }}</a>
+</div>
+{% endblock %}

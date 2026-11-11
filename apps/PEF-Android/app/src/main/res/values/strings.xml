@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default (English) UI strings. Spanish: values-es/strings.xml.
+     Identifiers, catalog data and server messages are NOT translated (they come from the backend). -->
+<resources>
+    <string name="app_name">CursoBasico</string>
+
+    <!-- Common -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_retry">Retry</string>
+    <string name="action_view_details">View details</string>
+    <string name="not_provided">Not provided</string>
+    <string name="restoring_session">Restoring session…</string>
+    <string name="state_loading">Loading</string>
+    <string name="state_not_permitted">Your role does not have access to this information.</string>
+    <string name="state_value_unavailable">not available</string>
+
+    <!-- Top / bottom bars -->
+    <string name="topbar_title">SURGICAL INSTRUMENT</string>
+    <string name="topbar_subtitle">Traceability System</string>
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_alerts">Alerts</string>
+    <string name="nav_sessions">Sessions</string>
+    <string name="nav_personal">Personnel</string>
+    <string name="cd_notifications">Notifications</string>
+    <string name="cd_open_settings">Account and settings</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_search">Search</string>
+    <string name="cd_logo">System logo</string>
+    <string name="cd_comments">Comments</string>
+    <string name="cd_close_comments">Close comments</string>
+    <string name="cd_close_evidence">Close evidence</string>
+    <string name="cd_evidence_image">Evidence image</string>
+
+    <!-- Errors -->
+    <string name="error_offline">No connection to the server. Check the network and try again.</string>
+    <string name="error_timeout">The server took too long to respond.</string>
+    <string name="error_unauthorized">Your session is no longer valid. Sign in again.</string>
+    <string name="error_forbidden">Access denied for your role.</string>
+    <string name="error_not_found">The requested information was not found.</string>
+    <string name="error_rate_limited">Too many requests. Wait a moment and try again.</string>
+    <string name="error_server">The server could not complete the request.</string>
+    <string name="error_invalid_response">The server sent an unexpected response.</string>
+    <string name="error_bad_request">The request was rejected by the server.</string>
+    <string name="error_unknown">Unexpected error.</string>
+    <string name="error_reference">Reference: %1$s</string>
+
+    <!-- Login -->
+    <string name="login_title">Surgical Instrument Traceability\nSystem</string>
+    <string name="login_email_label">Institutional Email</string>
+    <string name="login_email_placeholder">name@institution.edu</string>
+    <string name="login_password_label">Password</string>
+    <string name="login_password_placeholder">Enter your password</string>
+    <string name="login_sign_in">Sign In</string>
+    <string name="login_signing_in">Signing in…</string>
+    <string name="login_restricted">Access is restricted to authorized personnel.</string>
+    <string name="login_error_missing_fields">Enter your email and password.</string>
+    <string name="login_error_invalid_credentials">Invalid email or password.</string>
+    <string name="login_error_rate_limited">Too many attempts. Try again later.</string>
+    <string name="login_error_generic">Could not sign in.</string>
+    <string name="login_session_expired">Your session expired or was revoked. Sign in again.</string>
+    <string name="login_signed_out">You have signed out.</string>
+    <string name="login_signed_out_local_only">Signed out on this device. The server could not confirm the revocation; the tokens will expire on their own.</string>
+
+    <!-- Dashboard -->
+    <string name="dashboard_title">Dashboard</string>
+    <string name="dashboard_subtitle">Review unresolved discrepancies and\nsessions requiring Supervisor attention.</string>
+    <string name="dashboard_attention_title">Active/Hold sessions</string>
+    <string name="dashboard_attention_empty">No sessions in progress or on hold.</string>
+    <string name="stat_sessions_today">SESSIONS TODAY</string>
+    <string name="stat_active_sessions">ACTIVE SESSIONS</string>
+    <string name="stat_pending_reviews">PENDING REVIEWS</string>
+    <string name="stat_open_discrepancies">OPEN DISCREPANCIES</string>
+    <string name="stat_scheduled">SCHEDULED</string>
+    <string name="stat_correction_required">CORRECTION REQUIRED</string>
+
+    <!-- Session statuses (codes defined by SessionService) -->
+    <string name="status_scheduled">Scheduled</string>
+    <string name="status_in_progress">In progress</string>
+    <string name="status_awaiting_spd_review">Awaiting SPD review</string>
+    <string name="status_correction_required">Correction required</string>
+    <string name="status_closed">Closed</string>
+    <string name="status_aborted">Aborted</string>
+    <string name="status_unknown">Unknown</string>
+
+    <!-- Sessions -->
+    <string name="sessions_title">Sessions</string>
+    <string name="sessions_subtitle">Monitor current and recent instrument counting sessions.</string>
+    <string name="sessions_search_placeholder">Search sessions…</string>
+    <string name="sessions_empty">There are no sessions to show.</string>
+    <string name="sessions_no_match">No sessions match the filters.</string>
+    <string name="filter_all_status">All status</string>
+    <string name="filter_all_rooms">All rooms</string>
+    <string name="filter_all_procedures">All procedures</string>
+    <string name="filter_all_types">All types</string>
+    <string name="filter_any_date">Any date</string>
+    <string name="filter_today">Today</string>
+    <string name="filter_last_7">Last 7 days</string>
+    <string name="filter_last_30">Last 30 days</string>
+
+    <!-- Session detail -->
+    <string name="tab_session">Session</string>
+    <string name="tab_inventory">Inventory</string>
+    <string name="tab_timeline">Timeline</string>
+    <string name="tab_live_count">Live Count</string>
+    <string name="tab_evidence">Evidence</string>
+    <string name="detail_status">STATUS</string>
+    <string name="detail_capture_mode">CAPTURE MODE</string>
+    <string name="detail_privacy">PRIVACY</string>
+    <string name="detail_assignment">Assignment</string>
+    <string name="detail_timing">Timing</string>
+    <string name="detail_surgical_team">Surgical Team</string>
+    <string name="detail_team_empty">No surgical team registered.</string>
+    <string name="detail_vision_model">Vision model</string>
+    <string name="privacy_agreed">Agreement recorded</string>
+    <string name="privacy_agreed_version">Agreement %1$s</string>
+    <string name="privacy_pending">Pending</string>
+    <string name="label_session">Session</string>
+    <string name="label_status">Status</string>
+    <string name="label_operator">Operator</string>
+    <string name="label_procedure">Procedure</string>
+    <string name="label_patient">Patient</string>
+    <string name="label_kit">Kit</string>
+    <string name="label_capture_station">Capture Station</string>
+    <string name="label_tray">Tray</string>
+    <string name="label_phase">Phase</string>
+    <string name="label_scheduled_start">Scheduled start</string>
+    <string name="label_started">Started</string>
+    <string name="label_ended">Ended</string>
+    <string name="label_model_version">Version</string>
+    <string name="label_open_discrepancies">Open discrepancies</string>
+    <string name="label_type">Type</string>
+    <string name="label_date">Date</string>
+    <string name="label_message">Message</string>
+    <string name="col_instrument">Instrument</string>
+    <string name="col_expected">Expected</string>
+    <string name="col_detected">Detected</string>
+    <string name="col_difference">Difference</string>
+    <string name="inventory_empty">No expected inventory registered for this session.</string>
+    <string name="live_title">Expected vs detected</string>
+    <string name="live_updated_at">Last updated at %1$s</string>
+    <string name="live_no_counts">No automatic count recorded yet.</string>
+    <string name="live_confidence_unavailable">Per-instrument confidence is not published by the API.</string>
+    <string name="timeline_event">Event</string>
+    <string name="timeline_scope">Scope</string>
+    <string name="timeline_empty">No events recorded for this session.</string>
+    <string name="hold_detail_title">Hold Detail</string>
+    <string name="hold_discrepancies_title">Expected vs reported</string>
+    <string name="hold_no_discrepancies">No discrepancies recorded.</string>
+    <string name="hold_operator_note_title">Operator report</string>
+    <string name="hold_review_in_portal">Resolving discrepancies and the safe close are done by the SPD Supervisor in the portal. This app never closes sessions.</string>
+    <string name="discrepancy_open">Open</string>
+    <string name="discrepancy_resolved">Resolved</string>
+
+    <!-- Evidence -->
+    <string name="evidence_type">Type</string>
+    <string name="evidence_time">Time</string>
+    <string name="evidence_size">Size</string>
+    <string name="evidence_retention">Retained until</string>
+    <string name="evidence_empty">No evidence found.</string>
+    <string name="evidence_blocked">This evidence is blocked and cannot be displayed.</string>
+    <string name="evidence_purged">This evidence was purged by the retention policy.</string>
+    <string name="evidence_decode_failed">The image could not be displayed.</string>
+    <string name="evidence_inference_note">Inference results linked to each evidence are not published by EvidenceService; counts are shown in Live Count and Timeline.</string>
+
+    <!-- Comments -->
+    <string name="comments_title">Comments</string>
+    <string name="comments_unavailable_title">Comments are not available yet</string>
+    <string name="comments_unavailable_detail">The API Gateway does not publish a comments endpoint for sessions.</string>
+    <string name="comments_placeholder_unavailable">Not available</string>
+
+    <!-- Alerts / notifications -->
+    <string name="alerts_title">Alerts/On Hold Sessions</string>
+    <string name="alerts_subtitle">Review notifications and sessions requiring Supervisor attention.</string>
+    <string name="alerts_tab_notifications">Notifications</string>
+    <string name="alerts_tab_notifications_count">Notifications (%1$d)</string>
+    <string name="alerts_tab_on_hold">On hold sessions</string>
+    <string name="alerts_search_placeholder">Search alerts…</string>
+    <string name="alerts_mark_all_read">Mark all as read</string>
+    <string name="alerts_mark_read">Mark as read</string>
+    <string name="alerts_view_session">View session</string>
+    <string name="alerts_empty">You have no notifications.</string>
+    <string name="alerts_no_match">No notifications match the search.</string>
+    <string name="alerts_on_hold_empty">No sessions awaiting review or correction.</string>
+    <string name="alerts_no_sessions_found">No sessions found.</string>
+    <string name="alerts_push_not_available">Push notifications are not enabled yet: alerts are refreshed when you open the app or tap Refresh.</string>
+    <string name="notification_unread">Unread</string>
+    <string name="notification_read">Read</string>
+    <string name="ntype_session_scheduled">Session scheduled</string>
+    <string name="ntype_discrepancy_pending">Discrepancy pending review</string>
+    <string name="ntype_correction_required">Correction required</string>
+    <string name="ntype_discrepancy_resolved">Discrepancy resolved</string>
+    <string name="ntype_session_closed">Safe close confirmed</string>
+    <string name="ntype_review_pending">Session pending review</string>
+    <string name="ntype_session_unresolved">Session closed as unresolved</string>
+    <string name="ntype_station_alert">Capture station alert</string>
+    <string name="ntype_final_count_escalated">Possible physical difference reported</string>
+    <string name="ntype_service_alert">Platform component alert</string>
+    <string name="ntype_other">Notification</string>
+
+    <!-- Personnel -->
+    <string name="personal_title">Personnel</string>
+    <string name="personal_subtitle">Search for medical personnel and check for upcoming sessions.</string>
+    <string name="personal_search_placeholder">Search personnel…</string>
+    <string name="personal_scope_note">Shows the operators assigned to the sessions you can access. A personnel directory is not published by the API.</string>
+    <string name="personal_empty">No personnel found in your sessions.</string>
+    <string name="personal_no_match">Nobody matches the search.</string>
+    <string name="personal_session_operator">Session operator</string>
+    <string name="personal_view_sessions">View sessions</string>
+    <string name="personal_active_sessions">Active session</string>
+    <string name="personal_scheduled_sessions">Scheduled session</string>
+    <string name="personal_session_history">Session History</string>
+    <string name="personal_section_empty">None.</string>
+
+    <!-- Roles -->
+    <string name="role_station_operator">Station operator</string>
+    <string name="role_spd_supervisor">SPD supervisor</string>
+    <string name="role_it_admin">IT administrator</string>
+    <string name="role_other">Other role</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_subtitle">Account, language, theme and notifications.</string>
+    <string name="settings_account">Account</string>
+    <string name="settings_name">Name</string>
+    <string name="settings_email">Email</string>
+    <string name="settings_roles">Roles</string>
+    <string name="settings_offline_session">Offline: showing the session saved on this device.</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_system">Device language</string>
+    <string name="settings_language_es">Español</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">Automatic (system)</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_in_app_notifications">Show unread alerts badge</string>
+    <string name="settings_push_note">In-app preference only. This is not a push notification permission.</string>
+    <string name="settings_sync_note">Preferences are saved on this device. Your web portal preferences are used as a starting point; syncing changes back to the server is not available yet.</string>
+    <string name="settings_about">About</string>
+    <string name="settings_gateway">API Gateway</string>
+    <string name="settings_version">Version</string>
+    <string name="settings_logout">Sign out</string>
+    <string name="settings_logout_confirm_title">Sign out?</string>
+    <string name="settings_logout_confirm_text">Your session will be revoked on the server and removed from this device.</string>
+
+    <!-- Dashboard: discrepancies tab -->
+    <string name="dashboard_tab_session">Session</string>
+    <string name="dashboard_tab_discrepancies">Discrepancies</string>
+    <string name="discrepancies_by_instrument">Discrepancies by Instrument</string>
+    <string name="discrepancies_by_family">Discrepancies by Instrument Family</string>
+    <string name="discrepancies_summary">%1$d total · %2$d open</string>
+    <string name="discrepancies_empty">No discrepancies in this period.</string>
+    <string name="chart_other">Other</string>
+    <string name="chart_not_specified">Not specified</string>
+    <string name="filter_last_90">Last 90 days</string>
+    <string name="filter_last_365">Last 365 days</string>
+
+    <!-- Plurals -->
+    <plurals name="cd_notifications_unread">
+        <item quantity="one">Notifications, %1$d unread</item>
+        <item quantity="other">Notifications, %1$d unread</item>
+    </plurals>
+    <plurals name="dashboard_more_in_sessions">
+        <item quantity="one">%1$d more in Sessions.</item>
+        <item quantity="other">%1$d more in Sessions.</item>
+    </plurals>
+    <plurals name="personal_role_operator_sessions">
+        <item quantity="one">Session operator · %1$d session</item>
+        <item quantity="other">Session operator · %1$d sessions</item>
+    </plurals>
+    <plurals name="alerts_showing">
+        <item quantity="one">Showing %1$d of %2$d notification.</item>
+        <item quantity="other">Showing %1$d of %2$d notifications.</item>
+    </plurals>
+</resources>

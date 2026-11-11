@@ -1,0 +1,126 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    Operator Active Session Capture (V3 — ui_reference_v3/operator/operator-active-session-capture.png),
+    for V3 demo session ids only. Other ids render operator/sessions/v2/capture.html.
+
+    Context: v3 (view_data.operator_v3_view), flow (V3 URLs), context_status.
+    The tray preview is the LATEST LIVE capture (v3.latest_live_capture), not the final
+    evidence capture; no camera/upload pipeline exists, so its actions are inert.
+#}
+
+{% block title %}{{ _("Active Capture") }} · {{ v3.session.session_id }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'counting_sessions' %}
+{% include "partials/sidebar_operator.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item"><a href="{{ flow.sessions }}">{{ _("Assigned Sessions") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ v3.session.session_id }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Active Capture") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/operator-v3.css') }}">
+{% endblock %}
+
+{% block page_content %}
+<div class="v3-page">
+    {% with context_meta=[_("Started %(time)s", time=v3.session.started_time)] %}
+    {% include "operator/sessions/_context_bar.html" %}
+    {% endwith %}
+
+    <div class="v3-columns">
+        <section class="card">
+            <div class="v3-card-header">
+                <h2 class="card__title">{{ _("Capture Image") }}</h2>
+                {{ macros.status_badge(_("AI Counting Ready"), 'success') }}
+            </div>
+            {{ macros.evidence_figure(
+                image_url=none, image_available=false,
+                alt=_("Latest live tray capture"),
+                caption_left=_("Latest Live Capture") ~ ': ' ~ v3.latest_live_capture.captured_at,
+                caption_right=_("Capture Station") ~ ': ' ~ v3.latest_live_capture.station,
+                fallback_label=_("Live camera preview is not connected in this demo")
+            ) }}
+            <div class="v3-form-footer__group">
+                <button type="button" class="btn btn--secondary btn--small" disabled>{{ macros.icon_camera() }}<span>{{ _("Capture Image") }}</span></button>
+                <button type="button" class="btn btn--secondary btn--small" disabled>{{ macros.icon_history() }}<span>{{ _("Upload Image") }}</span></button>
+                <button type="button" class="btn btn--secondary btn--small" disabled>{{ macros.icon_history() }}<span>{{ _("Retake Photograph") }}</span></button>
+            </div>
+        </section>
+
+
+        <section class="card">
+            <h2 class="card__title">{{ _("Expected Inventory") }}</h2>
+            <p class="card__subtitle">{{ _("The baseline inventory registered for this operation kit.") }}</p>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th scope="col">{{ _("Instrument Name") }}</th>
+                            <th scope="col" class="data-table__numeric-column">{{ _("Expected Quantity") }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in v3.inventory['items'] %}
+                        <tr>
+                            <th scope="row">{{ item.instrument_name }}</th>
+                            <td class="data-table__numeric-column">{{ item.expected_quantity }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="v3-total-row">
+                            <th scope="row">{{ _("Total Expected: %(count)s Items", count=v3.inventory.total_expected) }}</th>
+                            <td></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <p class="v3-muted-note">{{ macros.icon_lock() }} {{ _("Expected inventory was frozen when the session started.") }}</p>
+
+        </section>
+    </div>
+
+    <section class="card">
+        <h2 class="card__title">{{ _("Instrument Event Log") }}</h2>
+        <p class="card__subtitle">{{ _("Recent tray activity for this session.") }}</p>
+        <div class="table-wrapper v3-op-event-log">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Timestamp") }}</th>
+                        <th scope="col">{{ _("Event") }}</th>
+                        <th scope="col">{{ _("Instrument") }}</th>
+                        <th scope="col">{{ _("Details / Status") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in v3.instrument_events|reverse %}
+                    <tr>
+                        <td>{{ event.time }}</td>
+                        <td><strong>{{ _(event.event) }}</strong></td>
+                        <td>{{ event.instrument }}</td>
+                        <td>{{ _(event.detail) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="v3-muted-note">{{ _("Most recent first.") }}</p>
+    </section>
+
+    <section class="v3-op-callout">
+        <h2 class="v3-op-callout__title">{{ _("Confirm Procedure End & Verify Tray") }}</h2>
+        <p>{{ _("Before completing the procedure, the system must verify that the final tray area and tracked instruments are ready for a valid final capture.") }}</p>
+        <a class="btn btn--danger-solid" href="{{ flow.tray_start }}">{{ _("Confirm Procedure End & Verify Tray") }}</a>
+    </section>
+</div>
+{% endblock %}

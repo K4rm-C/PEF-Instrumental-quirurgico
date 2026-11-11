@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block body_class %}public-page{% endblock %}
+
+{% block content %}
+<div class="public-shell">
+    <header class="public-header">
+        <a class="public-header__brand" href="{{ url_for('web.index') }}">
+            {{ macros.icon_scan_frame() }}
+            <span>{{ _("Surgical Instrument Traceability System") }}</span>
+        </a>
+        <nav class="public-header__nav" aria-label="{{ _('Primary') }}">
+            {% block public_nav %}{% endblock %}
+        </nav>
+        <div class="public-header__controls">
+            {% include "partials/language_selector.html" %}
+            {% include "partials/theme_selector.html" %}
+            {% block public_header_action %}{% endblock %}
+        </div>
+    </header>
+    <main id="main-content" tabindex="-1">
+        {% block public_content %}{% endblock %}
+    </main>
+    <footer class="public-footer">
+        {% block public_footer %}{% endblock %}
+    </footer>
+</div>
+{% endblock %}

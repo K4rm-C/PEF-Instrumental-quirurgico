@@ -1,0 +1,137 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    MS-05: New Camera / Edit Camera (same layout as the capture station form). A camera belongs to one
+    capture station of the administrator's institution and declares the capture settings it supports.
+
+    Expected context:
+      form_mode            "create" | "edit"
+      camera               dict: name, station_id, device_type, resolution_width, resolution_height, fps,
+                           status, roi_configured, roi
+      capture_stations     list of {value, label}
+      device_types         list of {value, label}
+      save_url, cancel_url
+#}
+{% set form_mode = form_mode|default('create') %}
+{% set is_edit = form_mode == 'edit' %}
+{% set camera = camera|default({'name': '', 'station_id': '', 'device_type': 'usb', 'status': 'active'}, true) %}
+{% set page_title = _("Edit Camera") if is_edit else _("New Camera") %}
+{% set page_subtitle = _("Update the camera of a capture station.") if is_edit else _("Register a camera used by a capture station.") %}
+
+{% block title %}{{ page_title }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'configuration' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("System") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item"><a href="{{ cancel_url|default('#') }}">{{ _("Configuration") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item">{{ _("Cameras") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Edit") if is_edit else _("New") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ page_title }}</h1>
+        <p class="page-heading__subtitle">{{ page_subtitle }}</p>
+    </div>
+</div>
+
+<section class="card card--form">
+    <form class="form" action="{{ save_url|default('#') }}" method="post" data-camera-form>
+{{ csrf_field() }}
+        {% if form_error %}
+        <p class="form-field__helper form-field__helper--error" role="alert">{{ form_error }}</p>
+        {% endif %}
+        <div class="form-field">
+            <label class="form-field__label" for="camera-name">{{ _("Camera Name") }} *</label>
+            <input class="form-field__input form-field__input--plain" type="text" id="camera-name" name="name" value="{{ camera.name }}" maxlength="120" required>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="camera-station">{{ _("Capture Station") }} *</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="camera-station" name="station_id" required>
+                    <option value="">{{ _("Select a capture station") }}</option>
+                    {% for station in capture_stations|default([], true) %}
+                    <option value="{{ station.value }}" {% if station.value == camera.station_id %}selected{% endif %}>{{ station.label }}</option>
+                    {% endfor %}
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <div class="form-field">
+            <label class="form-field__label" for="camera-device-type">{{ _("Device Type") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="camera-device-type" name="device_type">
+                    {% for option in device_types|default([], true) %}
+                    <option value="{{ option.value }}" {% if option.value == camera.device_type %}selected{% endif %}>{{ _(option.label) }}</option>
+                    {% endfor %}
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <fieldset class="form-field">
+            <legend class="form-field__label">{{ _("Capture Settings") }}</legend>
+            <p class="form-field__helper">{{ _("Supported resolution and frame rate. Leave them empty if they are not known.") }}</p>
+            <div class="form-grid">
+                <div class="form-field">
+                    <label class="form-field__label" for="camera-width">{{ _("Width (px)") }}</label>
+                    <input class="form-field__input form-field__input--plain" type="number" min="160" max="7680" id="camera-width" name="resolution_width" value="{{ camera.resolution_width }}">
+                </div>
+                <div class="form-field">
+                    <label class="form-field__label" for="camera-height">{{ _("Height (px)") }}</label>
+                    <input class="form-field__input form-field__input--plain" type="number" min="120" max="4320" id="camera-height" name="resolution_height" value="{{ camera.resolution_height }}">
+                </div>
+                <div class="form-field">
+                    <label class="form-field__label" for="camera-fps">{{ _("FPS") }}</label>
+                    <input class="form-field__input form-field__input--plain" type="number" min="1" max="120" id="camera-fps" name="fps" value="{{ camera.fps }}">
+                </div>
+            </div>
+        </fieldset>
+        <div class="form-field">
+            <label class="form-field__label" for="camera-status">{{ _("Status") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="camera-status" name="status">
+                    <option value="active" {% if camera.status == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
+                    <option value="inactive" {% if camera.status == 'inactive' %}selected{% endif %}>{{ _("Inactive") }}</option>
+                </select>
+                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
+            </div>
+        </div>
+        <fieldset class="form-field">
+            <legend class="form-field__label">{{ _("ROI Configuration") }} ({{ _('Configured') if camera.roi_configured else _('Not Configured') }})</legend>
+            <p class="form-field__helper">{{ _("Optional tray area for this camera, in pixels. Without it the station ROI applies. Leave every value empty to keep the current ROI.") }}</p>
+            {% set roi = camera.roi|default({}, true) %}
+            <div class="form-grid">
+                {% for key, label in [('frame_w', _('Frame width')), ('frame_h', _('Frame height')), ('x', _('X (left)')), ('y', _('Y (top)')), ('w', _('Width')), ('h', _('Height'))] %}
+                <div class="form-field">
+                    <label class="form-field__label" for="camera-roi-{{ key }}">{{ label }}</label>
+                    <input class="form-field__input form-field__input--plain" type="number" min="{{ 1 if key in ('w', 'h', 'frame_w', 'frame_h') else 0 }}" max="20000"
+                           id="camera-roi-{{ key }}" name="roi_{{ key }}" value="{{ roi.get(key, '') }}">
+                </div>
+                {% endfor %}
+            </div>
+            {% if camera.roi_configured %}
+            <div class="form-checkbox">
+                <input type="checkbox" id="camera-clear-roi" name="clear_roi" value="1">
+                <label for="camera-clear-roi">{{ _("Remove the ROI of this camera") }}</label>
+            </div>
+            {% endif %}
+        </fieldset>
+
+        <div class="form-actions">
+            <a class="btn btn--secondary" href="{{ cancel_url|default('#') }}">{{ _("Cancel") }}</a>
+            <button type="submit" class="btn btn--primary">{{ _("Save Camera") if not is_edit else _("Save Changes") }}</button>
+        </div>
+    </form>
+</section>
+{% endblock %}

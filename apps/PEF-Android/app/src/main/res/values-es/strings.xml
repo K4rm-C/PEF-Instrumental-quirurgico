@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Textos de interfaz en español. Los identificadores, datos de catálogo y mensajes del servidor
+     NO se traducen (vienen del backend). -->
+<resources>
+    <string name="app_name">CursoBasico</string>
+
+    <!-- Comunes -->
+    <string name="action_cancel">Cancelar</string>
+    <string name="action_refresh">Actualizar</string>
+    <string name="action_retry">Reintentar</string>
+    <string name="action_view_details">Ver detalle</string>
+    <string name="not_provided">No proporcionado</string>
+    <string name="restoring_session">Restaurando sesión…</string>
+    <string name="state_loading">Cargando</string>
+    <string name="state_not_permitted">Tu rol no tiene acceso a esta información.</string>
+    <string name="state_value_unavailable">no disponible</string>
+
+    <!-- Barras superior / inferior -->
+    <string name="topbar_title">INSTRUMENTAL QUIRÚRGICO</string>
+    <string name="topbar_subtitle">Sistema de trazabilidad</string>
+    <string name="nav_dashboard">Inicio</string>
+    <string name="nav_alerts">Alertas</string>
+    <string name="nav_sessions">Sesiones</string>
+    <string name="nav_personal">Personal</string>
+    <string name="cd_notifications">Notificaciones</string>
+    <string name="cd_open_settings">Cuenta y ajustes</string>
+    <string name="cd_back">Volver</string>
+    <string name="cd_search">Buscar</string>
+    <string name="cd_logo">Logotipo del sistema</string>
+    <string name="cd_comments">Comentarios</string>
+    <string name="cd_close_comments">Cerrar comentarios</string>
+    <string name="cd_close_evidence">Cerrar evidencia</string>
+    <string name="cd_evidence_image">Imagen de evidencia</string>
+
+    <!-- Errores -->
+    <string name="error_offline">Sin conexión con el servidor. Revisa la red e inténtalo de nuevo.</string>
+    <string name="error_timeout">El servidor tardó demasiado en responder.</string>
+    <string name="error_unauthorized">Tu sesión ya no es válida. Inicia sesión de nuevo.</string>
+    <string name="error_forbidden">Acceso denegado para tu rol.</string>
+    <string name="error_not_found">No se encontró la información solicitada.</string>
+    <string name="error_rate_limited">Demasiadas solicitudes. Espera un momento e inténtalo de nuevo.</string>
+    <string name="error_server">El servidor no pudo completar la solicitud.</string>
+    <string name="error_invalid_response">El servidor envió una respuesta inesperada.</string>
+    <string name="error_bad_request">El servidor rechazó la solicitud.</string>
+    <string name="error_unknown">Error inesperado.</string>
+    <string name="error_reference">Referencia: %1$s</string>
+
+    <!-- Inicio de sesión -->
+    <string name="login_title">Sistema de trazabilidad de\ninstrumental quirúrgico</string>
+    <string name="login_email_label">Correo institucional</string>
+    <string name="login_email_placeholder">nombre@institucion.edu</string>
+    <string name="login_password_label">Contraseña</string>
+    <string name="login_password_placeholder">Escribe tu contraseña</string>
+    <string name="login_sign_in">Iniciar sesión</string>
+    <string name="login_signing_in">Iniciando sesión…</string>
+    <string name="login_restricted">El acceso está restringido a personal autorizado.</string>
+    <string name="login_error_missing_fields">Escribe tu correo y tu contraseña.</string>
+    <string name="login_error_invalid_credentials">Correo o contraseña incorrectos.</string>
+    <string name="login_error_rate_limited">Demasiados intentos. Inténtalo más tarde.</string>
+    <string name="login_error_generic">No se pudo iniciar sesión.</string>
+    <string name="login_session_expired">Tu sesión expiró o fue revocada. Inicia sesión de nuevo.</string>
+    <string name="login_signed_out">Cerraste sesión.</string>
+    <string name="login_signed_out_local_only">Sesión cerrada en este dispositivo. El servidor no pudo confirmar la revocación; los tokens caducarán por sí solos.</string>
+
+    <!-- Panel -->
+    <string name="dashboard_title">Panel</string>
+    <string name="dashboard_subtitle">Revisa las discrepancias sin resolver y las\nsesiones que requieren atención del Supervisor.</string>
+    <string name="dashboard_attention_title">Sesiones activas / en espera</string>
+    <string name="dashboard_attention_empty">No hay sesiones en curso ni en espera.</string>
+    <string name="stat_sessions_today">SESIONES DE HOY</string>
+    <string name="stat_active_sessions">SESIONES ACTIVAS</string>
+    <string name="stat_pending_reviews">REVISIONES PENDIENTES</string>
+    <string name="stat_open_discrepancies">DISCREPANCIAS ABIERTAS</string>
+    <string name="stat_scheduled">PROGRAMADAS</string>
+    <string name="stat_correction_required">CORRECCIÓN REQUERIDA</string>
+
+    <!-- Estados de sesión (códigos de SessionService) -->
+    <string name="status_scheduled">Programada</string>
+    <string name="status_in_progress">En curso</string>
+    <string name="status_awaiting_spd_review">En revisión SPD</string>
+    <string name="status_correction_required">Corrección requerida</string>
+    <string name="status_closed">Cerrada</string>
+    <string name="status_aborted">Abortada</string>
+    <string name="status_unknown">Desconocido</string>
+
+    <!-- Sesiones -->
+    <string name="sessions_title">Sesiones</string>
+    <string name="sessions_subtitle">Supervisa las sesiones de conteo de instrumental actuales y recientes.</string>
+    <string name="sessions_search_placeholder">Buscar sesiones…</string>
+    <string name="sessions_empty">No hay sesiones para mostrar.</string>
+    <string name="sessions_no_match">Ninguna sesión coincide con los filtros.</string>
+    <string name="filter_all_status">Todos los estados</string>
+    <string name="filter_all_rooms">Todas las salas</string>
+    <string name="filter_all_procedures">Todos los procedimientos</string>
+    <string name="filter_all_types">Todos los tipos</string>
+    <string name="filter_any_date">Cualquier fecha</string>
+    <string name="filter_today">Hoy</string>
+    <string name="filter_last_7">Últimos 7 días</string>
+    <string name="filter_last_30">Últimos 30 días</string>
+
+    <!-- Detalle de sesión -->
+    <string name="tab_session">Sesión</string>
+    <string name="tab_inventory">Inventario</string>
+    <string name="tab_timeline">Historial</string>
+    <string name="tab_live_count">Conteo en vivo</string>
+    <string name="tab_evidence">Evidencias</string>
+    <string name="detail_status">ESTADO</string>
+    <string name="detail_capture_mode">MODO DE CAPTURA</string>
+    <string name="detail_privacy">PRIVACIDAD</string>
+    <string name="detail_assignment">Asignación</string>
+    <string name="detail_timing">Horario</string>
+    <string name="detail_surgical_team">Equipo quirúrgico</string>
+    <string name="detail_team_empty">No hay equipo quirúrgico registrado.</string>
+    <string name="detail_vision_model">Modelo de visión</string>
+    <string name="privacy_agreed">Acuerdo registrado</string>
+    <string name="privacy_agreed_version">Acuerdo %1$s</string>
+    <string name="privacy_pending">Pendiente</string>
+    <string name="label_session">Sesión</string>
+    <string name="label_status">Estado</string>
+    <string name="label_operator">Operador</string>
+    <string name="label_procedure">Procedimiento</string>
+    <string name="label_patient">Paciente</string>
+    <string name="label_kit">Kit</string>
+    <string name="label_capture_station">Estación de captura</string>
+    <string name="label_tray">Charola</string>
+    <string name="label_phase">Fase</string>
+    <string name="label_scheduled_start">Inicio programado</string>
+    <string name="label_started">Inicio</string>
+    <string name="label_ended">Fin</string>
+    <string name="label_model_version">Versión</string>
+    <string name="label_open_discrepancies">Discrepancias abiertas</string>
+    <string name="label_type">Tipo</string>
+    <string name="label_date">Fecha</string>
+    <string name="label_message">Mensaje</string>
+    <string name="col_instrument">Instrumento</string>
+    <string name="col_expected">Esperado</string>
+    <string name="col_detected">Detectado</string>
+    <string name="col_difference">Diferencia</string>
+    <string name="inventory_empty">No hay inventario esperado registrado para esta sesión.</string>
+    <string name="live_title">Esperado vs detectado</string>
+    <string name="live_updated_at">Última actualización: %1$s</string>
+    <string name="live_no_counts">Aún no hay un conteo automático registrado.</string>
+    <string name="live_confidence_unavailable">La API no publica la confianza por instrumento.</string>
+    <string name="timeline_event">Evento</string>
+    <string name="timeline_scope">Alcance</string>
+    <string name="timeline_empty">No hay eventos registrados para esta sesión.</string>
+    <string name="hold_detail_title">Detalle en espera</string>
+    <string name="hold_discrepancies_title">Esperado vs reportado</string>
+    <string name="hold_no_discrepancies">No hay discrepancias registradas.</string>
+    <string name="hold_operator_note_title">Reporte del Operador</string>
+    <string name="hold_review_in_portal">La resolución de discrepancias y el cierre seguro los realiza el Supervisor SPD en el portal. Esta app nunca cierra sesiones.</string>
+    <string name="discrepancy_open">Abierta</string>
+    <string name="discrepancy_resolved">Resuelta</string>
+
+    <!-- Evidencias -->
+    <string name="evidence_type">Tipo</string>
+    <string name="evidence_time">Hora</string>
+    <string name="evidence_size">Tamaño</string>
+    <string name="evidence_retention">Se conserva hasta</string>
+    <string name="evidence_empty">No se encontraron evidencias.</string>
+    <string name="evidence_blocked">Esta evidencia está bloqueada y no se puede mostrar.</string>
+    <string name="evidence_purged">Esta evidencia se depuró por la política de retención.</string>
+    <string name="evidence_decode_failed">No se pudo mostrar la imagen.</string>
+    <string name="evidence_inference_note">EvidenceService no publica el resultado de inferencia asociado a cada evidencia; los conteos se muestran en Conteo en vivo e Historial.</string>
+
+    <!-- Comentarios -->
+    <string name="comments_title">Comentarios</string>
+    <string name="comments_unavailable_title">Los comentarios aún no están disponibles</string>
+    <string name="comments_unavailable_detail">El API Gateway no publica un endpoint de comentarios de sesiones.</string>
+    <string name="comments_placeholder_unavailable">No disponible</string>
+
+    <!-- Alertas / notificaciones -->
+    <string name="alerts_title">Alertas / Sesiones en espera</string>
+    <string name="alerts_subtitle">Revisa las notificaciones y las sesiones que requieren atención del Supervisor.</string>
+    <string name="alerts_tab_notifications">Notificaciones</string>
+    <string name="alerts_tab_notifications_count">Notificaciones (%1$d)</string>
+    <string name="alerts_tab_on_hold">Sesiones en espera</string>
+    <string name="alerts_search_placeholder">Buscar alertas…</string>
+    <string name="alerts_mark_all_read">Marcar todas como leídas</string>
+    <string name="alerts_mark_read">Marcar como leída</string>
+    <string name="alerts_view_session">Ver sesión</string>
+    <string name="alerts_empty">No tienes notificaciones.</string>
+    <string name="alerts_no_match">Ninguna notificación coincide con la búsqueda.</string>
+    <string name="alerts_on_hold_empty">No hay sesiones en espera de revisión o corrección.</string>
+    <string name="alerts_no_sessions_found">No se encontraron sesiones.</string>
+    <string name="alerts_push_not_available">Las notificaciones push aún no están habilitadas: las alertas se actualizan al abrir la app o al pulsar Actualizar.</string>
+    <string name="notification_unread">Sin leer</string>
+    <string name="notification_read">Leída</string>
+    <string name="ntype_session_scheduled">Sesión programada</string>
+    <string name="ntype_discrepancy_pending">Discrepancia pendiente de revisión</string>
+    <string name="ntype_correction_required">Corrección requerida</string>
+    <string name="ntype_discrepancy_resolved">Discrepancia resuelta</string>
+    <string name="ntype_session_closed">Cierre seguro confirmado</string>
+    <string name="ntype_review_pending">Sesión pendiente de revisión</string>
+    <string name="ntype_session_unresolved">Sesión cerrada sin conciliar</string>
+    <string name="ntype_station_alert">Alerta de estación de captura</string>
+    <string name="ntype_final_count_escalated">Posible diferencia física reportada</string>
+    <string name="ntype_service_alert">Alerta de componente de la plataforma</string>
+    <string name="ntype_other">Notificación</string>
+
+    <!-- Personal -->
+    <string name="personal_title">Personal</string>
+    <string name="personal_subtitle">Busca personal médico y consulta sus próximas sesiones.</string>
+    <string name="personal_search_placeholder">Buscar personal…</string>
+    <string name="personal_scope_note">Muestra a los operadores asignados a las sesiones a las que tienes acceso. La API no publica un directorio de personal.</string>
+    <string name="personal_empty">No se encontró personal en tus sesiones.</string>
+    <string name="personal_no_match">Nadie coincide con la búsqueda.</string>
+    <string name="personal_session_operator">Operador de sesión</string>
+    <string name="personal_view_sessions">Ver sesiones</string>
+    <string name="personal_active_sessions">Sesión activa</string>
+    <string name="personal_scheduled_sessions">Sesión programada</string>
+    <string name="personal_session_history">Historial de sesiones</string>
+    <string name="personal_section_empty">Ninguna.</string>
+
+    <!-- Roles -->
+    <string name="role_station_operator">Operador de estación</string>
+    <string name="role_spd_supervisor">Supervisor SPD</string>
+    <string name="role_it_admin">Administrador de TI</string>
+    <string name="role_other">Otro rol</string>
+
+    <!-- Ajustes -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_subtitle">Cuenta, idioma, tema y notificaciones.</string>
+    <string name="settings_account">Cuenta</string>
+    <string name="settings_name">Nombre</string>
+    <string name="settings_email">Correo</string>
+    <string name="settings_roles">Roles</string>
+    <string name="settings_offline_session">Sin conexión: se muestra la sesión guardada en este dispositivo.</string>
+    <string name="settings_language">Idioma</string>
+    <string name="settings_language_system">Idioma del dispositivo</string>
+    <string name="settings_language_es">Español</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_theme">Tema</string>
+    <string name="settings_theme_system">Automático (sistema)</string>
+    <string name="settings_theme_light">Claro</string>
+    <string name="settings_theme_dark">Oscuro</string>
+    <string name="settings_notifications">Notificaciones</string>
+    <string name="settings_in_app_notifications">Mostrar insignia de alertas sin leer</string>
+    <string name="settings_push_note">Solo es una preferencia de la app. No es un permiso de notificaciones push.</string>
+    <string name="settings_sync_note">Las preferencias se guardan en este dispositivo. Tus preferencias del portal web se usan como punto de partida; aún no es posible enviar los cambios al servidor.</string>
+    <string name="settings_about">Acerca de</string>
+    <string name="settings_gateway">API Gateway</string>
+    <string name="settings_version">Versión</string>
+    <string name="settings_logout">Cerrar sesión</string>
+    <string name="settings_logout_confirm_title">¿Cerrar sesión?</string>
+    <string name="settings_logout_confirm_text">Tu sesión se revocará en el servidor y se eliminará de este dispositivo.</string>
+
+    <!-- Panel: pestaña de discrepancias -->
+    <string name="dashboard_tab_session">Sesión</string>
+    <string name="dashboard_tab_discrepancies">Discrepancias</string>
+    <string name="discrepancies_by_instrument">Discrepancias por instrumento</string>
+    <string name="discrepancies_by_family">Discrepancias por familia de instrumentos</string>
+    <string name="discrepancies_summary">%1$d en total · %2$d abiertas</string>
+    <string name="discrepancies_empty">No hay discrepancias en este periodo.</string>
+    <string name="chart_other">Otros</string>
+    <string name="chart_not_specified">Sin especificar</string>
+    <string name="filter_last_90">Últimos 90 días</string>
+    <string name="filter_last_365">Últimos 365 días</string>
+
+    <!-- Plurals -->
+    <plurals name="cd_notifications_unread">
+        <item quantity="one">Notificaciones, %1$d sin leer</item>
+        <item quantity="many">Notificaciones, %1$d sin leer</item>
+        <item quantity="other">Notificaciones, %1$d sin leer</item>
+    </plurals>
+    <plurals name="dashboard_more_in_sessions">
+        <item quantity="one">%1$d más en Sesiones.</item>
+        <item quantity="many">%1$d más en Sesiones.</item>
+        <item quantity="other">%1$d más en Sesiones.</item>
+    </plurals>
+    <plurals name="personal_role_operator_sessions">
+        <item quantity="one">Operador de sesión · %1$d sesión</item>
+        <item quantity="many">Operador de sesión · %1$d sesiones</item>
+        <item quantity="other">Operador de sesión · %1$d sesiones</item>
+    </plurals>
+    <plurals name="alerts_showing">
+        <item quantity="one">Mostrando %1$d de %2$d notificación.</item>
+        <item quantity="many">Mostrando %1$d de %2$d notificaciones.</item>
+        <item quantity="other">Mostrando %1$d de %2$d notificaciones.</item>
+    </plurals>
+</resources>

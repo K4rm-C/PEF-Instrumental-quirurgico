@@ -1,0 +1,130 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Session History") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'session_history' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Monitoring") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Session History") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+{% endblock %}
+
+{% block page_content %}
+{% set list_filters = list_filters|default({}) %}
+{% set filter_options = filter_options|default({}) %}
+{% set list_meta = list_meta|default({'total': session_rows|length, 'pages': 1, 'page': 1}) %}
+<div class="v3-page">
+    <div class="page-heading">
+        <div>
+            <h1 class="page-heading__title">{{ _("Session History") }}</h1>
+            <p class="page-heading__subtitle">{{ _("Completed counting sessions") }}</p>
+        </div>
+    </div>
+
+    <section class="card">
+        <form class="filter-bar" action="{{ url_for('web.supervisor_session_history') }}" method="get" role="search">
+            <div class="filter-bar__search">
+                <label class="visually-hidden" for="session-history-search">{{ _("Search Sessions") }}</label>
+                <div class="form-field__input-wrapper">
+                    <span class="form-field__icon">{{ macros.icon_search() }}</span>
+                    <input class="form-field__input" type="search" id="session-history-search" name="search"
+                           value="{{ list_filters.search or '' }}"
+                           placeholder="{{ _('Search sessions...') }}">
+                </div>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="session-history-review">{{ _("Review Status") }}</label>
+                <select class="form-field__input form-field__input--plain" id="session-history-review" name="review_status">
+                    <option value="">{{ _("All Review Statuses") }}</option>
+                    {% for status in filter_options.review_statuses|default([]) %}
+                    <option value="{{ status.code }}" {% if list_filters.review_status == status.code %}selected{% endif %}>{{ _(status.label) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="session-history-kit">{{ _("Kit") }}</label>
+                <select class="form-field__input form-field__input--plain" id="session-history-kit" name="kit">
+                    <option value="">{{ _("All Kits") }}</option>
+                    {% for kit in filter_options.kits|default([]) %}
+                    <option value="{{ kit.value }}" {% if list_filters.kit == kit.value %}selected{% endif %}>{{ kit.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="session-history-operator">{{ _("Operator") }}</label>
+                <select class="form-field__input form-field__input--plain" id="session-history-operator" name="operator">
+                    <option value="">{{ _("All Operators") }}</option>
+                    {% for operator in filter_options.operators|default([]) %}
+                    <option value="{{ operator }}" {% if list_filters.operator == operator %}selected{% endif %}>{{ operator }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-bar__select">
+                <label class="visually-hidden" for="session-history-date">{{ _("Date") }}</label>
+                <select class="form-field__input form-field__input--plain" id="session-history-date" name="date">
+                    <option value="">{{ _("All Dates") }}</option>
+                    {% for date_opt in filter_options.dates|default([]) %}
+                    <option value="{{ date_opt }}" {% if list_filters.date == date_opt %}selected{% endif %}>{{ _(date_opt) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn--primary btn--small btn--search-submit" aria-label="{{ _('Search') }}">
+                {{ macros.icon_search() }}
+                <span>{{ _("Search") }}</span>
+            </button>
+        </form>
+    </section>
+
+    <section class="card">
+        <div class="table-wrapper">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th scope="col">{{ _("Session / Procedure") }}</th>
+                        <th scope="col">{{ _("Kit") }}</th>
+                        <th scope="col">{{ _("Operator") }}</th>
+                        <th scope="col">{{ _("Started") }}</th>
+                        <th scope="col">{{ _("Closed At") }}</th>
+                        <th scope="col">{{ _("Review Status") }}</th>
+                        <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in session_rows %}
+                    <tr>
+                        <th scope="row">
+                            <span class="data-table__primary">{{ row.session_id }}</span>
+                            <span class="data-table__secondary">{{ row.procedure_label }}</span>
+                        </th>
+                        <td>{{ row.kit_name }}</td>
+                        <td>{{ row.operator_name }}</td>
+                        <td>{{ row.started_time or '—' }}</td>
+                        <td>{{ row.closed_time or '—' }}</td>
+                        <td>{{ macros.status_badge(_(row.review_status.label), row.review_status.variant) }}</td>
+                        <td class="data-table__action-column">
+                            <a class="btn btn--small btn--secondary" href="{{ row.details_url }}">{{ _("View Details") }}</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7">{{ _("No completed sessions found.") }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {% set pagination_info = _("Showing %(shown)s of %(total)s sessions", shown=session_rows|length, total=list_meta.total) %}
+        {% include "components/pagination.html" %}
+    </section>
+</div>
+{% endblock %}
