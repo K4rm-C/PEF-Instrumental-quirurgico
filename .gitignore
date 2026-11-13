@@ -151,6 +151,8 @@ activemq-data/
 .env
 .envrc
 .venv
+.venv-ms
+apps/.venv-ms
 env/
 venv/
 ENV/

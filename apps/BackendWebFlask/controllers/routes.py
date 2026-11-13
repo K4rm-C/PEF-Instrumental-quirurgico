@@ -1663,19 +1663,7 @@ def _vision_health_row():
     }
 
 
-@web_bp.route('/supervisor/services-health')
-@require_role('spd_supervisor')
-def supervisor_services_health():
-    """Future microservices health — stub for sidebar placement only."""
-    return _page(
-        'supervisor/services_health.html',
-        services=[
-            {'name': 'Auth', 'status': 'direct', 'detail': gettext('Local Auth service (no MS mesh yet)')},
-            {'name': gettext('Web / Session'), 'status': 'direct', 'detail': gettext('Monolith BackendWebFlask')},
-            _vision_health_row(),
-            {'name': gettext('Evidence worker'), 'status': 'ready', 'detail': gettext('Ring + local video; Garage on by default (EVIDENCE_GARAGE_ENABLED)')},
-        ],
-    )
+# /supervisor/services-health → controllers/monitoring_routes.py (MonitoringService).
 
 
 @web_bp.route('/supervisor/sessions/new', methods=['GET', 'POST'])
@@ -2258,25 +2246,7 @@ def supervisor_discrepancy_review(session_id):
     return _page('supervisor/sessions/rf_review.html', session=detail, session_id=session_id)
 
 
-@web_bp.route('/supervisor/reports')
-@require_role('spd_supervisor')
-def supervisor_reports():
-    # No report generation backend exists yet: both modes render the centralized V3
-    # presentation data (previously the same role was played by template-local fallbacks).
-    return _v3_supervisor_page(
-        'supervisor/reports.html', demo=use_v3_fixture(),
-        reports=supervisor_v3_reports(), filter_options=supervisor_v3_filter_options(),
-    )
-
-
-@web_bp.route('/supervisor/indicators')
-@require_role('spd_supervisor')
-def supervisor_indicators():
-    # Minimal PG aggregates for MVP; AI-agreement / resolution-time remain n/a stubs.
-    return _v3_supervisor_page(
-        'supervisor/indicators.html', demo=False,
-        indicators=supervisor_indicators_from_rf(sessions_data(), discrepancies_data()),
-    )
+# /supervisor/reports and /supervisor/indicators → controllers/report_routes.py.
 
 
 @web_bp.route('/supervisor/audit-log')
@@ -2298,6 +2268,16 @@ def admin_profile():
     return _page('shared/profile.html', profile_role='admin')
 
 
-# Administrator screens live in controllers/admin_routes.py (backed by AdminService). Imported
-# here, after every shared helper above is defined, so they register on this same blueprint.
+# Administrator screens: admin_local (+ optional CatalogService). Imported after helpers above.
 from controllers import admin_routes  # noqa: E402,F401
+# Notifications page and header bell (NotificationsService).
+from controllers import notifications_routes  # noqa: E402,F401
+# Unauthenticated /health, /health/live, /health/ready (MonitoringService probes).
+from controllers import health_routes  # noqa: E402,F401
+# Administration "System status" and Supervisor "Services health".
+from controllers import monitoring_routes  # noqa: E402,F401
+# Supervisor Reports and Indicators (SessionService when configured).
+from controllers import report_routes  # noqa: E402,F401
+# MS trays + kit equivalences (CatalogService / SessionService when configured).
+from controllers import tray_routes  # noqa: E402,F401
+from controllers import equivalence_routes  # noqa: E402,F401
