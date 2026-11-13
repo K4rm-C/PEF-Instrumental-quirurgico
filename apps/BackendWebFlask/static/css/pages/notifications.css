@@ -1,0 +1,74 @@
+/* Notifications page (templates/shared/notifications.html). Header bell badge: layout.css. */
+
+.notifications-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    align-items: flex-end;
+}
+
+.notifications-filters .form-field {
+    min-width: 200px;
+}
+
+.notification-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.notification-item {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.notification-item:last-child {
+    border-bottom: none;
+}
+
+.notification-item__body {
+    flex: 1 1 320px;
+    min-width: 0;
+}
+
+.notification-item__title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-weight: var(--font-weight-medium);
+    color: var(--color-text-primary);
+}
+
+.notification-item--unread .notification-item__title {
+    font-weight: var(--font-weight-semibold);
+}
+
+.notification-item__message {
+    margin: var(--space-1) 0 0;
+    color: var(--color-text-primary);
+}
+
+.notification-item__meta {
+    margin: var(--space-1) 0 0;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.notification-item__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.notifications-empty {
+    margin: 0;
+    padding: var(--space-4) 0;
+    color: var(--color-text-secondary);
+}

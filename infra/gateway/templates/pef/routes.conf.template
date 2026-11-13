@@ -1,0 +1,146 @@
+# PEF API Gateway — published routes (allow-list). Anything not listed answers 404 from the gateway.
+# The gateway does not authenticate: every service validates the Bearer JWT (signature, algorithm, expiry,
+# Redis revocation), the role and the institution itself, exactly as when called directly.
+
+default_type application/json;
+error_page 413 = @pef_413;
+error_page 429 = @pef_429;
+error_page 502 503 504 = @pef_upstream;
+
+location = /healthz {
+    access_log off;
+    limit_except GET { deny all; }
+    return 200 '{"status":"ok","service":"pef-gateway"}';
+}
+
+# --- AuthService: token API for external clients (tokens in the body; never cookies) ---------------------
+# MS-07: /token = client credentials of machine clients (DS08); same strict rate limit as the login.
+location ~ ^/api/v1/auth/(login|refresh|logout|password/change|token)$ {
+    limit_except POST { deny all; }
+    limit_req zone=pef_auth burst=${PEF_GW_BURST_AUTH} nodelay;
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_auth;
+}
+location ~ ^/api/v1/auth/(me|permissions|openapi\.yaml|schemas/[a-z0-9-]+\.xsd)$ {
+    limit_except GET { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_auth;
+}
+# Identity administration (users, roles, session revocation) lives in the portal: not published.
+location /api/v1/auth/ {
+    return 404 '{"error":"not_found","message":"Route not published by the API Gateway"}';
+}
+
+# --- CatalogService ---------------------------------------------------------------------------------------
+location ~ ^/api/v1/catalog/(categories|cycle-statuses|families|instruments|kits|trays)(/[A-Za-z0-9-]+)?$ {
+    limit_except GET POST PUT { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_catalog;
+}
+# MS-12: equivalent families authorized for a kit (SPD writes; revocation keeps the row).
+location ~ "^/api/v1/catalog/kits/[0-9A-Fa-f-]{36}/equivalences(/[0-9A-Fa-f-]{36})?$" {
+    limit_except GET POST DELETE { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_catalog;
+}
+location ~ ^/api/v1/catalog/(openapi\.yaml|schemas/[a-z0-9-]+\.xsd)$ {
+    limit_except GET { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_catalog;
+}
+
+# --- EvidenceService (before SessionService: /api/v1/sessions/{id}/evidence belongs to it) ----------------
+location ~ "^/api/v1/sessions/[0-9A-Fa-f-]{36}/evidence$" {
+    limit_except GET { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_evidence;
+}
+location ~ "^/api/v1/evidence(/[0-9A-Fa-f-]{36})?$" {
+    limit_except GET POST { deny all; }
+    client_max_body_size ${PEF_GW_EVIDENCE_MAX_BODY};
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_evidence;
+}
+
+# --- SessionService ---------------------------------------------------------------------------------------
+# MS-06: the CSV / PDF export is a browser download of the portal (Supervisor screen), not an external API.
+location = /api/v1/sessions/reports/export {
+    return 404 '{"error":"not_found","message":"Route not published by the API Gateway"}';
+}
+location = /api/v1/sessions/docs {
+    return 404 '{"error":"not_found","message":"Route not published by the API Gateway"}';
+}
+location ~ ^/api/v1/sessions(/[A-Za-z0-9._/-]*)?$ {
+    limit_except GET POST PUT { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_session;
+}
+
+# --- NotificationsService ---------------------------------------------------------------------------------
+location = /api/v1/notifications/docs {
+    return 404 '{"error":"not_found","message":"Route not published by the API Gateway"}';
+}
+location ~ ^/api/v1/notifications(/[A-Za-z0-9._/-]*)?$ {
+    limit_except GET PATCH { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_notifications;
+}
+
+# --- MonitoringService: ONLY the station heartbeat (MS-05; desktop station clients). Station lists and
+# alerts are for the portal's Supervisor / Administration screens and stay unpublished.
+location ~ "^/api/v1/monitoring/stations/[0-9A-Fa-f-]{36}/heartbeat$" {
+    limit_except POST { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_monitoring;
+}
+
+# --- IntegrationService (MS-07): sync for desktop / Android / machine clients and the read-only FHIR R4 API.
+# The FHIR destinations / deliveries administration (/api/v1/integration) is a console API: not published.
+location ~ ^/api/v1/sync/(resources|changes|openapi\.yaml|schemas/integration\.xsd)$ {
+    limit_except GET { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_integration;
+}
+# MS-12: traceable batch exports of closed sessions (it_admin or machine client with scope export.sessions.batch).
+# Only the exports are published; the rest of /api/v1/integration stays a console API.
+location ~ "^/api/v1/integration/exports(/[0-9A-Fa-f-]{36}(/content)?)?$" {
+    limit_except GET POST { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_integration;
+}
+location = /api/v1/sync/operations {
+    limit_except POST { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_integration;
+}
+location ~ "^/fhir/r4/(metadata|(Location|Practitioner|Encounter)|(Organization|Location|Practitioner|Patient|Encounter)/[0-9A-Fa-f-]{36}|Encounter/[0-9A-Fa-f-]{36}/\$pef-bundle)$" {
+    limit_except GET { deny all; }
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_integration;
+}
+
+# --- VisionWorker live preview (WSS in production) ----------------------------------------------------------
+location = /ws {
+    include /etc/nginx/conf.d/pef/ws.conf;
+    proxy_pass http://pef_vision;
+}
+
+# Not published: AuditService and MonitoringService (Administration / Supervisor consoles of the portal),
+# every /health/* and Swagger UI of the services, VisionWorker HTTP (bind, video, /auth/revoke),
+# EvidenceService diagnostic and test routes, AuthService cookie routes (portal only).
+location / {
+    return 404 '{"error":"not_found","message":"Route not published by the API Gateway"}';
+}
+
+location @pef_413 {
+    add_header X-Correlation-ID $pef_correlation_id always;
+    return 413 '{"error":"payload_too_large","message":"Request body too large"}';
+}
+location @pef_429 {
+    add_header X-Correlation-ID $pef_correlation_id always;
+    return 429 '{"error":"too_many_requests","message":"Rate limit exceeded; retry later"}';
+}
+location @pef_upstream {
+    add_header X-Correlation-ID $pef_correlation_id always;
+    return 502 '{"error":"bad_gateway","message":"Service unavailable; retry later"}';
+}

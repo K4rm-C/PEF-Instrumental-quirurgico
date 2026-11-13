@@ -1,0 +1,42 @@
+# MS-04 — production exposure through the API Gateway (TLS). Use together with docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.gateway-tls.yml --profile gateway up -d
+#
+# Required in the environment / .env (no certificate is generated or shipped by the repository):
+#   GATEWAY_TLS_CERT_DIR   directory with fullchain.pem and privkey.pem issued for both host names
+#   GATEWAY_API_HOST       e.g. api.pef.hospital.example     (Android / desktop clients, Bearer)
+#   GATEWAY_PORTAL_HOST    e.g. pef.hospital.example         (browser portal)
+#   GATEWAY_PORTAL_ORIGIN  e.g. https://pef.hospital.example (with :port if it is not 443)
+#   GATEWAY_PORTAL_WS_URL  e.g. wss://pef.hospital.example/ws
+#
+# Effect: only the gateway is published (443 TLS + 80 redirect). AuthService and the portal stop publishing
+# their own ports; every other service was already on 127.0.0.1 only. See GUIA_API_GATEWAY.md.
+services:
+  gateway:
+    environment:
+      PEF_GW_API_HOST: ${GATEWAY_API_HOST:?GATEWAY_API_HOST is required for TLS}
+      PEF_GW_PORTAL_HOST: ${GATEWAY_PORTAL_HOST:?GATEWAY_PORTAL_HOST is required for TLS}
+    ports: !override
+    - ${GATEWAY_HTTPS_PORT:-443}:8443
+    - ${GATEWAY_HTTP_REDIRECT_PORT:-80}:8080
+    volumes:
+    - ./infra/gateway/servers/tls.conf.template:/etc/nginx/templates/default.conf.template:ro
+    - ${GATEWAY_TLS_CERT_DIR:?GATEWAY_TLS_CERT_DIR (fullchain.pem + privkey.pem) is required}:/etc/nginx/certs:ro
+  auth:
+    ports: !reset []
+    environment:
+      # One trusted proxy (the gateway) writes X-Forwarded-For; nobody can reach AuthService around it.
+      AUTH_TRUSTED_PROXIES: '1'
+      AUTH_COOKIE_SECURE: 'true'
+      AUTH_COOKIE_SAMESITE: Lax
+      AUTH_ALLOWED_ORIGINS: ${GATEWAY_PORTAL_ORIGIN:?GATEWAY_PORTAL_ORIGIN is required for TLS}
+  web:
+    ports: !reset []
+    environment:
+      AUTH_BROWSER_URL: ${GATEWAY_PORTAL_ORIGIN:?GATEWAY_PORTAL_ORIGIN is required for TLS}/auth
+      VISION_WORKER_WS_URL: ${GATEWAY_PORTAL_WS_URL:?GATEWAY_PORTAL_WS_URL is required for TLS}
+      PORTAL_COOKIE_SECURE: 'true'
+      CSRF_TRUSTED_ORIGINS: ${GATEWAY_PORTAL_ORIGIN}
+  vision:
+    environment:
+      VISION_WS_ORIGINS: ${GATEWAY_PORTAL_ORIGIN:?GATEWAY_PORTAL_ORIGIN is required for TLS}

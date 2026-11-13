@@ -1,0 +1,14 @@
+# Development listener: plain HTTP, published on 127.0.0.1 only (docker-compose.yml, profile "gateway").
+# Never publish this listener on a public interface: use servers/tls.conf.template (docker-compose.gateway-tls.yml).
+server {
+    listen 8080;
+    server_name _;
+    client_max_body_size  ${PEF_GW_MAX_BODY};
+    client_body_timeout   15s;
+    client_header_timeout 10s;
+    send_timeout          30s;
+    keepalive_timeout     30s;
+    large_client_header_buffers 4 16k;
+    access_log /dev/stdout pef_gateway;
+    include /etc/nginx/conf.d/pef/routes.conf;
+}

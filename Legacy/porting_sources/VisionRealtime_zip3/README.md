@@ -1,0 +1,1 @@
+Implementación del ZIP3: propuesta de inferencia CUDA, seguimiento temporal, cámara en navegador y flujo de video alternativo. **No sustituir `apps/VisionWorker` ni `BackendWebFlask` en bloque:** las rutas y el control de conteo final de V1 son incompatibles con este flujo. Portar componentes y conservar pruebas de regresión y regla física.

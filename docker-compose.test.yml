@@ -1,0 +1,118 @@
+# Entorno AISLADO de pruebas (ADMIN-01.0). No comparte contenedores, puertos ni volúmenes con
+# docker-compose.yml ni con otros proyectos PEF de este equipo.
+#
+#   docker compose -f docker-compose.test.yml --env-file .env.test up -d
+#   docker compose -f docker-compose.test.yml --env-file .env.test ps
+#   docker compose -f docker-compose.test.yml --env-file .env.test stop      # detener sin borrar datos
+#
+# Volúmenes: pef_admin_test_* (solo datos de prueba). Para recrear la BD de prueba desde cero hay que
+# borrar EXPLÍCITAMENTE esos volúmenes; nunca usar `down -v` sobre otro proyecto.
+# Las migraciones se aplican en el mismo orden que docker-compose.yml (001, semillas 002-003, 004-010)
+# solo la primera vez que se crea el volumen.
+name: pef_admin_test
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${TEST_POSTGRES_DB}
+      POSTGRES_USER: ${TEST_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${TEST_POSTGRES_PASSWORD}
+    ports:
+    - 127.0.0.1:${TEST_POSTGRES_PORT:-55432}:5432
+    volumes:
+    - pg_data:/var/lib/postgresql/data
+    - ./data/migrations/001_init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    - ./data/seeds/002_seed_catalogs.sql:/docker-entrypoint-initdb.d/02_seed_catalogs.sql:ro
+    - ./data/seeds/003_seed_demo.sql:/docker-entrypoint-initdb.d/03_seed_demo.sql:ro
+    - ./data/migrations/004_media_asset_session.sql:/docker-entrypoint-initdb.d/04_media_asset_session.sql:ro
+    - ./data/migrations/005_count_reference_events.sql:/docker-entrypoint-initdb.d/05_count_reference_events.sql:ro
+    - ./data/migrations/006_notifications.sql:/docker-entrypoint-initdb.d/06_notifications.sql:ro
+    - ./data/migrations/007_monitoring.sql:/docker-entrypoint-initdb.d/07_monitoring.sql:ro
+    - ./data/migrations/008_consolidacion_zip3.sql:/docker-entrypoint-initdb.d/08_zip3.sql:ro
+    - ./data/migrations/009_roles_fijos.sql:/docker-entrypoint-initdb.d/09_roles_fijos.sql:ro
+    - ./data/migrations/010_admin_configuracion.sql:/docker-entrypoint-initdb.d/10_admin_configuracion.sql:ro
+    - ./data/migrations/011_session_model_pin.sql:/docker-entrypoint-initdb.d/11_session_model_pin.sql:ro
+    - ./data/migrations/012_estaciones_camaras.sql:/docker-entrypoint-initdb.d/12_estaciones_camaras.sql:ro
+    - ./data/migrations/013_notificaciones_ms06.sql:/docker-entrypoint-initdb.d/13_notificaciones_ms06.sql:ro
+    - ./data/migrations/014_sincronizacion_integracion.sql:/docker-entrypoint-initdb.d/14_sincronizacion_integracion.sql:ro
+    - ./data/migrations/015_charolas.sql:/docker-entrypoint-initdb.d/15_charolas.sql:ro
+    - ./data/migrations/016_ms09_integridad.sql:/docker-entrypoint-initdb.d/16_ms09_integridad.sql:ro
+    - ./data/migrations/017_ms11_notificaciones_servicios.sql:/docker-entrypoint-initdb.d/17_ms11_notificaciones_servicios.sql:ro
+    - ./data/migrations/018_ms11_camaras_modelos.sql:/docker-entrypoint-initdb.d/18_ms11_camaras_modelos.sql:ro
+    - ./data/migrations/019_ms12_dominios.sql:/docker-entrypoint-initdb.d/19_ms12_dominios.sql:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -h 127.0.0.1 -U $$POSTGRES_USER -d $$POSTGRES_DB
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command:
+    - redis-server
+    - --requirepass
+    - ${TEST_REDIS_PASSWORD}
+    ports:
+    - 127.0.0.1:${TEST_REDIS_PORT:-56379}:6379
+    volumes:
+    - redis_data:/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep PONG
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${TEST_REDIS_PASSWORD}
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${TEST_MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${TEST_MONGO_PASSWORD}
+    ports:
+    - 127.0.0.1:${TEST_MONGO_PORT:-47017}:27017
+    volumes:
+    - mongo_data:/data/db
+    healthcheck:
+      test:
+      - CMD
+      - mongosh
+      - --quiet
+      - --eval
+      - db.adminCommand('ping').ok
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # S3-compatible storage for Administration uploads (admin_local/storage.py, ADMIN_STORAGE_BACKEND=s3):
+  # the same Garage image as docker-compose.yml. Its config (with generated secrets) is written to
+  # .e2e/garage.test.toml by `python scripts/run_test_env.py prepare` (gitignored).
+  garage:
+    image: dxflrs/garage:v2.4.1
+    command:
+    - /garage
+    - server
+    - --single-node
+    - --default-bucket
+    environment:
+      GARAGE_DEFAULT_ACCESS_KEY: ${TEST_S3_ACCESS_KEY}
+      GARAGE_DEFAULT_SECRET_KEY: ${TEST_S3_SECRET_KEY}
+      GARAGE_DEFAULT_BUCKET: ${TEST_S3_BUCKET:-pef-admin-test}
+    ports:
+    - 127.0.0.1:${TEST_S3_PORT:-59000}:3900
+    volumes:
+    - ./.e2e/garage.test.toml:/etc/garage.toml:ro
+    - garage_meta:/var/lib/garage/meta
+    - garage_data:/var/lib/garage/data
+
+volumes:
+  pg_data: null
+  redis_data: null
+  mongo_data: null
+  garage_meta: null
+  garage_data: null

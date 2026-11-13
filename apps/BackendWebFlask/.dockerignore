@@ -1,0 +1,16 @@
+.env
+.env.*
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+tests
+instance
+devtools
+prompts
+ui_reference
+ui_reference_v2
+ui_reference_v3
+setVirtualEnv.*
+updateRequirements.*

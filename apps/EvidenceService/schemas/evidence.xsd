@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PEF EvidenceService - XML documents (MS-07: closes the "no XSD published" gap of MS-04).
+  Roots: evidence (GET/POST /api/v1/evidence[/id]), evidence_list (GET /api/v1/sessions/{id}/evidence), health,
+  error_response. The field-level structure of an evidence item is the OpenAPI schema `Evidence`; it is declared here
+  with open content so the roots and envelopes are part of the contract without changing any response.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+  <xs:element name="evidence"><xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+  <xs:element name="evidence_list"><xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+
+  <!-- MS-07: DS09 health document (also answered as XML) -->
+  <xs:element name="health">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="service" type="xs:string" minOccurs="0"/>
+        <xs:element name="status" type="xs:string"/>
+        <xs:element name="checks">
+          <xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType>
+        </xs:element>
+        <xs:element name="correlation_id" type="xs:string"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <xs:element name="error_response">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="error" type="xs:string"/>
+        <xs:element name="message" type="xs:string"/>
+        <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+        <xs:element name="details"><xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+</xs:schema>

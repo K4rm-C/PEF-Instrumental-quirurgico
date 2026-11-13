@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Release / configuración base: solo HTTPS y solo autoridades de certificación del sistema.
+     La validación TLS nunca se desactiva. El HTTP local de desarrollo vive en src/debug. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

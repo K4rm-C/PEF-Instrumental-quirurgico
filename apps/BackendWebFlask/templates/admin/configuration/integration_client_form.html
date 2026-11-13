@@ -1,0 +1,80 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    MS-07: New / Edit Integration Client (PEF-DS08 machine client of the institution).
+    Expected context: is_edit, client {name, scopes, status}, client_meta {client_id, last_used_at,
+    secret_rotated_at}, scope_options [{code, label}], form_error, save_url, cancel_url, rotate_url.
+#}
+{% set page_title = _("Edit Integration Client") if is_edit else _("New Integration Client") %}
+
+{% block title %}{{ page_title }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'configuration' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("System") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item"><a href="{{ cancel_url }}">{{ _("Configuration") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ page_title }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ page_title }}</h1>
+        <p class="page-heading__subtitle">{{ _("Grant only the permissions the external system needs. The secret is shown once when the client is created or its secret is rotated.") }}</p>
+    </div>
+</div>
+
+<section class="card card--form">
+    {% if form_error %}<div class="alert alert--danger" role="alert" data-form-error>{{ form_error }}</div>{% endif %}
+    <form class="form" action="{{ save_url }}" method="post" data-integration-client-form>
+        {{ csrf_field() }}
+        {% if is_edit %}
+        <p class="form-field__helper">{{ _("Client ID") }}: <code>{{ client_meta.client_id }}</code></p>
+        {% endif %}
+        <div class="form-field">
+            <label class="form-field__label" for="client-name">{{ _("Name") }}</label>
+            <div class="form-field__input-wrapper">
+                <input class="form-field__input" id="client-name" name="name" maxlength="160" required value="{{ client.name }}">
+            </div>
+        </div>
+        <fieldset class="form-field">
+            <legend class="form-field__label">{{ _("Permissions") }}</legend>
+            {% for scope in scope_options %}
+            <label class="form-check">
+                <input type="checkbox" name="scopes" value="{{ scope.code }}" {% if scope.code in client.scopes %}checked{% endif %}>
+                <span><code>{{ scope.code }}</code> — {{ _(scope.label) }}</span>
+            </label>
+            {% endfor %}
+        </fieldset>
+        <div class="form-field">
+            <label class="form-field__label" for="client-status">{{ _("Status") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="client-status" name="status">
+                    <option value="active" {% if client.status == 'active' %}selected{% endif %}>{{ _("Active") }}</option>
+                    <option value="inactive" {% if client.status != 'active' %}selected{% endif %}>{{ _("Inactive") }}</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-actions">
+            <a class="btn btn--secondary" href="{{ cancel_url }}">{{ _("Cancel") }}</a>
+            <button class="btn btn--primary" type="submit">{{ _("Save") }}</button>
+        </div>
+    </form>
+    {% if is_edit and rotate_url %}
+    <form class="form" action="{{ rotate_url }}" method="post" data-rotate-secret>
+        {{ csrf_field() }}
+        <p class="form-field__helper">{{ _("Rotating the secret invalidates the current one and revokes the tokens issued with it.") }}</p>
+        <button class="btn btn--secondary" type="submit">{{ _("Rotate Secret") }}</button>
+    </form>
+    {% endif %}
+</section>
+{% endblock %}

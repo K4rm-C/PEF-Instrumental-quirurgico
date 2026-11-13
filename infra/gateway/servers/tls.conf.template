@@ -1,0 +1,99 @@
+# Production listeners (docker-compose.gateway-tls.yml): TLS 1.2/1.3 with the operator's certificate,
+# mounted read-only at /etc/nginx/certs (fullchain.pem, privkey.pem). Nothing here generates or ships one.
+# Plain HTTP only redirects to HTTPS (except the gateway health check).
+
+server {
+    listen 8080;
+    server_name _;
+    access_log /dev/stdout pef_gateway;
+    location = /healthz {
+        access_log off;
+        default_type application/json;
+        return 200 '{"status":"ok"}';
+    }
+    location / {
+        return 308 https://$host$request_uri;
+    }
+}
+
+# API host: Android / desktop clients (JSON / XML, Bearer).
+server {
+    listen 8443 ssl;
+    http2 on;
+    server_name ${PEF_GW_API_HOST};
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:pef_tls:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+    client_max_body_size  ${PEF_GW_MAX_BODY};
+    client_body_timeout   15s;
+    client_header_timeout 10s;
+    send_timeout          30s;
+    keepalive_timeout     30s;
+    large_client_header_buffers 4 16k;
+    access_log /dev/stdout pef_gateway;
+    include /etc/nginx/conf.d/pef/routes.conf;
+}
+
+# Portal host: the browser application (cookies + CSRF) and the AuthService routes its pages call, on ONE
+# HTTPS origin (AUTH_BROWSER_URL=https://<portal host>/auth). No other AuthService route is reachable here.
+server {
+    listen 8443 ssl;
+    http2 on;
+    server_name ${PEF_GW_PORTAL_HOST};
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:pef_tls:10m;
+    ssl_session_timeout 1d;
+    ssl_session_tickets off;
+    client_max_body_size  ${PEF_GW_PORTAL_MAX_BODY};
+    client_body_timeout   60s;
+    client_header_timeout 10s;
+    access_log /dev/stdout pef_gateway;
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options nosniff always;
+
+    location ~ ^/auth/(login|logout|refresh|verify|preferences|password/change)$ {
+        limit_req zone=pef_auth burst=${PEF_GW_BURST_AUTH} nodelay;
+        limit_except GET POST { deny all; }
+        rewrite ^/auth/(.*)$ /$1 break;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-PEF-Signature "";
+        proxy_hide_header Server;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout ${PEF_GW_UPSTREAM_TIMEOUT};
+        proxy_pass http://pef_auth;
+    }
+    location /auth/ {
+        default_type application/json;
+        return 404 '{"error":"not_found"}';
+    }
+    location = /ws {
+        include /etc/nginx/conf.d/pef/ws.conf;
+        proxy_pass http://pef_vision;
+    }
+    location / {
+        limit_req zone=pef_portal burst=${PEF_GW_BURST_PORTAL} nodelay;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        # Host with the port: the portal compares it with the browser's Origin (CSRF check).
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For   $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-PEF-Signature "";
+        proxy_hide_header Server;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout ${PEF_GW_PORTAL_TIMEOUT};
+        proxy_send_timeout ${PEF_GW_PORTAL_TIMEOUT};
+        proxy_pass http://pef_portal;
+    }
+}

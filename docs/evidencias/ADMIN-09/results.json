@@ -1,0 +1,891 @@
+{
+  "run_tag": "741FEF",
+  "started": "2026-11-09T20:15:10",
+  "finished": "2026-11-09T20:18:59",
+  "browser": "Chromium (Playwright)",
+  "portal": "http://127.0.0.1:15000",
+  "summary": {
+    "PASS": 95,
+    "FAIL": 0,
+    "BLOCKED": 0
+  },
+  "results": [
+    {
+      "rf": "RF-AD-01",
+      "check": "dashboard loads with session cards and System Health",
+      "status": "PASS",
+      "detail": "HTTP 200, cards 12",
+      "evidence": "rf-ad-01_000_dashboard.jpg"
+    },
+    {
+      "rf": "RF-AD-01",
+      "check": "all health checks reachable with the stack up",
+      "status": "PASS",
+      "detail": "Authentication service\t Reachable \tHTTP 200 · 6 ms PostgreSQL\t Reachable \tSELECT 1 · 1 ms Redis\t Reachable \tPONG · 2 ms MongoDB\t Reachable \tping · 32 ms Object storage\t Reachable \ts3 pef-admin-browser · 9 ms",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-01",
+      "check": "KPI colour follows the configured thresholds (OR hold -> danger with 0/0)",
+      "status": "PASS",
+      "detail": "stat-card stat-card--danger",
+      "evidence": "rf-ad-01_002_dashboard-threshold-danger.jpg"
+    },
+    {
+      "rf": "RF-AD-01",
+      "check": "MongoDB down: dashboard still loads and marks only MongoDB as failing",
+      "status": "PASS",
+      "detail": "{'MongoDB': 'MongoDB  Unreachable  ServerSelectionTimeoutError · 2018 ms', 'PostgreSQL': 'PostgreSQL  Reachable  SELECT 1 · 1 ms', 'Redis': 'Redis  Reachable  PONG · 2 ms'} in 2.7s",
+      "evidence": "rf-ad-01_003_dashboard-mongo-down.jpg"
+    },
+    {
+      "rf": "RF-AD-02",
+      "check": "create family; listed after reload",
+      "status": "PASS",
+      "detail": "Instrument family saved.",
+      "evidence": "rf-ad-02_004_family-created.jpg"
+    },
+    {
+      "rf": "RF-AD-02",
+      "check": "duplicate family code rejected with a message",
+      "status": "PASS",
+      "detail": "That family code already exists.",
+      "evidence": "rf-ad-02_005_family-duplicate.jpg"
+    },
+    {
+      "rf": "RF-AD-02",
+      "check": "edit family name persists after reload",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-02",
+      "check": "upload example photo; image rendered from storage",
+      "status": "PASS",
+      "detail": "1 image(s)",
+      "evidence": "rf-ad-02_007_family-photo.jpg"
+    },
+    {
+      "rf": "RF-AD-02",
+      "check": "non-image file renamed .png rejected with a message",
+      "status": "PASS",
+      "detail": "This file type is not allowed.",
+      "evidence": "rf-ad-02_008_family-reject-not-an-image-png.jpg"
+    },
+    {
+      "rf": "RF-AD-02",
+      "check": "image > 5 MB rejected with a message",
+      "status": "PASS",
+      "detail": "The file exceeds the maximum size allowed.",
+      "evidence": "rf-ad-02_009_family-reject-big-photo-png.jpg"
+    },
+    {
+      "rf": "RF-AD-02",
+      "check": "deactivating a family of the active model needs confirmation",
+      "status": "PASS",
+      "detail": "This family is detected by the active vision model. Confirm to deactivate it.",
+      "evidence": "rf-ad-02_010_family-active-model-confirm.jpg"
+    },
+    {
+      "rf": "RF-AD-02",
+      "check": "deactivate family; shown under Inactive",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "rf-ad-02_011_family-inactive.jpg"
+    },
+    {
+      "rf": "RF-AD-02",
+      "check": "search in the list finds the family (reactivated)",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-03",
+      "check": "create procedure with two phases; persisted in order",
+      "status": "PASS",
+      "detail": "Procedure saved.; phases=2",
+      "evidence": "rf-ad-03_013_procedure-created.jpg"
+    },
+    {
+      "rf": "RF-AD-03",
+      "check": "associated kits visible and read-only",
+      "status": "PASS",
+      "detail": "editable controls=0",
+      "evidence": "rf-ad-03_014_procedure-kits.jpg"
+    },
+    {
+      "rf": "RF-AD-03",
+      "check": "create reasons entry; listed after reload",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-03",
+      "check": "create categories entry; listed after reload",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-03",
+      "check": "create phases entry; listed after reload",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-03",
+      "check": "invalid catalog code (uppercase/space): blocked in the browser and by the server",
+      "status": "PASS",
+      "detail": "Code may only contain lowercase letters, numbers and underscores.",
+      "evidence": "rf-ad-03_018_catalog-invalid-code.jpg"
+    },
+    {
+      "rf": "RF-AD-03",
+      "check": "duplicate catalog code rejected",
+      "status": "PASS",
+      "detail": "That code already exists in this catalog.",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-03",
+      "check": "deactivate phase; inactive after reload",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "rf-ad-03_020_phase-inactive.jpg"
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": "publish PDF notice; listed with its version",
+      "status": "PASS",
+      "detail": "Privacy notice published.",
+      "evidence": "rf-ad-04_021_notice-published.jpg"
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": "same document again: duplicate warning, published after confirmation",
+      "status": "PASS",
+      "detail": "warning: This document is identical to version ZZB-741FEF-1. Confirm to publish it again.",
+      "evidence": "rf-ad-04_022_notice-duplicate-confirmed.jpg"
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": "publish HTML notice",
+      "status": "PASS",
+      "detail": "Privacy notice published.",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": ".exe renamed to .pdf rejected with a message",
+      "status": "PASS",
+      "detail": "This file type is not allowed.",
+      "evidence": "rf-ad-04_024_notice-reject-renamed-exe-pdf.jpg"
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": "PDF > 10 MB rejected with a message",
+      "status": "PASS",
+      "detail": "The file exceeds the maximum size allowed.",
+      "evidence": "rf-ad-04_025_notice-reject-too-big-pdf.jpg"
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": "download returns the same bytes as an attachment",
+      "status": "PASS",
+      "detail": "attachment; filename=\"privacy-notice-ZZB-741FEF-1.pdf\"",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": "HTML notice downloaded as attachment with CSP sandbox",
+      "status": "PASS",
+      "detail": "attachment; filename=\"privacy-notice-ZZB-741FEF-3.html\" / sandbox; default-src 'none'",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": "9 MB notice (multipart in Garage) published and downloaded intact",
+      "status": "PASS",
+      "detail": "Privacy notice published.; 9437202 bytes",
+      "evidence": "rf-ad-04_028_notice-9mb.jpg"
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": "deactivate and reactivate a version",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "rf-ad-04_029_notice-reactivated.jpg"
+    },
+    {
+      "rf": "RF-AD-04",
+      "check": "single-active parameter leaves only one active version",
+      "status": "PASS",
+      "detail": "['ZZB-741FEF-2']",
+      "evidence": "rf-ad-04_030_notice-single-active.jpg"
+    },
+    {
+      "rf": "RF-AD-05",
+      "check": "create or_charge user with a room; listed",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "rf-ad-05_031_user-created.jpg"
+    },
+    {
+      "rf": "RF-AD-05",
+      "check": "duplicate email rejected with a message",
+      "status": "PASS",
+      "detail": "A user with this email already exists.",
+      "evidence": "rf-ad-05_032_user-duplicate.jpg"
+    },
+    {
+      "rf": "RF-AD-05",
+      "check": "short password: blocked in the browser and by the server",
+      "status": "PASS",
+      "detail": "The password is shorter than the minimum length set for your institution.",
+      "evidence": "rf-ad-05_033_user-short-password.jpg"
+    },
+    {
+      "rf": "RF-AD-05",
+      "check": "deactivation ends the open session of the user (other browser)",
+      "status": "PASS",
+      "detail": "User deactivated. Their history is kept.; user now at http://127.0.0.1:15000/sign-in?next=/operator/sessions",
+      "evidence": "rf-ad-05_034_user-deactivated.jpg"
+    },
+    {
+      "rf": "RF-AD-05",
+      "check": "reactivated user can sign in again",
+      "status": "PASS",
+      "detail": "http://127.0.0.1:15000/operator/sessions",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-05",
+      "check": "password reset: session ended, old password refused, new one works",
+      "status": "PASS",
+      "detail": "Password updated. The user must sign in with the new password.",
+      "evidence": "rf-ad-05_036_user-password-reset.jpg"
+    },
+    {
+      "rf": "RF-AD-05",
+      "check": "an administrator cannot deactivate their own account",
+      "status": "PASS",
+      "detail": "deactivate button offered=False",
+      "evidence": "rf-ad-05_037_user-self.jpg"
+    },
+    {
+      "rf": "RF-AD-05",
+      "check": "users of another institution are not listed and their URL is 404",
+      "status": "PASS",
+      "detail": "listed=False, HTTP 404",
+      "evidence": "rf-ad-05_038_user-other-institution-404.jpg"
+    },
+    {
+      "rf": "RF-AD-06",
+      "check": "exactly the four fixed roles; no create/delete actions",
+      "status": "PASS",
+      "detail": "codes=['station_operator', 'spd_supervisor', 'it_admin', 'or_charge'], rows=4",
+      "evidence": "rf-ad-06_039_roles.jpg"
+    },
+    {
+      "rf": "RF-AD-06",
+      "check": "edit role description persists; code not editable",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "rf-ad-06_040_role-edited.jpg"
+    },
+    {
+      "rf": "RF-AD-06",
+      "check": "description restored",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-06",
+      "check": "/admin/roles/new answers 404",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-06",
+      "check": "role of another institution answers 404",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-07",
+      "check": "create operating room; listed",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "rf-ad-07_044_room-created.jpg"
+    },
+    {
+      "rf": "RF-AD-07",
+      "check": "duplicate room code rejected",
+      "status": "PASS",
+      "detail": "An operating room with this code already exists.",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-07",
+      "check": "create capture station with ROI; shown as configured",
+      "status": "PASS",
+      "detail": "Browser station 741FEF\tZZB-R741FEF\tConfigured\t\nActive\n\tEdit",
+      "evidence": "rf-ad-07_046_station-created.jpg"
+    },
+    {
+      "rf": "RF-AD-07",
+      "check": "ROI outside the frame rejected",
+      "status": "PASS",
+      "detail": "The ROI must fit inside the camera frame.",
+      "evidence": "rf-ad-07_047_station-roi-outside.jpg"
+    },
+    {
+      "rf": "RF-AD-07",
+      "check": "partial ROI rejected",
+      "status": "PASS",
+      "detail": "Fill in every ROI value (x, y, w, h, frame width and frame height).",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-07",
+      "check": "deactivate room; still listed as inactive",
+      "status": "PASS",
+      "detail": "ZZB-R741FEF\tBrowser room 741FEF\t\nInactive\n\tEdit",
+      "evidence": "rf-ad-07_049_room-inactive.jpg"
+    },
+    {
+      "rf": "RF-AD-07",
+      "check": "room of another institution answers 404",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-07",
+      "check": "station of another institution answers 404",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": ".onnx file rejected (only PyTorch .pt)",
+      "status": "PASS",
+      "detail": "This file type is not allowed.",
+      "evidence": "rf-ad-08_052_model-reject-onnx.jpg"
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "weights above the configured maximum rejected",
+      "status": "PASS",
+      "detail": "The file exceeds the maximum size allowed.",
+      "evidence": "rf-ad-08_053_model-reject-size.jpg"
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "upload real best.pt (step 1)",
+      "status": "PASS",
+      "detail": "already uploaded in an earlier run as best-6215cb74-222bef",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "stored checksum equals the SHA-256 of the file; object in the configured storage",
+      "status": "PASS",
+      "detail": "('6215cb746e20eb9e10c812fe03679b59263bf268b1fb0d419724611db2c785d9', 'pef-admin-browser', 'models/b1a5bf60228d421b930594f4e8350ba1.pt', 53068645)",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "the 17 classes of the real model are shown",
+      "status": "PASS",
+      "detail": "['Adson without teeth', 'Adson with teeth', 'Foerster forceps', 'Allis forceps', 'Straight Kelly Forceps', 'Rochester-Pean forceps', 'Pozzi forceps', 'Olsen-Hegar needle holder', 'Mayo-Hegar needle holder', 'Curved Mayo Scissor', 'Straight Mayo Scissor', 'Farabeuf retractor', 'Scalpel handle', 'Curve Mosquito Kocher', 'Scalpel n4 S', 'Crile Wood', 'Surgical probe']",
+      "evidence": "rf-ad-08_056_model-classes.jpg"
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "mapping published (classes mapped / rejected, missing-family warning confirmed)",
+      "status": "PASS",
+      "detail": "mapped=16, rejected=['Surgical probe'], warning=These active instrument families are not detected by this model. Sessions that expect them will need manual counting for them. ZZB222BEF, ZZB2BB616, ZZB2E12F5, ZZB674E70, ZZB741FEF, ZZB9C2BB5, ZZBDB1421, ZZBF52D9D, PROBE | These active families have no class in this model: ZZB222BEF, ZZB2BB616, ZZB2E12F5, ZZB674E70, ZZB741FEF, ZZB9C2BB5, ZZBDB1421, Z",
+      "evidence": "rf-ad-08_057_model-mapped.jpg"
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "class map stored without the rejected class",
+      "status": "PASS",
+      "detail": "16 classes",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "activate the real model: it is the only active one",
+      "status": "PASS",
+      "detail": "best-6215cb74-222bef\t16 Classes\t\nActive Model\n\t2026-11-09\t6215...5d9\tEdit",
+      "evidence": "rf-ad-08_059_model-active.jpg"
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "same weights uploaded again: duplicate checksum rejected",
+      "status": "PASS",
+      "detail": "These weights are already registered as version best-6215cb74-222bef.",
+      "evidence": "rf-ad-08_060_model-duplicate.jpg"
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "deactivating the only active model with active stations is refused",
+      "status": "PASS",
+      "detail": "Activate another model first: active capture stations need one.",
+      "evidence": "rf-ad-08_061_model-deactivate-refused.jpg"
+    },
+    {
+      "rf": "RF-AD-08",
+      "check": "bind payload for VisionWorker carries the activated model and its class map (no rejected class)",
+      "status": "PASS",
+      "detail": "{'model_id': 'b4811029-bf78-4001-bb2e-46186b8087f6', 'model_version': 'best-6215cb74-222bef', 'classes': [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-10",
+      "check": "rename institution persists; own institution cannot be deactivated",
+      "status": "PASS",
+      "detail": "You cannot deactivate the institution your account belongs to.",
+      "evidence": "rf-ad-10_063_institution-deactivate-refused.jpg"
+    },
+    {
+      "rf": "RF-AD-10",
+      "check": "warning above danger rejected",
+      "status": "PASS",
+      "detail": "Check the highlighted parameter: its value is not valid.",
+      "evidence": "rf-ad-10_064_settings-invalid-threshold.jpg"
+    },
+    {
+      "rf": "RF-AD-10",
+      "check": "empty MIME list rejected",
+      "status": "PASS",
+      "detail": "Check the highlighted parameter: its value is not valid.",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-10",
+      "check": "password minimum (12) persists and is applied to new users (10 chars refused)",
+      "status": "PASS",
+      "detail": "The password is shorter than the minimum length set for your institution.",
+      "evidence": "rf-ad-10_066_settings-password-policy.jpg"
+    },
+    {
+      "rf": "SEC",
+      "check": "anonymous visitor is sent to sign-in",
+      "status": "PASS",
+      "detail": "http://127.0.0.1:15000/sign-in?next=/admin/users",
+      "evidence": ""
+    },
+    {
+      "rf": "SEC",
+      "check": "AuthService recognises spd_supervisor",
+      "status": "PASS",
+      "detail": "['spd_supervisor']",
+      "evidence": ""
+    },
+    {
+      "rf": "SEC",
+      "check": "spd_supervisor: every Administration page is refused (landing /supervisor/dashboard)",
+      "status": "PASS",
+      "detail": "{'/admin/dashboard': 403, '/admin/users': 403, '/admin/vision-models': 403, '/admin/configuration': 403}",
+      "evidence": "sec_069_spd-supervisor-admin-403.jpg"
+    },
+    {
+      "rf": "SEC",
+      "check": "AuthService recognises station_operator",
+      "status": "PASS",
+      "detail": "['station_operator']",
+      "evidence": ""
+    },
+    {
+      "rf": "SEC",
+      "check": "station_operator: every Administration page is refused (landing /operator/sessions)",
+      "status": "PASS",
+      "detail": "{'/admin/dashboard': 403, '/admin/users': 403, '/admin/vision-models': 403, '/admin/configuration': 403}",
+      "evidence": "sec_071_station-operator-admin-403.jpg"
+    },
+    {
+      "rf": "SEC",
+      "check": "AuthService recognises or_charge",
+      "status": "PASS",
+      "detail": "['or_charge']",
+      "evidence": ""
+    },
+    {
+      "rf": "SEC",
+      "check": "or_charge: the portal has no screens for this role and says so on the sign-in page",
+      "status": "PASS",
+      "detail": "/sign-in",
+      "evidence": ""
+    },
+    {
+      "rf": "SEC",
+      "check": "or_charge: every Administration page is refused (landing /sign-in)",
+      "status": "PASS",
+      "detail": "{'/admin/dashboard': 200, '/admin/users': 200, '/admin/vision-models': 200, '/admin/configuration': 200}",
+      "evidence": "sec_074_or-charge-admin-403.jpg"
+    },
+    {
+      "rf": "SEC",
+      "check": "AuthService recognises it_admin",
+      "status": "PASS",
+      "detail": "['it_admin']",
+      "evidence": ""
+    },
+    {
+      "rf": "SEC",
+      "check": "pieces and kits stay with the SPD supervisor (admin gets 403)",
+      "status": "PASS",
+      "detail": "{'/admin/instruments': 403, '/admin/kits': 403}",
+      "evidence": ""
+    },
+    {
+      "rf": "SEC",
+      "check": "denied Administration attempts are audited",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "sec_077_audit-denied-after-roles.jpg"
+    },
+    {
+      "rf": "SEC-STEWARD",
+      "check": "without the variable any it_admin (also institution B) can edit shared catalogs",
+      "status": "PASS",
+      "detail": "Instrument family saved.",
+      "evidence": "sec-steward_078_steward-institution-b-no-steward.jpg"
+    },
+    {
+      "rf": "SEC-STEWARD",
+      "check": "with steward = A, institution B gets 403 \"Shared catalogs are maintained...\"",
+      "status": "PASS",
+      "detail": "Shared catalogs are maintained by the administrators of the steward institution.",
+      "evidence": "sec-steward_079_steward-institution-b-steward-a.jpg"
+    },
+    {
+      "rf": "SEC-STEWARD",
+      "check": "with steward = A, institution A can still edit",
+      "status": "PASS",
+      "detail": "Instrument family saved.",
+      "evidence": "sec-steward_080_steward-institution-a-steward-a.jpg"
+    },
+    {
+      "rf": "SEC-STEWARD",
+      "check": "with steward = A, institution B can still read the catalog",
+      "status": "PASS",
+      "detail": "HTTP 200",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-09",
+      "check": "audit log lists this run's family events (search)",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "rf-ad-09_082_audit-search.jpg"
+    },
+    {
+      "rf": "RF-AD-09",
+      "check": "filter by result DENIED",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "rf-ad-09_083_audit-denied.jpg"
+    },
+    {
+      "rf": "RF-AD-09",
+      "check": "filter by event type ACTIVATE_VISION_MODEL",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "RF-AD-09",
+      "check": "From after To: notice shown and nothing listed",
+      "status": "PASS",
+      "detail": "rows=1 The start date is after the end date: choose a valid date range.",
+      "evidence": "rf-ad-09_085_audit-empty-range.jpg"
+    },
+    {
+      "rf": "RF-AD-09",
+      "check": "pagination: next page loads",
+      "status": "PASS",
+      "detail": "http://127.0.0.1:15000/admin/audit-log?per_page=50&page=2",
+      "evidence": "rf-ad-09_086_audit-page-2.jpg"
+    },
+    {
+      "rf": "RF-AD-09",
+      "check": "another institution's administrator does not see them",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "rf-ad-09_087_audit-other-institution.jpg"
+    },
+    {
+      "rf": "PERSIST",
+      "check": "after restarting portal + Garage: real model still active with its 17 classes",
+      "status": "PASS",
+      "detail": "best-6215cb74-222bef\t16 Classes\t Active Model \t2026-11-09\t6215...5d9\tEdit",
+      "evidence": "persist_088_persist-model.jpg"
+    },
+    {
+      "rf": "PERSIST",
+      "check": "weights object read back from Garage after restart: same SHA-256",
+      "status": "PASS",
+      "detail": "pef-admin-browser/models/b1a5bf60228d421b930594f4e8350ba1.pt (53068645 bytes)",
+      "evidence": ""
+    },
+    {
+      "rf": "PERSIST",
+      "check": "privacy notice downloaded after restart: same SHA-256",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "PERSIST",
+      "check": "family photo still rendered after restart",
+      "status": "PASS",
+      "detail": "",
+      "evidence": "persist_091_persist-family-photo.jpg"
+    },
+    {
+      "rf": "PERSIST",
+      "check": "users created in this run still listed after restart",
+      "status": "PASS",
+      "detail": "",
+      "evidence": ""
+    },
+    {
+      "rf": "PERSIST",
+      "check": "local backend: notice published, portal restarted, same bytes downloaded",
+      "status": "PASS",
+      "detail": "/admin/privacy-notices/93fb8c6c-6f41-46e1-9db6-4f2b48758531/document",
+      "evidence": ""
+    },
+    {
+      "rf": "RESTORE",
+      "check": "restore: previously active model active again (test DB left as found)",
+      "status": "PASS",
+      "detail": "HTTP 200",
+      "evidence": ""
+    }
+  ],
+  "browser_problems": [
+    {
+      "rf": "RF-AD-02",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/instrument-families/new",
+      "text": "Failed to load resource: the server responded with a status of 409 (CONFLICT)"
+    },
+    {
+      "rf": "RF-AD-02",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/instrument-families/41414141-0000-4000-8000-000000000015/edit",
+      "text": "Failed to load resource: the server responded with a status of 409 (CONFLICT)"
+    },
+    {
+      "rf": "RF-AD-03",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/selection-catalogs/reasons",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "RF-AD-03",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/selection-catalogs/reasons",
+      "text": "Failed to load resource: the server responded with a status of 409 (CONFLICT)"
+    },
+    {
+      "rf": "RF-AD-04",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/privacy-notices/new",
+      "text": "Failed to load resource: the server responded with a status of 409 (CONFLICT)"
+    },
+    {
+      "rf": "RF-AD-04",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/privacy-notices/new",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "RF-AD-04",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/privacy-notices/new",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "RF-AD-05",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/users/new",
+      "text": "Failed to load resource: the server responded with a status of 409 (CONFLICT)"
+    },
+    {
+      "rf": "RF-AD-05",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/users/new",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "RF-AD-05",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/sign-in",
+      "text": "Failed to load resource: the server responded with a status of 401 (UNAUTHORIZED)"
+    },
+    {
+      "rf": "RF-AD-05",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/users/7f4eec5f-8c89-452f-b92c-f1df38c1e8a8/edit",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "rf": "RF-AD-06",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/roles/new",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "rf": "RF-AD-06",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/roles/c94d8361-6129-40f6-9f55-3fc3165043e2/edit",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "rf": "RF-AD-07",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/configuration/operating-rooms/new",
+      "text": "Failed to load resource: the server responded with a status of 409 (CONFLICT)"
+    },
+    {
+      "rf": "RF-AD-07",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/configuration/capture-stations/ef2ec32b-a770-4fb8-9bfb-3a7b3ecd046d/edit",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "RF-AD-07",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/configuration/capture-stations/ef2ec32b-a770-4fb8-9bfb-3a7b3ecd046d/edit",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "RF-AD-07",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/configuration/operating-rooms/b4eca18d-92b0-43f3-b4b0-c9fa341b0638/edit",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "rf": "RF-AD-07",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/configuration/capture-stations/e3b36771-d1e4-429a-95bd-2ae089be0ca0/edit",
+      "text": "Failed to load resource: the server responded with a status of 404 (NOT FOUND)"
+    },
+    {
+      "rf": "RF-AD-08",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/vision-models/new",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "RF-AD-08",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/vision-models/new",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "RF-AD-08",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/vision-models/b4811029-bf78-4001-bb2e-46186b8087f6/edit",
+      "text": "Failed to load resource: the server responded with a status of 409 (CONFLICT)"
+    },
+    {
+      "rf": "RF-AD-08",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/vision-models/new",
+      "text": "Failed to load resource: the server responded with a status of 409 (CONFLICT)"
+    },
+    {
+      "rf": "RF-AD-10",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/configuration/institution/edit",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "RF-AD-10",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/users/new",
+      "text": "Failed to load resource: the server responded with a status of 400 (BAD REQUEST)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/dashboard",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/users",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/vision-models",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/configuration",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/dashboard",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/users",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/vision-models",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/configuration",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/instruments",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/kits",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    },
+    {
+      "rf": "SEC-STEWARD",
+      "kind": "console",
+      "url": "http://127.0.0.1:15000/admin/instrument-families/4d52ef64-113f-41d1-95dd-47efdbf828b6/edit",
+      "text": "Failed to load resource: the server responded with a status of 403 (FORBIDDEN)"
+    }
+  ]
+}

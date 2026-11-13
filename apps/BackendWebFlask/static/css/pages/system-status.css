@@ -1,0 +1,61 @@
+/* Administration · System status (templates/admin/system_status.html). */
+
+.system-status-counts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.system-status__name {
+    display: block;
+    font-weight: var(--font-weight-medium);
+}
+
+.system-status__endpoint,
+.system-status__note {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}
+
+.system-status__dep {
+    display: inline-block;
+    margin: 0 var(--space-1) var(--space-1) 0;
+    padding: 1px var(--space-2);
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-xs);
+}
+
+.system-status__dep--ok {
+    background-color: var(--color-success-surface);
+    color: var(--color-success);
+}
+
+.system-status__dep--error {
+    background-color: var(--color-danger-surface);
+    color: var(--color-danger);
+}
+
+.system-status__window,
+.system-status__filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: flex-end;
+}
+
+.system-status__filters .form-field {
+    min-width: 180px;
+}
+
+.system-status__chart {
+    margin-top: var(--space-4);
+    min-height: 320px;
+}
+
+.system-status__empty {
+    margin: var(--space-4) 0 0;
+    color: var(--color-text-secondary);
+}

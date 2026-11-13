@@ -1,0 +1,18 @@
+# Test-only stores: no published ports and no shared production volumes.
+# Connect test containers to this network; never point these suites at production.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: pef_video_test
+      POSTGRES_PASSWORD: isolated_test_only
+      POSTGRES_DB: pef_video_test
+    volumes:
+      - ../../data/migrations/001_init.sql:/docker-entrypoint-initdb.d/01.sql:ro
+      - ../../data/seeds/002_seed_catalogs.sql:/docker-entrypoint-initdb.d/02.sql:ro
+      - ../../data/migrations/004_media_asset_session.sql:/docker-entrypoint-initdb.d/04.sql:ro
+      - ../../data/migrations/005_count_reference_events.sql:/docker-entrypoint-initdb.d/05.sql:ro
+      - ../../data/migrations/006_notifications.sql:/docker-entrypoint-initdb.d/06.sql:ro
+      - ../../data/migrations/007_monitoring.sql:/docker-entrypoint-initdb.d/07.sql:ro
+  redis:
+    image: redis:7-alpine
