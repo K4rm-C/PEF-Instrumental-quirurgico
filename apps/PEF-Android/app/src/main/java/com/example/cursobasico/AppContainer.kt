@@ -26,9 +26,15 @@ import com.example.cursobasico.auth.AuthState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -39,7 +45,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Cliente de imágenes: sin Bearer y sin caché en disco, solo para URLs prefirmadas de evidencias.
  */
 class PefNetwork(
-    baseUrl: String,
+    private val baseUrl: String,
     tokenStore: TokenStore,
     debugLogging: Boolean = false,
     readTimeoutMillis: Long = 30_000,
@@ -74,6 +80,26 @@ class PefNetwork(
     init {
         sessionManager.attach(authApi)
     }
+
+    /**
+     * Cold-start reachability of the API Gateway (`GET /healthz`).
+     * Retries briefly so a slow Docker/Gateway boot after Android Studio Run still connects.
+     */
+    suspend fun probeGateway(retries: Int = 3): Boolean = withContext(Dispatchers.IO) {
+        val url = baseUrl.trimEnd('/') + "/healthz"
+        repeat(retries) { attempt ->
+            try {
+                val request = Request.Builder().url(url).get().build()
+                baseClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) return@withContext true
+                }
+            } catch (_: Exception) {
+                // Gateway down, wrong IP, or missing reverse — retry below.
+            }
+            if (attempt < retries - 1) delay(400L * (attempt + 1))
+        }
+        false
+    }
 }
 
 private val Context.uiPreferencesStore: DataStore<Preferences> by preferencesDataStore(name = "pef_ui_preferences")
@@ -95,6 +121,9 @@ class AppContainer(application: Application) {
     /** Ámbito de aplicación: sobrevive a la recreación de la Activity (cambio de idioma o tema). */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val restoreStarted = AtomicBoolean(false)
+    private val _gatewayReachable = MutableStateFlow<Boolean?>(null)
+    /** null = probing; true/false = last /healthz result. */
+    val gatewayReachable: StateFlow<Boolean?> = _gatewayReachable.asStateFlow()
 
     init {
         appScope.launch {
@@ -109,10 +138,20 @@ class AppContainer(application: Application) {
         }
     }
 
-    /** Restaura la sesión cifrada una sola vez por proceso. */
+    /** Probe Gateway then restore encrypted session — once per process. */
     fun restoreSessionOnce() {
         if (restoreStarted.compareAndSet(false, true)) {
-            appScope.launch { sessionManager.restore() }
+            appScope.launch {
+                _gatewayReachable.value = network.probeGateway()
+                sessionManager.restore()
+            }
+        }
+    }
+
+    fun retryGatewayProbe() {
+        appScope.launch {
+            _gatewayReachable.value = null
+            _gatewayReachable.value = network.probeGateway()
         }
     }
 }

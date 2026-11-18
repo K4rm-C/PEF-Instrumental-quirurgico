@@ -67,7 +67,7 @@ La URL base es un `BuildConfig.API_BASE_URL` por tipo de compilación, configura
 
 | Propiedad Gradle | Valor por defecto | Uso |
 |---|---|---|
-| `pef.apiBaseUrl.debug` | `http://10.0.2.2:8080/` | Emulador estándar → Gateway de desarrollo de `docker-compose.yml` |
+| `pef.apiBaseUrl.debug` | `http://10.0.2.2:8080/` (Gradle) o IP LAN vía `.\scripts\pef_lan_endpoint.ps1` | Preferir script LAN + Gateway `HOST_BIND=0.0.0.0` en `docker-compose.integral.yml` |
 | `pef.apiBaseUrl.release` | `https://api.pef.invalid/` (marcador) | **Debe** ser HTTPS; la compilación release falla si no lo es |
 
 ```bash

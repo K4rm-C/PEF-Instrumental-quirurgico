@@ -107,6 +107,17 @@ Gateway opcional (Android / entrada única):
 docker compose -f docker-compose.integral.yml --env-file .env --profile gateway up -d gateway
 ```
 
+### IP LAN flexible (portal / App / CORS)
+
+Al cambiar de red Wi‑Fi la IP del host cambia. No hardcodear IPs en el repo:
+
+```powershell
+.\scripts\pef_lan_endpoint.ps1
+docker compose -f docker-compose.integral.yml --env-file .env --profile gateway up -d --force-recreate auth web gateway evidence-worker
+```
+
+El script actualiza `.env` (`HOST_LAN_IP`, `AUTH_ALLOWED_ORIGINS`, `AUTH_BROWSER_URL`, `VISION_WS_ORIGINS`, `S3_PUBLIC_ENDPOINT`) y `apps/PEF-Android/local.properties` (`pef.apiBaseUrl.debug`). Gateway publica en `HOST_BIND` (default `0.0.0.0`).
+
 ### 3. VisionWorker en el host (CUDA)
 
 ```powershell

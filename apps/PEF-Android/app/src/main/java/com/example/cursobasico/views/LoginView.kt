@@ -51,6 +51,8 @@ import com.example.cursobasico.ActionColor
 import com.example.cursobasico.BorderColor
 import com.example.cursobasico.FieldBackground
 import com.example.cursobasico.OnActionColor
+import com.example.cursobasico.Orange
+import com.example.cursobasico.PefApplication
 import com.example.cursobasico.R
 import com.example.cursobasico.SurfaceColor
 import com.example.cursobasico.TextPrimary
@@ -61,7 +63,9 @@ import com.example.cursobasico.ui.viewmodel.LoginViewModel
 import com.example.cursobasico.ui.viewmodel.pefViewModel
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -76,6 +80,8 @@ fun LoginScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
+    val app = LocalContext.current.applicationContext as PefApplication
+    val gatewayReachable by app.container.gatewayReachable.collectAsStateWithLifecycle()
     val reasonMessage = when (logoutReason) {
         is LogoutReason.SessionExpired -> stringResource(R.string.login_session_expired)
         is LogoutReason.UserInitiated -> if (logoutReason.serverConfirmed) {
@@ -148,6 +154,37 @@ fun LoginScreen(
                             color = BorderColor
                         )
                         Spacer(modifier = Modifier.height(23.dp))
+                        when (gatewayReachable) {
+                            false -> {
+                                Text(
+                                    text = stringResource(R.string.login_gateway_unreachable),
+                                    fontSize = 11.sp,
+                                    color = Orange,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .semantics { liveRegion = LiveRegionMode.Polite }
+                                )
+                                TextButton(
+                                    onClick = { app.container.retryGatewayProbe() },
+                                    enabled = !state.loading
+                                ) {
+                                    Text(stringResource(R.string.login_gateway_retry))
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
+                            null -> {
+                                Text(
+                                    text = stringResource(R.string.login_gateway_checking),
+                                    fontSize = 11.sp,
+                                    color = TextSecondary,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
+                            true -> Unit
+                        }
                         if (reasonMessage != null && state.errorRes == null) {
                             Text(
                                 text = reasonMessage,

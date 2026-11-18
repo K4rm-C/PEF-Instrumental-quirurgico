@@ -35,6 +35,9 @@
 
     <!-- Errors -->
     <string name="error_offline">No connection to the server. Check the network and try again.</string>
+    <string name="login_gateway_checking">Checking API Gateway…</string>
+    <string name="login_gateway_unreachable">Cannot reach the API Gateway. Run scripts/pef_lan_endpoint.ps1 after changing Wi‑Fi, ensure Docker gateway is up, then Retry.</string>
+    <string name="login_gateway_retry">Retry connection</string>
     <string name="error_timeout">The server took too long to respond.</string>
     <string name="error_unauthorized">Your session is no longer valid. Sign in again.</string>
     <string name="error_forbidden">Access denied for your role.</string>

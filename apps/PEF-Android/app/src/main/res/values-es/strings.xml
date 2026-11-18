@@ -35,6 +35,9 @@
 
     <!-- Errores -->
     <string name="error_offline">Sin conexión con el servidor. Revisa la red e inténtalo de nuevo.</string>
+    <string name="login_gateway_checking">Comprobando API Gateway…</string>
+    <string name="login_gateway_unreachable">No se alcanza el API Gateway. Tras cambiar de Wi‑Fi ejecuta scripts/pef_lan_endpoint.ps1, confirma que Docker gateway está arriba y pulsa Reintentar.</string>
+    <string name="login_gateway_retry">Reintentar conexión</string>
     <string name="error_timeout">El servidor tardó demasiado en responder.</string>
     <string name="error_unauthorized">Tu sesión ya no es válida. Inicia sesión de nuevo.</string>
     <string name="error_forbidden">Acceso denegado para tu rol.</string>
