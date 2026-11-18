@@ -83,12 +83,13 @@ docker compose -f docker-compose.integral.yml ps
 
 En el primer arranque (volumen Postgres vacío) se aplican solos:
 
-1. `data/migrations/001_init.sql` + migraciones `004`…`019`
-2. `data/seeds/002_seed_catalogs.sql` y `003_seed_demo.sql`
+1. `data/migrations/001_init.sql` + migraciones `004`…`021`
+2. `data/seeds/002_seed_catalogs.sql` y `003_seed_demo.sql` (canónicos **+** cuentas/ORs Locust fusionados)
 3. `garage-init` — buckets `privacy-notices` y `pef-admin`
-4. `seed-family-examples` — sube `data/seeds/example_images/` a Garage y crea `media_asset` + `family_example` (`s3://pef-admin/family-examples/…`)
+4. `seed-family-examples` — sube `data/seeds/example_images/` a Garage y crea `media_asset` + `family_example`
+5. `seed-demo-volume` — re-aplica `004_seed_demo_locust.sql` (idempotente) y genera historial/KPIs/auditoría/monitoring con cantidades variables (`SEED_*` en `.env`)
 
-Reinicios posteriores **no** re-ejecutan los SQL de init; el seed de fotos sí corre otra vez y es **idempotente** (mismo SHA-256 → skip). Semilla limpia:
+Reinicios posteriores **no** re-ejecutan los SQL de init; fotos y volumen sí vuelven a correr y son **idempotentes**. Semilla limpia:
 
 ```powershell
 docker compose -f docker-compose.integral.yml --env-file .env down -v
@@ -197,7 +198,8 @@ aws --endpoint-url http://127.0.0.1:3900 s3 ls
 
 ### Usuarios demo (seed)
 
-Roles RF: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (App). Hashes Werkzeug **3.1.8**.
+Roles RF: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (App). Hashes Werkzeug **3.1.8**.  
+Tabla completa (canónicos + Locust + `gen.*`): [`data/seeds/DEMO_CREDENTIALS.md`](data/seeds/DEMO_CREDENTIALS.md).
 
 | Rol | Email | Password | Superficie |
 | --- | --- | --- | --- |
@@ -207,8 +209,10 @@ Roles RF: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (App). H
 | spd_supervisor | `supervisor2@instrumed.com` | `DemopwdSPD278!` | Web SPD |
 | it_admin | `admin@instrumed.com` | `DemopwdADM78!` | Web Admin |
 | **or_charge (App)** | `floor@instrumed.com` | `DemopwdFLR78!` | **App móvil (cuenta estándar)** |
+| Locust OP | `ana.ruiz@` / `luis.pena@instrumed.com` | ver DEMO_CREDENTIALS | carga multi-usuario |
+| Locust SPD/Admin/Floor | `carla.soto@` / `ti.extra@` / `nora.diaz@` / `dual.admin.spd@` | ver DEMO_CREDENTIALS | carga / roles mixtos |
 
-`floor@` / `or_charge` es la cuenta demo canónica de la App (alcance institucional: sesiones, holds, evidencia, alertas). No tiene home web. SPD (`supervisor@`) es portal, no App. Extras Locust y claves en claro: `data/seeds/DEMO_CREDENTIALS.local.md` (gitignored vía `*.local`).
+`floor@` / `or_charge` es la cuenta demo canónica de la App. El one-shot `seed-demo-volume` añade ORs extra, sesiones cerradas/programadas, discrepancias, `access_audit`, notificaciones y `monitoring_check` (ajustable con `SEED_OR_COUNT`, `SEED_CLOSED_SESSIONS`, `SEED_RNG`, etc.).
 
 ```powershell
 curl -i -X POST http://127.0.0.1:5001/login -H "Content-Type: application/json" -d "{\"email\":\"operator@instrumed.com\",\"password\":\"DemopwdOP78!\"}"
@@ -232,14 +236,15 @@ PEF-Instrumental-quirurgico/
 │   ├── AdminService/               # Legado
 │   └── PEF-Android/
 ├── data/
-│   ├── migrations/                 # 001 + 004…019
-│   ├── seeds/                      # 002, 003 + example_images/
+│   ├── migrations/                 # 001 + 004…021
+│   ├── seeds/                      # 002, 003(+Locust), 004, DEMO_CREDENTIALS.md, example_images/
 │   ├── DataStandards/
 │   └── FunctionalRequirements/
 ├── infra/                          # Garage, gateway
 └── scripts/
     ├── garage_init_buckets.py      # Servicio Compose garage-init
     ├── seed_family_examples.py     # Servicio Compose seed-family-examples
+    ├── seed_demo_volume.py         # Locust ensure + volumen KPI/historial (Compose seed-demo-volume)
     ├── smoke_module_health.ps1
     └── smoke_auth.ps1
 ```
