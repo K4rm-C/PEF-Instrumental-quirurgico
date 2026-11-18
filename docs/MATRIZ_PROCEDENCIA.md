@@ -13,7 +13,7 @@
 - El código live del ZIP3 se conservó para portar y probar; la captura activa sigue protegida por reglas V1.
 - Se habilitó el endpoint WebSocket de **vista previa** `/ws` en VisionWorker V1 (HMAC/Origin); por ahora su resultado no sustituye el conteo definitivo de inicio/final ni el flujo aprobado de validación.
 - Los puertos de V1 se mantienen temporalmente para no romper la integración. Puertos del profesor se adoptan con refactor posterior.
-- `Legacy/` se conserva íntegramente y contiene los fuentes adicionales; no se eliminó.
+- `Legacy/` (plantillas V2 + `porting_sources`) se eliminó en la rama `review-sandbox`; el runtime vive en `apps/*`.
 - `ui_reference` y `ui_reference_v2` se omitieron para reducir el ZIP; se conserva `ui_reference_v3`.
 - `infra/garage.toml` local se omitió por configuración sensible/no portable; existe `infra/garage.toml.example`.
 

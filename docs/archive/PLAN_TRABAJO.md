@@ -1,5 +1,9 @@
 # PEF — Plan maestro de desarrollo y seguimiento
 
+> **Archivo histórico** (movido a `docs/archive/` en `review-sandbox`).  
+> Seguimiento vigente: `docs/MS_DIAGNOSTICO_Y_PLAN.md` y el `README.md` de la raíz.  
+> No usar como checklist operativo de Claude/agent.
+
 **Proyecto:** Conteo y trazabilidad de instrumental quirúrgico  
 **Base:** `PEF-Instrumental-quirurgico-Consolidado-WS-DB-v2` (ZIP 1 como núcleo; fuentes de ZIP 2; WebSocket/esquema de ZIP 3)  
 **Última actualización del plan:** 2026-11-10 (MS-11: desarrollo de las 20 responsabilidades e integración en Docker Compose)  

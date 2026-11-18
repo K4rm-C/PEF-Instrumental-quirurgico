@@ -39,6 +39,11 @@ Asesor: Dr. Raul Morales Salcedo.
 - Pesos YOLO: `apps/VisionWorker/weights/best.pt` (no versionados; `*.pt` en `.gitignore`)
 - `ffmpeg` en PATH (o `.\tools\ensure-ffmpeg.ps1` en Windows) — lo usa EvidenceWorker en Docker y Vision en el host
 
+### Compose canónico
+
+Para el stack MS + portal + seeds usar **`docker-compose.integral.yml`** (overlays: `docker-compose.vision-cpu.yml`, perfil `gateway`).  
+`docker-compose.yml` queda como referencia/infra legacy (scripts e2e/VM antiguos); no es el arranque demo diario.
+
 Puertos por defecto (ver `.env.example`):
 
 | Rango | Uso |
@@ -361,4 +366,4 @@ Pipeline demo `matrix_v1` (Hungarian por defecto; `VISION_ASSIGN_SOLVER=greedy` 
 | 7 | Admin portal (`admin_local`) + CatalogService | Listo |
 | 8 | Microservicios Session/Evidence/Audit/… + Android | Integrado |
 
-Idioma fuente: **inglés**; UI `es-MX` vía Babel. Rutas pre-RF del operador: `/legacy/...` (`apps/BackendWebFlask/legacy/README.md`). Plantillas V2 retiradas: `Legacy/` en la raíz.
+Idioma fuente: **inglés**; UI `es-MX` vía Babel. Rutas pre-RF del operador: `/legacy/...` (`apps/BackendWebFlask/legacy/README.md`). El árbol raíz `Legacy/` (plantillas V2 / zips de porting) se eliminó en `review-sandbox`; bitácora MS antigua: `docs/archive/PLAN_TRABAJO.md`.

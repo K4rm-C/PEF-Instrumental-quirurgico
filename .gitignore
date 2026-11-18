@@ -280,5 +280,9 @@ Desktop.ini
 
 # --- PEF: logs y dumps ---
 *.log
+*.err
 *.sqlite3
 dump.rdb
+
+# Credenciales demo locales (usar data/seeds/DEMO_CREDENTIALS.md en repo)
+*.local.md
