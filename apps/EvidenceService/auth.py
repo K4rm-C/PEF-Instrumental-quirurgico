@@ -10,8 +10,8 @@ Re-implemented on purpose (no imports from Auth or other services):
 - PostgreSQL: user and institution active, institution equal to the one recorded by Auth;
   roles = effective ``user_role`` → ``role`` rows of the user's institution (never the JWT claim).
 
-Phase A has no clinical endpoint yet; ``require_auth`` and ``Principal`` are ready for Phase B
-(roles ``station_operator`` / ``spd_supervisor``; ``it_admin`` gets 403 on clinical evidence).
+Clinical evidence roles: ``station_operator`` / ``spd_supervisor`` (portal) / ``or_charge`` (App);
+``it_admin`` gets 403 on clinical evidence.
 """
 
 from __future__ import annotations
@@ -35,7 +35,9 @@ logger = logging.getLogger("evidence.auth")
 ACCESS_TOKEN_TYPE = "access"
 OPERATOR_ROLE_CODE = "station_operator"
 SUPERVISOR_ROLE_CODE = "spd_supervisor"
-EVIDENCE_ROLE_CODES = (OPERATOR_ROLE_CODE, SUPERVISOR_ROLE_CODE)
+OR_CHARGE_ROLE_CODE = "or_charge"
+EVIDENCE_ROLE_CODES = (OPERATOR_ROLE_CODE, SUPERVISOR_ROLE_CODE, OR_CHARGE_ROLE_CODE)
+INSTITUTION_READER_ROLES = (SUPERVISOR_ROLE_CODE, OR_CHARGE_ROLE_CODE)
 REDIS_JWT_KEY = "auth:jwt:{jti}"
 
 

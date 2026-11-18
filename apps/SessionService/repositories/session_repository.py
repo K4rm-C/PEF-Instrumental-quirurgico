@@ -221,6 +221,7 @@ def list_discrepancies(connection: Connection, session_id: uuid.UUID) -> list[di
             discrepancy.c.resolved_at,
             discrepancy.c.origin_event_id,
             discrepancy.c.description,
+            discrepancy.c.suggested_resolution,
         )
         .select_from(
             discrepancy.outerjoin(cat_discrepancy_reason, cat_discrepancy_reason.c.id == discrepancy.c.reason_id)

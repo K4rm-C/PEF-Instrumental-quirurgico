@@ -110,13 +110,16 @@ def token_from_request(token_type: str | None) -> str | None:
 
 def _primary_role_code(role_rows) -> str:
 	codes = {row["code"] if isinstance(row, dict) else row.code for row in (role_rows or [])}
-	# Prefer operator keep-alive policy when both somehow present.
-	if "station_operator" in codes:
-		return "station_operator"
-	if "spd_supervisor" in codes:
-		return "spd_supervisor"
+	# Web primary: Admin > SPD > OP > Floor (App). OP must not coexist with Admin/SPD
+	# (enforced on write); if legacy rows exist, still prefer Admin/SPD for portal home.
 	if "it_admin" in codes:
 		return "it_admin"
+	if "spd_supervisor" in codes:
+		return "spd_supervisor"
+	if "station_operator" in codes:
+		return "station_operator"
+	if "or_charge" in codes:
+		return "or_charge"
 	return "default"
 
 

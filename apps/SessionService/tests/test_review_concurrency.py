@@ -73,8 +73,8 @@ def test_double_resolve_same_discrepancy(review_env, pg_engine, monkeypatch):
     assert loser.get_json()["details"] == {"discrepancy_id": str(env.d1), "reason": "already_resolved"}
     assert loser.elapsed >= HOLD_SECONDS * 0.8, loser.elapsed             # it waited on the session lock
     assert _audit_count(pg_engine, env, "discrepancy.resolve") == 1
-    description = _scalar(pg_engine, "SELECT description FROM discrepancy WHERE id = :d", d=env.d1)
-    assert description.count("SPD resolution") == 1                       # applied exactly once
+    suggested = _scalar(pg_engine, "SELECT suggested_resolution FROM discrepancy WHERE id = :d", d=env.d1)
+    assert suggested.count("SPD resolution") == 1                       # applied exactly once
     assert _status(pg_engine, env) == "correction_required"
 
 

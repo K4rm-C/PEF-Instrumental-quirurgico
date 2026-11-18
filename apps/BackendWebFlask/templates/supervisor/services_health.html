@@ -1,6 +1,12 @@
 {% extends "layouts/authenticated.html" %}
 {% import "components/macros.html" as macros %}
 
+{#
+    SPD · Services health (MonitoringService summary).
+    Expected context: overview {rows, counts}, monitoring_notice, stations, stations_notice.
+    Status display: OK / WARN / DOWN (green / yellow / red).
+#}
+
 {% block title %}{{ _("Services health") }} · {{ _("SPD") }}{% endblock %}
 
 {% block sidebar %}
@@ -8,34 +14,133 @@
 {% include "partials/sidebar_supervisor.html" %}
 {% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/system-status.css') }}">
+{% endblock %}
+
 {% block page_content %}
 <div class="page-heading">
     <div>
         <h1 class="page-heading__title">{{ _("Services health") }}</h1>
-        <p class="page-heading__subtitle">{{ _("Future microservices status. This MVP talks to Auth and Postgres directly.") }}</p>
+        <p class="page-heading__subtitle">{{ _("Availability of each microservice. WARN covers degraded answers or high latency; DOWN means unreachable.") }}</p>
     </div>
 </div>
 
+{% if monitoring_notice %}
+<div class="alert alert--warning" role="status" data-monitoring-unavailable>
+    <span class="alert__message">{{ monitoring_notice }}</span>
+</div>
+{% endif %}
+
+{% if overview %}
+<section class="system-status-counts" aria-label="{{ _('Components by status') }}">
+    {{ macros.stat_card(_("OK"), overview.counts.up|default(0), 'success') }}
+    {{ macros.stat_card(_("WARN"), overview.counts.degraded|default(0), 'warning') }}
+    {{ macros.stat_card(_("DOWN"), overview.counts.down|default(0), 'danger') }}
+    {{ macros.stat_card(_("Unknown"), overview.counts.unknown|default(0), 'neutral') }}
+</section>
+
 <section class="card">
+    <div class="card__header">
+        <div>
+            <h2 class="card__title">{{ _("Microservices") }}</h2>
+            <p class="card__subtitle">{{ _("Latest check per component from the monitoring collector.") }}</p>
+        </div>
+    </div>
     <div class="table-wrapper">
-        <table class="data-table">
+        <table class="data-table" data-services-health-table>
             <thead>
                 <tr>
                     <th>{{ _("Service") }}</th>
                     <th>{{ _("Status") }}</th>
-                    <th>{{ _("Detail") }}</th>
+                    <th>{{ _("Availability") }}</th>
+                    <th>{{ _("Last check") }}</th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in services|default([]) %}
+                {% for row in overview.rows %}
+                <tr data-component="{{ row.name }}" data-status="{{ row.status }}">
+                    <td><span class="system-status__name">{{ _(row.label) }}</span></td>
+                    <td>
+                        {{ macros.status_badge(row.display_label or row.status_label, row.variant) }}
+                        {% if row.freshness_label %}<span class="system-status__note">{{ _(row.freshness_label) }}</span>{% endif %}
+                        {% if row.warn_reason %}<span class="system-status__note">{{ _(row.warn_reason) }}</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if row.availability_pct is not none %}
+                        {{ '%.1f'|format(row.availability_pct) }} %
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>{{ row.checked_at or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4">{{ _("No component checks yet.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% elif not monitoring_notice %}
+<section class="card">
+    <p class="text-muted">{{ _("No component checks yet.") }}</p>
+</section>
+{% endif %}
+
+{% if stations_notice %}
+<div class="alert alert--warning" role="status" data-stations-unavailable>
+    <span class="alert__message">{{ stations_notice }}</span>
+</div>
+{% endif %}
+
+{% if stations %}
+<section class="card">
+    <div class="card__header">
+        <div>
+            <h2 class="card__title">{{ _("Capture stations") }}</h2>
+            <p class="card__subtitle">{{ _("Heartbeat and camera status for this institution.") }}</p>
+        </div>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table" data-stations-table>
+            <thead>
                 <tr>
-                    <td>{{ item.name }}</td>
-                    <td><code>{{ item.status }}</code></td>
-                    <td>{{ item.detail }}</td>
+                    <th>{{ _("Station") }}</th>
+                    <th>{{ _("Room") }}</th>
+                    <th>{{ _("Status") }}</th>
+                    <th>{{ _("Last seen") }}</th>
+                    <th>{{ _("Cameras") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in stations.rows %}
+                <tr>
+                    <td>{{ row.name }}</td>
+                    <td>{{ row.room or '—' }}</td>
+                    <td>{{ macros.status_badge(row.status_label, row.variant) }}</td>
+                    <td>{{ row.last_seen or '—' }}</td>
+                    <td>
+                        {% for cam in row.cameras %}
+                        <span data-camera-status="{{ cam.status }}">{{ cam.name }}: {{ _(cam.status_label) }}{% if cam.error %} ({{ cam.error }}){% endif %}</span>{% if not loop.last %}<br>{% endif %}
+                        {% else %}—{% endfor %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </section>
+
+{% if stations.alerts %}
+<section class="card">
+    <div class="card__header">
+        <h2 class="card__title">{{ _("Open technical alerts") }}</h2>
+    </div>
+    <ul class="v3-stack">
+        {% for alert in stations.alerts %}
+        <li data-alert-kind="{{ alert.kind }}">{{ _(alert.label) }}{% if alert.error %} — {{ alert.error }}{% endif %}</li>
+        {% endfor %}
+    </ul>
+</section>
+{% endif %}
+{% endif %}
 {% endblock %}

@@ -165,7 +165,7 @@ def world(db_conn):
 
     roles = {}
     for inst_key in ("A", "B", "OFF"):
-        for code in ("station_operator", "spd_supervisor", "it_admin"):
+        for code in ("station_operator", "spd_supervisor", "it_admin", "or_charge"):
             role_id = uuid.uuid4()
             _run(c, "INSERT INTO role (id, code, description, institution_id) VALUES (:id, :c, 'test', :i)",
                  id=role_id, c=code, i=w.institutions[inst_key])
@@ -183,6 +183,7 @@ def world(db_conn):
     add_user("op_a", "A", [("A", "station_operator")])
     add_user("op_a2", "A", [("A", "station_operator")])
     add_user("spd_a", "A", [("A", "spd_supervisor")])
+    add_user("floor_a", "A", [("A", "or_charge")])
     add_user("admin_a", "A", [("A", "it_admin")])
     add_user("multi_a", "A", [("A", "station_operator"), ("A", "spd_supervisor")])
     add_user("op_admin_a", "A", [("A", "station_operator"), ("A", "it_admin")])
@@ -308,12 +309,13 @@ def world(db_conn):
     add_event("b_count", b1, "manual_count", 0, family="a", expected=5, detected=4, user_key="op_b")
 
     def add_discrepancy(key, session_id, *, family, reason_code, expected, detected, resolved=False,
-                        description, origin=None):
+                        description, origin=None, suggested_resolution=None):
         disc_id = uuid.uuid4()
-        _run(c, "INSERT INTO discrepancy (id, description, resolved, resolved_at, reason_id, family_id, "
-                "expected_quantity, detected_quantity, session_id, origin_event_id) "
-                "VALUES (:id, :d, :r, :ra, :reason, :f, :e, :det, :s, :o)",
-             id=disc_id, d=description, r=resolved, ra=NOW + timedelta(hours=1) if resolved else None,
+        _run(c, "INSERT INTO discrepancy (id, description, suggested_resolution, resolved, resolved_at, reason_id, "
+                "family_id, expected_quantity, detected_quantity, session_id, origin_event_id) "
+                "VALUES (:id, :d, :sr, :r, :ra, :reason, :f, :e, :det, :s, :o)",
+             id=disc_id, d=description, sr=suggested_resolution,
+             r=resolved, ra=NOW + timedelta(hours=1) if resolved else None,
              reason=reason[reason_code] if reason_code else None, f=w.families[family] if family else None,
              e=expected, det=detected, s=session_id, o=origin)
         w.discrepancies[key] = disc_id
@@ -321,7 +323,8 @@ def world(db_conn):
     add_discrepancy("open_a", a3, family="a", reason_code="shortage", expected=2, detected=1,
                     description="Faltante en Portaagujas: esperado 2, reportado 1.", origin=modern)
     add_discrepancy("resolved_b", a3, family="b", reason_code="surplus", expected=1, detected=2, resolved=True,
-                    description="Extra on Family b.\nSPD resolution (resolved): encontrada en charola auxiliar")
+                    description="Extra on Family b.",
+                    suggested_resolution="SPD resolution (resolved): encontrada en charola auxiliar")
     add_discrepancy("open_nofamily", a3, family=None, reason_code=None, expected=None, detected=None,
                     description="Unclassified discrepancy")
     add_discrepancy("b_open", b1, family="a", reason_code="shortage", expected=5, detected=4,

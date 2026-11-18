@@ -13,6 +13,8 @@ import com.example.cursobasico.data.model.ReadAllRequest
 import com.example.cursobasico.data.model.ReadAllResultDto
 import com.example.cursobasico.data.model.RefreshRequest
 import com.example.cursobasico.data.model.ReportSummaryDto
+import com.example.cursobasico.data.model.ResolveDiscrepancyRequest
+import com.example.cursobasico.data.model.ResolveDiscrepancyResult
 import com.example.cursobasico.data.model.SessionDetailDto
 import com.example.cursobasico.data.model.SessionSummaryDto
 import com.example.cursobasico.data.model.TokenResponse
@@ -52,7 +54,7 @@ interface AuthApi {
     suspend fun logout(@Body body: LogoutRequest): Response<Unit>
 }
 
-/** SessionService (lecturas; la app no ejecuta transiciones de estado). */
+/** SessionService (lecturas + resolución de discrepancias para or_charge / SPD). */
 interface SessionApi {
     @GET("api/v1/sessions")
     suspend fun listSessions(
@@ -69,6 +71,14 @@ interface SessionApi {
     /** Reporte agregado del supervisor (solo lectura). [from] = fecha ISO (YYYY-MM-DD); null = últimos 30 días. */
     @GET("api/v1/sessions/reports/summary")
     suspend fun reportSummary(@Query("from") from: String? = null): ReportSummaryDto
+
+    /** Resolve abierto (spd_supervisor u or_charge). Cierre administrativo seguro sigue en el portal SPD. */
+    @POST("api/v1/sessions/{id}/discrepancies/{discrepancyId}/resolve")
+    suspend fun resolveDiscrepancy(
+        @Path("id") sessionId: String,
+        @Path("discrepancyId") discrepancyId: String,
+        @Body body: ResolveDiscrepancyRequest,
+    ): ResolveDiscrepancyResult
 }
 
 /** CatalogService (lecturas del catálogo usadas para agrupar discrepancias por categoría). */

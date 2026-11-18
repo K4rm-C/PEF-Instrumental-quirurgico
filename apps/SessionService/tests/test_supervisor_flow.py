@@ -288,17 +288,18 @@ def test_lost_without_instrument_uses_the_family_rule(client, world, review, as_
     response = _resolve(client, as_user, s, world.discrepancies["open_a"], "lost")
     assert response.status_code == 200, response.get_data(as_text=True)
     assert _piece(db_conn, review["available"]) == ("lost", False)
-    description = db_conn.execute(text("SELECT description FROM discrepancy WHERE id = :d"),
-                                  {"d": world.discrepancies["open_a"]}).scalar_one()
-    assert description.endswith("\nSPD resolution (marked lost): Checked the tray")
+    row = db_conn.execute(text("SELECT description, suggested_resolution FROM discrepancy WHERE id = :d"),
+                          {"d": world.discrepancies["open_a"]}).one()
+    assert row[0] == "Faltante en Portaagujas: esperado 2, reportado 1."
+    assert row[1] == "SPD resolution (marked lost): Checked the tray"
 
 
 def test_recovered_without_a_lost_piece_is_noted(client, world, as_user, db_conn):
     s = world.sessions["a3"].id
     assert _resolve(client, as_user, s, world.discrepancies["open_a"], "recovered").status_code == 200
-    description = db_conn.execute(text("SELECT description FROM discrepancy WHERE id = :d"),
-                                  {"d": world.discrepancies["open_a"]}).scalar_one()
-    assert description.endswith("Note: no lost piece of this family was found to reactivate.")
+    suggested = db_conn.execute(text("SELECT suggested_resolution FROM discrepancy WHERE id = :d"),
+                                {"d": world.discrepancies["open_a"]}).scalar_one()
+    assert suggested.endswith("Note: no lost piece of this family was found to reactivate.")
 
 
 def test_last_resolution_moves_to_awaiting_review_and_awaiting_is_still_reviewable(client, world, as_user, db_conn):

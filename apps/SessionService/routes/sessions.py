@@ -9,8 +9,8 @@ Responsibilities (see GUIA_SESSION.md):
   count-report) answer 410 unless SESSION_OPERATOR_WRITES_ENABLED=true (compatibility only).
   The Operator close of a reconciled vision session (POST /{id}/operator-close) is authorised and
   executed here (services/session_operator_close.py).
-- Reads: station_operator or spd_supervisor (an operator sees only their own sessions).
-- Reports (spd_supervisor only; complement v0.3.0): read-only aggregates of the institution's
+- Reads: station_operator, spd_supervisor or or_charge (operator: own sessions; SPD/or_charge: tenant).
+- Reports (spd_supervisor or or_charge; complement v0.3.0): read-only aggregates of the institution's
   sessions, discrepancies, kits and operators under /api/v1/sessions/reports/*.
 it_admin and any other role → 403, recorded in access_audit as DENIED_<METHOD>_WORK_SESSION.
 """
@@ -21,7 +21,15 @@ from pathlib import Path
 
 from flask import Blueprint, Response, current_app, g, request
 
-from auth import OPERATOR_ROLE_CODE, SESSION_ROLE_CODES, SUPERVISOR_ROLE_CODE, current_principal, require_auth
+from auth import (
+    INSTITUTION_READER_ROLES,
+    OPERATOR_ROLE_CODE,
+    REVIEW_WRITER_ROLES,
+    SESSION_ROLE_CODES,
+    SUPERVISOR_ROLE_CODE,
+    current_principal,
+    require_auth,
+)
 from errors import ApiError
 from serializers import parse_body, render
 from services.session_counts import SessionCountService
@@ -115,7 +123,7 @@ def list_sessions():
 
 
 @sessions_bp.get("/discrepancies")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def list_tenant_discrepancies():
     return _paginated(_snapshots().discrepancies(current_principal(), request.args.get("status")), "discrepancies")
 
@@ -124,35 +132,35 @@ def _reports() -> SessionReportService:
     return current_app.extensions["session_service"]["reports"]
 
 
-# --- Supervisor reports (read-only) ---------------------------------------------------------
+# --- Institution-wide reports (SPD portal + App or_charge; read-only) -------------------------
 
 
 @sessions_bp.get("/reports/summary")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def report_summary():
     return render(_reports().summary(current_principal(), request.args), root="report_summary")
 
 
 @sessions_bp.get("/reports/kits")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def report_kits():
     return render(_reports().kits(current_principal(), request.args), root="kit_report")
 
 
 @sessions_bp.get("/reports/operators")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def report_operators():
     return render(_reports().operators(current_principal(), request.args), root="operator_report")
 
 
 @sessions_bp.get("/reports/stations")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def report_stations():
     return render(_reports().stations(current_principal(), request.args), root="station_report")
 
 
 @sessions_bp.get("/trays/<tray_id>")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def tray_sessions(tray_id: str):
     """MS-08: sessions that used a physical tray (historical references, newest first)."""
     from services.session_trays import sessions_for_tray
@@ -161,7 +169,7 @@ def tray_sessions(tray_id: str):
 
 
 @sessions_bp.get("/<session_id>/tracking-events")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def session_tracking_events(session_id: str):
     """MS-12: tracking event log of the accepted final run (traceability; never a count)."""
     from services.session_tracking import tracking_events
@@ -170,7 +178,7 @@ def session_tracking_events(session_id: str):
 
 
 @sessions_bp.get("/<session_id>/validation-seal")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def session_validation_seal(session_id: str):
     """MS-12: recompute the integrity seal of the Operator's human validation (intact / altered / not_sealed)."""
     from services.session_validation_seal import verify
@@ -179,7 +187,7 @@ def session_validation_seal(session_id: str):
 
 
 @sessions_bp.get("/reports/export")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def report_export():
     """MS-06: the same report (same filters) as a CSV or PDF file; every download is audited."""
     from services.report_export import export_report
@@ -193,7 +201,7 @@ def report_export():
 
 
 @sessions_bp.get("/reports/options")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*INSTITUTION_READER_ROLES)
 def report_options():
     return render(_reports().options(current_principal(), request.args), root="report_options")
 
@@ -301,7 +309,7 @@ def submit_count_report(session_id: str):
 
 
 @sessions_bp.post("/<session_id>/discrepancies/<discrepancy_id>/resolve")
-@require_auth(SUPERVISOR_ROLE_CODE)
+@require_auth(*REVIEW_WRITER_ROLES)
 def resolve_discrepancy(session_id: str, discrepancy_id: str):
     payload = parse_body("resolve_request")
     result = _review().resolve_discrepancy(current_principal(), session_id, discrepancy_id, payload, g.correlation_id)

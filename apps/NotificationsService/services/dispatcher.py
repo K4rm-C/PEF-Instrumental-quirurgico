@@ -49,6 +49,7 @@ logger = logging.getLogger("notifications.dispatcher")
 
 SUPERVISOR = "spd_supervisor"
 ADMINISTRATOR = "it_admin"
+FLOOR = "or_charge"
 
 
 def session_label(session_id) -> str:
@@ -61,10 +62,42 @@ def _iso(value):
 
 def _session(connection: Connection, session_id) -> dict[str, Any] | None:
     row = connection.execute(text("""
-        SELECT w.id, w.user_id, o.institution_id, o.scheduled_at
-        FROM work_session w JOIN operation o ON o.id = w.operation_id WHERE w.id = :id
+        SELECT w.id, w.user_id, o.institution_id, o.scheduled_at, o.room_id,
+               u.name AS operator_name
+        FROM work_session w
+        JOIN operation o ON o.id = w.operation_id
+        LEFT JOIN "user" u ON u.id = w.user_id
+        WHERE w.id = :id
     """), {"id": session_id}).mappings().first()
     return dict(row) if row else None
+
+
+def _floor_for_room(connection: Connection, room_id, institution_id) -> list[uuid.UUID]:
+    """App users (or_charge) assigned to the session's operating room."""
+    if room_id is None:
+        return []
+    return list(connection.execute(text("""
+        SELECT DISTINCT u.id FROM "user" u
+        JOIN user_role ur ON ur.user_id = u.id
+        JOIN role r ON r.id = ur.role_id AND r.institution_id = u.institution_id
+        JOIN user_operating_room uor ON uor.user_id = u.id AND uor.room_id = :room
+        WHERE u.institution_id = :inst AND u.active AND r.code = :code
+        ORDER BY u.id
+    """), {"room": room_id, "inst": institution_id, "code": FLOOR}).scalars())
+
+
+def _operator_note(connection: Connection, session_id) -> str | None:
+    """Latest open discrepancy description written by the Operator (A1 note; no chat table)."""
+    row = connection.execute(text("""
+        SELECT description FROM discrepancy
+        WHERE session_id = :sid AND NOT resolved AND description IS NOT NULL AND btrim(description) <> ''
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+    """), {"sid": session_id}).scalar()
+    if not row:
+        return None
+    text_note = str(row).strip()
+    return text_note[:280] if text_note else None
 
 
 def _scheduler(connection: Connection, session_id) -> uuid.UUID | None:
@@ -201,9 +234,18 @@ def plan(connection: Connection, event: dict[str, Any]) -> list[dict[str, Any]]:
     elif code == "manual_close" and payload.get("next_status") == "correction_required":
         open_count = payload.get("open_discrepancies")
         data = {"open_discrepancies": open_count} if isinstance(open_count, int) else {}
+        if session.get("operator_name"):
+            data["operator_name"] = session["operator_name"]
+        note = _operator_note(connection, session["id"])
+        if note:
+            data["operator_note"] = note
         scheduler = _scheduler(connection, session["id"])
         supervisors = _active_members(connection, [scheduler], institution) or _supervisors(connection, institution)
         add("discrepancy_pending", supervisors, data)
+        # App (floor / or_charge) users linked to the OR also get the pending discrepancy.
+        floor_users = _floor_for_room(connection, session.get("room_id"), institution)
+        if floor_users:
+            add("discrepancy_pending", floor_users, data)
         # The Operator wrote the report, but this is the system telling them the session now needs
         # SPD reconciliation: they are told even though they are the event's actor.
         add("correction_required", [session["user_id"]], data, skip_actor=False)
@@ -215,8 +257,18 @@ def plan(connection: Connection, event: dict[str, Any]) -> list[dict[str, Any]]:
     elif code == "session.final_count_escalated":
         # MS-11: the Operator could not reconcile the final count and reported a possible physical difference.
         scheduler = _scheduler(connection, session["id"])
-        add("final_count_escalated", _active_members(connection, [scheduler], institution) or _supervisors(connection, institution),
-            {})
+        esc_data: dict[str, Any] = {}
+        if session.get("operator_name"):
+            esc_data["operator_name"] = session["operator_name"]
+        note = _operator_note(connection, session["id"])
+        if note:
+            esc_data["operator_note"] = note
+        recipients = _active_members(connection, [scheduler], institution) or _supervisors(connection, institution)
+        add("final_count_escalated", recipients, esc_data)
+        # App floor supervisors linked to the OR also get the escalation (A1 / plan §8).
+        floor_users = _floor_for_room(connection, session.get("room_id"), institution)
+        if floor_users:
+            add("final_count_escalated", floor_users, esc_data)
     elif code == "discrepancy.resolve":
         add("discrepancy_resolved", [session["user_id"]], {}, collapse=True)
     elif code == "session_close" and payload.get("safe_close_confirmed") is False:

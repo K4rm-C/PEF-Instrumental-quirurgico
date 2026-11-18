@@ -27,8 +27,9 @@
     <string name="cd_back">Back</string>
     <string name="cd_search">Search</string>
     <string name="cd_logo">System logo</string>
-    <string name="cd_comments">Comments</string>
+    <string name="cd_comments">Resolve discrepancy</string>
     <string name="cd_close_comments">Close comments</string>
+    <string name="cd_close_resolve">Close resolve form</string>
     <string name="cd_close_evidence">Close evidence</string>
     <string name="cd_evidence_image">Evidence image</string>
 
@@ -148,7 +149,7 @@
     <string name="hold_discrepancies_title">Expected vs reported</string>
     <string name="hold_no_discrepancies">No discrepancies recorded.</string>
     <string name="hold_operator_note_title">Operator report</string>
-    <string name="hold_review_in_portal">Resolving discrepancies and the safe close are done by the SPD Supervisor in the portal. This app never closes sessions.</string>
+    <string name="hold_review_in_portal">Use the resolve action to clear open discrepancies. The final safe close remains with SPD in the portal.</string>
     <string name="discrepancy_open">Open</string>
     <string name="discrepancy_resolved">Resolved</string>
 
@@ -163,11 +164,22 @@
     <string name="evidence_decode_failed">The image could not be displayed.</string>
     <string name="evidence_inference_note">Inference results linked to each evidence are not published by EvidenceService; counts are shown in Live Count and Timeline.</string>
 
-    <!-- Comments -->
+    <!-- Comments (legacy keys kept for resources that still reference them) -->
     <string name="comments_title">Comments</string>
     <string name="comments_unavailable_title">Comments are not available yet</string>
     <string name="comments_unavailable_detail">The API Gateway does not publish a comments endpoint for sessions.</string>
     <string name="comments_placeholder_unavailable">Not available</string>
+    <string name="resolve_sheet_title">Resolve discrepancy</string>
+    <string name="resolve_pick_discrepancy">Open discrepancy</string>
+    <string name="resolve_outcome">Outcome</string>
+    <string name="resolve_outcome_resolved">Resolved with notes</string>
+    <string name="resolve_outcome_lost">Lost — mark a piece as lost</string>
+    <string name="resolve_outcome_recovered">Recovered — reactivate a lost piece</string>
+    <string name="resolve_notes_label">Resolution notes</string>
+    <string name="resolve_notes_placeholder">Describe how the discrepancy was handled</string>
+    <string name="resolve_submit">Resolve</string>
+    <string name="resolve_none_title">No open discrepancies</string>
+    <string name="resolve_none_detail">All discrepancies on this session are already resolved. Safe close remains in the SPD portal.</string>
 
     <!-- Alerts / notifications -->
     <string name="alerts_title">Alerts/On Hold Sessions</string>
@@ -216,7 +228,9 @@
     <string name="role_station_operator">Station operator</string>
     <string name="role_spd_supervisor">SPD supervisor</string>
     <string name="role_it_admin">IT administrator</string>
+    <string name="role_or_charge">Floor supervisor</string>
     <string name="role_other">Other role</string>
+    <string name="dashboard_floor_home_hint">Floor supervisor: institution sessions, holds, evidence and OR alerts. SPD closes cases in the portal.</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>

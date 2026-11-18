@@ -8,7 +8,7 @@
   GET (public endpoint, configured TTL) is produced in memory, the `evidence.download_url` audit row
   is committed, and only then is the URL returned: if the audit fails, the URL is never delivered.
 
-Scope (same as Session): spd_supervisor (also with station_operator) → every session of the tenant;
+Scope (same as Session): spd_supervisor or or_charge (also with station_operator) → every session of the tenant;
 station_operator only → sessions with work_session.user_id = caller. Unknown, malformed, other
 tenant, not assigned, asset without session or session without operation → one indistinguible 404.
 No HeadObject per request: media_asset is the authoritative metadata; a missing blob is a
@@ -23,7 +23,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from adapters import audit_adapter
-from auth import SUPERVISOR_ROLE_CODE, Principal
+from auth import INSTITUTION_READER_ROLES, Principal
 from database import Database
 from errors import ApiError
 from repositories import evidence_repository as repo
@@ -78,7 +78,7 @@ class EvidenceService:
     def _in_scope(principal: Principal, institution_id: uuid.UUID, session_user_id: uuid.UUID) -> bool:
         if institution_id != principal.institution_id:
             return False
-        return principal.has_role(SUPERVISOR_ROLE_CODE) or session_user_id == principal.user_id
+        return any(principal.has_role(code) for code in INSTITUTION_READER_ROLES) or session_user_id == principal.user_id
 
     # --- GET /sessions/{id}/evidence ------------------------------------------------------
 

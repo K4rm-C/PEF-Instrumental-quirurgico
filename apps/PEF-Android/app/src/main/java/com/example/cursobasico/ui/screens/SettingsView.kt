@@ -101,6 +101,14 @@ fun SettingsView(onBack: () -> Unit, onNavigate: (NavKey) -> Unit) {
                 }
             }
 
+            // Logout near the top: below the fold (after About) was easy to miss with the bottom bar.
+            PrimaryButton(
+                text = stringResource(R.string.settings_logout),
+                onClick = { confirmLogout = true },
+                loading = loggingOut,
+                modifier = Modifier.fillMaxWidth().height(44.dp)
+            )
+
             DetailSectionCard(title = stringResource(R.string.settings_language)) {
                 Column(Modifier.selectableGroup()) {
                     ChoiceRow(stringResource(R.string.settings_language_system), prefs.language == AppLanguage.SYSTEM) {
@@ -162,13 +170,6 @@ fun SettingsView(onBack: () -> Unit, onNavigate: (NavKey) -> Unit) {
                 DetailField(stringResource(R.string.settings_gateway), BuildConfig.API_BASE_URL)
                 DetailField(stringResource(R.string.settings_version), BuildConfig.VERSION_NAME)
             }
-
-            PrimaryButton(
-                text = stringResource(R.string.settings_logout),
-                onClick = { confirmLogout = true },
-                loading = loggingOut,
-                modifier = Modifier.fillMaxWidth().height(44.dp)
-            )
             Spacer(modifier = Modifier.height(24.dp))
         }
     }

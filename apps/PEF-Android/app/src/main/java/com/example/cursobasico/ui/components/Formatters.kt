@@ -74,6 +74,7 @@ fun roleLabelRes(code: String): Int = when (code) {
     "station_operator" -> R.string.role_station_operator
     "spd_supervisor" -> R.string.role_spd_supervisor
     "it_admin" -> R.string.role_it_admin
+    "or_charge" -> R.string.role_or_charge
     else -> R.string.role_other
 }
 

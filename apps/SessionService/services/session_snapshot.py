@@ -13,7 +13,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from auth import SUPERVISOR_ROLE_CODE, Principal
+from auth import INSTITUTION_READER_ROLES, Principal
 from database import Database
 from errors import ApiError
 from repositories import supervisor_repository as repo
@@ -123,8 +123,8 @@ class SessionSnapshotService:
 
     @staticmethod
     def _operator_filter(principal: Principal) -> uuid.UUID | None:
-        # Same scope as the DS09 reads: a supervisor sees the tenant, an operator only their sessions.
-        return None if principal.has_role(SUPERVISOR_ROLE_CODE) else principal.user_id
+        # Same scope as the DS09 reads: SPD/or_charge see the tenant; an operator only their sessions.
+        return None if any(principal.has_role(code) for code in INSTITUTION_READER_ROLES) else principal.user_id
 
     def list_summaries(self, principal: Principal, status: str | None = None) -> list[dict[str, Any]]:
         codes = _status_filter(status)

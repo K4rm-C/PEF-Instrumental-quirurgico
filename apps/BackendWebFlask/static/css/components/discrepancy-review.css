@@ -1,0 +1,23 @@
+.discrepancy-op-bubble {
+    margin: var(--space-4) 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md, 8px);
+    background: var(--color-primary-surface);
+    border-left: 3px solid var(--color-primary);
+}
+
+.discrepancy-op-bubble__label {
+    margin: 0 0 var(--space-1);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.discrepancy-op-bubble__text {
+    margin: 0;
+    font-size: var(--font-size-sm);
+    color: var(--color-text);
+    white-space: pre-wrap;
+}

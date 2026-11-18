@@ -1,6 +1,6 @@
 """Supervisor reports (PEF-DS09 §1.3.4 complement v0.3.0): read-only aggregates of the counting data.
 
-Scope: the caller's institution (spd_supervisor only; the route enforces the role). Filters:
+Scope: the caller's institution (spd_supervisor or or_charge; the route enforces the role). Filters:
 `from` / `to` (ISO date or date-time; a date is a whole day in `tz`; default the last 30 days,
 at most 366), `tz` (IANA name known to PostgreSQL, default UTC), `kit_id`, `operator_id` and (MS-06)
 `station_id` (must belong to the caller's institution), `status` (session status code). Every query runs in a

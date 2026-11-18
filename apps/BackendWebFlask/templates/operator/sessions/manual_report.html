@@ -63,7 +63,7 @@
                     <td>
                         <input class="form-field__input form-field__input--plain" type="text"
                                name="notes_{{ item.family_id }}" value="{{ prev.notes|default('', true) }}"
-                               placeholder="{{ _('Required if Other') }}" data-notes-input>
+                               placeholder="{{ _('Required when Diff ≠ 0 (min. 10 characters)') }}" data-notes-input>
                     </td>
                 </tr>
                 {% endfor %}
@@ -86,7 +86,9 @@
     var i18n = {
         instrument: {{ _("Instrument")|tojson }},
         reasonRequired: {{ _("Reason is required when reported quantity differs from expected.")|tojson }},
+        notesRequired: {{ _("Operator report notes must have at least 10 characters when reported quantity differs from expected.")|tojson }},
         missingReason: {{ _("Missing reason")|tojson }},
+        missingNotes: {{ _("Missing operator report")|tojson }},
         incompleteTitle: {{ _("Incomplete report")|tojson }},
         closeWithDiscrepancies: {{ _("Close counting with discrepancies? A discrepancy case will open for shortfalls / extras.")|tojson }},
         closeAllMatch: {{ _("Close counting session? All reported quantities match expected inventory.")|tojson }},
@@ -104,35 +106,57 @@
         });
     }
 
-    function validateReasons() {
+    function validateDiffRows() {
         clearWarnHighlights();
-        var missing = [];
+        var missingReason = [];
+        var missingNotes = [];
         form.querySelectorAll("[data-report-row]").forEach(function (row) {
             var expected = parseInt(row.getAttribute("data-expected"), 10) || 0;
             var input = row.querySelector("[data-reported-input]");
             var reason = row.querySelector("[data-reason-select]");
+            var notes = row.querySelector("[data-notes-input]");
             var reported = parseInt(input && input.value, 10);
             if (isNaN(reported)) reported = expected;
-            if (reported !== expected && !(reason && reason.value)) {
-                row.classList.add("data-table__row--outline-warning");
-                missing.push(row.getAttribute("data-family-name") || i18n.instrument);
+            if (reported === expected) return;
+            var name = row.getAttribute("data-family-name") || i18n.instrument;
+            var bad = false;
+            if (!(reason && reason.value)) {
+                missingReason.push(name);
+                bad = true;
             }
+            if (!(notes && notes.value.trim().length >= 10)) {
+                missingNotes.push(name);
+                bad = true;
+            }
+            if (bad) row.classList.add("data-table__row--outline-warning");
         });
-        return missing;
+        return { missingReason: missingReason, missingNotes: missingNotes };
     }
 
     form.addEventListener("submit", function (event) {
         event.preventDefault();
 
-        var missing = validateReasons();
-        if (missing.length) {
-            var warnHtml =
-                "<p>" + i18n.reasonRequired + "</p>" +
-                '<div class="app-modal__audit"><p class="app-modal__audit-title">' + i18n.missingReason + "</p><ul>";
-            missing.forEach(function (name) {
-                warnHtml += "<li>" + name + "</li>";
-            });
-            warnHtml += "</ul></div>";
+        var missing = validateDiffRows();
+        if (missing.missingReason.length || missing.missingNotes.length) {
+            var warnHtml = "";
+            if (missing.missingReason.length) {
+                warnHtml +=
+                    "<p>" + i18n.reasonRequired + "</p>" +
+                    '<div class="app-modal__audit"><p class="app-modal__audit-title">' + i18n.missingReason + "</p><ul>";
+                missing.missingReason.forEach(function (name) {
+                    warnHtml += "<li>" + name + "</li>";
+                });
+                warnHtml += "</ul></div>";
+            }
+            if (missing.missingNotes.length) {
+                warnHtml +=
+                    "<p>" + i18n.notesRequired + "</p>" +
+                    '<div class="app-modal__audit"><p class="app-modal__audit-title">' + i18n.missingNotes + "</p><ul>";
+                missing.missingNotes.forEach(function (name) {
+                    warnHtml += "<li>" + name + "</li>";
+                });
+                warnHtml += "</ul></div>";
+            }
             if (window.appConfirm) {
                 window.appConfirm({
                     title: i18n.incompleteTitle,
@@ -200,17 +224,17 @@
         if (window.appConfirmProceed) window.appConfirmProceed(form);
     });
 
-    form.querySelectorAll("[data-reported-input], [data-reason-select]").forEach(function (el) {
+    form.querySelectorAll("[data-reported-input], [data-reason-select], [data-notes-input]").forEach(function (el) {
         el.addEventListener("change", function () {
-            validateReasons();
+            validateDiffRows();
         });
         el.addEventListener("input", function () {
-            validateReasons();
+            validateDiffRows();
         });
     });
 
     if (document.querySelector("[data-report-warn]")) {
-        validateReasons();
+        validateDiffRows();
     }
 })();
 </script>

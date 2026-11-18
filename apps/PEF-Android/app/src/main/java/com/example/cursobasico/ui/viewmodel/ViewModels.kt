@@ -16,6 +16,7 @@ import com.example.cursobasico.auth.AuthState
 import com.example.cursobasico.auth.LogoutOutcome
 import com.example.cursobasico.auth.SessionManager
 import com.example.cursobasico.auth.canReadSessions
+import com.example.cursobasico.auth.canUseAppHome
 import com.example.cursobasico.auth.isSupervisor
 import com.example.cursobasico.core.DashboardData
 import com.example.cursobasico.core.DiscrepancyCharts
@@ -172,7 +173,7 @@ class DashboardViewModel(
     fun load() {
         if (loading) return
         val user = sessionManager.loggedInUser()
-        if (user == null || !user.canReadSessions) {
+        if (user == null || !user.canUseAppHome) {
             _state.value = UiState.NotPermitted
             return
         }
@@ -238,6 +239,10 @@ class SessionDetailViewModel(
 ) : ViewModel() {
     private val _state = MutableStateFlow<UiState<SessionDetailDto>>(UiState.Loading)
     val state: StateFlow<UiState<SessionDetailDto>> = _state.asStateFlow()
+    private val _resolveBusy = MutableStateFlow(false)
+    val resolveBusy: StateFlow<Boolean> = _resolveBusy.asStateFlow()
+    private val _resolveError = MutableStateFlow<AppError?>(null)
+    val resolveError: StateFlow<AppError?> = _resolveError.asStateFlow()
     private var loading = false
 
     fun load() {
@@ -248,6 +253,29 @@ class SessionDetailViewModel(
         viewModelScope.launch {
             _state.value = sessions.getSession(sessionId).toUiState()
             loading = false
+        }
+    }
+
+    fun consumeResolveError() {
+        _resolveError.value = null
+    }
+
+    fun resolveDiscrepancy(discrepancyId: String, notes: String, outcome: String, onDone: (Boolean) -> Unit) {
+        if (_resolveBusy.value) return
+        _resolveBusy.value = true
+        _resolveError.value = null
+        viewModelScope.launch {
+            when (val result = sessions.resolveDiscrepancy(sessionId, discrepancyId, notes, outcome)) {
+                is ApiResult.Success -> {
+                    _state.value = sessions.getSession(sessionId).toUiState()
+                    onDone(true)
+                }
+                is ApiResult.Failure -> {
+                    _resolveError.value = result.error
+                    onDone(false)
+                }
+            }
+            _resolveBusy.value = false
         }
     }
 }
@@ -336,6 +364,16 @@ class AlertsViewModel(
     val actionError: StateFlow<AppError?> = _actionError.asStateFlow()
     val unread: StateFlow<Int?> = notifications.unread
 
+    init {
+        // A1: while Alerts stays open, poll so OP→floor discrepancy notices appear without push/FCM.
+        viewModelScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(15_000)
+                refreshQuietly()
+            }
+        }
+    }
+
     fun setFilters(filters: AlertFilters) {
         if (filters == _filters.value) return
         _filters.value = filters
@@ -354,6 +392,27 @@ class AlertsViewModel(
             val from = f.range.days?.let { LocalDate.now().minusDays(it).toString() }
             val result = notifications.list(status = f.status, type = f.type, from = from)
             if (f == _filters.value) _notifications.value = result.toUiState { it.items.isEmpty() }
+        }
+    }
+
+    private suspend fun refreshQuietly() {
+        val f = _filters.value
+        val previous = _notifications.value
+        if (previous is UiState.Success) {
+            _notifications.value = previous.copy(refreshing = true)
+        }
+        val from = f.range.days?.let { LocalDate.now().minusDays(it).toString() }
+        val result = notifications.list(status = f.status, type = f.type, from = from)
+        if (f == _filters.value) {
+            _notifications.value = when (result) {
+                is ApiResult.Success -> result.toUiState { it.items.isEmpty() }
+                is ApiResult.Failure -> if (previous is UiState.Success) previous else result.toUiState { false }
+            }
+        }
+        notifications.refreshUnreadCount()
+        if (sessionManager.loggedInUser()?.canReadSessions == true) {
+            val hold = sessions.listSessions(SessionStatus.ON_HOLD)
+            if (hold is ApiResult.Success) _onHold.value = hold.toUiState { it.isEmpty() }
         }
     }
 

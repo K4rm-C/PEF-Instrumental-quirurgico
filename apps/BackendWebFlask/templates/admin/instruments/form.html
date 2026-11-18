@@ -95,6 +95,38 @@
                 </select>
                 <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
             </div>
+            <div class="family-examples family-examples--spd" id="family-examples"
+                 data-family-examples-host
+                 data-examples-url-template="{{ family_examples_preview_url_template|default('', true) }}"
+                 data-empty-label="{{ _('No reference image for this family.') }}"
+                 data-view-label="{{ _('View image') }}"
+                 data-close-label="{{ _('Close') }}"
+                 data-section-title="{{ _('Reference examples') }}">
+                <h2 class="family-examples__title">{{ _("Reference examples") }}</h2>
+                <ul class="family-examples__list" data-family-examples-list>
+                    {% for example in family_examples|default([]) %}
+                    <li class="family-examples__item">
+                        <a class="family-examples__thumb" href="#family-example-view-{{ example.id }}" title="{{ _('View image') }}">
+                            <img src="{{ example.image_url }}" alt="{{ example.example_text or _('Family reference image') }}" loading="lazy">
+                        </a>
+                        {% if example.example_text %}
+                        <div class="family-examples__meta"><span class="family-examples__text">{{ example.example_text }}</span></div>
+                        {% endif %}
+                    </li>
+                    {% else %}
+                    <li class="family-examples__empty text-muted" data-family-examples-empty>{{ _("No reference image for this family.") }}</li>
+                    {% endfor %}
+                </ul>
+                {% for example in family_examples|default([]) %}
+                <div class="family-examples__overlay" id="family-example-view-{{ example.id }}" role="dialog" aria-modal="true" aria-label="{{ _('Reference image') }}">
+                    <div class="family-examples__overlay-panel">
+                        <img src="{{ example.image_url }}" alt="{{ example.example_text or _('Family reference image') }}">
+                        {% if example.example_text %}<p class="family-examples__overlay-caption">{{ example.example_text }}</p>{% endif %}
+                        <a class="btn btn--secondary" href="#family-examples">{{ _("Close") }}</a>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
         </div>
         <div class="form-field">
             <label class="form-field__label" for="instrument-cycle-status">{{ _("Cycle Status") }}</label>

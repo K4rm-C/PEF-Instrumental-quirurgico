@@ -236,9 +236,17 @@ def admin_family_example_add(family_id):
 @web_bp.post('/admin/instrument-families/<family_id>/examples/<example_id>/edit')
 @require_role(ADMIN)
 def admin_family_example_edit(family_id, example_id):
-    payload = {'example_text': request.form.get('example_text', ''), 'sort_order': request.form.get('sort_order', '0')}
-    return _family_example_action(family_id, lambda: api.put(f'/families/{family_id}/examples/{example_id}', payload),
-                                  gettext('Example saved.'))
+    """Update text/order and optionally replace the image (old object removed from storage)."""
+    payload = {
+        'example_text': request.form.get('example_text', ''),
+        'sort_order': request.form.get('sort_order', '0'),
+        'file': request.files.get('image'),
+    }
+    return _family_example_action(
+        family_id,
+        lambda: api.put(f'/families/{family_id}/examples/{example_id}', payload),
+        gettext('Example saved.'),
+    )
 
 
 @web_bp.post('/admin/instrument-families/<family_id>/examples/<example_id>/delete')
@@ -249,14 +257,24 @@ def admin_family_example_delete(family_id, example_id):
 
 
 @web_bp.get('/admin/instrument-families/<family_id>/examples/<example_id>/image')
-@require_role(ADMIN)
+@require_role(ADMIN, SUPERVISOR)
 def admin_family_example_image(family_id, example_id):
+    """Admin manages uploads; SPD may view the reference image on instrument forms."""
     document, response = _fetch(f'/families/{family_id}/examples/{example_id}/image')
     if response is not None:
         return response
     if document is None:
         abort(404)
     return _file_response(document)
+
+
+@web_bp.get('/admin/instrument-families/<family_id>/examples/preview')
+@require_role(ADMIN, SUPERVISOR)
+def admin_family_examples_preview(family_id):
+    """JSON list of reference images for SPD instrument form (view-only)."""
+    from flask import jsonify
+
+    return jsonify({'family_id': family_id, 'examples': _family_examples_for_view(family_id)})
 
 
 # --- Instruments (administrator and SPD supervisor) ----------------------------------------
@@ -297,6 +315,20 @@ def _instrument_payload():
     }
 
 
+def _family_examples_for_view(family_id):
+    """Reference photos for SPD instrument form (view-only overlay; no replace/delete URLs)."""
+    if not family_id:
+        return []
+    family, _response = _fetch(f'/families/{family_id}')
+    rows = present.family_examples(family_id, (family or {}).get('examples') or [])
+    return [{
+        'id': row['id'],
+        'example_text': row.get('example_text'),
+        'sort_order': row.get('sort_order'),
+        'image_url': row.get('image_url'),
+    } for row in rows if row.get('image_url')]
+
+
 def _render_instrument_form(form_mode, instrument=None, values=None, form_error=None, status=200,
                             instrument_id=None):
     catalogs = _catalogs('active_families', 'cycle_statuses')
@@ -310,6 +342,8 @@ def _render_instrument_form(form_mode, instrument=None, values=None, form_error=
         form_values.update(values)
         if is_edit and instrument:
             form_values['internal_code'] = instrument['internal_code']
+    family_id = form_values.get('instrument_family') or (current_family or {}).get('id')
+    family_examples = _family_examples_for_view(family_id)
     return _page(
         'admin/instruments/form.html',
         form_mode=form_mode,
@@ -319,6 +353,11 @@ def _render_instrument_form(form_mode, instrument=None, values=None, form_error=
         cycle_statuses=[{'value': item['code'], 'label': present.cycle_label(item)}
                         for item in catalogs['cycle_statuses']],
         cycle_events=present.cycle_events(instrument),
+        family_examples=family_examples,
+        family_example_image_url=(family_examples[0]['image_url'] if family_examples else None),
+        family_examples_preview_url_template=url_for(
+            'web.admin_family_examples_preview', family_id='00000000-0000-4000-8000-000000000000',
+        ).replace('00000000-0000-4000-8000-000000000000', '{family_id}'),
         save_url=(url_for('web.admin_instrument_edit', instrument_id=instrument_id) if is_edit
                   else url_for('web.admin_instrument_new')),
         cancel_url=url_for('web.admin_instruments'),
@@ -531,7 +570,10 @@ def _int_list(name):
 
 
 def _submitted_procedure():
-    """(payload for Administración local, values to re-render the form). Kit links are not sent (D-4)."""
+    """(payload for Administración local, values to re-render the form).
+
+    Kit links are SPD-owned; Admin may only submit default_kit_id among existing links.
+    """
     phase_ids = request.form.getlist('phase[]')
     phase_indices = _int_list('phase_row_index[]')
     sort_orders = request.form.getlist('sort_order[]')
@@ -550,7 +592,11 @@ def _submitted_procedure():
                             'row_index': row_index})
 
     procedure = {'code': request.form.get('code', '').strip(), 'name': request.form.get('name', '').strip()}
-    return {**procedure, 'phases': phases}, (procedure, form_phases)
+    default_kit_id = (request.form.get('default_kit_id') or '').strip() or None
+    payload = {**procedure, 'phases': phases}
+    if default_kit_id:
+        payload['default_kit_id'] = default_kit_id
+    return payload, (procedure, form_phases)
 
 
 def _render_procedure_form(form_mode, procedure=None, values=None, form_error=None, status=200,
@@ -773,11 +819,15 @@ def admin_users():
         return response
     data = data or {}
     catalogs = _catalogs('roles')
+    institution, _ = _fetch('/institution', {})
     filters = data.get('filters') or {key: args[key] for key in ('search', 'role', 'status')}
     pagination = present.pagination_context(data, 'web.admin_users', filters)
     roles = {}
     for role in catalogs['roles']:
         roles.setdefault(role['code'], present.role_label(role['code'], role['description']))
+    institution_filter = []
+    if institution and institution.get('id'):
+        institution_filter = [{'value': institution['id'], 'label': institution.get('name') or institution['id']}]
     return _page(
         'admin/users/list.html',
         users=present.user_rows(data.get('items', [])),
@@ -785,6 +835,7 @@ def admin_users():
         users_total_count=pagination['total_count'],
         filters=filters,
         role_filter=[{'value': code, 'label': label} for code, label in roles.items()],
+        institution_filter=institution_filter,
         new_user_url=url_for('web.admin_user_new'),
         **pagination,
     )
@@ -814,6 +865,12 @@ def _render_user_form(form_mode, user=None, values=None, form_error=None, status
             'assigned_room_ids': values['room_ids'], 'status': values['status'],
         })
     institution, _ = _fetch('/institution', {})
+    # Single-institution scope (D-2): only the admin's institution is listed and pre-selected.
+    institutions = []
+    if institution and institution.get('id'):
+        institutions = [{'value': institution['id'], 'label': institution.get('name') or institution['id']}]
+        if not form_values.get('institution'):
+            form_values['institution'] = institution['id']
     parameters, _ = _fetch('/settings', {})
     password_min_length = next((item['value'] for item in (parameters or {}).get('items', [])
                                 if item['key'] == 'password_min_length'), 8)
@@ -825,6 +882,7 @@ def _render_user_form(form_mode, user=None, values=None, form_error=None, status
         form_mode=form_mode,
         is_edit=is_edit,
         user=form_values,
+        institutions=institutions,
         institution_name=(institution or {}).get('name', ''),
         password_min_length=password_min_length,
         roles=[{'value': code, 'label': label} for code, label in roles.items()],

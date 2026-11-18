@@ -61,7 +61,10 @@ def _cycle_events(db_conn, piece_id):
 
 
 def _disc(db_conn, disc_id):
-    return db_conn.execute(text("SELECT resolved, description FROM discrepancy WHERE id = :d"), {"d": disc_id}).one()
+    return db_conn.execute(
+        text("SELECT resolved, description, suggested_resolution FROM discrepancy WHERE id = :d"),
+        {"d": disc_id},
+    ).one()
 
 
 def _audits(db_conn, session_id):
@@ -91,8 +94,10 @@ def test_lost_from_each_allowed_origin(client, world, rdata, as_user, db_conn, o
     active, released_at = _reservation(db_conn, own_res)
     assert active is False and released_at is not None
     assert _cycle_events(db_conn, piece) == [("lost", rdata.cr, rdata.cr_op, "SPD discrepancy resolution: lost")]
-    resolved, description = _disc(db_conn, rdata.d1)
-    assert resolved is True and description.endswith("\nSPD resolution (marked lost): Checked tray and room")
+    resolved, description, suggested = _disc(db_conn, rdata.d1)
+    assert resolved is True
+    assert description == "Extra on Family a: expected 2, reported 3."
+    assert suggested == "SPD resolution (marked lost): Checked tray and room"
     assert _audits(db_conn, rdata.cr) == ["discrepancy.resolve"]
     # Nothing else changed: the sibling, its reservation and every other piece/reservation.
     after = ds03_snapshot(db_conn)

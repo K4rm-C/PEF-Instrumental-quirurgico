@@ -31,10 +31,15 @@ from repositories import session_repository as repo
 logger = logging.getLogger("session.auth")
 
 ACCESS_TOKEN_TYPE = "access"
-# Only these roles have clinical access to Session API; it_admin and others get 403.
+# Clinical Session API: OP + SPD (portal) + or_charge (App). it_admin and others get 403.
 OPERATOR_ROLE_CODE = "station_operator"
 SUPERVISOR_ROLE_CODE = "spd_supervisor"
-SESSION_ROLE_CODES = (OPERATOR_ROLE_CODE, SUPERVISOR_ROLE_CODE)
+OR_CHARGE_ROLE_CODE = "or_charge"
+SESSION_ROLE_CODES = (OPERATOR_ROLE_CODE, SUPERVISOR_ROLE_CODE, OR_CHARGE_ROLE_CODE)
+# Institution-wide clinical reads (SPD portal + App floor).
+INSTITUTION_READER_ROLES = (SUPERVISOR_ROLE_CODE, OR_CHARGE_ROLE_CODE)
+# Discrepancy resolve: SPD portal + App floor (or_charge). Safe close stays SPD-only.
+REVIEW_WRITER_ROLES = (SUPERVISOR_ROLE_CODE, OR_CHARGE_ROLE_CODE)
 REDIS_JWT_KEY = "auth:jwt:{jti}"
 
 

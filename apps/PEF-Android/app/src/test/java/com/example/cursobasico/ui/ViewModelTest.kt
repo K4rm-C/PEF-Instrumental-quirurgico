@@ -148,7 +148,7 @@ class ViewModelTest {
 
     @Test
     fun `discrepancias del dashboard solo para supervisor`() {
-        routes.on("POST", "/api/v1/auth/login") { json(Fixtures.loginJson().replace("\"spd_supervisor\"", "\"station_operator\"")) }
+        routes.on("POST", "/api/v1/auth/login") { json(Fixtures.loginJson().replace("\"or_charge\"", "\"station_operator\"")) }
         val network = server.network()
         runBlocking { network.sessionManager.login("op@example.test", "pw") }
         val vm = com.example.cursobasico.ui.viewmodel.DashboardViewModel(

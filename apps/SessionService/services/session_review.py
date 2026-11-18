@@ -182,21 +182,21 @@ class SessionReviewService:
                                                  "reason": "physical_shortage_needs_piece_outcome",
                                                  "allowed": ["lost", "recovered"]})
 
-            description = f"{found['description']}\nSPD resolution ({OUTCOME_LABELS[outcome]}): {notes}"
+            # A1: description stays the Operator note; SPD writes suggested_resolution.
+            suggested = f"SPD resolution ({OUTCOME_LABELS[outcome]}): {notes}"
             if outcome in OUTCOMES_NEEDING_PIECE and instrument_id is None and found["family_id"] is not None:
                 instrument_id = self._piece_of_family(connection, session, found, outcome, tenant)
                 if instrument_id is None and outcome == "recovered":
-                    description += "\nNote: no lost piece of this family was found to reactivate."
+                    suggested += "\nNote: no lost piece of this family was found to reactivate."
                 if instrument_id is None and outcome == "lost":
-                    description += "\nNote: no piece of this family in service was found to mark lost."
+                    suggested += "\nNote: no piece of this family in service was found to mark lost."
             if instrument_id is not None:
                 self._apply_piece_outcome(connection, session, found, outcome, instrument_id, tenant, now)
 
-            # DS04 §1.3.7: no resolution-notes column; the untranslated text is appended to description.
             repo.update_discrepancy(connection, discrepancy_id, {
                 "resolved": True,
                 "resolved_at": now,
-                "description": description,
+                "suggested_resolution": suggested,
                 "updated_at": now,
             })
             open_remaining = repo.count_open_discrepancies(connection, session_id)

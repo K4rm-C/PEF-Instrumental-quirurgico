@@ -5,8 +5,8 @@ import kotlinx.serialization.Serializable
 
 /*
  * Reporte de supervisor de SessionService (apps/SessionService/services/session_reports.py -> summary), solo los
- * campos que usa la app. Ruta publicada: GET /api/v1/sessions/reports/summary?from=YYYY-MM-DD (spd_supervisor; el
- * resto de roles recibe 403). Agregados de solo lectura calculados por el backend.
+ * campos que usa la app. Ruta publicada: GET /api/v1/sessions/reports/summary?from=YYYY-MM-DD (or_charge /
+ * spd_supervisor; el resto de roles recibe 403). Agregados de solo lectura calculados por el backend.
  */
 @Serializable
 data class ReportSummaryDto(

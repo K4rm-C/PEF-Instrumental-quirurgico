@@ -40,7 +40,8 @@ SERVICE_KINDS = {"down": "is not available", "recovered": "is available again"}
 STATION_KINDS = {"heartbeat_lost": "stopped reporting", "camera_error": "reported a camera error"}
 MESSAGES = {
     "session_scheduled": "Counting session {session_label} has been scheduled for you.",
-    "discrepancy_pending": "Counting session {session_label} has open discrepancies waiting for SPD review.",
+    "discrepancy_pending": "Counting session {session_label} has open discrepancies waiting for review"
+                           "{operator_clause}{note_clause}.",
     "correction_required": "Counting session {session_label} requires correction: its discrepancies are under SPD review.",
     "discrepancy_resolved": "A discrepancy of counting session {session_label} was resolved by SPD.",
     "session_closed": "SPD confirmed the safe close of counting session {session_label}.",
@@ -48,7 +49,8 @@ MESSAGES = {
     "session_unresolved": "Counting session {session_label} was closed with an unreconciled physical shortage.",
     "station_alert": "Capture station {station_name} {station_kind}.",
     "final_count_escalated": "The Operator reported a possible missing or extra instrument in counting session "
-                             "{session_label}: there is no valid final count; SPD review is required.",
+                             "{session_label}: there is no valid final count; SPD review is required"
+                             "{operator_clause}{note_clause}.",
     "service_alert": "Component {component} {service_kind} (technical availability only).",
 }
 COLUMNS = "id, type, status, session_id, data, created_at, read_at"
@@ -60,20 +62,30 @@ def _iso(value: datetime | None) -> str | None:
 
 def item(row: dict[str, Any]) -> dict[str, Any]:
     data = row["data"] if isinstance(row["data"], dict) else {}
+    operator_name = data.get("operator_name") if isinstance(data.get("operator_name"), str) else ""
+    operator_note = data.get("operator_note") if isinstance(data.get("operator_note"), str) else ""
+    operator_clause = f" (operator: {operator_name})" if operator_name else ""
+    note_clause = f" — \"{operator_note}\"" if operator_note else ""
     return {
         "id": str(row["id"]),
         "type": row["type"],
         "status": row["status"],
         "title": TITLES[row["type"]],
-        "message": MESSAGES[row["type"]].format(session_label=data.get("session_label", ""),
-                                                station_name=data.get("station_name") or "",
-                                                station_kind=STATION_KINDS.get(data.get("kind"), ""),
-                                                component=data.get("component") or "",
-                                                service_kind=SERVICE_KINDS.get(data.get("kind"), "")),
+        "message": MESSAGES[row["type"]].format(
+            session_label=data.get("session_label", ""),
+            station_name=data.get("station_name") or "",
+            station_kind=STATION_KINDS.get(data.get("kind"), ""),
+            component=data.get("component") or "",
+            service_kind=SERVICE_KINDS.get(data.get("kind"), ""),
+            operator_clause=operator_clause,
+            note_clause=note_clause,
+        ),
         "session_id": str(row["session_id"]) if row["session_id"] else None,
-        "data": {key: data[key] for key in ("session_label", "scheduled_at", "open_discrepancies", "station_id",
-                                            "station_name", "kind", "camera_name", "error", "component", "status",
-                                            "occurred_at") if key in data},
+        "data": {key: data[key] for key in (
+            "session_label", "scheduled_at", "open_discrepancies", "operator_name", "operator_note",
+            "station_id", "station_name", "kind", "camera_name", "error", "component", "status",
+            "occurred_at",
+        ) if key in data},
         "created_at": _iso(row["created_at"]),
         "read_at": _iso(row["read_at"]),
     }

@@ -209,18 +209,73 @@ def _example(family_id, example_id):
     return family, example
 
 
+def _purge_example_media(example):
+    """Delete the object from storage and drop the media_asset row when present."""
+    asset_id = example.media_asset_id
+    if asset_id is None:
+        return
+    asset = db.get(MediaAsset, asset_id)
+    example.media_asset_id = None
+    db.flush()
+    if asset is None:
+        return
+    try:
+        storage.delete(asset.bucket, asset.object_key)
+    except storage.StorageUnavailable:
+        # Still drop the DB pointer so Admin is not stuck with a broken reference.
+        pass
+    db.delete(asset)
+
+
 def update_example(actor, family_id, example_id, payload):
+    """Update text/order; optional new `file` replaces the image and deletes the previous object."""
     family, example = _example(family_id, example_id)
     example.example_text = text(payload, 'example_text', max_length=2000, label='Example text') or None
     example.sort_order = _order(payload)
+    upload = None
+    if payload.get('file') is not None and getattr(payload.get('file'), 'filename', ''):
+        max_mb = settings.value(actor.institution_id, 'family_example_max_mb')
+        upload = storage.receive(
+            payload.get('file'), max_bytes=max_mb * 1024 * 1024, field='file',
+            allowed=settings.value(actor.institution_id, 'family_example_allowed_mime'),
+        )
+        try:
+            try:
+                stored = storage.put(upload, 'family-examples/')
+            except storage.StorageUnavailable as exc:
+                raise ApiError(503, 'storage_unavailable', 'Object storage is not available right now.') from exc
+            old_asset_id = example.media_asset_id
+            now = utc_now()
+            asset = MediaAsset(
+                gcs_uri=stored.uri, bucket=stored.bucket, object_key=stored.key,
+                content_type=upload.content_type,
+                kind='jpeg' if upload.content_type == 'image/jpeg' else 'other',
+                storage_provider=stored.provider, sha256=upload.sha256, size_bytes=upload.size,
+                created_at=now, updated_at=now,
+            )
+            db.add(asset)
+            db.flush()
+            example.media_asset_id = asset.id
+            db.flush()
+            if old_asset_id:
+                old = db.get(MediaAsset, old_asset_id)
+                if old is not None:
+                    try:
+                        storage.delete(old.bucket, old.object_key)
+                    except storage.StorageUnavailable:
+                        pass
+                    db.delete(old)
+        finally:
+            upload.discard()
     audit.record('UPDATE_INSTRUMENT_FAMILY', 'instrument_family', family.id)
     db.commit()
     return get_family(family.id)
 
 
 def delete_example(actor, family_id, example_id):
-    """The example row goes away; the stored image and its media_asset are kept (traceability)."""
+    """Remove the example row and delete its object from storage (bucket/local)."""
     family, example = _example(family_id, example_id)
+    _purge_example_media(example)
     db.delete(example)
     audit.record('UPDATE_INSTRUMENT_FAMILY', 'instrument_family', family.id)
     db.commit()

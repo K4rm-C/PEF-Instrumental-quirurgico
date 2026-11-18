@@ -185,15 +185,24 @@ def test_unknown_or_malformed_ids_are_404(client, world, admin):
 
 def test_update_user_and_role_changes_apply_to_the_next_request(client, world, admin, db_conn, created):
 	user_token = bearer(login(client, created["email"], NEW_PASSWORD).get_json()["access_token"])
+	# OP ⟂ SPD/Admin hard limit: Admin+SPD is allowed; OP+SPD is rejected.
+	blocked = client.put(
+		f"{API}/users/{created['id']}",
+		json={"name": "Blocked", "email": f"blocked.{world.tag}@auth-test.invalid",
+			  "institution_id": str(world.institution_a),
+			  "role_codes": ["spd_supervisor", "station_operator"], "active": True},
+		headers=admin,
+	)
+	assert blocked.status_code == 422 and blocked.get_json()["details"]["reason"] == "incompatible_roles"
 	body = {"name": "Renamed", "email": f"renamed.{world.tag}@auth-test.invalid", "institution_id": str(world.institution_a),
-			"role_codes": ["spd_supervisor", "station_operator"], "active": True}
+			"role_codes": ["spd_supervisor", "it_admin"], "active": True}
 	response = client.put(f"{API}/users/{created['id']}", json=body, headers=admin)
 	assert response.status_code == 200
 	assert response.get_json()["name"] == "Renamed"
-	assert [role["code"] for role in response.get_json()["roles"]] == ["spd_supervisor", "station_operator"]
+	assert set(role["code"] for role in response.get_json()["roles"]) == {"spd_supervisor", "it_admin"}
 	assert audit_actions(db_conn, created["id"]) == ["CHANGE_USER_ROLES", "CREATE_USER", "UPDATE_USER"]
 	# Same token, no new login: roles come from PostgreSQL on every request.
-	assert client.get(f"{API}/permissions", headers=user_token).get_json()["roles"] == ["spd_supervisor", "station_operator"]
+	assert set(client.get(f"{API}/permissions", headers=user_token).get_json()["roles"]) == {"spd_supervisor", "it_admin"}
 	assigned = client.put(f"{API}/users/{created['id']}/roles", json={"role_codes": ["it_admin"]}, headers=admin)
 	assert assigned.status_code == 200 and [r["code"] for r in assigned.get_json()["roles"]] == ["it_admin"]
 	assert client.get(f"{API}/permissions", headers=user_token).get_json()["roles"] == ["it_admin"]

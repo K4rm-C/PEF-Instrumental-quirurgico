@@ -16,16 +16,16 @@ object Fixtures {
     const val SESSION_ID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
     const val OPERATOR_ID = "11111111-2222-4333-8444-555555555555"
 
-    fun user(roles: List<String> = listOf("spd_supervisor"), name: String = "Test Supervisor") = UserDto(
+    fun user(roles: List<String> = listOf("or_charge"), name: String = "Test Floor Supervisor") = UserDto(
         id = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
         name = name,
-        email = "supervisor@example.test",
+        email = "floor@example.test",
         institutionId = "99999999-8888-4777-8666-555555555555",
         roles = roles,
     )
 
-    fun userJson(roles: List<String> = listOf("spd_supervisor"), locale: String = "es-MX", theme: String = "dark") = """
-        {"id":"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee","name":"Test Supervisor","email":"supervisor@example.test",
+    fun userJson(roles: List<String> = listOf("or_charge"), locale: String = "es-MX", theme: String = "dark") = """
+        {"id":"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee","name":"Test Floor Supervisor","email":"floor@example.test",
          "institution_id":"99999999-8888-4777-8666-555555555555",
          "ui_preferences":{"locale":"$locale","theme":"$theme"},
          "roles":[${roles.joinToString(",") { "\"$it\"" }}]}
@@ -41,7 +41,7 @@ object Fixtures {
     fun error(error: String, message: String, correlationId: String = "corr-test-1") =
         """{"error":"$error","message":"$message","correlation_id":"$correlationId","details":{}}"""
 
-    fun storedSession(access: String = "access-1", refresh: String = "refresh-1", roles: List<String> = listOf("spd_supervisor")) =
+    fun storedSession(access: String = "access-1", refresh: String = "refresh-1", roles: List<String> = listOf("or_charge")) =
         StoredSession(access, refresh, Long.MAX_VALUE, user(roles))
 
     fun summaryJson(

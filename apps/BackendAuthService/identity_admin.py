@@ -66,6 +66,20 @@ ROLE_CREATE_FIELDS = {"code": "string", "description": "string"}
 ROLE_UPDATE_FIELDS = {"description": "string"}
 
 
+def _assert_role_combination(codes: list[str]) -> None:
+	"""Hard limits: OP cannot share SPD/Admin; App (or_charge) may combine with any."""
+	has_op = OPERATOR in codes
+	has_admin = ADMIN in codes
+	has_spd = SUPERVISOR in codes
+	if has_op and (has_admin or has_spd):
+		raise _invalid(
+			"incompatible_roles",
+			"A station operator account cannot also have SPD or Admin. "
+			"At most Operator + Floor Supervisor (App).",
+			"role_codes",
+		)
+
+
 def _invalid(reason: str, message: str, field: str | None = None, status: int = 422) -> ApiError:
 	details: dict[str, Any] = {"reason": reason}
 	if field:
@@ -261,6 +275,7 @@ def register_identity_admin(api_bp: Blueprint, core: ModuleType, require_bearer:
 		codes = list(dict.fromkeys(code.strip() for code in (payload.get("role_codes") or []) if code and code.strip()))
 		if not codes:
 			raise _invalid("roles_required", "Assign at least one role", "role_codes")
+		_assert_role_combination(codes)
 		roles = role_ids(connection, institution_id, codes)
 		return name, email, institution_id, roles
 
@@ -420,6 +435,7 @@ def register_identity_admin(api_bp: Blueprint, core: ModuleType, require_bearer:
 			codes = list(dict.fromkeys(code.strip() for code in (payload.get("role_codes") or []) if code and code.strip()))
 			if not codes:
 				raise _invalid("roles_required", "Assign at least one role", "role_codes")
+			_assert_role_combination(codes)
 			roles = role_ids(connection, str(current["institution_id"]), codes)
 			guard_administrators(connection, current, will_be_active=bool(current["active"]), keeps_admin=ADMIN in roles,
 								 new_institution=str(current["institution_id"]))

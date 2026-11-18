@@ -29,7 +29,7 @@ import org.junit.Test
  * (Retrofit + OkHttp + SessionManager). Se OMITE si no hay entorno configurado:
  *
  *   PEF_IT_BASE_URL=http://127.0.0.1:27080/
- *   PEF_IT_SUPERVISOR_EMAIL / PEF_IT_SUPERVISOR_PASSWORD   (rol spd_supervisor)
+ *   PEF_IT_SUPERVISOR_EMAIL / PEF_IT_SUPERVISOR_PASSWORD   (rol or_charge; p. ej. floor@instrumed.com)
  *   PEF_IT_ADMIN_EMAIL / PEF_IT_ADMIN_PASSWORD             (rol it_admin, opcional)
  *
  * Las credenciales nunca se guardan en el repositorio. Solo lee datos y hace login/refresh/logout:

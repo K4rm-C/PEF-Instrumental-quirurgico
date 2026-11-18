@@ -191,6 +191,8 @@ def _discrepancy_view(disc, family, reason_code, origin_event_code):
             expected=disc.expected_quantity, actual=disc.detected_quantity,
             stored_description=disc.description,
         ),
+        # A1: SPD resolution is stored separately so the Operator bubble stays intact.
+        'suggested_resolution': disc.suggested_resolution,
         # detected_quantity holds a reported count when the origin is a manual report.
         'quantity_label': N_('Reported') if source == 'reported' else N_('Detected'),
         'resolved': disc.resolved,

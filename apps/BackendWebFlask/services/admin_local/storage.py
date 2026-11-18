@@ -220,6 +220,53 @@ def get(bucket, key):
     return path.read_bytes()
 
 
+def delete(bucket, key):
+    """Remove a stored object (family-example delete/replace). Missing object is not an error."""
+    if not bucket or not key:
+        return
+    if bucket != 'local':
+        try:
+            from botocore.exceptions import ClientError
+        except ImportError as exc:  # pragma: no cover
+            raise StorageUnavailable('boto3 is not installed') from exc
+        try:
+            _s3().delete_object(Bucket=bucket, Key=key)
+        except ClientError as exc:
+            code = (exc.response or {}).get('Error', {}).get('Code', '')
+            if code in ('404', 'NoSuchKey', 'NotFound', 'NoSuchBucket'):
+                return
+            raise StorageUnavailable(type(exc).__name__) from exc
+        return
+    path = (_local_root() / key).resolve()
+    root = _local_root().resolve()
+    if root not in path.parents:
+        return
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        raise StorageUnavailable(str(exc) or type(exc).__name__) from exc
+
+
+def put_bytes(data: bytes, prefix: str, content_type: str):
+    """Store raw bytes under `prefix` (seed / non-Werkzeug uploads)."""
+    upload = None
+    handle = tempfile.NamedTemporaryFile(prefix='pef-admin-seed-', delete=False)
+    try:
+        with handle:
+            handle.write(data)
+        digest = hashlib.sha256(data).hexdigest()
+        upload = Upload(handle.name, len(data), digest, content_type, 'seed.bin')
+        return put(upload, prefix), upload.sha256, upload.size
+    finally:
+        if upload is not None:
+            upload.discard()
+        else:
+            try:
+                os.unlink(handle.name)
+            except OSError:
+                pass
+
+
 def ping():
     """Health of the configured backend for the dashboard (RF-AD-01): (ok, detail)."""
     try:

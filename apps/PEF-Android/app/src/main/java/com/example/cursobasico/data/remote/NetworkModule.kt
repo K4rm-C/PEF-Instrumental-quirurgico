@@ -51,15 +51,34 @@ class DefaultHeadersInterceptor(private val debugLogging: Boolean) : Interceptor
             .header("Accept", "application/json")
             .header("X-Correlation-ID", correlationId)
             .build()
-        val response = chain.proceed(request)
-        if (debugLogging) {
-            try {
-                Log.d("PefHttp", "${request.method} ${request.url.encodedPath} -> ${response.code} cid=$correlationId")
-            } catch (_: RuntimeException) {
-                // android.util.Log no existe en pruebas JVM.
+        return try {
+            val response = chain.proceed(request)
+            if (debugLogging) {
+                try {
+                    Log.d(
+                        "PefHttp",
+                        "${request.method} ${request.url.encodedPath} -> ${response.code} cid=$correlationId",
+                    )
+                } catch (_: RuntimeException) {
+                    // android.util.Log no existe en pruebas JVM.
+                }
             }
+            response
+        } catch (e: java.io.IOException) {
+            // Connect/timeout failures never reach the success log above — surface them so
+            // "No connection" without PefHttp lines is diagnosable (usually missing adb reverse).
+            if (debugLogging) {
+                try {
+                    Log.w(
+                        "PefHttp",
+                        "${request.method} ${request.url.host}:${request.url.port}${request.url.encodedPath} " +
+                            "FAILED ${e.javaClass.simpleName}: ${e.message} cid=$correlationId",
+                    )
+                } catch (_: RuntimeException) {
+                }
+            }
+            throw e
         }
-        return response
     }
 }
 

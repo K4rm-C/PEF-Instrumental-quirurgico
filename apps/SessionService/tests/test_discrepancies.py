@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 
 BASE = "/api/v1/sessions"
 FIELDS = ["id", "reason_code", "family_id", "family_code", "expected_quantity", "detected_quantity", "resolved",
-          "resolved_at", "origin_event_id", "description"]
+          "resolved_at", "origin_event_id", "description", "suggested_resolution"]
 XSI_NIL = "{http://www.w3.org/2001/XMLSchema-instance}nil"
 
 
@@ -24,13 +24,15 @@ def test_discrepancies_order_and_values(client, world, as_user):
         "family_code": f"zz_ses_{world.tag}_a", "expected_quantity": 2, "detected_quantity": 1,
         "resolved": False, "resolved_at": None, "origin_event_id": str(world.events["manual_modern"]),
         "description": "Faltante en Portaagujas: esperado 2, reportado 1.",
+        "suggested_resolution": None,
     }
     assert items[1]["reason_code"] is None and items[1]["family_id"] is None and items[1]["family_code"] is None
     resolved = items[2]
     assert resolved["resolved"] is True and resolved["resolved_at"] == "2026-10-01T13:00:00Z"
     assert resolved["reason_code"] == "surplus" and resolved["origin_event_id"] is None
-    # Stored text verbatim (no translation, no reinterpretation of the legacy resolution note).
-    assert resolved["description"] == "Extra on Family b.\nSPD resolution (resolved): encontrada en charola auxiliar"
+    # A1: Operator note stays in description; SPD text is suggested_resolution (verbatim, no i18n).
+    assert resolved["description"] == "Extra on Family b."
+    assert resolved["suggested_resolution"] == "SPD resolution (resolved): encontrada en charola auxiliar"
 
 
 def test_discrepancies_operator_owner(client, world, as_user):
@@ -51,7 +53,8 @@ def test_discrepancies_xml(client, world, as_user):
     assert [c.tag for c in root[0]] == FIELDS
     assert root[0].find("resolved_at").get(XSI_NIL) == "true"
     assert root[0].findtext("resolved") == "false"
-    assert root[2].findtext("description") == "Extra on Family b.\nSPD resolution (resolved): encontrada en charola auxiliar"
+    assert root[2].findtext("description") == "Extra on Family b."
+    assert root[2].findtext("suggested_resolution") == "SPD resolution (resolved): encontrada en charola auxiliar"
 
 
 def test_discrepancies_cross_tenant(client, world, as_user):

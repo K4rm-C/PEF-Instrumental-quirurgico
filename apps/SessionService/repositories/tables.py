@@ -76,6 +76,7 @@ discrepancy = Table(
     "discrepancy", metadata,
     Column("id", UUID(as_uuid=True), primary_key=True),
     Column("description", Text, nullable=False),
+    Column("suggested_resolution", Text),  # A1: SPD resolution; description stays Operator note
     Column("resolved", Boolean, nullable=False),
     Column("resolved_at", TIMESTAMP(timezone=True)),
     Column("reason_id", UUID(as_uuid=True)),

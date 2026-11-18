@@ -8,7 +8,7 @@ import kotlinx.serialization.json.JsonObject
  * Representación `expand=detail` de SessionService (apps/SessionService/services/session_snapshot.py):
  *   GET /api/v1/sessions?expand=detail[&status=a,b]   -> List<SessionSummaryDto>
  *   GET /api/v1/sessions/{id}?expand=detail            -> SessionDetailDto
- * Un supervisor (spd_supervisor) ve las sesiones de su institución; un operador solo las suyas.
+ * Un supervisor de piso (or_charge) ve las sesiones de su institución; un operador solo las suyas.
  */
 
 /** Códigos de estado definidos por el backend (STATUS_CODES). La app nunca crea transiciones. */
@@ -148,6 +148,20 @@ data class SessionDetailDto(
     @SerialName("surgical_team") val surgicalTeam: List<TeamMemberDto> = emptyList(),
     val contingency: JsonObject? = null,
     val escalation: JsonObject? = null,
+)
+
+@Serializable
+data class ResolveDiscrepancyRequest(
+    val notes: String,
+    val outcome: String,
+)
+
+@Serializable
+data class ResolveDiscrepancyResult(
+    @SerialName("discrepancy_id") val discrepancyId: String,
+    @SerialName("session_id") val sessionId: String,
+    @SerialName("open_remaining") val openRemaining: Int = 0,
+    @SerialName("session_status_code") val sessionStatusCode: String? = null,
 )
 
 /**

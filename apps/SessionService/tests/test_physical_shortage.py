@@ -57,8 +57,11 @@ def test_a_note_cannot_resolve_a_physical_shortage(client, shortage, as_user, db
     body = response.get_json()
     assert response.status_code == 409 and body["details"]["reason"] == "physical_shortage_needs_piece_outcome"
     assert body["details"]["allowed"] == ["lost", "recovered"]
-    row = db_conn.execute(text("SELECT resolved, description FROM discrepancy WHERE id = :d"), {"d": shortage.short}).one()
-    assert row[0] is False and "SPD resolution" not in row[1]                    # nothing written
+    row = db_conn.execute(
+        text("SELECT resolved, description, suggested_resolution FROM discrepancy WHERE id = :d"),
+        {"d": shortage.short},
+    ).one()
+    assert row[0] is False and row[2] is None and "SPD resolution" not in (row[1] or "")
     assert state(db_conn, shortage.aw) == "correction_required"
 
 
@@ -69,8 +72,9 @@ def test_a_note_still_resolves_a_surplus(client, rdata, as_user):
 def test_lost_records_the_incident_and_keeps_it_traceable(client, shortage, as_user, db_conn):
     response = resolve(client, as_user, shortage.aw, shortage.short, "lost")
     assert response.status_code == 200 and response.get_json()["session_status_code"] == "awaiting_spd_review"
-    description = db_conn.execute(text("SELECT description FROM discrepancy WHERE id = :d"), {"d": shortage.short}).scalar_one()
-    assert "SPD resolution (marked lost): Checked the tray and the room" in description
+    suggested = db_conn.execute(text("SELECT suggested_resolution FROM discrepancy WHERE id = :d"),
+                                {"d": shortage.short}).scalar_one()
+    assert suggested == "SPD resolution (marked lost): Checked the tray and the room"
     audit = db_conn.execute(text("SELECT count(*) FROM access_audit WHERE resource_id = :s AND action = 'discrepancy.resolve'"),
                             {"s": shortage.aw}).scalar_one()
     assert audit == 1
@@ -79,8 +83,9 @@ def test_lost_records_the_incident_and_keeps_it_traceable(client, shortage, as_u
 def test_lost_without_a_piece_in_service_says_so(client, shortage, as_user, db_conn, world):
     db_conn.execute(text("UPDATE instrument SET active = FALSE WHERE family_id = :f"), {"f": world.families["a"]})
     assert resolve(client, as_user, shortage.aw, shortage.short, "lost").status_code == 200
-    description = db_conn.execute(text("SELECT description FROM discrepancy WHERE id = :d"), {"d": shortage.short}).scalar_one()
-    assert description.endswith("Note: no piece of this family in service was found to mark lost.")
+    suggested = db_conn.execute(text("SELECT suggested_resolution FROM discrepancy WHERE id = :d"),
+                                {"d": shortage.short}).scalar_one()
+    assert suggested.endswith("Note: no piece of this family in service was found to mark lost.")
 
 
 def test_close_with_a_physical_shortage_is_never_a_safe_close(client, shortage, as_user, db_conn):

@@ -83,7 +83,12 @@
                     <td>{{ model.checksum_short }}</td>
                     <td class="data-table__action-column">
                         {% if not model.active %}
+                        {% if model.class_count|default(0) > 0 %}
                         <button type="button" class="btn btn--secondary btn--small" data-modal-open="activate-vision-model-modal-{{ loop.index }}">{{ _("Activate") }}</button>
+                        {% else %}
+                        <button type="button" class="btn btn--secondary btn--small" disabled
+                                title="{{ _('Map at least one YOLO class before activating a model.') }}">{{ _("Activate") }}</button>
+                        {% endif %}
                         {% endif %}
                         <a class="btn btn--secondary btn--small" href="{{ model.edit_url }}">{{ _("Edit") }}</a>
                     </td>

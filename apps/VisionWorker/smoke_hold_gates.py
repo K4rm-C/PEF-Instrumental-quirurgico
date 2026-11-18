@@ -44,7 +44,7 @@ def main() -> None:
 
     xy = [100.0, 100.0, 200.0, 300.0]
 
-    # 1-2 live frames: no hold yet
+    # 1-2 live frames: no hold yet; table waits for seed (anti-flicker)
     for t in (0.0, 0.2):
         out, boxes = _apply_hold(
             state,
@@ -53,9 +53,10 @@ def main() -> None:
             video_t=t,
         )
         assert "FOERSTER" not in state._hold_by_family
-        assert out["FOERSTER"]["detected_quantity"] == 1
+        assert int(out["FOERSTER"]["detected_quantity"]) == 0
+        assert out["FOERSTER"].get("pending_promote") is True
 
-    # 3rd live frame seeds hold
+    # 3rd live frame seeds hold and promotes to the table
     out, _ = _apply_hold(
         state,
         counts=_counts("FOERSTER", 1),
@@ -63,6 +64,7 @@ def main() -> None:
         video_t=0.4,
     )
     assert "FOERSTER" in state._hold_by_family
+    assert int(out["FOERSTER"]["detected_quantity"]) == 1
     until_long = float(state._hold_by_family["FOERSTER"]["until"])
     assert until_long >= 0.4 + 2.4
 
@@ -429,6 +431,61 @@ def main() -> None:
     }
     _apply_hold(state_top1, counts=empty_allis, public_boxes=[orphan], video_t=0.0)
     assert "FOERSTER" not in state_top1._confusion_by_family
+
+    # Enter floor: ≤0.49 never seeds hold; >0.49 can.
+    state_enter = SessionState(session_id="smoke-hold-enter-floor")
+    state_enter.expected = state.expected
+    state_enter.hold_seed_frames = 3
+    state_enter.hold_seconds = 1.0
+    state_enter.name_hold_seconds = 1.0
+    state_enter.hold_min_score = 0.50
+    state_enter.hold_drop_score = 0.35
+    weak49 = _box("FOERSTER", xy, high=False)
+    weak49["confidence"] = 0.49
+    for t in (0.0, 0.2, 0.4):
+        _apply_hold(
+            state_enter,
+            counts=_counts("FOERSTER", 1),
+            public_boxes=[weak49],
+            video_t=t,
+        )
+    assert "FOERSTER" not in state_enter._hold_by_family
+    ok51 = _box("FOERSTER", xy, high=False)
+    ok51["confidence"] = 0.51
+    for t in (0.6, 0.8, 1.0):
+        _apply_hold(
+            state_enter,
+            counts=_counts("FOERSTER", 1),
+            public_boxes=[ok51],
+            video_t=t,
+        )
+    assert "FOERSTER" in state_enter._hold_by_family
+
+    # Drop floor: held label falling below 0.35 clears sticky immediately.
+    state_drop = SessionState(session_id="smoke-hold-drop-floor")
+    state_drop.expected = state.expected
+    state_drop.hold_seed_frames = 3
+    state_drop.hold_seconds = 2.0
+    state_drop.name_hold_seconds = 2.0
+    state_drop.hold_min_score = 0.50
+    state_drop.hold_drop_score = 0.35
+    for t in (0.0, 0.2, 0.4):
+        _apply_hold(
+            state_drop,
+            counts=_counts("FOERSTER", 1),
+            public_boxes=[_box("FOERSTER", xy)],
+            video_t=t,
+        )
+    assert "FOERSTER" in state_drop._hold_by_family
+    collapsed = _box("FOERSTER", xy, high=False)
+    collapsed["confidence"] = 0.34
+    _apply_hold(
+        state_drop,
+        counts=_counts("FOERSTER", 1),
+        public_boxes=[collapsed],
+        video_t=0.6,
+    )
+    assert "FOERSTER" not in state_drop._hold_by_family
 
     print("OK smoke_hold_gates")
 

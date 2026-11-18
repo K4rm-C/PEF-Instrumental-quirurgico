@@ -39,9 +39,15 @@ enum class LogoutOutcome {
 }
 
 /** Permisos de interfaz derivados de los roles reales (el backend vuelve a validar cada petición). */
+/** Lectura clínica en App: operador (solo sus sesiones) o supervisor de piso (institución). SPD es portal web, no App. */
 val UserDto.canReadSessions: Boolean
-    get() = Roles.STATION_OPERATOR in roles || Roles.SPD_SUPERVISOR in roles
-val UserDto.isSupervisor: Boolean get() = Roles.SPD_SUPERVISOR in roles
+    get() = Roles.STATION_OPERATOR in roles || Roles.OR_CHARGE in roles
+/** Supervisor de piso (App): listados institucionales, reportes de discrepancias y alertas. */
+val UserDto.isSupervisor: Boolean get() = Roles.OR_CHARGE in roles
+val UserDto.isFloorSupervisor: Boolean get() = Roles.OR_CHARGE in roles
+/** Home de la App: operador o supervisor de piso. */
+val UserDto.canUseAppHome: Boolean
+    get() = canReadSessions
 
 /**
  * Administrador de sesión JWT del cliente Android.

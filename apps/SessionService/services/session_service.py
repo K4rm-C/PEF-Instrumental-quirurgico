@@ -2,7 +2,7 @@
 
 Access rules:
 - tenant = authenticated user's institution; tenant(session) = operation.institution_id;
-- spd_supervisor (also when combined with station_operator): every session of the tenant;
+- spd_supervisor or or_charge (also when combined with station_operator): every session of the tenant;
 - station_operator only: sessions where work_session.user_id = authenticated user;
 - anything outside that scope, an invalid UUID or a session without operation → 404
   (same answer, so existence is never revealed). Sub-resources are loaded only after the
@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from auth import SUPERVISOR_ROLE_CODE, Principal
+from auth import INSTITUTION_READER_ROLES, Principal
 from database import Database
 from errors import ApiError
 from repositories import session_repository as repo
@@ -114,8 +114,8 @@ class SessionService:
 
     @staticmethod
     def _scope(principal: Principal) -> tuple[uuid.UUID, uuid.UUID | None]:
-        """(tenant, operator filter). Supervisor scope wins for multi-role users."""
-        if principal.has_role(SUPERVISOR_ROLE_CODE):
+        """(tenant, operator filter). Institution-wide scope wins for multi-role users."""
+        if any(principal.has_role(code) for code in INSTITUTION_READER_ROLES):
             return principal.institution_id, None
         return principal.institution_id, principal.user_id
 
@@ -239,6 +239,7 @@ class SessionService:
                 "resolved_at": _iso(row["resolved_at"]),
                 "origin_event_id": _str(row["origin_event_id"]),
                 "description": row["description"],
+                "suggested_resolution": row["suggested_resolution"],
             }
             for row in rows
         ]

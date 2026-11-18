@@ -27,8 +27,9 @@
     <string name="cd_back">Volver</string>
     <string name="cd_search">Buscar</string>
     <string name="cd_logo">Logotipo del sistema</string>
-    <string name="cd_comments">Comentarios</string>
+    <string name="cd_comments">Resolver discrepancia</string>
     <string name="cd_close_comments">Cerrar comentarios</string>
+    <string name="cd_close_resolve">Cerrar formulario de resolución</string>
     <string name="cd_close_evidence">Cerrar evidencia</string>
     <string name="cd_evidence_image">Imagen de evidencia</string>
 
@@ -148,7 +149,7 @@
     <string name="hold_discrepancies_title">Esperado vs reportado</string>
     <string name="hold_no_discrepancies">No hay discrepancias registradas.</string>
     <string name="hold_operator_note_title">Reporte del Operador</string>
-    <string name="hold_review_in_portal">La resolución de discrepancias y el cierre seguro los realiza el Supervisor SPD en el portal. Esta app nunca cierra sesiones.</string>
+    <string name="hold_review_in_portal">Usa la acción de resolver para cerrar discrepancias abiertas. El cierre seguro final sigue a cargo de SPD en el portal.</string>
     <string name="discrepancy_open">Abierta</string>
     <string name="discrepancy_resolved">Resuelta</string>
 
@@ -163,11 +164,22 @@
     <string name="evidence_decode_failed">No se pudo mostrar la imagen.</string>
     <string name="evidence_inference_note">EvidenceService no publica el resultado de inferencia asociado a cada evidencia; los conteos se muestran en Conteo en vivo e Historial.</string>
 
-    <!-- Comentarios -->
+    <!-- Comentarios (claves legacy) -->
     <string name="comments_title">Comentarios</string>
     <string name="comments_unavailable_title">Los comentarios aún no están disponibles</string>
     <string name="comments_unavailable_detail">El API Gateway no publica un endpoint de comentarios de sesiones.</string>
     <string name="comments_placeholder_unavailable">No disponible</string>
+    <string name="resolve_sheet_title">Resolver discrepancia</string>
+    <string name="resolve_pick_discrepancy">Discrepancia abierta</string>
+    <string name="resolve_outcome">Resultado</string>
+    <string name="resolve_outcome_resolved">Resuelta con notas</string>
+    <string name="resolve_outcome_lost">Perdida — marcar una pieza como perdida</string>
+    <string name="resolve_outcome_recovered">Recuperada — reactivar una pieza perdida</string>
+    <string name="resolve_notes_label">Notas de resolución</string>
+    <string name="resolve_notes_placeholder">Describe cómo se atendió la discrepancia</string>
+    <string name="resolve_submit">Resolver</string>
+    <string name="resolve_none_title">Sin discrepancias abiertas</string>
+    <string name="resolve_none_detail">Todas las discrepancias de esta sesión ya están resueltas. El cierre seguro sigue en el portal SPD.</string>
 
     <!-- Alertas / notificaciones -->
     <string name="alerts_title">Alertas / Sesiones en espera</string>
@@ -216,7 +228,9 @@
     <string name="role_station_operator">Operador de estación</string>
     <string name="role_spd_supervisor">Supervisor SPD</string>
     <string name="role_it_admin">Administrador de TI</string>
+    <string name="role_or_charge">Supervisor de piso</string>
     <string name="role_other">Otro rol</string>
+    <string name="dashboard_floor_home_hint">Supervisor de piso: sesiones de la institución, holds, evidencia y alertas de quirófano. El cierre SPD se hace en el portal.</string>
 
     <!-- Ajustes -->
     <string name="settings_title">Ajustes</string>

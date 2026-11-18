@@ -890,7 +890,9 @@ paths:
     get:
       tags: [sessions]
       summary: Discrepancies of the session
-      description: Open first, then `family_code` (nulls last), then `id`. `description` is the stored text, untranslated.
+      description: |
+        Open first, then `family_code` (nulls last), then `id`. `description` is the Operator note
+        (untranslated). `suggested_resolution` holds the SPD resolution text when resolved (A1).
       parameters:
         - $ref: '#/components/parameters/SessionId'
         - $ref: '#/components/parameters/CorrelationId'
@@ -914,16 +916,16 @@ paths:
   /api/v1/sessions/{id}/discrepancies/{discrepancy_id}/resolve:
     post:
       tags: [sessions]
-      summary: Resolve an open discrepancy (spd_supervisor; session in correction_required)
+      summary: Resolve an open discrepancy (spd_supervisor or or_charge; session reviewable)
       description: |
         Locks the work_session (same tenant, else 404; status `correction_required`, else 409),
         then the discrepancy row of that session (unknown or of another session → 404; already
         resolved → 409). Sets `resolved = true`, `resolved_at`, keeps every historical field
-        (family, quantities, reason, origin event) and appends the untranslated resolution text to
-        `description` as `\nSPD resolution (<outcome>): <notes>` (PEF-DS04 §1.3.7: there is no
-        resolution-notes column — temporary compatibility). If no open discrepancy remains the
-        session moves to `awaiting_spd_review` (never closed automatically). Writes the
-        `discrepancy.resolve` audit row; no count event.
+        (family, quantities, reason, origin event, Operator `description`) and writes the
+        untranslated resolution to `suggested_resolution` as
+        `SPD resolution (<outcome>): <notes>` (A1: one discrepancy row, no chat table).
+        If no open discrepancy remains the session moves to `awaiting_spd_review` (never closed
+        automatically). Writes the `discrepancy.resolve` audit row; no count event.
 
         `outcome = resolved`: no physical side effect; `instrument_id` must be null/absent (400).
         `outcome = lost | recovered`: `instrument_id` (the physical piece, `instrument.id`) is
@@ -1386,7 +1388,7 @@ components:
       additionalProperties: false
       required: [notes, outcome]
       properties:
-        notes: { type: string, minLength: 1, description: 'Non-blank; appended untranslated to description' }
+        notes: { type: string, minLength: 1, description: 'Non-blank; written untranslated to suggested_resolution' }
         outcome: { type: string, enum: [resolved, lost, recovered], description: 'A physical shortage (reason shortage) cannot be resolved: 409 physical_shortage_needs_piece_outcome (use lost / recovered; it stays an unreconciled incident)' }
         instrument_id: { type: string, format: uuid, nullable: true, description: 'Physical piece (instrument.id) for lost / recovered (DS03 checks). Absent: the portal rule — lost marks an in-service piece of the discrepancy family (reserved for this operation first), recovered reactivates a lost piece of the family or notes that none was found. Must be null/absent with resolved' }
     ResolveResult:
@@ -1452,7 +1454,7 @@ components:
       type: object
       xml: { name: discrepancy }
       required: [id, reason_code, family_id, family_code, expected_quantity, detected_quantity, resolved,
-                 resolved_at, origin_event_id, description]
+                 resolved_at, origin_event_id, description, suggested_resolution]
       properties:
         id: { type: string, format: uuid }
         reason_code: { type: string, nullable: true }
@@ -1463,7 +1465,8 @@ components:
         resolved: { type: boolean }
         resolved_at: { type: string, format: date-time, nullable: true }
         origin_event_id: { type: string, format: uuid, nullable: true }
-        description: { type: string, description: 'Stored text, untranslated' }
+        description: { type: string, description: 'Operator note (or auto shortfall/extra text), untranslated' }
+        suggested_resolution: { type: string, nullable: true, description: 'SPD resolution text when resolved (A1)' }
     Ref:
       type: object
       properties: { id: { type: string, format: uuid }, code: { type: string }, name: { type: string } }

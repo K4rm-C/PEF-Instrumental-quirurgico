@@ -160,13 +160,22 @@ fun SessionDetailDto.discrepancyRows(): List<DiscrepancyRow> = discrepancies.map
 }
 
 /**
- * Escalación o contingencia registrada por el Operador (solo lectura). Claves reales del backend:
- * escalation = {kind, notes, ...} (BackendWebFlask/services/rf_session.py); contingency = {reason_code, notes, ...}.
+ * Reporte escrito del Operador (A1): preferimos `discrepancies[].description` (nota libre),
+ * filtrando plantillas automáticas Shortfall/Extra. Escalación / contingencia son fallback.
  */
 fun SessionDetailDto.resolutionNote(): String? {
     fun JsonObject.text(key: String) = (this[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+    fun isAutoTemplate(text: String) =
+        text.startsWith("Shortfall on ") || text.startsWith("Extra on ") || text.startsWith("SPD resolution (")
+
+    val freeText = discrepancies.mapNotNull { it.description?.trim()?.takeIf { d -> d.isNotEmpty() && !isAutoTemplate(d) } }
+    if (freeText.isNotEmpty()) return freeText.joinToString("\n")
+
     escalation?.let { e -> return listOfNotNull(e.text("kind"), e.text("notes")).joinToString(": ").ifBlank { null } }
     contingency?.let { c -> return listOfNotNull(c.text("reason_code"), c.text("notes")).joinToString(": ").ifBlank { null } }
+
+    val autoDesc = discrepancies.mapNotNull { it.description?.trim()?.takeIf { d -> d.isNotEmpty() } }
+    if (autoDesc.isNotEmpty()) return autoDesc.joinToString("\n")
     return null
 }
 

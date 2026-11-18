@@ -35,6 +35,7 @@ from models.InstrumentFamily import InstrumentFamily
 from models.InstrumentReservation import InstrumentReservation
 from models.Kit import Kit
 from models.KitItem import KitItem
+from models.ProcedureKit import ProcedureKit
 from models.OperatingRoom import OperatingRoom
 from models.Operation import Operation
 from models.OperationPatient import OperationPatient
@@ -255,8 +256,12 @@ def submit_manual_close(
         diff = reported - expected.expected_quantity
         if diff != 0 and not reason_code:
             raise RfSessionError(N_("Reason is required when reported quantity differs from expected."), 400)
-        if reason_code == "other" and len(notes) < 10:
-            raise RfSessionError(N_("Notes must have at least 10 characters when reason is Other."), 400)
+        # A1 / App floor: Operator written report becomes discrepancy.description (and notification operator_note).
+        if diff != 0 and len(notes) < 10:
+            raise RfSessionError(
+                N_("Operator report notes must have at least 10 characters when reported quantity differs from expected."),
+                400,
+            )
 
         event = CountEvent(
             event_type_id=manual_count_type,
@@ -289,11 +294,13 @@ def submit_manual_close(
 
         if reported < expected.expected_quantity:
             family = db.session.get(InstrumentFamily, family_id)
+            # A1: description = Operator note when provided; else automatic shortfall text.
+            auto = (
+                f"Shortfall on {family.name if family else family_id}: "
+                f"expected {expected.expected_quantity}, reported {reported}."
+            )
             db.session.add(Discrepancy(
-                description=(
-                    f"Shortfall on {family.name if family else family_id}: "
-                    f"expected {expected.expected_quantity}, reported {reported}."
-                ),
+                description=notes or auto,
                 resolved=False,
                 reason_id=shortage_reason,
                 family_id=family_id,
@@ -305,11 +312,12 @@ def submit_manual_close(
             open_discrepancies += 1
         elif reported > expected.expected_quantity and not EXTRA_AUTO_ACK_ON_MANUAL_CLOSE:
             family = db.session.get(InstrumentFamily, family_id)
+            auto = (
+                f"Extra on {family.name if family else family_id}: "
+                f"expected {expected.expected_quantity}, reported {reported}."
+            )
             db.session.add(Discrepancy(
-                description=(
-                    f"Extra on {family.name if family else family_id}: "
-                    f"expected {expected.expected_quantity}, reported {reported}."
-                ),
+                description=notes or auto,
                 resolved=False,
                 reason_id=surplus_reason,
                 family_id=family_id,
@@ -1424,6 +1432,28 @@ def schedule_form_options(institution_id: UUID) -> dict:
     kits = db.session.execute(
         select(Kit).where(Kit.institution_id == institution_id, Kit.active.is_(True)).order_by(Kit.name)
     ).scalars().all()
+    procedure_kit_rows = db.session.execute(
+        select(ProcedureKit, Kit)
+        .join(Kit, Kit.id == ProcedureKit.kit_id)
+        .where(
+            ProcedureKit.active.is_(True),
+            Kit.active.is_(True),
+            Kit.institution_id == institution_id,
+        )
+        .order_by(Kit.name)
+    ).all()
+    procedure_kits: dict[str, list[dict]] = {}
+    for link, kit in procedure_kit_rows:
+        procedure_kits.setdefault(str(link.procedure_type_id), []).append({
+            "id": str(kit.id),
+            "name": localize_db_text("kit", kit.id, kit.name),
+            "is_default": bool(link.is_default),
+        })
+    for proc_id, entries in procedure_kits.items():
+        procedure_kits[proc_id] = sorted(
+            entries,
+            key=lambda item: (not item["is_default"], (item["name"] or "").lower()),
+        )
     patients = db.session.execute(
         select(Patient).where(Patient.institution_id == institution_id, Patient.active.is_(True)).order_by(Patient.display_name)
     ).scalars().all()
@@ -1480,6 +1510,7 @@ def schedule_form_options(institution_id: UUID) -> dict:
             for s in stations
         ]),
         "kits": _by_name([{"id": str(k.id), "name": localize_db_text("kit", k.id, k.name)} for k in kits]),
+        "procedure_kits": procedure_kits,
         "patients": [{"id": str(p.id), "name": p.display_name} for p in patients],
         "physicians": [{"id": str(p.id), "name": p.name} for p in physicians],
         "surgical_roles": _by_name([
@@ -1599,7 +1630,8 @@ def resolve_discrepancy(
         outcome_label = "marked lost"
     elif mark_recovered:
         outcome_label = "marked recovered"
-    disc.description = f"{disc.description}\nSPD resolution ({outcome_label}): {resolution_note}"
+    # A1: keep description as Operator note; SPD resolution goes to suggested_resolution.
+    disc.suggested_resolution = f"SPD resolution ({outcome_label}): {resolution_note}"
 
     if mark_lost and disc.family_id:
         lost_status = _cycle_status_id("lost")
@@ -1651,10 +1683,8 @@ def resolve_discrepancy(
                 notes=resolution_note or "Recovered during SPD discrepancy review",
             ))
         else:
-            disc.description = (
-                f"{disc.description}\n"
-                "Note: no lost piece of this family was found to reactivate."
-            )
+            extra = "Note: no lost piece of this family was found to reactivate."
+            disc.suggested_resolution = f"{disc.suggested_resolution}\n{extra}" if disc.suggested_resolution else extra
 
     open_left = db.session.scalar(
         select(func.count()).select_from(Discrepancy).where(

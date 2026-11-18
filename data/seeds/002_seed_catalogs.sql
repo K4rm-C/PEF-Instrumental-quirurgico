@@ -43,12 +43,16 @@ ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 -- Institution-defined catalog. Values here are a representative starting set.
 -- -----------------------------------------------------------------------------
 INSERT INTO cat_procedure_type (code, name) VALUES
-  ('lap_chole',      'Laparoscopic cholecystectomy'),
-  ('open_chole',     'Open cholecystectomy'),
-  ('appendectomy',   'Appendectomy'),
-  ('hernia_repair',  'Inguinal hernia repair'),
-  ('cesarean',       'Cesarean section'),
-  ('hip_replace',    'Hip arthroplasty')
+  ('demo',                  'Demo'),
+  ('lap_chole',             'Laparoscopic cholecystectomy'),
+  ('open_chole',            'Open cholecystectomy'),
+  ('appendectomy',          'Open appendectomy'),
+  ('hernia_repair',         'Open hernioplasty'),
+  ('cesarean',              'Cesarean section'),
+  ('vaginal_delivery',      'Vaginal delivery'),
+  ('wound_debridement',     'Surgical wound debridement and closure'),
+  ('soft_tissue_excision',  'Superficial lesion excision / soft-tissue minor surgery'),
+  ('hip_replace',           'Hip arthroplasty')
 ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name;
 
 -- -----------------------------------------------------------------------------

@@ -69,7 +69,7 @@ class TrackerConfig:
     max_extrapolate_s: float = _env_float("VISION_TRACK_MAX_EXTRAPOLATE_S", 0.50)
     velocity_alpha: float = _env_float("VISION_TRACK_VELOCITY_ALPHA", 0.50)
     ema_alpha: float = _env_float("VISION_TRACK_EMA_ALPHA", 0.35)
-    class_switch_margin: float = _env_float("VISION_TRACK_CLASS_SWITCH_MARGIN", 0.15)
+    class_switch_margin: float = _env_float("VISION_TRACK_CLASS_SWITCH_MARGIN", 0.22)
     max_events: int = int(_env_float("VISION_TRACK_MAX_EVENTS", 500))
 
     def public(self) -> dict[str, Any]:

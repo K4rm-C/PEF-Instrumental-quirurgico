@@ -113,7 +113,13 @@
         <button type="submit" class="btn btn--secondary" form="deactivate-vision-model-form">{{ _("Deactivate Model") }}</button>
         {% else %}
         {% if details.class_count %}
+        {% if class_rows %}
         <button type="submit" class="btn btn--secondary" form="activate-vision-model-form">{{ _("Activate Model") }}</button>
+        {% else %}
+        <button type="button" class="btn btn--secondary" disabled
+                title="{{ _('Map at least one YOLO class before activating a model.') }}">{{ _("Activate Model") }}</button>
+        <p class="form-field__helper form-field__helper--error">{{ _("Map at least one YOLO class before activating a model.") }}</p>
+        {% endif %}
         {% endif %}
         <button type="submit" class="btn btn--primary">{{ _("Publish Mapping") }}</button>
         {% endif %}

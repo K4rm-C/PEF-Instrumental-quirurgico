@@ -94,9 +94,22 @@ def test_example_photo_upload_view_edit_and_remove(client, login_as, tenants, fa
     assert 'Tip view' in client.get(f'{base}/edit').get_data(as_text=True)
     client.post(f'{base}/examples/{row.id}/edit', data={'example_text': 'Side view', 'sort_order': '1'})
     assert tenants.q('SELECT example_text FROM family_example WHERE id = :i', i=row.id).scalar_one() == 'Side view'
+    # Replace image: previous object must leave disk; new object is stored.
+    client.post(f'{base}/examples/{row.id}/edit',
+                data={'example_text': 'Side view', 'sort_order': '1',
+                      'image': (io.BytesIO(JPEG), 'photo.jpg')},
+                content_type='multipart/form-data')
+    replaced = tenants.q('SELECT fe.id, ma.sha256, ma.object_key, ma.content_type FROM family_example fe '
+                         'JOIN media_asset ma ON ma.id = fe.media_asset_id WHERE fe.id = :i', i=row.id).one()
+    assert replaced.content_type == 'image/jpeg'
+    assert replaced.sha256 == hashlib.sha256(JPEG).hexdigest()
+    assert not (local_storage / row.object_key).exists()
+    assert (local_storage / replaced.object_key).read_bytes() == JPEG
     client.post(f'{base}/examples/{row.id}/delete')
     assert tenants.q('SELECT count(*) FROM family_example WHERE family_id = :f', f=family['id']).scalar_one() == 0
-    assert len(tenants.audit('UPDATE_INSTRUMENT_FAMILY')) == 3
+    assert tenants.q('SELECT count(*) FROM media_asset WHERE object_key = :k', k=replaced.object_key).scalar_one() == 0
+    assert not (local_storage / replaced.object_key).exists()
+    assert len(tenants.audit('UPDATE_INSTRUMENT_FAMILY')) == 4
 
 
 @pytest.mark.parametrize('content, name, code', [

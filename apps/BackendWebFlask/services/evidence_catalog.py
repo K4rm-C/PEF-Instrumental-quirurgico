@@ -12,15 +12,36 @@ from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_DEFAULT_CLIPS = _REPO_ROOT / "apps" / "EvidenceWorker" / "clips"
-CLIPS_DIR = Path(os.getenv("EVIDENCE_CLIPS_DIR", str(_DEFAULT_CLIPS)))
+
+def _default_clips_dir() -> Path:
+    """Host checkout → apps/EvidenceWorker/clips; Docker image → /data/clips (optional mount)."""
+    here = Path(__file__).resolve()
+    # .../PEF-.../apps/BackendWebFlask/services/evidence_catalog.py → parents[3] = repo root
+    if len(here.parents) >= 4:
+        repo = here.parents[3]
+        candidate = repo / "apps" / "EvidenceWorker" / "clips"
+        if candidate.parent.is_dir():
+            return candidate
+    return Path("/data/clips")
+
+
+CLIPS_DIR = Path(os.getenv("EVIDENCE_CLIPS_DIR", str(_default_clips_dir())))
 MONGO_URL = os.getenv(
     "MONGO_URL",
     "mongodb://MedAdmin2:MedMongo027@localhost:27017/?authSource=admin",
 )
 MONGO_DB = os.getenv("EVIDENCE_MONGO_DB", "pef_evidence")
-S3_ENDPOINT = os.getenv("S3_ENDPOINT", "http://127.0.0.1:3900")
+# Internal endpoint for boto connectivity inside Docker; public host for browser-playable URLs.
+S3_ENDPOINT = (
+    os.getenv("S3_ENDPOINT")
+    or os.getenv("S3_INTERNAL_ENDPOINT")
+    or "http://127.0.0.1:3900"
+)
+S3_PUBLIC_ENDPOINT = (
+    os.getenv("S3_PUBLIC_ENDPOINT")
+    or os.getenv("S3_BROWSER_ENDPOINT")
+    or "http://127.0.0.1:3900"
+)
 S3_ACCESS_KEY = os.getenv("S3_ACCESS_KEY", "MedAdmin3")
 S3_SECRET_KEY = os.getenv("S3_SECRET_KEY", "StorageKeySecret027")
 S3_REGION = os.getenv("S3_REGION", "garage")
@@ -61,15 +82,18 @@ def _phase_label(phase_code: str | None, phase_name: str | None) -> str | None:
 
 
 def _presign(object_key: str | None, bucket: str | None = None) -> str | None:
+    """SigV4 GET on the *public* Garage endpoint so the browser can play the clip."""
     if not object_key:
         return None
     try:
         import boto3
         from botocore.client import Config
 
+        # Sign against the browser-reachable host (127.0.0.1:3900). Using the internal
+        # `garage:3900` host produces URLs the Operator browser cannot open.
         client = boto3.client(
             "s3",
-            endpoint_url=S3_ENDPOINT,
+            endpoint_url=S3_PUBLIC_ENDPOINT,
             aws_access_key_id=S3_ACCESS_KEY,
             aws_secret_access_key=S3_SECRET_KEY,
             region_name=S3_REGION,
@@ -84,7 +108,7 @@ def _presign(object_key: str | None, bucket: str | None = None) -> str | None:
             ExpiresIn=PRESIGN_EXPIRES,
         )
     except Exception as exc:  # noqa: BLE001
-        logger.debug("presign skipped: %s", exc)
+        logger.warning("presign skipped: %s", exc)
         return None
 
 
@@ -101,23 +125,19 @@ def _object_key_from_uri(gcs_uri: str | None) -> str | None:
 
 
 def _signed_fresh(doc: dict[str, Any]) -> str | None:
-    signed = doc.get("signed_url")
-    exp = doc.get("signed_url_expires_at")
-    if signed and exp is not None:
-        try:
-            if hasattr(exp, "timestamp"):
-                if exp.tzinfo is None:
-                    exp = exp.replace(tzinfo=timezone.utc)
-                if exp.timestamp() > datetime.now(timezone.utc).timestamp() + 60:
-                    return signed
-            elif isinstance(exp, str):
-                dt = datetime.fromisoformat(exp.replace("Z", "+00:00"))
-                if dt.timestamp() > datetime.now(timezone.utc).timestamp() + 60:
-                    return signed
-        except Exception:
-            pass
+    """Always prefer a freshly public-presigned URL; never hand the browser garage:3900 links."""
     key = doc.get("object_key") or _object_key_from_uri(doc.get("gcs_uri"))
-    return _presign(key, doc.get("bucket")) or signed
+    fresh = _presign(key, doc.get("bucket"))
+    if fresh:
+        return fresh
+    signed = doc.get("signed_url")
+    if not signed:
+        return None
+    # Last resort: stored URL only if it already uses a browser-reachable host.
+    host = (signed.split("://", 1)[-1].split("/", 1)[0] or "").split(":")[0].lower()
+    if host in {"garage", "evidence-worker", "web"}:
+        return None
+    return signed
 
 
 def _load_local_clips(session_id: str) -> list[dict[str, Any]]:

@@ -246,9 +246,14 @@ fun Alerts_OnHoldView(onNavigate: (NavKey) -> Unit, onSessionClick: (NavKey) -> 
 private fun NotificationDto.sessionLabelText(): String? =
     (data?.get("session_label") as? JsonPrimitive)?.contentOrNull ?: sessionId?.let(::sessionLabel)
 
+private fun NotificationDto.dataText(key: String): String? =
+    (data?.get(key) as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
+
 private fun NotificationDto.matches(query: String): Boolean {
     val q = query.trim()
-    return q.isEmpty() || listOfNotNull(title, message, sessionLabelText(), type).any { it.contains(q, ignoreCase = true) }
+    return q.isEmpty() || listOfNotNull(
+        title, message, sessionLabelText(), type, dataText("operator_name"), dataText("operator_note"),
+    ).any { it.contains(q, ignoreCase = true) }
 }
 
 private fun SessionSummaryDto.matches(query: String): Boolean {
@@ -415,6 +420,22 @@ fun NotificationCard(
                 Spacer(modifier = Modifier.height(3.dp))
                 // Texto del servidor tal cual (no se traducen mensajes clínicos sin una regla definida).
                 SessionValue(notification.message ?: "—")
+            }
+            notification.dataText("operator_name")?.let { opName ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Column {
+                    SessionLabel(stringResource(R.string.label_operator))
+                    Spacer(modifier = Modifier.height(3.dp))
+                    SessionValue(opName)
+                }
+            }
+            notification.dataText("operator_note")?.let { note ->
+                Spacer(modifier = Modifier.height(8.dp))
+                Column {
+                    SessionLabel(stringResource(R.string.hold_operator_note_title))
+                    Spacer(modifier = Modifier.height(3.dp))
+                    SessionValue(note)
+                }
             }
             Spacer(modifier = Modifier.height(10.dp))
             Row(

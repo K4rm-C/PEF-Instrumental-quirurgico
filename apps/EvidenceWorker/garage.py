@@ -190,19 +190,22 @@ def publish_clip_to_garage(meta: dict[str, Any]) -> dict[str, Any]:
         dsn = _psycopg_dsn(DATABASE_URL)
         with psycopg.connect(dsn) as conn:
             with conn.cursor() as cur:
+                # Clinical list is GET /sessions/{id}/evidence → WHERE session_id = :id.
+                # Without session_id the App/portal see an empty tray even when S3/Mongo have the clip.
                 cur.execute(
                     """
                     INSERT INTO media_asset (
-                        id, gcs_uri, bucket, object_key, content_type, kind,
+                        id, session_id, gcs_uri, bucket, object_key, content_type, kind,
                         storage_provider, sha256, size_bytes, retention_until,
                         created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s,
+                        %s, %s::uuid, %s, %s, %s, %s, %s,
                         'minio', %s, %s, %s,
                         now(), now()
                     )
                     ON CONFLICT (bucket, object_key) DO UPDATE
-                      SET gcs_uri = EXCLUDED.gcs_uri,
+                      SET session_id = COALESCE(media_asset.session_id, EXCLUDED.session_id),
+                          gcs_uri = EXCLUDED.gcs_uri,
                           content_type = EXCLUDED.content_type,
                           kind = EXCLUDED.kind,
                           sha256 = EXCLUDED.sha256,
@@ -213,6 +216,7 @@ def publish_clip_to_garage(meta: dict[str, Any]) -> dict[str, Any]:
                     """,
                     (
                         str(asset_id),
+                        session_id,
                         gcs_uri,
                         S3_BUCKET_EVIDENCE,
                         object_key,

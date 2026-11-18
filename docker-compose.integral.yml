@@ -1,12 +1,11 @@
-# PEF integral deployment (MS + portal + optional gateway). Use:
+# PEF primary stack (infra + MS + portal + evidence-worker). Use:
 #   docker compose -f docker-compose.integral.yml --env-file .env up -d --build
-# For OP-local infra only (Postgres/Redis/Mongo/Garage), use docker-compose.yml instead.
-# See README + GUIA_DOCKER_INTEGRAL.md / GUIA_ARRANQUE_DEMO.md.
-# Stack: PostgreSQL/Redis/Mongo/Garage + Auth/Catalog/Session/Evidence/Audit/Notifications/Monitoring/Integration/Vision
-# + workers + portal (web) + optional API Gateway (profile gateway).
-# db-migrate applies additive migrations 004..019 before services start.
-# Containers reach each other by service name on pef-network.
-# Host-process development: add docker-compose.hostdev.yml.
+#   then run VisionWorker on the host (CUDA): cd apps/VisionWorker && python main.py
+# Option B — VisionWorker in Docker (CPU only, no CUDA):
+#   docker compose -f docker-compose.integral.yml -f docker-compose.vision-cpu.yml --profile vision-container --env-file .env up -d --build
+# Optional API Gateway: --profile gateway
+# db-migrate applies additive migrations 004..021; garage-init creates privacy-notices + pef-admin;
+# seed-family-examples uploads data/seeds/example_images → Garage and links family_example.
 services:
   postgres:
     image: postgres:16
@@ -37,6 +36,8 @@ services:
     - ./data/migrations/017_ms11_notificaciones_servicios.sql:/docker-entrypoint-initdb.d/17_ms11_notificaciones_servicios.sql:ro
     - ./data/migrations/018_ms11_camaras_modelos.sql:/docker-entrypoint-initdb.d/18_ms11_camaras_modelos.sql:ro
     - ./data/migrations/019_ms12_dominios.sql:/docker-entrypoint-initdb.d/19_ms12_dominios.sql:ro
+    - ./data/migrations/020_procedure_kits_demo.sql:/docker-entrypoint-initdb.d/20_procedure_kits_demo.sql:ro
+    - ./data/migrations/021_media_asset_session_backfill.sql:/docker-entrypoint-initdb.d/21_media_asset_session_backfill.sql:ro
     networks:
     - pef-network
     healthcheck:
@@ -49,7 +50,7 @@ services:
       timeout: 5s
       retries: 10
   db-migrate:
-    # MS-11: one-shot step that applies the ADDITIVE, idempotent migrations 004..019 (a new database already has them
+    # MS-11: one-shot step that applies the ADDITIVE, idempotent migrations 004..021 (a new database already has them
     # from initdb; an existing volume gets the missing ones). 001 (base schema) and the seeds 002/003 are NEVER re-run.
     # Same advisory lock as the services (pef:schema:migration), one file at a time.
     image: postgres:16
@@ -75,7 +76,7 @@ services:
       # ONE transaction for the whole sequence: a re-run never exposes an intermediate state to running services
       psql -X -q -v ON_ERROR_STOP=1 --single-transaction \
         -c "SELECT pg_advisory_xact_lock(hashtext('pef:schema:migration'))" "$$@" > /dev/null
-      echo "applied $$(( $$# / 2 )) migrations (004..019) in one transaction"
+      echo "applied $$(( $$# / 2 )) migrations (004..021) in one transaction"
     volumes:
     - ./data/migrations:/migrations:ro
     depends_on:
@@ -153,6 +154,65 @@ services:
     networks:
     - pef-network
     restart: unless-stopped
+  garage-init:
+    # One-shot: ensure privacy-notices + pef-admin exist (evidence comes from --default-bucket).
+    image: python:3.12-slim
+    working_dir: /repo
+    environment:
+      S3_ENDPOINT: http://garage:3900
+      S3_REGION: ${S3_REGION:-garage}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      ADMIN_S3_BUCKET: ${ADMIN_S3_BUCKET:-pef-admin}
+    volumes:
+    - ./scripts/garage_init_buckets.py:/repo/garage_init_buckets.py:ro
+    command:
+    - sh
+    - -ec
+    - |
+      pip install -q --root-user-action=ignore boto3
+      python garage_init_buckets.py
+    depends_on:
+    - garage
+    networks:
+    - pef-network
+    restart: 'no'
+  seed-family-examples:
+    # One-shot: upload data/seeds/example_images to Garage and link family_example + media_asset.
+    # Idempotent (same SHA-256 → skip). Re-runs on every compose up after volumes wipe.
+    image: python:3.12-slim
+    working_dir: /repo
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      ADMIN_STORAGE_BACKEND: s3
+      ADMIN_S3_BUCKET: ${ADMIN_S3_BUCKET:-pef-admin}
+      S3_ENDPOINT: http://garage:3900
+      S3_REGION: ${S3_REGION:-garage}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+    volumes:
+    - ./scripts/seed_family_examples.py:/repo/scripts/seed_family_examples.py:ro
+    - ./data/seeds/example_images:/repo/data/seeds/example_images:ro
+    command:
+    - sh
+    - -ec
+    - |
+      pip install -q --root-user-action=ignore 'psycopg[binary]' boto3
+      python scripts/seed_family_examples.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      garage-init:
+        condition: service_completed_successfully
+    networks:
+    - pef-network
+    restart: 'no'
   auth:
     build: ./apps/BackendAuthService
     environment:
@@ -399,8 +459,7 @@ services:
     restart: unless-stopped
   monitoring-collector:
     # Checks every component once per interval and stores the results (logs: docker compose logs -f
-    # monitoring-collector). Targets use the compose DNS names, web and vision included
-    # (docker-compose.hostdev.yml points them at host.docker.internal for host processes).
+    # monitoring-collector). Default Vision target is the host (CUDA); option B overrides to vision:5002.
     # An empty target = component reported `unknown`.
     build: ./apps/MonitoringService
     command:
@@ -423,7 +482,9 @@ services:
       MONITORING_TARGET_AUDIT_URL: ${MONITORING_TARGET_AUDIT_URL:-http://audit:5006}
       MONITORING_TARGET_NOTIFICATIONS_URL: ${MONITORING_TARGET_NOTIFICATIONS_URL:-http://notifications:5007}
       MONITORING_TARGET_INTEGRATION_URL: ${MONITORING_TARGET_INTEGRATION_URL:-http://integration:5009}
-      MONITORING_TARGET_VISION_URL: ${MONITORING_TARGET_VISION_URL:-http://vision:5002}
+      # Host Vision (CUDA). Do not take 127.0.0.1 from .env — that is unreachable inside Docker.
+      # Option B overrides to http://vision:5002.
+      MONITORING_TARGET_VISION_URL: http://host.docker.internal:5002
       MONITORING_TARGET_GARAGE_URL: ${MONITORING_TARGET_GARAGE_URL:-http://garage:3903}
     extra_hosts:
     - host.docker.internal:host-gateway
@@ -500,7 +561,10 @@ services:
       AUTH_SERVICE_URL: http://auth:5001
       # Used by the browser (login script): the published Auth port on the host the user opens.
       AUTH_BROWSER_URL: ${AUTH_BROWSER_URL:-http://127.0.0.1:5001}
-      VISION_WORKER_URL: http://vision:5002
+      # Always reach host Vision from this container. Do NOT use VISION_WORKER_URL from .env
+      # (that value is 127.0.0.1 for host-side tools and would loop back inside the container).
+      # Option B (vision-cpu.yml) overrides to http://vision:5002.
+      VISION_WORKER_URL: http://host.docker.internal:5002
       CATALOG_SERVICE_URL: http://catalog:5003
       SESSION_SERVICE_URL: http://session:5004
       EVIDENCE_SERVICE_URL: http://evidence:5005
@@ -509,6 +573,8 @@ services:
       MONITORING_SERVICE_URL: http://monitoring:5008
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       MONGO_DB: ${MONGO_DB:-pef}
+      # EvidenceWorker checkpoints (clips catalog for OP validation drawer).
+      EVIDENCE_MONGO_DB: ${EVIDENCE_MONGO_DB:-pef_evidence}
       PEF_OUTBOX_DIR: /data/outbox
       FRONTEND_DEMO_MODE: 'false'
       ADMIN_DISPLAY_TIMEZONE: ${ADMIN_DISPLAY_TIMEZONE:-America/Mexico_City}
@@ -516,17 +582,21 @@ services:
       VISION_WS_SECRET: ${VISION_WS_SECRET:-pef-demo-vision-ws}
       VISION_WORKER_WS_URL: ${VISION_WORKER_WS_URL:-ws://127.0.0.1:5002/ws}
       # Administration (ADMIN-01): Redis only for the dashboard health ping (RF-AD-01); uploads of family
-      # examples, privacy notices and model weights (RF-AD-02/04/08). Default: local volume. For Garage set
-      # ADMIN_STORAGE_BACKEND=s3 and an ADMIN_S3_BUCKET the S3 key can write (see GUIA_ADMIN_MONOLITO.md).
+      # examples, privacy notices and model weights (RF-AD-02/04/08).
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
-      ADMIN_STORAGE_BACKEND: ${ADMIN_STORAGE_BACKEND:-local}
+      # Family examples / privacy notices / weights: Garage (s3). local keeps files in the volume.
+      ADMIN_STORAGE_BACKEND: ${ADMIN_STORAGE_BACKEND:-s3}
       ADMIN_STORAGE_DIR: /data/admin_storage
       ADMIN_S3_BUCKET: ${ADMIN_S3_BUCKET:-pef-admin}
       ADMIN_CATALOG_STEWARD_INSTITUTION_ID: ${ADMIN_CATALOG_STEWARD_INSTITUTION_ID:-}
       S3_INTERNAL_ENDPOINT: http://garage:3900
+      # Browser-playable evidence URLs (must match the published Garage S3 port on the host).
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://127.0.0.1:3900}
+      S3_ENDPOINT: http://garage:3900
       S3_REGION: ${S3_REGION:-garage}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_BUCKET_EVIDENCE: ${S3_BUCKET_EVIDENCE:-evidence}
     ports:
     - ${WEB_PORT:-5000}:5000
     volumes:
@@ -534,6 +604,8 @@ services:
     - web_outbox:/data/outbox
     # Administration uploads with ADMIN_STORAGE_BACKEND=local (family examples, privacy notices, weights).
     - web_admin_storage:/data/admin_storage
+    extra_hosts:
+    - host.docker.internal:host-gateway
     depends_on:
       postgres:
         condition: service_healthy
@@ -556,15 +628,18 @@ services:
       retries: 5
     restart: unless-stopped
   vision:
-    # VisionWorker (YOLO, CPU). best.pt is never copied into the image: the weights directory of the
-    # repository is mounted READ-ONLY. Without the file, /health reports weights_present=false and the
-    # portal shows its controlled "vision unavailable" path.
+    # VisionWorker in Docker — CPU only (no CUDA). Prefer the host process for GPU demos.
+    # Enable with: -f docker-compose.vision-cpu.yml --profile vision-container
+    # best.pt is mounted read-only from apps/VisionWorker/weights.
+    profiles:
+    - vision-container
     build: ./apps/VisionWorker
     environment:
       VISION_WORKER_PORT: '5002'
       VISION_WS_SECRET: ${VISION_WS_SECRET:-pef-demo-vision-ws}
       VISION_WS_ORIGINS: ${VISION_WS_ORIGINS:-http://127.0.0.1:5000,http://localhost:5000}
       VISION_WEIGHTS_PATH: /models/best.pt
+      VISION_IMGSZ: ${VISION_IMGSZ:-896}
       # MS-02 (P2): weights of the model pinned to each session, verified by SHA-256 before loading. Local backend:
       # Administration's volume read-only; S3 backend: presigned links from the portal, only from this host.
       # /models/best.pt is used only when its SHA-256 equals the pinned model's (no download needed then).
@@ -641,6 +716,39 @@ services:
       start_period: 10s
       retries: 5
     restart: unless-stopped
+  evidence-worker:
+    # Async clip assembler (Redis ring from VisionWorker). Not the HTTP EvidenceService.
+    # Default Vision is on the host (CUDA): reach it via host.docker.internal.
+    build: ./apps/EvidenceWorker
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
+      EVIDENCE_MONGO_DB: ${EVIDENCE_MONGO_DB:-pef_evidence}
+      S3_ENDPOINT: http://garage:3900
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_REGION: ${S3_REGION:-garage}
+      S3_BUCKET_EVIDENCE: ${S3_BUCKET_EVIDENCE}
+      EVIDENCE_GARAGE_ENABLED: ${EVIDENCE_GARAGE_ENABLED:-1}
+      EVIDENCE_CLIPS_DIR: /data/clips
+      VISION_WORKER_URL: ${EVIDENCE_VISION_WORKER_URL:-http://host.docker.internal:5002}
+    volumes:
+    - evidence_worker_clips:/data/clips
+    extra_hosts:
+    - host.docker.internal:host-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      garage:
+        condition: service_started
+    networks:
+    - pef-network
+    restart: unless-stopped
   gateway:
     # MS-04 API Gateway (nginx): the single external entry point for Android / desktop clients (Bearer, JSON or
     # XML). Allow-list of routes, no authentication of its own (every service validates the JWT, role,
@@ -701,8 +809,7 @@ services:
         condition: service_healthy
       integration:
         condition: service_healthy
-      vision:
-        condition: service_started
+      # Vision defaults to host (profile vision-container). Gateway proxies /vision when present.
       web:
         condition: service_healthy
     networks:
@@ -728,6 +835,7 @@ volumes:
   web_outbox: null
   web_admin_storage: null
   vision_data: null
+  evidence_worker_clips: null
 networks:
   pef-network:
     driver: bridge

@@ -1,0 +1,20 @@
+# Option B — VisionWorker inside Docker (CPU only; no CUDA/GPU).
+# Use together with the vision-container profile:
+#
+#   docker compose -f docker-compose.integral.yml -f docker-compose.vision-cpu.yml \
+#     --profile vision-container --env-file .env up -d --build
+#
+# Do not also run apps/VisionWorker on the host (port 5002 conflict).
+services:
+  web:
+    environment:
+      VISION_WORKER_URL: http://vision:5002
+  monitoring-collector:
+    environment:
+      MONITORING_TARGET_VISION_URL: http://vision:5002
+  evidence-worker:
+    environment:
+      VISION_WORKER_URL: http://vision:5002
+  gateway:
+    environment:
+      PEF_GW_VISION_UPSTREAM: vision:5002

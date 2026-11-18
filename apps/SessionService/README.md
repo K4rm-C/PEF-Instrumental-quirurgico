@@ -163,9 +163,9 @@ Out of v1 altogether: abort, phase change, any video/camera/frame/WebSocket endp
   piece and reservation is tested in both orders.
 - **Resolve** (`{notes, outcome}`; XML `resolve_request` → `resolve_result`): same tenant (404),
   session `correction_required` (409), discrepancy of that session (404) and still open (409).
-  Sets `resolved`/`resolved_at`, keeps family, quantities, reason and origin event, and appends
-  `\nSPD resolution (<outcome>): <notes>` (untranslated, trimmed) to `description` — DS04 §1.3.7 has no
-  resolution-notes column, so this is temporary compatibility. Last open → `awaiting_spd_review`
+  Sets `resolved`/`resolved_at`, keeps family, quantities, reason, origin event and Operator
+  `description`, and writes `SPD resolution (<outcome>): <notes>` (untranslated, trimmed) to
+  `suggested_resolution` (A1: one discrepancy row, no chat table). Last open → `awaiting_spd_review`
   (never closed automatically). Audit `discrepancy.resolve`; no `correction_applied` event.
 - **Physical piece — `lost` / `recovered` (DS09 v0.1.7, DS03 §1.3.9.1).** `instrument_id`
   (`instrument.id`) is required for them and forbidden for `resolved` (400); the server never picks a

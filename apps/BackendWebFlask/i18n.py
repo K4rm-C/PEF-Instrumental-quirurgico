@@ -534,6 +534,13 @@ def localize_discrepancy_description(*, reason_code, source, instrument, expecte
     """
     if not instrument or expected is None or actual is None:
         return stored_description
+    # A1: free-text Operator notes live in description; do not replace them with the auto template.
+    stored = (stored_description or "").strip()
+    if stored and not (
+        stored.startswith("Shortfall on ") or stored.startswith("Extra on ")
+        or stored.startswith("SPD resolution (")
+    ):
+        return stored_description
     values = {'instrument': instrument, 'expected': expected}
     if reason_code == 'shortage' and actual < expected:
         if source == 'detected':

@@ -1,9 +1,9 @@
 """RF-AD-03 Procedures (cat_procedure_type) and their counting phases (procedure_phase).
 
-D-4: kit links of a procedure (procedure_kit) belong to the SPD supervisor (glossary of
-rf_admin_app.md: "Kit (receta) = kit + kit_item + procedure_kit, SPD, no Admin"). Administration
-shows them read-only and never writes them: a payload with `kits` is rejected, and saving a
-procedure keeps its existing links untouched. No DELETE (operations reference procedures).
+D-4: kit *links* of a procedure (procedure_kit) belong to the SPD supervisor (glossary of
+rf_admin_app.md). Administration may only set which linked kit is the default (`default_kit_id`);
+a payload with `kits` (create/remove links) is still rejected. No DELETE (operations reference
+procedures).
 """
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -123,11 +123,19 @@ def _values(actor, payload):
         ).scalars())
         if found != {item['phase_id'] for item in phases}:
             raise bad_request('invalid_catalog_rows', 'Choose kits and phases from the available catalogs.', 'phases')
-    return code, name, phases
+
+    default_raw = payload.get('default_kit_id')
+    default_kit_id = None
+    if default_raw not in (None, ''):
+        default_kit_id = parse_uuid(
+            default_raw, 'invalid_default_kit',
+            'Choose a default kit from the kits already linked to this procedure.', 'default_kit_id',
+        )
+    return code, name, phases, default_kit_id
 
 
 def _sync(procedure, phases):
-    """Replace the counting phases only; procedure_kit rows (SPD) are never touched."""
+    """Replace the counting phases only; procedure_kit rows (SPD) are never created/removed here."""
     for link in db.execute(select(ProcedurePhase).where(ProcedurePhase.procedure_type_id == procedure.id)).scalars():
         db.delete(link)
     db.flush()
@@ -135,8 +143,33 @@ def _sync(procedure, phases):
         db.add(ProcedurePhase(procedure_type_id=procedure.id, **item))
 
 
+def _set_default_kit(actor, procedure, default_kit_id):
+    """Admin may flip is_default among existing SPD links; never insert/delete links."""
+    if default_kit_id is None:
+        return
+    kits = _own_kits(actor)
+    links = list(db.execute(
+        select(ProcedureKit).where(ProcedureKit.procedure_type_id == procedure.id)
+    ).scalars())
+    if not links:
+        raise bad_request(
+            'no_procedure_kits',
+            'No kits are linked to this procedure yet. An SPD supervisor must assign kits first.',
+            'default_kit_id',
+        )
+    match = next((link for link in links if link.kit_id == default_kit_id), None)
+    if match is None or default_kit_id not in kits:
+        raise bad_request(
+            'invalid_default_kit',
+            'Choose a default kit from the kits already linked to this procedure.',
+            'default_kit_id',
+        )
+    for link in links:
+        link.is_default = link.kit_id == default_kit_id
+
+
 def create_procedure(actor, payload):
-    code, name, phases = _values(actor, payload)
+    code, name, phases, _default_kit_id = _values(actor, payload)
     procedure = CatProcedureType(code=code, name=name)
     db.add(procedure)
     try:
@@ -153,12 +186,13 @@ def create_procedure(actor, payload):
 
 def update_procedure(actor, procedure_id, payload):
     procedure = _get(procedure_id)
-    code, name, phases = _values(actor, payload)
+    code, name, phases, default_kit_id = _values(actor, payload)
     procedure.code = code
     procedure.name = name
     try:
         db.flush()
         _sync(procedure, phases)
+        _set_default_kit(actor, procedure, default_kit_id)
         db.flush()
     except IntegrityError:
         db.rollback()

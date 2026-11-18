@@ -2,7 +2,8 @@
  * Formal confirm overlay replacing window.confirm().
  * Usage:
  *   - data-app-confirm="Message" on a form → intercepts submit
- *   - window.appConfirm({ title, message|html, okLabel, cancelLabel }) → Promise<boolean>
+ *   - window.appConfirm({ title, message|html, okLabel, cancelLabel, okDelaySeconds }) → Promise<boolean>
+ *     okDelaySeconds (number): OK stays disabled showing "<okLabel> (N)" until the countdown ends.
  *   - window.appConfirmProceed(form) → submit once after a custom confirm (no re-entrancy)
  */
 (function () {
@@ -48,11 +49,44 @@
             } else {
                 bodyEl.textContent = options.message || "";
             }
-            okBtn.textContent = options.okLabel || t("ok");
+            var okBase = options.okLabel || t("ok");
+            var remaining = parseInt(options.okDelaySeconds, 10);
+            var timerId = null;
+            if (!(remaining > 0)) {
+                remaining = 0;
+            }
+            okBtn.disabled = false;
+            okBtn.removeAttribute("aria-disabled");
             cancelBtn.textContent = options.cancelLabel || t("cancel");
+            if (remaining > 0) {
+                // Countdown: "<label> (3)" → "(2)" → "(1)" → enabled "<label>".
+                okBtn.disabled = true;
+                okBtn.setAttribute("aria-disabled", "true");
+                okBtn.textContent = okBase + " (" + remaining + ")";
+                timerId = window.setInterval(function () {
+                    remaining -= 1;
+                    if (remaining > 0) {
+                        okBtn.textContent = okBase + " (" + remaining + ")";
+                        return;
+                    }
+                    window.clearInterval(timerId);
+                    timerId = null;
+                    okBtn.disabled = false;
+                    okBtn.removeAttribute("aria-disabled");
+                    okBtn.textContent = okBase;
+                }, 1000);
+            } else {
+                okBtn.textContent = okBase;
+            }
             modal.classList.add("is-open");
 
             function close(result) {
+                if (timerId !== null) {
+                    window.clearInterval(timerId);
+                    timerId = null;
+                }
+                okBtn.disabled = false;
+                okBtn.removeAttribute("aria-disabled");
                 modal.classList.remove("is-open");
                 okBtn.removeEventListener("click", onOk);
                 cancelBtn.removeEventListener("click", onCancel);
@@ -60,6 +94,9 @@
                 resolve(result);
             }
             function onOk() {
+                if (okBtn.disabled) {
+                    return;
+                }
                 close(true);
             }
             function onCancel() {
@@ -73,7 +110,7 @@
             okBtn.addEventListener("click", onOk);
             cancelBtn.addEventListener("click", onCancel);
             modal.addEventListener("click", onBackdrop);
-            okBtn.focus();
+            (okBtn.disabled ? cancelBtn : okBtn).focus();
         });
     }
 

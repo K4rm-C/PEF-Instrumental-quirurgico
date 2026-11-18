@@ -161,7 +161,7 @@ class SessionManagerTest {
     @Test
     fun `cambio de rol se refleja al consultar me`() = runBlocking {
         routes.on("GET", "/api/v1/auth/me") { json(Fixtures.userJson(roles = listOf("it_admin"))) }
-        val store = InMemoryTokenStore(Fixtures.storedSession(roles = listOf("spd_supervisor")))
+        val store = InMemoryTokenStore(Fixtures.storedSession(roles = listOf("or_charge")))
         val manager = server.network(store).sessionManager
 
         manager.restore()

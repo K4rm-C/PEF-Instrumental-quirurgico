@@ -81,7 +81,7 @@
                         <td>
                             <input class="form-field__input form-field__input--plain" type="text"
                                    name="notes_{{ item.family_id }}" value="{{ prev.notes|default('', true) }}"
-                                   placeholder="{{ _('Required if Other') }}" data-notes-input>
+                                   placeholder="{{ _('Required when Diff ≠ 0 (min. 10 characters)') }}" data-notes-input>
                         </td>
                     </tr>
                     {% endfor %}
@@ -102,24 +102,44 @@
     var form = document.getElementById("vision-validation-form");
     if (!form) return;
     form.addEventListener("submit", function (ev) {
-        var missing = [];
+        var missingReason = [];
+        var missingNotes = [];
         form.querySelectorAll("[data-report-row]").forEach(function (row) {
             var expected = parseInt(row.getAttribute("data-expected"), 10) || 0;
             var input = row.querySelector("[data-reported-input]");
             var reason = row.querySelector("[data-reason-select]");
+            var notes = row.querySelector("[data-notes-input]");
             var reported = parseInt(input && input.value, 10);
             if (isNaN(reported)) reported = expected;
-            if (reported !== expected && reason && !reason.value) {
-                missing.push(row.getAttribute("data-family-name") || {{ _("row")|tojson }});
-                row.classList.add("data-table__row--outline-warning");
-            } else {
+            if (reported === expected) {
                 row.classList.remove("data-table__row--outline-warning");
+                return;
             }
+            var name = row.getAttribute("data-family-name") || {{ _("row")|tojson }};
+            var bad = false;
+            if (!(reason && reason.value)) {
+                missingReason.push(name);
+                bad = true;
+            }
+            if (!(notes && notes.value.trim().length >= 10)) {
+                missingNotes.push(name);
+                bad = true;
+            }
+            if (bad) row.classList.add("data-table__row--outline-warning");
+            else row.classList.remove("data-table__row--outline-warning");
         });
-        if (missing.length) {
+        if (missingReason.length || missingNotes.length) {
             ev.preventDefault();
             ev.stopImmediatePropagation();
-            alert({{ _("Reason required when validated count differs from expected:")|tojson }} + "\n" + missing.join(", "));
+            var msg = "";
+            if (missingReason.length) {
+                msg += {{ _("Reason required when validated count differs from expected:")|tojson }} + "\n" + missingReason.join(", ");
+            }
+            if (missingNotes.length) {
+                if (msg) msg += "\n\n";
+                msg += {{ _("Operator report notes must have at least 10 characters when reported quantity differs from expected.")|tojson }} + "\n" + missingNotes.join(", ");
+            }
+            alert(msg);
         }
     }, true);
 })();

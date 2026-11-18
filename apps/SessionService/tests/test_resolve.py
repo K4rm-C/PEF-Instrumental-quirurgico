@@ -25,7 +25,8 @@ def _post(client, as_user, session_id, discrepancy_id, body=None, user="spd_a", 
 
 def _disc(db_conn, disc_id):
     return db_conn.execute(text(
-        "SELECT d.resolved, d.resolved_at, d.description, d.family_id, d.expected_quantity, d.detected_quantity, "
+        "SELECT d.resolved, d.resolved_at, d.description, d.suggested_resolution, d.family_id, "
+        "d.expected_quantity, d.detected_quantity, "
         "d.origin_event_id, r.code AS reason, d.updated_at FROM discrepancy d "
         "LEFT JOIN cat_discrepancy_reason r ON r.id = d.reason_id WHERE d.id = :d"), {"d": disc_id}).mappings().one()
 
@@ -63,10 +64,10 @@ def test_resolve_keeps_session_open_while_others_remain(client, world, rdata, as
                                    "open_remaining": 1, "session_status_code": "correction_required"}
     after = _disc(db_conn, rdata.d1)
     assert after["resolved"] is True and after["resolved_at"] is not None
-    # Historical facts are preserved; the untranslated notes are appended (DS04 §1.3.7: no notes column).
-    for field in ("family_id", "expected_quantity", "detected_quantity", "origin_event_id", "reason"):
+    # A1: Operator description stays intact; SPD resolution goes to suggested_resolution.
+    for field in ("family_id", "expected_quantity", "detected_quantity", "origin_event_id", "reason", "description"):
         assert after[field] == before_disc[field]
-    assert after["description"] == before_disc["description"] + "\nSPD resolution (resolved): Found in the auxiliary tray"
+    assert after["suggested_resolution"] == "SPD resolution (resolved): Found in the auxiliary tray"
     assert after["updated_at"] == after["resolved_at"]
     assert _status(db_conn, rdata.cr) == "correction_required"
     assert ds03_snapshot(db_conn) == before_ds03                       # outcome resolved: no physical side effect
@@ -88,11 +89,15 @@ def test_last_open_discrepancy_moves_to_spd_review(client, world, rdata, as_user
 
 def test_notes_are_trimmed_and_untranslated(client, world, rdata, as_user, db_conn):
     _post(client, as_user, rdata.cr, rdata.d1, {"notes": "  Encontrada en la charola auxiliar  ", "outcome": "resolved"})
-    assert _disc(db_conn, rdata.d1)["description"].endswith("\nSPD resolution (resolved): Encontrada en la charola auxiliar")
+    assert _disc(db_conn, rdata.d1)["suggested_resolution"] == "SPD resolution (resolved): Encontrada en la charola auxiliar"
 
 
 def test_multi_role_supervisor_can_resolve(client, world, rdata, as_user):
     assert _post(client, as_user, rdata.cr, rdata.d1, user="multi_a").status_code == 200
+
+
+def test_floor_or_charge_can_resolve(client, world, rdata, as_user):
+    assert _post(client, as_user, rdata.cr, rdata.d1, user="floor_a").status_code == 200
 
 
 # --- Access, ids and state --------------------------------------------------------------------------
@@ -221,12 +226,13 @@ def test_get_discrepancies_reflects_resolution(client, world, rdata, as_user, db
         assert item["resolved"] is True and item["resolved_at"] is not None
         assert (item["reason_code"], item["family_id"], item["expected_quantity"], item["detected_quantity"]) == (
             "surplus", str(world.families["a"]), 2, 3)
-        assert item["description"].endswith("SPD resolution (resolved): Found in the auxiliary tray")
+        assert item["suggested_resolution"] == "SPD resolution (resolved): Found in the auxiliary tray"
         assert set(item) == {"id", "reason_code", "family_id", "family_code", "expected_quantity", "detected_quantity",
-                             "resolved", "resolved_at", "origin_event_id", "description"}
+                             "resolved", "resolved_at", "origin_event_id", "description", "suggested_resolution"}
     else:
         node = next(d for d in ET.fromstring(response.data) if d.findtext("id") == str(rdata.d1))
         assert node.findtext("resolved") == "true" and node.findtext("resolved_at")
+        assert node.findtext("suggested_resolution") == "SPD resolution (resolved): Found in the auxiliary tray"
 
 
 # --- Atomicity -----------------------------------------------------------------------------------------------

@@ -216,7 +216,8 @@ def test_floor_supervisor_rooms(as_user, tenants):
 def test_screens_create_and_edit(client, login_as, tenants, no_remote_http, revocations):
     login_as('admin', 'A')
     form = client.get('/admin/users/new').get_data(as_text=True)
-    assert f'Inst A {tenants.tag}' in form and 'name="institution"' not in form
+    assert f'Inst A {tenants.tag}' in form and 'name="institution"' in form
+    assert f'value="{tenants.inst["A"]}"' in form and 'selected' in form
     assert 'value="or_charge"' in form and f'value="{tenants.room["A"]}"' in form and str(tenants.room['B']) not in form
     response = client.post('/admin/users/new', data={
         'name': 'Floor A', 'email': f'floor.new.{tenants.tag}@test.invalid', 'roles[]': ['or_charge'],

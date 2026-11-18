@@ -89,3 +89,21 @@ def test_hold_still_covers_a_briefly_occluded_instrument():
         _frame(state, [_det(0, 0.9, 0), _det(1, 0.9, 100)], video_t=i * 0.2)
     _, boxes = _frame(state, [_det(1, 0.9, 100)], video_t=1.0)  # A hidden by a hand
     assert len(boxes) == 2
+
+
+def test_brief_matrix_flicker_does_not_promote_to_table():
+    """A new family needs a short sustained resolution before the board updates."""
+    state = SessionState(session_id='s', expected=EXPECTED, class_map=CLASS_MAP)
+    for i in range(4):
+        _frame(state, [_det(0, 0.9, 0), _det(1, 0.9, 100)], video_t=i * 0.2)
+    # One-frame swap of A → only B+X noise: A stays held; flicker family is not promoted.
+    counts, _ = _frame(state, [_det(1, 0.9, 100)], video_t=0.9)
+    assert counts['A'].get('held') is True
+    # Fresh live appearance of a single frame of A alone after clearance window:
+    state2 = SessionState(session_id='s2', expected=EXPECTED, class_map=CLASS_MAP)
+    counts2, _ = _frame(state2, [_det(0, 0.9, 0)], video_t=0.0)
+    assert int(counts2['A']['detected_quantity']) == 0
+    assert counts2['A'].get('pending_promote') is True
+    for i in range(1, 5):
+        counts2, _ = _frame(state2, [_det(0, 0.9, 0)], video_t=i * 0.2)
+    assert int(counts2['A']['detected_quantity']) == 1

@@ -94,19 +94,25 @@ Opción recomendada — `adb reverse` (lo que se usó en la prueba integral):
 adb reverse tcp:27080 tcp:27080            # Gateway (o tcp:8080 en la pila principal)
 ./gradlew installDebug -Ppef.apiBaseUrl.debug=http://127.0.0.1:27080/
 ```
-El `adb reverse` se pierde cada vez que se reinicia el emulador o adb. Para no repetirlo a mano, configure
-`local.properties` (por máquina, no versionado) y el build debug lo hace solo antes de cada compilación, también al
-pulsar **Run** en Android Studio (tarea `pefAdbReverse`; si no hay dispositivo conectado solo avisa, no falla):
+El `adb reverse` se pierde cada vez que se reinicia el emulador o adb. Mitigaciones (recomendadas juntas):
+
+1. **`local.properties`** — Gradle reaplica reverse en **cada** `installDebug` / Run (también si el build está
+   UP-TO-DATE; antes solo colgaba de `preDebugBuild` y se saltaba):
 ```properties
-pef.apiBaseUrl.debug=http\://127.0.0.1\:27080/
-pef.adbReverse=27080                       # varios puertos: 27080,27900
+pef.apiBaseUrl.debug=http\://127.0.0.1\:8080/
+pef.adbReverse=8080,3900                   # Gateway + Garage (evidencias firmadas)
 pef.buildDir=C\:/Users/<usuario>/AppData/Local/pef-android-build   # solo si el proyecto está en OneDrive
 ```
-El dispositivo debe estar encendido antes de compilar. Si lo reinicia con la app ya instalada, vuelva a pulsar Run (o
-`./gradlew pefAdbReverse`).
-Alternativa — `10.0.2.2` (valor por defecto): funciona para la **API**, pero las imágenes de evidencias no, porque el
-backend firma la URL para el host de `S3_PUBLIC_ENDPOINT` y **el `Host` forma parte de la firma SigV4** (probado:
-la misma URL pedida con otro host → 403). Ver §3.5.
+2. **Watch en segundo plano** (cubre abrir la app sin Run / cold boot del AVD):
+```powershell
+cd apps\PEF-Android
+powershell -ExecutionPolicy Bypass -File scripts\pef-adb-reverse-watch.ps1
+```
+Dejar esa ventana abierta mientras se desarrolla; cada 5 s re-aplica reverse en dispositivos conectados.
+
+Alternativa — `10.0.2.2` (valor por defecto del build): funciona para la **API** sin reverse, pero las imágenes de
+evidencias no, porque el backend firma la URL para el host de `S3_PUBLIC_ENDPOINT` y **el `Host` forma parte de la
+firma SigV4** (probado: la misma URL pedida con otro host → 403). Ver §3.5.
 
 ### 3.4 Teléfono físico
 * **USB / depuración inalámbrica (recomendado)**: igual que el emulador, `adb reverse tcp:<puerto del Gateway> ...` y
@@ -155,10 +161,10 @@ La app nunca construye ni reescribe URLs de Garage y la imagen solo vive en memo
   cual no se hizo.
 
 ### 3.7 Login de prueba
-Use las cuentas demo de la semilla `data/seeds/003_seed_demo.sql` del repositorio PEF (supervisor, operador y
-administrador `@instrumed.com`). **Las contraseñas no se copian aquí**; están en los comentarios de esa semilla y solo
-sirven para entornos de demostración. Roles: `supervisor@…` → `spd_supervisor` (ve toda la institución), `operator@…` →
-`station_operator` (solo sus sesiones), `admin@…` → `it_admin` (sin acceso clínico; solo notificaciones).
+Use las cuentas demo de la semilla `data/seeds/003_seed_demo.sql` del repositorio PEF. **Las contraseñas no se copian
+aquí**; están en los comentarios de esa semilla y solo sirven para entornos de demostración. Roles App:
+`floor@…` → `or_charge` (cuenta canónica; ve toda la institución), `operator@…` → `station_operator` (solo sus
+sesiones). `supervisor@…` es SPD de **portal web**, no usuario de App. `admin@…` → `it_admin` (sin acceso clínico).
 
 ## 4. Seguridad de red
 * `src/main/res/xml/network_security_config.xml` (release y base): **solo HTTPS**, CAs del sistema. La validación TLS
@@ -199,9 +205,9 @@ Rutas reales publicadas por el Gateway (verificadas en `apps/BackendAuthService/
   en modo *offline* (Ajustes lo indica) y cada pantalla muestra el error de red con reintento.
 * **Logout**: confirma, llama a `/logout`; si el access caducó (401) renueva una vez y repite con el refresh nuevo. Pase
   lo que pase borra las credenciales locales; si el servidor no pudo confirmar la revocación, el Login lo indica.
-* **Roles**: `station_operator` y `spd_supervisor` tienen acceso clínico (sesiones/evidencias). Otros roles (p. ej.
-  `it_admin`) pueden iniciar sesión y ver sus notificaciones; las pantallas clínicas muestran "tu rol no tiene acceso"
-  sin llamar al backend, que de todos modos respondería 403.
+* **Roles**: `station_operator` y `or_charge` tienen acceso clínico en App (sesiones/evidencias; `or_charge` con
+  alcance institucional + reportes de discrepancias). SPD (`spd_supervisor`) es portal web, no App. `it_admin` y demás:
+  login + notificaciones; pantallas clínicas muestran "tu rol no tiene acceso" sin llamar al backend.
 
 ## 6. Retrofit, repositorios y ViewModels
 * `PefApis.kt` declara solo rutas publicadas. JSON (`Accept: application/json`); campos desconocidos se ignoran; un
@@ -209,8 +215,9 @@ Rutas reales publicadas por el Gateway (verificadas en `apps/BackendAuthService/
 * `safeApiCall` convierte cualquier fallo en `ApiResult.Failure(AppError)`: `Network`, `Timeout`, `BadRequest`
   (400/409/410/413/422), `Unauthorized` (401), `Forbidden` (403), `NotFound` (404), `RateLimited` (429), `Server` (5xx),
   `InvalidResponse`, `Unexpected`. Se conserva el `message` y `correlation_id` del sobre DS09.
-* Los ViewModels exponen `StateFlow<UiState<T>>`, evitan cargas duplicadas y pulsaciones repetidas, y nunca hacen
-  polling permanente: se recarga al entrar a la pantalla o con el botón **Actualizar**.
+* Los ViewModels exponen `StateFlow<UiState<T>>` y evitan cargas duplicadas / pulsaciones repetidas. En
+  general se recarga al entrar o con **Actualizar**; en **Alertas**, `AlertsViewModel` hace poll cada 15 s
+  (A1: sin FCM, para que `floor@` vea `discrepancy_pending` / nota OP sin salir de la pantalla).
 
 ## 7. DataStore, idioma y tema
 * `PreferencesRepository` (archivo `pef_ui_preferences`): `language` (SYSTEM / SPANISH / ENGLISH), `theme`
@@ -327,7 +334,7 @@ botón "Actualizar" sin función en Ajustes (eliminado) y textos de filtros cort
 |---|---|---|
 | Login | ✅ Real | `POST /auth/login`; errores claros; no navega si falla |
 | Dashboard (6 indicadores + sesiones activas/en espera) | ✅ Real (derivado) | `GET /sessions?expand=detail` agregado en el cliente; campana = `GET /notifications/unread-count` |
-| Dashboard — pestaña Discrepancies (por instrumento / por familia + sesiones activas/en espera) | ✅ Real (solo `spd_supervisor`) | `GET /sessions/reports/summary?from=` (`discrepancies.by_family`) + `GET /catalog/families` y `/catalog/categories` para agrupar por categoría; periodo 7/30/90/365 días (90 por defecto); más de 4 grupos → los 3 mayores + "Other" |
+| Dashboard — pestaña Discrepancies (por instrumento / por familia + sesiones activas/en espera) | ✅ Real (solo `or_charge`) | `GET /sessions/reports/summary?from=` (`discrepancies.by_family`) + `GET /catalog/families` y `/catalog/categories` para agrupar por categoría; periodo 7/30/90/365 días (90 por defecto); más de 4 grupos → los 3 mayores + "Other" |
 | Alerts / On Hold — Notificaciones | ✅ Real | `GET /notifications` (filtros estado/tipo/fecha en servidor), `PATCH /{id}/read`, `PATCH /read-all`, navegación a la sesión |
 | Alerts / On Hold — Sesiones en espera | ✅ Real | `GET /sessions?expand=detail&status=awaiting_spd_review,correction_required` |
 | Sessions (búsqueda, estado, sala, procedimiento) | ✅ Real | `GET /sessions?expand=detail[&status=]` |
@@ -344,8 +351,8 @@ Indicadores: "Sessions today" cuenta sesiones con `scheduled_at` o `started_at` 
 la suma de `open_discrepancies` de las sesiones visibles. Sin datos (error/sin permiso) se muestra "—", nunca un número.
 
 ## 13. Limitaciones e integraciones pendientes (contratos mínimos propuestos)
-1. **Comentarios de sesión** — `GET/POST /api/v1/sessions/{id}/comments` (`{id, author{id,name}, body, created_at}`),
-   mismas reglas de alcance que la lectura de sesiones, auditado.
+1. **Comentarios de sesión** — retirados del FAB On Hold; el botón abre resolución de discrepancia
+   (`POST /api/v1/sessions/{id}/discrepancies/{id}/resolve`). Un chat OP↔piso sigue fuera de alcance.
 2. **Directorio de personal** — p. ej. `GET /api/v1/auth/directory?role=` solo para `spd_supervisor`, campos mínimos
    (`id, name, roles`), sin correo ni datos sensibles. Hoy la app deriva operadores de las sesiones.
 3. **Sincronizar preferencias** — publicar `PATCH /api/v1/auth/me/preferences {locale, theme}` con Bearer (hoy
@@ -355,8 +362,8 @@ la suma de `open_discrepancies` de las sesiones visibles. Sin datos (error/sin p
    del proyecto Firebase en el servidor y `google-services.json` + permiso `POST_NOTIFICATIONS` en la app.
 5. **Resultado de inferencia por evidencia** y **confianza por familia**: EvidenceService y el snapshot no los publican;
    la app muestra conteos del snapshot y lo indica en pantalla.
-6. **Acciones del Supervisor** (resolver discrepancias, cierre seguro): existen en SessionService para el portal, pero la
-   app es de solo lectura a propósito — nunca cierra sesiones ni omite la revisión humana.
+6. **Resolución de discrepancias en App** (`or_charge` / SPD): el FAB de On Hold envía `resolve` con notes+outcome.
+   El **cierre seguro** administrativo (`POST .../close`) sigue solo en el portal SPD.
 7. **URLs firmadas en producción**: hoy Garage se publica sin TLS para las URLs prefirmadas; se propone servirlas por el
    Gateway (`docs/backend-proposal/gateway-presigned-evidence.patch`, probado en la pila aislada, no aplicado).
 8. **Miniaturas de evidencia**: no se piden URLs firmadas para todas (cada emisión se audita); la imagen se descarga al

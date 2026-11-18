@@ -59,6 +59,48 @@ def test_report_with_discrepancies_notifies_scheduler_and_operator(world, db_con
     assert data["open_discrepancies"] == 2
 
 
+def test_discrepancy_pending_notifies_floor_with_operator_note(world, db_conn, worker):
+    """A1 / plan §8: App (or_charge) users linked to the OR get the pending notice + OP note."""
+    import uuid
+    from datetime import datetime, timezone
+
+    room_id, floor_id, role_id = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    db_conn.execute(text(
+        "INSERT INTO operating_room (id, code, name, institution_id) VALUES (:r, :c, 'OR A1', :i)"),
+        {"r": room_id, "c": f"or-{world.tag}", "i": world.inst["A"]})
+    db_conn.execute(text(
+        "INSERT INTO role (id, code, description, institution_id) VALUES (:id, 'or_charge', 'floor', :i)"),
+        {"id": role_id, "i": world.inst["A"]})
+    db_conn.execute(text(
+        'INSERT INTO "user" (id, name, email, password_hash, active, institution_id) '
+        "VALUES (:id, 'Floor A', :e, 'x', TRUE, :i)"),
+        {"id": floor_id, "e": f"floor.{world.tag}@notif-test.invalid", "i": world.inst["A"]})
+    db_conn.execute(text("INSERT INTO user_role (user_id, role_id) VALUES (:u, :r)"),
+                    {"u": floor_id, "r": role_id})
+    db_conn.execute(text("INSERT INTO user_operating_room (id, user_id, room_id) VALUES (:id, :u, :r)"),
+                    {"id": uuid.uuid4(), "u": floor_id, "r": room_id})
+    db_conn.execute(text(
+        "UPDATE operation SET room_id = :r WHERE id = "
+        "(SELECT operation_id FROM work_session WHERE id = :s)"),
+        {"r": room_id, "s": world.session})
+    db_conn.execute(text(
+        "INSERT INTO discrepancy (id, description, resolved, session_id, updated_at) "
+        "VALUES (:id, :d, FALSE, :s, :at)"),
+        {"id": uuid.uuid4(), "d": "Missing needle holder under the drape",
+         "s": world.session, "at": datetime.now(timezone.utc)})
+
+    world.count("manual_close", world.session, "op_a",
+                {"next_status": "correction_required", "open_discrepancies": 1})
+    worker.drain()
+    pending = db_conn.execute(text(
+        "SELECT recipient_user_id, data FROM notification "
+        "WHERE type = 'discrepancy_pending' AND session_id = :s"), {"s": world.session}).all()
+    by_user = {row[0]: row[1] for row in pending}
+    assert set(by_user) == {world.users["spd_a"].id, floor_id}
+    assert by_user[floor_id]["operator_note"] == "Missing needle holder under the drape"
+    assert by_user[floor_id]["operator_name"] == "N op_a"
+
+
 def test_report_without_discrepancies_asks_the_supervisor_to_review(world, db_conn, worker):
     """MS-06 (before: nobody was told): the session pending review is notified to the scheduling supervisor
     only — never to the Operator who reported, and no correction notice is produced."""

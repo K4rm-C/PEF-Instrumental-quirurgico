@@ -1,9 +1,8 @@
 """Evidence endpoints of PEF-DS09 §1.3.5 (Phase B reads, Phase C upload).
 
-Role gate first (effective roles): station_operator or spd_supervisor; it_admin and any other
-role → 403 before any lookup, so the existence of a resource is never revealed to them. The
-service then applies tenant and operator scope (404 when out of scope). Upload requires
-station_operator: a supervisor (even multi-role) uploads only to a session assigned to them.
+Role gate first (effective roles): station_operator, spd_supervisor or or_charge; it_admin and any
+other role → 403 before any lookup. Tenant + operator scope follows (404 out of scope). Upload is
+station_operator only (a multi-role user uploads only to a session assigned to them).
 """
 
 from __future__ import annotations

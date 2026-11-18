@@ -69,9 +69,11 @@ data class ApiErrorBody(
     @SerialName("correlation_id") val correlationId: String? = null,
 )
 
-/** Roles reales del PEF (role.code). Solo los dos primeros tienen acceso clínico a sesiones y evidencias. */
+/** Roles reales del PEF (role.code). */
 object Roles {
     const val STATION_OPERATOR = "station_operator"
     const val SPD_SUPERVISOR = "spd_supervisor"
     const val IT_ADMIN = "it_admin"
+    /** Floor / OR charge — cuenta canónica de la App (alertas de quirófano; sin home web). */
+    const val OR_CHARGE = "or_charge"
 }

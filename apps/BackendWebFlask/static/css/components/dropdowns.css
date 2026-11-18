@@ -106,3 +106,37 @@
     width: 28px;
     height: 28px;
 }
+
+.user-menu.dropdown {
+    position: relative;
+}
+
+.user-menu__dropdown {
+    right: 0;
+    left: auto;
+    min-width: 12rem;
+}
+
+.user-menu__switch-form {
+    margin: 0;
+}
+
+.user-menu__switch-form .dropdown__item {
+    width: 100%;
+    text-align: left;
+}
+
+.dropdown__separator {
+    height: 1px;
+    margin: var(--space-1) 0;
+    background: var(--color-border);
+    list-style: none;
+}
+
+.dropdown__section-label {
+    list-style: none;
+    padding: var(--space-1) var(--space-3);
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+    font-weight: var(--font-weight-semibold);
+}

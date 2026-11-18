@@ -148,4 +148,7 @@
 
 {% block page_scripts %}
 <script src="{{ url_for('static', filename='js/pages/v3-tabs.js') }}" defer></script>
+{% if session.status_code == 'in_progress' %}
+<script src="{{ url_for('static', filename='js/pages/session-leave-guard.js') }}" data-enabled="1" defer></script>
+{% endif %}
 {% endblock %}

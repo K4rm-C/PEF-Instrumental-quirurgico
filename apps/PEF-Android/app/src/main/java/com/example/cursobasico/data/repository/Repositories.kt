@@ -4,6 +4,8 @@ import com.example.cursobasico.data.model.EvidenceDto
 import com.example.cursobasico.data.model.NotificationDto
 import com.example.cursobasico.data.model.NotificationPageDto
 import com.example.cursobasico.data.model.ReadAllResultDto
+import com.example.cursobasico.data.model.ResolveDiscrepancyRequest
+import com.example.cursobasico.data.model.ResolveDiscrepancyResult
 import com.example.cursobasico.data.model.SessionDetailDto
 import com.example.cursobasico.data.model.SessionSummaryDto
 import com.example.cursobasico.data.remote.ApiResult
@@ -30,7 +32,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-/** Lecturas de SessionService. Ninguna escritura: la app no cambia estados ni cierra sesiones. */
+/** SessionService: lecturas + resolve de discrepancias (or_charge / SPD). El cierre seguro queda en el portal. */
 class SessionRepository(private val api: SessionApi) {
     /** [statuses] vacío = todas; se envía como `status=a,b` (filtro del backend). */
     suspend fun listSessions(statuses: Collection<String> = emptyList()): ApiResult<List<SessionSummaryDto>> =
@@ -38,6 +40,20 @@ class SessionRepository(private val api: SessionApi) {
 
     suspend fun getSession(sessionId: String): ApiResult<SessionDetailDto> =
         safeApiCall { api.getSession(sessionId) }
+
+    suspend fun resolveDiscrepancy(
+        sessionId: String,
+        discrepancyId: String,
+        notes: String,
+        outcome: String,
+    ): ApiResult<ResolveDiscrepancyResult> =
+        safeApiCall {
+            api.resolveDiscrepancy(
+                sessionId,
+                discrepancyId,
+                ResolveDiscrepancyRequest(notes = notes, outcome = outcome),
+            )
+        }
 }
 
 /**

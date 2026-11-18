@@ -7,7 +7,6 @@ import com.example.cursobasico.data.model.sessionLabel
 import com.example.cursobasico.data.remote.NetworkModule
 import kotlinx.serialization.builtins.ListSerializer
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
@@ -120,12 +119,21 @@ class PresentationModelsTest {
     }
 
     @Test
-    fun `nota de escalacion usa las claves reales del backend`() {
+    fun `nota de operador prioriza description de discrepancia`() {
+        assertEquals("Missing", detail().resolutionNote())
         val escalated = json.decodeFromString(
             SessionDetailDto.serializer(),
             Fixtures.detailJson("correction_required").replace("\"escalation\":null", "\"escalation\":{\"kind\":\"missing\",\"notes\":\"Tray rechecked\"}")
         )
-        assertEquals("missing: Tray rechecked", escalated.resolutionNote())
-        assertNull(detail().resolutionNote())
+        // Free-text discrepancy description wins over escalation payload.
+        assertEquals("Missing", escalated.resolutionNote())
+        val onlyEscalation = json.decodeFromString(
+            SessionDetailDto.serializer(),
+            Fixtures.detailJson("correction_required")
+                .replace("\"discrepancies\":[{", "\"discrepancies\":[{")
+                .replace("\"description\":\"Missing\"", "\"description\":\"Shortfall on Mayo: expected 2, reported 1.\"")
+                .replace("\"escalation\":null", "\"escalation\":{\"kind\":\"missing\",\"notes\":\"Tray rechecked\"}")
+        )
+        assertEquals("missing: Tray rechecked", onlyEscalation.resolutionNote())
     }
 }

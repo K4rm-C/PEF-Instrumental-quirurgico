@@ -28,9 +28,25 @@ from .errors import bad_request, conflict, not_found
 from .models import Institution, OperatingRoom, Role, User, UserOperatingRoom, UserRole
 
 ADMIN = 'it_admin'
+SPD = 'spd_supervisor'
+OPERATOR = 'station_operator'
 FLOOR_SUPERVISOR = 'or_charge'
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
 ADMIN_LOCK_KEY = 'pef:identity:administrators'  # same key as AuthService: serializes both writers
+
+
+def _assert_role_combination(codes: list[str]) -> None:
+    """Hard limits: OP cannot share SPD/Admin; App (or_charge) may combine with any."""
+    has_op = OPERATOR in codes
+    has_admin = ADMIN in codes
+    has_spd = SPD in codes
+    if has_op and (has_admin or has_spd):
+        raise bad_request(
+            'incompatible_roles',
+            'A station operator account cannot also have SPD or Admin. '
+            'At most Operator + Floor Supervisor (App).',
+            'role_codes',
+        )
 
 
 # --- Reads ----------------------------------------------------------------------------------
@@ -118,6 +134,7 @@ def _identity_values(actor, payload):
     codes = list(dict.fromkeys(str(code).strip() for code in (payload.get('role_codes') or []) if str(code).strip()))
     if not codes:
         raise bad_request('roles_required', 'Assign at least one role.', 'role_codes')
+    _assert_role_combination(codes)
     roles = db.execute(select(Role).where(Role.institution_id == actor.institution_id, Role.code.in_(codes))).scalars().all()
     if {role.code for role in roles} != set(codes):
         raise bad_request('invalid_roles', "Choose roles that belong to the user's institution.", 'role_codes')

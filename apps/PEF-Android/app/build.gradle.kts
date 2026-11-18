@@ -124,7 +124,14 @@ if (adbReversePorts.isNotEmpty()) {
         adbPath.set(androidComponents.sdkComponents.adb.map { it.asFile.absolutePath })
         ports.set(adbReversePorts)
     }
-    tasks.matching { it.name == "preDebugBuild" }.configureEach { dependsOn(adbReverse) }
+    // preDebugBuild alone is skipped when the build is UP-TO-DATE (Run without code changes),
+    // so also hook install*/connected* — those still run after an emulator restart.
+    tasks.matching {
+        val n = it.name
+        n == "preDebugBuild" ||
+            n.startsWith("install") && n.contains("Debug", ignoreCase = true) ||
+            n.startsWith("connected") && n.contains("Debug", ignoreCase = true)
+    }.configureEach { dependsOn(adbReverse) }
 }
 
 dependencies {

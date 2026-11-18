@@ -72,7 +72,21 @@ ROLE_LABELS = {
     'station_operator': N_('Station Operator'),
     'spd_supervisor': N_('SPD Supervisor'),
     'it_admin': N_('Administrator'),
+    'or_charge': N_('Floor Supervisor'),
 }
+
+# Web module priority (login home + active view). App-only or_charge has no portal home.
+WEB_ROLE_PRIORITY = ('it_admin', 'spd_supervisor', 'station_operator')
+SESSION_VIEW_ROLE_KEY = 'pef_view_role'
+
+
+def _pick_primary_web_role(roles):
+    """Prefer Admin > SPD > OP among roles present; ignore App-only or_charge for portal."""
+    codes = {item.get('code') for item in (roles or []) if item.get('code')}
+    for code in WEB_ROLE_PRIORITY:
+        if code in codes:
+            return next(item for item in roles if item.get('code') == code)
+    return None
 
 EMPTY_STATS = {
     'total': 0,
@@ -174,10 +188,28 @@ def _current_user():
     payload = response.json()
     user_data = payload.get('user', {})
     roles = user_data.get('roles', [])
-    role = next((item for item in roles if item.get('code') in ROLE_LABELS), None)
-    if role is None:
+    primary = _pick_primary_web_role(roles)
+    if primary is None:
         g.verified_user = None
         return None
+
+    web_codes = {item.get('code') for item in roles if item.get('code') in WEB_ROLE_PRIORITY}
+    preferred = session.get(SESSION_VIEW_ROLE_KEY)
+    if preferred in web_codes:
+        role = next(item for item in roles if item.get('code') == preferred)
+    else:
+        role = primary
+        session.pop(SESSION_VIEW_ROLE_KEY, None)
+
+    switchable = [
+        {
+            'code': code,
+            'label': ROLE_LABELS[code],
+            'url': url_for('web.switch_role', role_code=code),
+        }
+        for code in WEB_ROLE_PRIORITY
+        if code in web_codes and code != role['code']
+    ]
 
     g.verified_user = {
         'id': user_data.get('id'),
@@ -187,9 +219,10 @@ def _current_user():
         'ui_preferences': user_data.get('ui_preferences') or {},
         'roles': roles,
         'role_code': role['code'],
-        'role_label': ROLE_LABELS[role['code']],
-        'profile_role_label': role.get('description') or ROLE_LABELS[role['code']],
+        'role_label': ROLE_LABELS.get(role['code'], role['code']),
+        'profile_role_label': role.get('description') or ROLE_LABELS.get(role['code'], role['code']),
         'avatar_url': None,
+        'switchable_roles': switchable,
     }
     return g.verified_user
 
@@ -286,8 +319,6 @@ def _nav_urls(user):
             'session_history': url_for('web.supervisor_session_history'),
             'kits': url_for('web.admin_kits'),
             'instruments': url_for('web.admin_instruments'),
-            'reports': url_for('web.supervisor_reports'),
-            'indicators': url_for('web.supervisor_indicators'),
             'audit_log': url_for('web.supervisor_audit_log'),
             'services_health': url_for('web.supervisor_services_health'),
         }
@@ -295,8 +326,7 @@ def _nav_urls(user):
         **common,
         'dashboard': url_for('web.admin_dashboard'),
         'instrument_families': url_for('web.admin_instrument_families'),
-        'instruments': url_for('web.admin_instruments'),
-        'kits': url_for('web.admin_kits'),
+        # Instruments/Kits are SPD-owned (RACI); Admin nav pruned — routes stay for SPD.
         'procedures': url_for('web.admin_procedures'),
         'users': url_for('web.admin_users'),
         'roles': url_for('web.admin_roles'),
@@ -304,6 +334,26 @@ def _nav_urls(user):
         'audit_log': url_for('web.admin_audit_log'),
         'configuration': url_for('web.admin_configuration'),
     }
+
+
+@web_bp.post('/switch-role/<role_code>')
+def switch_role(role_code):
+    """Multi-role portal view switch (Admin/SPD/OP). App or_charge is never a web view."""
+    user = _current_user()
+    if user is None:
+        return redirect(url_for('web.sign_in'))
+    if role_code not in WEB_ROLE_PRIORITY:
+        abort(400)
+    owned = {item.get('code') for item in user.get('roles') or []}
+    if role_code not in owned:
+        abort(403)
+    session[SESSION_VIEW_ROLE_KEY] = role_code
+    homes = {
+        'it_admin': 'web.admin_dashboard',
+        'spd_supervisor': 'web.supervisor_dashboard',
+        'station_operator': 'web.operator_sessions',
+    }
+    return redirect(url_for(homes[role_code]))
 
 
 @web_bp.post('/locale')
@@ -1687,24 +1737,47 @@ def supervisor_session_new():
     except (TypeError, ValueError, KeyError):
         abort(400)
     options = schedule_form_options(institution_id)
-    selected_kit = (request.values.get('kit_id') or '').strip()
-    expected_lines = []
-    if selected_kit:
-        try:
-            expected_lines = kit_expected_lines(UUID(selected_kit))
-        except (TypeError, ValueError):
-            selected_kit = ''
-            expected_lines = []
+    procedure_kits = options.get('procedure_kits') or {}
 
     def _schedule_form_values():
+        src = request.form if request.method == 'POST' else request.args
         return {
-            'operator_user_id': request.form.get('operator_user_id', ''),
-            'procedure_type_id': request.form.get('procedure_type_id', ''),
-            'room_id': request.form.get('room_id', ''),
-            'station_id': request.form.get('station_id', ''),
-            'patient_id': request.form.get('patient_id', ''),
-            'scheduled_at': request.form.get('scheduled_at', ''),
+            'operator_user_id': (src.get('operator_user_id') or '').strip(),
+            'procedure_type_id': (src.get('procedure_type_id') or '').strip(),
+            'room_id': (src.get('room_id') or '').strip(),
+            'station_id': (src.get('station_id') or '').strip(),
+            'patient_id': (src.get('patient_id') or '').strip(),
+            'scheduled_at': (src.get('scheduled_at') or '').strip(),
         }
+
+    def _resolve_kit_and_lines(procedure_type_id: str, preferred_kit: str):
+        """Filter kits to the procedure; prefer default kit when none / invalid selected."""
+        linked = list(procedure_kits.get(procedure_type_id) or [])
+        kit_ids = {item['id'] for item in linked}
+        selected = (preferred_kit or '').strip()
+        if selected and kit_ids and selected not in kit_ids:
+            selected = ''
+        if not selected and linked:
+            selected = next((item['id'] for item in linked if item.get('is_default')), linked[0]['id'])
+        lines = []
+        if selected:
+            try:
+                lines = kit_expected_lines(UUID(selected))
+            except (TypeError, ValueError):
+                selected = ''
+                lines = []
+        return selected, lines, linked
+
+    form_values = _schedule_form_values()
+    selected_kit = (request.values.get('kit_id') or '').strip()
+    selected_kit, expected_lines, kits_for_procedure = _resolve_kit_and_lines(
+        form_values.get('procedure_type_id') or '', selected_kit,
+    )
+    # Kits only after a procedure is chosen (empty + disabled until then).
+    options = {
+        **options,
+        'kits': kits_for_procedure if form_values.get('procedure_type_id') else [],
+    }
 
     if request.method == 'POST':
         action = request.form.get('action') or 'schedule'
@@ -1779,20 +1852,17 @@ def supervisor_session_new():
         except (RfSessionError, ValueError, TypeError) as exc:
             message = _error_message(exc) if isinstance(exc, RfSessionError) else str(exc)
             status = exc.status_code if isinstance(exc, RfSessionError) else 400
-            post_kit = (request.form.get('kit_id') or '').strip()
-            post_lines = expected_lines
-            if post_kit:
-                try:
-                    post_lines = kit_expected_lines(UUID(post_kit))
-                except (TypeError, ValueError):
-                    post_kit = selected_kit
-                    post_lines = expected_lines
+            post_values = _schedule_form_values()
+            post_kit, post_lines, post_kits = _resolve_kit_and_lines(
+                post_values.get('procedure_type_id') or '',
+                (request.form.get('kit_id') or '').strip(),
+            )
             return _page(
                 'supervisor/sessions/schedule.html',
-                **options,
+                **{**options, 'kits': post_kits if post_values.get('procedure_type_id') else []},
                 expected_lines=post_lines,
                 selected_kit=post_kit,
-                form_values=_schedule_form_values(),
+                form_values=post_values,
                 form_error=message,
             ), status
 
@@ -1801,8 +1871,28 @@ def supervisor_session_new():
         **options,
         expected_lines=expected_lines,
         selected_kit=selected_kit,
-        form_values={},
+        form_values=form_values,
     )
+
+
+@web_bp.get('/supervisor/sessions/kit-lines')
+@require_role('spd_supervisor')
+def supervisor_session_kit_lines():
+    """JSON kit composition + stock for schedule form (no full-page reload)."""
+    from flask import jsonify
+
+    from services.rf_session import RfSessionError, kit_expected_lines
+
+    raw = (request.args.get('kit_id') or '').strip()
+    if not raw:
+        return jsonify({'lines': []})
+    try:
+        lines = kit_expected_lines(UUID(raw))
+    except (TypeError, ValueError):
+        return jsonify({'error': 'invalid_kit'}), 400
+    except RfSessionError as exc:
+        return jsonify({'error': exc.code, 'message': str(exc)}), exc.status_code
+    return jsonify({'kit_id': raw, 'lines': lines})
 
 
 @web_bp.route('/supervisor/sessions/stock-recheck', methods=['POST'])

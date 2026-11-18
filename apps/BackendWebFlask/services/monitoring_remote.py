@@ -162,15 +162,60 @@ def admin_history(*, component: str = "", status: str = "", page=1) -> dict:
     return {"rows": rows, "page": body["page"], "pages": body["total_pages"], "total": body["total"]}
 
 
+_SPD_DISPLAY = {
+    "up": (N_("OK"), "success"),
+    "degraded": (N_("WARN"), "warning"),
+    "down": (N_("DOWN"), "danger"),
+    "unknown": (N_("WARN"), "warning"),
+}
+_SPD_WARN_REASONS = {
+    "slow_response": N_("High latency"),
+    "dependency_failed": N_("Dependency issue"),
+    "backlog_stalled": N_("Backlog stalled"),
+    "model_weights_missing": N_("Model weights missing"),
+    "invalid_response": N_("Invalid health answer"),
+}
+
+
 def supervisor_overview() -> dict:
-    """Availability summary authorized for the Supervisor (no latencies, endpoints or errors)."""
+    """Availability summary for SPD: OK / WARN / DOWN (no raw latency figures in the table)."""
     services = _request("/services")
     summary = _request("/summary")
     stats = {c["name"]: c for c in summary["components"]}
-    rows = [{"name": i["name"], "label": COMPONENT_LABELS.get(i["name"], i.get("label") or i["name"]), **_status(i),
-             "checked_at": _local(i.get("checked_at")), "availability_pct": (stats.get(i["name"]) or {}).get("availability_pct")}
-            for i in services["items"]]
-    return {"rows": rows, "counts": services["counts"]}
+    rows = []
+    counts = {"up": 0, "degraded": 0, "down": 0, "unknown": 0}
+    for item in services["items"]:
+        base = _status(item)
+        status = base["status"]
+        display_status = status
+        display_label, variant = _SPD_DISPLAY.get(status, (base["status_label"], base["variant"]))
+        check = item.get("check") or {}
+        error_type = check.get("error_type") or ""
+        warn_reason = ""
+        if status == "degraded":
+            warn_reason = _SPD_WARN_REASONS.get(error_type, "")
+        elif status == "up" and error_type == "slow_response":
+            # Probe marked slow but overall up: surface as WARN for SPD.
+            display_status = "degraded"
+            display_label, variant = _SPD_DISPLAY["degraded"]
+            warn_reason = _SPD_WARN_REASONS["slow_response"]
+        if display_status in counts:
+            counts[display_status] += 1
+        else:
+            counts["unknown"] += 1
+        rows.append({
+            "name": item["name"],
+            "label": COMPONENT_LABELS.get(item["name"], item.get("label") or item["name"]),
+            **base,
+            "status": display_status,
+            "status_label": display_label,
+            "variant": variant,
+            "display_label": display_label,
+            "warn_reason": warn_reason,
+            "checked_at": _local(item.get("checked_at")),
+            "availability_pct": (stats.get(item["name"]) or {}).get("availability_pct"),
+        })
+    return {"rows": rows, "counts": counts}
 
 
 # --- MS-05: capture stations, cameras and technical alerts (Supervisor and Administrator) ---------------
