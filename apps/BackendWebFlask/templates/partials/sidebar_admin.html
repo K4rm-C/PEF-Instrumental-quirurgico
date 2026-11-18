@@ -46,22 +46,7 @@
                     <span>{{ _("Instrument Families") }}</span>
                 </a>
             </li>
-            <li>
-                <a class="sidebar__nav-link{% if active_nav_item == 'instruments' %} sidebar__nav-link--active{% endif %}"
-                   href="{{ nav_urls.instruments|default('#') }}"
-                   {% if active_nav_item == 'instruments' %}aria-current="page"{% endif %}>
-                    {{ macros.icon_wrench() }}
-                    <span>{{ _("Instruments") }}</span>
-                </a>
-            </li>
-            <li>
-                <a class="sidebar__nav-link{% if active_nav_item == 'kits' %} sidebar__nav-link--active{% endif %}"
-                   href="{{ nav_urls.kits|default('#') }}"
-                   {% if active_nav_item == 'kits' %}aria-current="page"{% endif %}>
-                    {{ macros.icon_box() }}
-                    <span>{{ _("Kits") }}</span>
-                </a>
-            </li>
+            {# Instruments / Kits: SPD-owned (RACI). Admin only keeps families + procedures. #}
             <li>
                 <a class="sidebar__nav-link{% if active_nav_item == 'procedures' %} sidebar__nav-link--active{% endif %}"
                    href="{{ nav_urls.procedures|default('#') }}"

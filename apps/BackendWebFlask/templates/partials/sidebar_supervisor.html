@@ -5,8 +5,8 @@
 {#
     SPD sidebar — ordered by use frequency (RF):
     Dashboard → Sessions (+ New) → Discrepancies → History →
-    Kits → Instruments → Indicators → Reports (stub) → Audit →
-    Services health (future stub) → Account.
+    Kits → Instruments → Audit → Services health → Account.
+    Indicators/Reports nav entries removed (not productized in this build).
     Privacy notice catalog is admin-only; SPD confirms Via A on schedule/detail only.
 #}
 
@@ -93,22 +93,6 @@
     <div class="sidebar__section">
         <p class="sidebar__section-label">{{ _("Insights") }}</p>
         <ul class="sidebar__nav-list">
-            <li>
-                <a class="sidebar__nav-link{% if active_nav_item == 'indicators' %} sidebar__nav-link--active{% endif %}"
-                   href="{{ nav_urls.indicators|default('#') }}"
-                   {% if active_nav_item == 'indicators' %}aria-current="page"{% endif %}>
-                    {{ macros.icon_chart_bar() }}
-                    <span>{{ _("Indicators") }}</span>
-                </a>
-            </li>
-            <li>
-                <a class="sidebar__nav-link{% if active_nav_item == 'reports' %} sidebar__nav-link--active{% endif %}"
-                   href="{{ nav_urls.reports|default('#') }}"
-                   {% if active_nav_item == 'reports' %}aria-current="page"{% endif %}>
-                    {{ macros.icon_document() }}
-                    <span>{{ _("Reports") }}</span>
-                </a>
-            </li>
             <li>
                 <a class="sidebar__nav-link{% if active_nav_item == 'audit_log' %} sidebar__nav-link--active{% endif %}"
                    href="{{ nav_urls.audit_log|default('#') }}"

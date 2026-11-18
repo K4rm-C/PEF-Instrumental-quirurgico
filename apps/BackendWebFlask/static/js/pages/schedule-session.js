@@ -4,6 +4,10 @@
   const t = (key) => (window.pefT ? window.pefT(key) : key);
 
   const stockUrl = form.dataset.stockRecheckUrl || "";
+  const kitLinesUrl = form.dataset.kitLinesUrl || "";
+  const selectKitLabel = form.dataset.selectKitLabel || "Select kit";
+  const selectKitEmpty = form.dataset.selectKitEmpty || "Select a kit to load composition.";
+  const otherLabel = form.dataset.otherLabel || "Other";
   const tbody = form.querySelector("[data-stock-tbody]");
   const privacyModal = document.getElementById("privacy-continue-modal");
   const noticeSelect = document.getElementById("privacy-notice-version");
@@ -16,11 +20,20 @@
   const physicianHost = document.querySelector("[data-physician-rows]");
   const physicianTemplate = document.getElementById("physician-row-template");
   const physicianDataEl = document.getElementById("physician-options-data");
+  const procedureKitsEl = document.getElementById("procedure-kits-data");
+  const procedureSelect = form.querySelector("[data-procedure-select]");
+  const kitSelect = form.querySelector("[data-kit-select]");
   let physicianOptions = [];
+  let procedureKits = {};
   try {
     physicianOptions = JSON.parse(physicianDataEl?.textContent || "[]") || [];
   } catch (_err) {
     physicianOptions = [];
+  }
+  try {
+    procedureKits = JSON.parse(procedureKitsEl?.textContent || "{}") || {};
+  } catch (_err) {
+    procedureKits = {};
   }
 
   function applySemaphore(badge, value) {
@@ -30,6 +43,13 @@
     badge.className =
       "semaphore-badge semaphore-badge--" +
       (sem === "OK" ? "ok" : sem === "WARN" ? "warn" : "block");
+  }
+
+  function bindQtyInputs(root) {
+    (root || form).querySelectorAll("[data-qty-input]").forEach((input) => {
+      input.addEventListener("change", recheckStock);
+      input.addEventListener("blur", recheckStock);
+    });
   }
 
   async function recheckStock() {
@@ -64,10 +84,150 @@
     }
   }
 
-  form.querySelectorAll("[data-qty-input]").forEach((input) => {
-    input.addEventListener("change", recheckStock);
-    input.addEventListener("blur", recheckStock);
+  function kitsForProcedure(procedureId) {
+    if (!procedureId) return [];
+    return Array.isArray(procedureKits[procedureId]) ? procedureKits[procedureId] : [];
+  }
+
+  function rebuildKitOptions(procedureId, preferredKitId) {
+    if (!kitSelect) return "";
+    const kits = kitsForProcedure(procedureId);
+    const previous = preferredKitId || kitSelect.value || "";
+    kitSelect.innerHTML = "";
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = selectKitLabel;
+    kitSelect.appendChild(placeholder);
+
+    let selected = "";
+    if (procedureId && kits.length) {
+      selected = previous;
+      if (!kits.some((kit) => String(kit.id) === String(selected))) {
+        const defaults = kits.find((kit) => kit.is_default);
+        selected = defaults ? defaults.id : kits[0]?.id || "";
+      }
+      kits.forEach((kit) => {
+        const opt = document.createElement("option");
+        opt.value = kit.id;
+        opt.textContent = kit.name;
+        if (String(kit.id) === String(selected)) opt.selected = true;
+        kitSelect.appendChild(opt);
+      });
+    }
+    if (!selected) placeholder.selected = true;
+    kitSelect.disabled = !procedureId;
+    return selected || "";
+  }
+
+  function renderKitLines(lines) {
+    if (!tbody) return;
+    tbody.replaceChildren();
+    if (!lines || !lines.length) {
+      const empty = document.createElement("tr");
+      const cell = document.createElement("td");
+      cell.colSpan = 4;
+      cell.textContent = selectKitEmpty;
+      empty.appendChild(cell);
+      tbody.appendChild(empty);
+      return;
+    }
+    let currentCat = "";
+    lines.forEach((line) => {
+      const cat = line.category_label || line.category_code || otherLabel;
+      if (cat !== currentCat) {
+        currentCat = cat;
+        const heading = document.createElement("tr");
+        heading.className = "inventory-type-row";
+        const hCell = document.createElement("td");
+        hCell.colSpan = 4;
+        const strong = document.createElement("strong");
+        strong.className = "inventory-type-heading";
+        strong.textContent = cat;
+        hCell.appendChild(strong);
+        heading.appendChild(hCell);
+        tbody.appendChild(heading);
+      }
+      const sem = String(line.semaphore || "OK").toUpperCase();
+      const semClass = sem === "OK" ? "ok" : sem === "WARN" ? "warn" : "block";
+      const row = document.createElement("tr");
+      row.dataset.stockRow = "";
+      row.dataset.familyId = line.family_id;
+      row.dataset.stockAvailable = String(line.stock_available ?? "");
+      row.dataset.stockTotal = String(line.stock_total ?? "");
+
+      const nameTd = document.createElement("td");
+      nameTd.appendChild(document.createTextNode(line.family_name || ""));
+      const hidden = document.createElement("input");
+      hidden.type = "hidden";
+      hidden.name = "family_id[]";
+      hidden.value = line.family_id;
+      nameTd.appendChild(hidden);
+
+      const qtyTd = document.createElement("td");
+      qtyTd.className = "data-table__numeric-column";
+      const qty = document.createElement("input");
+      qty.className = "form-field__input form-field__input--plain";
+      qty.type = "number";
+      qty.min = "1";
+      qty.name = "expected_quantity[]";
+      qty.value = String(line.expected_quantity ?? 1);
+      qty.required = true;
+      qty.dataset.qtyInput = "";
+      qtyTd.appendChild(qty);
+
+      const stockTd = document.createElement("td");
+      stockTd.dataset.stockLabel = "";
+      stockTd.textContent = `${line.stock_available} / ${line.stock_total}`;
+
+      const semTd = document.createElement("td");
+      const badge = document.createElement("span");
+      badge.className = `semaphore-badge semaphore-badge--${semClass}`;
+      badge.dataset.semaphoreBadge = "";
+      badge.textContent = line.semaphore || sem;
+      semTd.appendChild(badge);
+
+      row.append(nameTd, qtyTd, stockTd, semTd);
+      tbody.appendChild(row);
+    });
+    bindQtyInputs(tbody);
+  }
+
+  async function loadKitLines(kitId) {
+    if (!kitLinesUrl || !tbody) return;
+    if (!kitId) {
+      renderKitLines([]);
+      return;
+    }
+    try {
+      const url = new URL(kitLinesUrl, window.location.origin);
+      url.searchParams.set("kit_id", kitId);
+      const res = await fetch(url.toString(), {
+        headers: { Accept: "application/json" },
+        credentials: "same-origin",
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      renderKitLines(data.lines || []);
+    } catch (_err) {
+      /* keep previous table on transient errors */
+    }
+  }
+
+  async function onProcedureChange() {
+    const procedureId = procedureSelect?.value || "";
+    const kitId = rebuildKitOptions(procedureId, "");
+    await loadKitLines(kitId);
+  }
+
+  procedureSelect?.addEventListener("change", () => {
+    onProcedureChange();
   });
+
+  kitSelect?.addEventListener("change", () => {
+    loadKitLines(kitSelect.value || "");
+  });
+
+  bindQtyInputs(form);
 
   function openPrivacyModal() {
     if (!privacyModal) return;
@@ -123,18 +283,9 @@
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
+    // Disabled controls are omitted from FormData; re-enable if a kit was chosen.
+    if (kitSelect?.disabled && kitSelect.value) kitSelect.disabled = false;
     openPrivacyModal();
-  });
-
-  const kitSelect = form.querySelector("[data-kit-select]");
-  const kitReloadUrl = form.dataset.kitReloadUrl || "";
-  kitSelect?.addEventListener("change", () => {
-    if (!kitReloadUrl) return;
-    const kitId = kitSelect.value || "";
-    const url = new URL(kitReloadUrl, window.location.origin);
-    if (kitId) url.searchParams.set("kit_id", kitId);
-    else url.searchParams.delete("kit_id");
-    window.location.assign(url.toString());
   });
 
   privacyModal?.querySelector("[data-privacy-modal-cancel]")?.addEventListener("click", () => {

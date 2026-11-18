@@ -1,0 +1,13 @@
+# PROTOTYPE (ANDROID-02, isolated stack only): presigned evidence GETs through the gateway.
+services:
+  gateway:
+    environment:
+      PEF_GW_GARAGE_UPSTREAM: garage:3900
+      PEF_GW_EVIDENCE_BUCKET: ${S3_BUCKET_EVIDENCE}
+    volumes: !override
+    - ./.e2e/android_it/gateway/00-pef-http.conf.template:/etc/nginx/templates/00-pef-http.conf.template:ro
+    - ./.e2e/android_it/gateway/pef:/etc/nginx/templates/pef:ro
+    - ./infra/gateway/servers/http.conf.template:/etc/nginx/templates/default.conf.template:ro
+  evidence:
+    environment:
+      S3_PUBLIC_ENDPOINT: http://127.0.0.1:27080

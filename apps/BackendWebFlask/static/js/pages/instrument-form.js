@@ -5,12 +5,120 @@
     return window.pefT ? window.pefT(key, values) : key;
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
   var form = document.querySelector("[data-instrument-form]");
   if (!form) return;
+
+  var familySelect = form.querySelector("[data-instrument-family]");
+  var examplesHost = document.querySelector("[data-family-examples-host]");
 
   function selectedLabel(select) {
     if (!select || !select.selectedOptions || !select.selectedOptions[0]) return "";
     return select.selectedOptions[0].textContent || select.value || "";
+  }
+
+  function clearOverlays(host) {
+    host.querySelectorAll(".family-examples__overlay").forEach(function (node) {
+      node.remove();
+    });
+  }
+
+  function renderFamilyExamples(examples) {
+    if (!examplesHost) return;
+    var list = examplesHost.querySelector("[data-family-examples-list]");
+    if (!list) return;
+
+    var emptyLabel = examplesHost.getAttribute("data-empty-label") || "";
+    var viewLabel = examplesHost.getAttribute("data-view-label") || "";
+    var closeLabel = examplesHost.getAttribute("data-close-label") || "";
+    var items = Array.isArray(examples) ? examples.filter(function (item) {
+      return item && item.image_url;
+    }) : [];
+
+    clearOverlays(examplesHost);
+    list.innerHTML = "";
+
+    if (!items.length) {
+      var empty = document.createElement("li");
+      empty.className = "family-examples__empty text-muted";
+      empty.setAttribute("data-family-examples-empty", "");
+      empty.textContent = emptyLabel;
+      list.appendChild(empty);
+      if (window.location.hash && window.location.hash.indexOf("family-example-view-") === 1) {
+        history.replaceState(null, "", window.location.pathname + window.location.search + "#family-examples");
+      }
+      return;
+    }
+
+    items.forEach(function (example) {
+      var id = String(example.id || "");
+      var imageUrl = String(example.image_url || "");
+      var text = example.example_text ? String(example.example_text) : "";
+      var alt = text || viewLabel;
+
+      var li = document.createElement("li");
+      li.className = "family-examples__item";
+      li.innerHTML =
+        '<a class="family-examples__thumb" href="#family-example-view-' + escapeHtml(id) + '" title="' + escapeHtml(viewLabel) + '">' +
+        '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(alt) + '" loading="lazy">' +
+        "</a>" +
+        (text
+          ? '<div class="family-examples__meta"><span class="family-examples__text">' + escapeHtml(text) + "</span></div>"
+          : "");
+      list.appendChild(li);
+
+      var overlay = document.createElement("div");
+      overlay.className = "family-examples__overlay";
+      overlay.id = "family-example-view-" + id;
+      overlay.setAttribute("role", "dialog");
+      overlay.setAttribute("aria-modal", "true");
+      overlay.setAttribute("aria-label", viewLabel);
+      overlay.innerHTML =
+        '<div class="family-examples__overlay-panel">' +
+        '<img src="' + escapeHtml(imageUrl) + '" alt="' + escapeHtml(alt) + '">' +
+        (text ? '<p class="family-examples__overlay-caption">' + escapeHtml(text) + "</p>" : "") +
+        '<a class="btn btn--secondary" href="#family-examples">' + escapeHtml(closeLabel) + "</a>" +
+        "</div>";
+      examplesHost.appendChild(overlay);
+    });
+  }
+
+  function loadFamilyExamples(familyId) {
+    if (!examplesHost) return;
+    var template = examplesHost.getAttribute("data-examples-url-template") || "";
+    if (!template || !familyId) {
+      renderFamilyExamples([]);
+      return;
+    }
+    var url = template.replace("{family_id}", encodeURIComponent(familyId));
+    fetch(url, {
+      headers: { Accept: "application/json" },
+      credentials: "same-origin",
+    })
+      .then(function (response) {
+        if (!response.ok) throw new Error("preview_failed");
+        return response.json();
+      })
+      .then(function (payload) {
+        renderFamilyExamples((payload && payload.examples) || []);
+      })
+      .catch(function () {
+        renderFamilyExamples([]);
+      });
+  }
+
+  if (familySelect && examplesHost) {
+    familySelect.addEventListener("change", function () {
+      loadFamilyExamples(familySelect.value || "");
+    });
   }
 
   form.addEventListener("submit", function (event) {

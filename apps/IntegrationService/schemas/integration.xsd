@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PEF Integration Service (MS-07) - XML responses of /api/v1/sync and /api/v1/integration.
+  Same conventions as the other services: element names = JSON field names, null = xsi:nil="true",
+  lists are containers whose entries are named by context. FHIR (/fhir/r4) is JSON only (application/fhir+json).
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="unqualified">
+
+  <xs:simpleType name="uuid">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"/>
+    </xs:restriction>
+  </xs:simpleType>
+
+  <xs:complexType name="Open">
+    <xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence>
+  </xs:complexType>
+
+  <!-- GET /api/v1/sync/resources -->
+  <xs:element name="sync_resources">
+    <xs:complexType><xs:all>
+      <xs:element name="resources">
+        <xs:complexType><xs:sequence>
+          <xs:element name="resource" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="name" type="xs:string"/>
+              <xs:element name="href_template" type="xs:string" nillable="true"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <!-- GET /api/v1/sync/changes -->
+  <xs:element name="sync_page">
+    <xs:complexType><xs:all>
+      <xs:element name="changes">
+        <xs:complexType><xs:sequence>
+          <xs:element name="change" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="resource_type" type="xs:string"/>
+              <xs:element name="resource_id" type="uuid"/>
+              <xs:element name="operation">
+                <xs:simpleType><xs:restriction base="xs:string">
+                  <xs:enumeration value="create"/><xs:enumeration value="update"/>
+                  <xs:enumeration value="deactivate"/><xs:enumeration value="delete"/>
+                </xs:restriction></xs:simpleType>
+              </xs:element>
+              <xs:element name="version" type="xs:positiveInteger"/>
+              <xs:element name="data_version" type="xs:positiveInteger"/>
+              <xs:element name="changed_at" type="xs:dateTime"/>
+              <xs:element name="href" type="xs:string" nillable="true"/>
+              <xs:element name="data" type="Open" nillable="true"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="next_cursor" type="xs:string"/>
+      <xs:element name="has_more" type="xs:boolean"/>
+      <xs:element name="types">
+        <xs:complexType><xs:sequence>
+          <xs:element name="type" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <!-- POST /api/v1/sync/operations: the owner service's answer, replayed as is -->
+  <xs:element name="operation_result" type="Open"/>
+
+  <!-- /api/v1/integration -->
+  <xs:complexType name="Endpoint">
+    <xs:all>
+      <xs:element name="id" type="uuid"/>
+      <xs:element name="name" type="xs:string"/>
+      <xs:element name="base_url" type="xs:string"/>
+      <xs:element name="resource_types">
+        <xs:complexType><xs:sequence>
+          <xs:element name="resource_type" type="xs:string" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="active" type="xs:boolean"/>
+      <xs:element name="created_at" type="xs:dateTime"/>
+      <xs:element name="updated_at" type="xs:dateTime"/>
+    </xs:all>
+  </xs:complexType>
+  <xs:element name="endpoint" type="Endpoint"/>
+  <xs:element name="endpoint_list">
+    <xs:complexType><xs:all>
+      <xs:element name="items">
+        <xs:complexType><xs:sequence>
+          <xs:element name="endpoint" type="Endpoint" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:complexType name="Delivery">
+    <xs:all>
+      <xs:element name="id" type="uuid"/>
+      <xs:element name="endpoint_id" type="uuid"/>
+      <xs:element name="resource_type" type="xs:string"/>
+      <xs:element name="resource_id" type="uuid"/>
+      <xs:element name="status">
+        <xs:simpleType><xs:restriction base="xs:string">
+          <xs:enumeration value="pending"/><xs:enumeration value="sent"/><xs:enumeration value="failed"/>
+        </xs:restriction></xs:simpleType>
+      </xs:element>
+      <xs:element name="attempts_count" type="xs:nonNegativeInteger"/>
+      <xs:element name="last_status_code" type="xs:int" nillable="true"/>
+      <xs:element name="last_error" type="xs:string" nillable="true"/>
+      <xs:element name="created_at" type="xs:dateTime"/>
+      <xs:element name="sent_at" type="xs:dateTime" nillable="true"/>
+      <xs:element name="attempts">
+        <xs:complexType><xs:sequence>
+          <xs:element name="attempt" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="attempted_at" type="xs:dateTime"/>
+              <xs:element name="status_code" type="xs:int" nillable="true"/>
+              <xs:element name="outcome" type="xs:string"/>
+              <xs:element name="error" type="xs:string" nillable="true"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all>
+  </xs:complexType>
+  <xs:element name="delivery" type="Delivery"/>
+  <xs:element name="delivery_list">
+    <xs:complexType><xs:all>
+      <xs:element name="items">
+        <xs:complexType><xs:sequence>
+          <xs:element name="delivery" type="Delivery" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <!-- health and errors -->
+  <xs:element name="health">
+    <xs:complexType><xs:all>
+      <xs:element name="status" type="xs:string"/>
+      <xs:element name="checks" type="Open"/>
+      <xs:element name="correlation_id" type="xs:string"/>
+    </xs:all></xs:complexType>
+  </xs:element>
+  <xs:element name="error_response">
+    <xs:complexType><xs:all>
+      <xs:element name="error" type="xs:string"/>
+      <xs:element name="message" type="xs:string"/>
+      <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+      <xs:element name="details" type="Open"/>
+    </xs:all></xs:complexType>
+  </xs:element>
+  <!-- MS-12: batch exports of closed sessions (/api/v1/integration/exports) -->
+  <xs:complexType name="ExportBatch">
+    <xs:all>
+      <xs:element name="id" type="xs:string"/>
+      <xs:element name="format" type="xs:string"/>
+      <xs:element name="period_from" type="xs:string"/>
+      <xs:element name="period_to" type="xs:string"/>
+      <xs:element name="sessions_count" type="xs:integer"/>
+      <xs:element name="content_sha256" type="xs:string"/>
+      <xs:element name="size_bytes" type="xs:integer"/>
+      <xs:element name="created_by_user_id" type="xs:string" nillable="true"/>
+      <xs:element name="created_by_client_id" type="xs:string" nillable="true"/>
+      <xs:element name="created_at" type="xs:string"/>
+      <xs:element name="session_ids" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="session_id" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all>
+  </xs:complexType>
+  <xs:element name="export_batch" type="ExportBatch"/>
+  <xs:element name="export_list">
+    <xs:complexType><xs:sequence>
+      <xs:element name="export_batch" type="ExportBatch" minOccurs="0" maxOccurs="unbounded"/>
+    </xs:sequence></xs:complexType>
+  </xs:element>
+</xs:schema>

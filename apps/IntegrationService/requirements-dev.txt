@@ -1,0 +1,5 @@
+-r requirements.txt
+pytest>=8.0,<9
+PyYAML>=6.0,<7
+# XML responses validated against schemas/integration.xsd in the tests.
+lxml>=5.0,<7

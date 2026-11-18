@@ -77,7 +77,9 @@
             <label class="form-field__label" for="user-institution">{{ _("Institution") }}</label>
             <div class="form-field__input-wrapper">
                 <select class="form-field__input form-field__select" id="user-institution" name="institution" required>
+                    {% if not institutions %}
                     <option value="">{{ _("Select an institution") }}</option>
+                    {% endif %}
                     {% for institution in institutions %}
                     <option value="{{ institution.value }}" {% if institution.value == user.institution %}selected{% endif %}>{{ institution.label }}</option>
                     {% endfor %}

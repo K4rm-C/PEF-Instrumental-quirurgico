@@ -1,0 +1,73 @@
+/* Supervisor Reports (templates/supervisor/reports.html).
+   Chart series: fixed categorical order, validated with the dataviz palette validator against the
+   portal surfaces (light #ffffff, dark #171d22): lightness band, chroma, adjacent CVD and normal-vision
+   separation all pass. Three light steps sit below 3:1 on white, so every chart has data labels
+   and a table with the same numbers. */
+
+.v3-page {
+    --report-series-1: #2a78d6;
+    --report-series-2: #eb6834;
+    --report-series-3: #1baf7a;
+    --report-series-4: #eda100;
+    --report-series-5: #e87ba4;
+    --report-series-6: #008300;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .v3-page {
+        --report-series-1: #3987e5;
+        --report-series-2: #d95926;
+        --report-series-3: #199e70;
+        --report-series-4: #c98500;
+        --report-series-5: #d55181;
+        --report-series-6: #008300;
+    }
+}
+
+:root[data-theme="dark"] .v3-page {
+    --report-series-1: #3987e5;
+    --report-series-2: #d95926;
+    --report-series-3: #199e70;
+    --report-series-4: #c98500;
+    --report-series-5: #d55181;
+    --report-series-6: #008300;
+}
+
+.report-section {
+    scroll-margin-top: var(--space-6);
+}
+
+.report-kpis {
+    margin: var(--space-4) 0;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.report-subtitle {
+    margin: 0 0 var(--space-2);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-primary);
+}
+
+.report-chart {
+    min-height: 280px;
+}
+
+.report-chart--short {
+    min-height: 240px;
+    margin-bottom: var(--space-4);
+}
+
+.report-table {
+    margin-top: var(--space-3);
+}
+
+.report-empty-value {
+    color: var(--color-text-secondary);
+    font-style: italic;
+}
+
+.report-note {
+    font-size: var(--font-size-xs);
+    color: var(--color-text-secondary);
+}

@@ -1,0 +1,9 @@
+Flask>=3.0,<4
+Werkzeug==3.1.8
+PyJWT>=2.8,<3
+SQLAlchemy>=2.0,<3
+psycopg[binary]>=3.2,<4
+redis>=5.0,<6
+python-dotenv>=1.0,<2
+# Production WSGI server used by the Docker image (not available on Windows; use `python main.py` there).
+gunicorn>=23.0,<24; sys_platform != "win32"

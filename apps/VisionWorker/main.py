@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import uuid
 from pathlib import Path
@@ -17,8 +18,10 @@ from config import (
     COUNT_SAMPLE_INTERVAL_S,
     FRAME_STRIDE_CPU,
     FRAME_STRIDE_CUDA,
+    CONFUSION_HOLD_SECONDS,
     HOLD_ABSENT_SECONDS,
     HOLD_ABSENT_STREAK,
+    HOLD_DROP_SCORE,
     HOLD_MIN_SCORE,
     HOLD_SECONDS,
     HOLD_SEED_FRAMES,
@@ -43,6 +46,12 @@ from inference import (
     read_timeline_samples,
 )
 from live_ws import register_live_ws
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [vision] %(message)s",
+)
+logger = logging.getLogger("pef.vision")
 
 app = Flask(__name__)
 sock = Sock(app)
@@ -82,7 +91,9 @@ def health():
         "frame_stride_cpu": FRAME_STRIDE_CPU,
         "hold_seconds": HOLD_SECONDS,
         "name_hold_seconds": NAME_HOLD_SECONDS,
+        "confusion_hold_seconds": CONFUSION_HOLD_SECONDS,
         "hold_min_score": HOLD_MIN_SCORE,
+        "hold_drop_score": HOLD_DROP_SCORE,
         "hold_absent_seconds": HOLD_ABSENT_SECONDS,
         "hold_absent_streak": HOLD_ABSENT_STREAK,
         "hold_seed_frames": HOLD_SEED_FRAMES,
@@ -131,8 +142,14 @@ def bind_session(session_id: str):
         state.conf_threshold = float(payload.get("conf_threshold") or CONF_DISPLAY_THRESHOLD)
         if state.status not in {"processing"}:
             state.status = "idle"
-            state.message = "Bound; waiting for video"
+            state.message = "bound; waiting for video"
         _sessions[session_id] = state
+    logger.info(
+        "bind session=%s families=%s rebind=%s",
+        session_id,
+        len(expected),
+        bool(prev),
+    )
     # Warm model in background so first upload is faster.
     threading.Thread(target=lambda: get_model(), daemon=True).start()
     return jsonify({"ok": True, "session": state.to_public()})
@@ -144,6 +161,7 @@ def unbind_session(session_id: str):
         state = _sessions.pop(session_id, None)
         if state:
             state.cancel = True
+    logger.info("unbind session=%s found=%s", session_id, bool(state))
     return jsonify({"ok": True, "unbound": bool(state)})
 
 
@@ -200,10 +218,14 @@ def process_video(session_id: str):
     job_id = uuid.uuid4().hex
     dest = UPLOAD_DIR / f"{session_id}_{job_id}{suffix}"
     upload.save(dest)
+    logger.info("process-video session=%s job=%s file=%s", session_id, job_id, dest.name)
 
     def _run():
         try:
             process_video_file(str(dest), state)
+            logger.info("process-video done session=%s job=%s status=%s", session_id, job_id, state.status)
+        except Exception:
+            logger.exception("process-video failed session=%s job=%s", session_id, job_id)
         finally:
             try:
                 dest.unlink(missing_ok=True)
@@ -231,16 +253,27 @@ register_live_ws(sock, get_state=_get_state)
 
 if __name__ == "__main__":
     info = device_info()
-    print(f"VisionWorker on http://{HOST}:{PORT}")
-    print(f"Weights: {WEIGHTS_PATH} (present={WEIGHTS_PATH.is_file()})")
-    print(
-        f"CUDA: available={info['cuda_available']} "
-        f"name={info['cuda_device_name'] or '-'} "
-        "(model uses CUDA if available, else CPU)"
+    logger.info("VisionWorker on http://%s:%s", HOST, PORT)
+    logger.info("Weights: %s (present=%s)", WEIGHTS_PATH, WEIGHTS_PATH.is_file())
+    logger.info(
+        "CUDA: available=%s name=%s (model uses CUDA if available, else CPU)",
+        info["cuda_available"],
+        info["cuda_device_name"] or "-",
     )
-    print(
-        f"Stride: cuda={FRAME_STRIDE_CUDA} cpu={FRAME_STRIDE_CPU} "
-        f"(count sample every {COUNT_SAMPLE_INTERVAL_S:g}s of video)"
+    logger.info(
+        "Stride: cuda=%s cpu=%s (count sample every %gs of video)",
+        FRAME_STRIDE_CUDA,
+        FRAME_STRIDE_CPU,
+        COUNT_SAMPLE_INTERVAL_S,
     )
-    print(f"Track memory: {'on' if TRACK_MEMORY else 'off'} (rollback: VISION_TRACK_MEMORY=0)")
+    logger.info(
+        "Holds: ttl=%.2fs name=%.2fs absent=%.2fs seed_frames=%s zone_iou=%.2f",
+        HOLD_SECONDS,
+        NAME_HOLD_SECONDS,
+        HOLD_ABSENT_SECONDS,
+        HOLD_SEED_FRAMES,
+        HOLD_ZONE_IOU,
+    )
+    logger.info("Track memory: %s (rollback: VISION_TRACK_MEMORY=0)", "on" if TRACK_MEMORY else "off")
+    # Per-frame / WS traffic stays quiet on purpose; bind, video jobs and errors are logged above.
     app.run(host=HOST, port=PORT, debug=False, threaded=True)

@@ -1,0 +1,165 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{#
+    MS-11 (R17): evaluation records of a vision model. Values are DECLARED by the administrator from an evaluation
+    made outside PEF (e.g. Ultralytics `val`); PEF never computes or completes them. Records are immutable.
+    Context: overview {model, evaluations[{... comparisons[{version_tag, deltas, regression}]}], history, pinned_sessions},
+    values (form), form_error, splits, sources, list_url.
+#}
+{% block title %}{{ _("Model Evaluations") }} {{ overview.model.version_tag }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'vision_models' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("System") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item"><a href="{{ list_url }}">{{ _("Vision Models") }}</a></li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Evaluations") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{% set m = overview.model %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Model Evaluations") }} · {{ m.version_tag }}</h1>
+        <p class="page-heading__subtitle">{{ _("Results recorded from evaluations made outside PEF. PEF never calculates or estimates these values; a metric that was not measured stays empty.") }}</p>
+    </div>
+</div>
+
+{% if form_error %}<div class="alert alert--warning" role="alert" data-form-error>{{ form_error }}</div>{% endif %}
+
+<section class="card" data-model-summary>
+    <div class="info-grid info-grid--three">
+        <div><span class="info-grid__label">{{ _("Status") }}</span><span>{{ _("Active") if m.active else _("Inactive") }}</span></div>
+        <div><span class="info-grid__label">SHA-256</span><code>{{ (m.sha256 or '—')[:16] }}…</code></div>
+        <div><span class="info-grid__label">{{ _("Sessions pinned to this model") }}</span><span data-pinned-sessions>{{ overview.pinned_sessions }}</span></div>
+    </div>
+</section>
+
+<section class="card" style="margin-top:1rem;">
+    <h2 class="card__title">{{ _("Recorded evaluations") }}</h2>
+    <div class="table-wrapper">
+    <table class="data-table" data-evaluations-table>
+        <thead><tr>
+            <th>{{ _("Dataset") }}</th><th>{{ _("Split") }}</th><th class="data-table__numeric-column">{{ _("Images") }}</th>
+            <th class="data-table__numeric-column">{{ _("Precision") }}</th><th class="data-table__numeric-column">{{ _("Recall") }}</th>
+            <th class="data-table__numeric-column">mAP50</th><th class="data-table__numeric-column">mAP50-95</th>
+            <th>{{ _("Thresholds") }}</th><th>{{ _("Compared with other models (same dataset)") }}</th><th>{{ _("Recorded") }}</th>
+        </tr></thead>
+        <tbody>
+        {% for e in overview.evaluations %}
+        <tr data-evaluation="{{ e.dataset_name }}:{{ e.dataset_version }}:{{ e.split }}">
+            <td><strong>{{ e.dataset_name }}</strong> v{{ e.dataset_version }}{% if e.dataset_sha256 %}<div class="muted"><code>{{ e.dataset_sha256[:12] }}…</code></div>{% endif %}</td>
+            <td>{{ e.split }}</td>
+            <td class="data-table__numeric-column">{{ e.images }}{% if e.instances is not none %} / {{ e.instances }}{% endif %}</td>
+            {% for key in ('precision_value', 'recall_value', 'map50', 'map50_95') %}
+            <td class="data-table__numeric-column">{{ '%.4f'|format(e[key]) if e[key] is not none else '—' }}</td>
+            {% endfor %}
+            <td>{{ _("conf") }} {{ e.conf_threshold if e.conf_threshold is not none else '—' }} · IoU {{ e.iou_threshold if e.iou_threshold is not none else '—' }}</td>
+            <td>
+                {% for c in e.comparisons %}
+                <div {% if c.regression %}class="text-danger" data-regression{% endif %}>
+                    {{ c.version_tag }}:
+                    {% for key, delta in c.deltas.items() %}{{ {'precision_value': 'P', 'recall_value': 'R', 'map50': 'mAP50', 'map50_95': 'mAP50-95'}[key] }} {{ '%+.4f'|format(delta) }}{% if not loop.last %}, {% endif %}{% endfor %}
+                    {% if c.regression %}({{ _("lower than that model") }}){% endif %}
+                </div>
+                {% else %}<span class="muted">{{ _("No other model evaluated on this dataset") }}</span>{% endfor %}
+            </td>
+            <td>{{ e.evaluated_at[:10] }} · {{ e.recorded_by or '—' }}<div class="muted">{{ e.source }}</div></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="data-table__empty-state" data-no-evaluations>{{ _("No evaluation has been recorded for this model. Without one, PEF does not report any model accuracy.") }}</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</section>
+
+<section class="card" style="margin-top:1rem;">
+    <h2 class="card__title">{{ _("Record an evaluation") }}</h2>
+    <p class="text-muted">{{ _("Records cannot be edited afterwards: to correct one, record a new dataset version.") }}</p>
+    <form method="post" class="v3-stack" data-evaluation-form>
+        {{ csrf_field() }}
+        <div class="info-grid info-grid--three">
+            <div class="form-field"><label class="form-field__label" for="ev-dataset-name">{{ _("Dataset name") }} *</label>
+                <input class="form-field__input form-field__input--plain" id="ev-dataset-name" name="dataset_name" maxlength="120" required value="{{ values.dataset_name }}"></div>
+            <div class="form-field"><label class="form-field__label" for="ev-dataset-version">{{ _("Dataset version") }} *</label>
+                <input class="form-field__input form-field__input--plain" id="ev-dataset-version" name="dataset_version" maxlength="40" required value="{{ values.dataset_version }}"></div>
+            <div class="form-field"><label class="form-field__label" for="ev-dataset-sha">{{ _("Dataset SHA-256 (manifest)") }}</label>
+                <input class="form-field__input form-field__input--plain" id="ev-dataset-sha" name="dataset_sha256" maxlength="64" value="{{ values.dataset_sha256 }}"></div>
+            <div class="form-field"><label class="form-field__label" for="ev-split">{{ _("Split") }} *</label>
+                <select class="form-field__input" id="ev-split" name="split" required>
+                    {% for s in splits %}<option value="{{ s }}" {% if values.split == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                </select></div>
+            <div class="form-field"><label class="form-field__label" for="ev-source">{{ _("How it was evaluated") }} *</label>
+                <select class="form-field__input" id="ev-source" name="source" required>
+                    {% for s in sources %}<option value="{{ s }}" {% if values.source == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+                </select></div>
+            <div class="form-field"><label class="form-field__label" for="ev-date">{{ _("Evaluation date") }} *</label>
+                <input class="form-field__input form-field__input--plain" type="date" id="ev-date" name="evaluated_at" required value="{{ values.evaluated_at }}"></div>
+            <div class="form-field"><label class="form-field__label" for="ev-images">{{ _("Images") }} *</label>
+                <input class="form-field__input form-field__input--plain" type="number" min="1" id="ev-images" name="images" required value="{{ values.images }}"></div>
+            <div class="form-field"><label class="form-field__label" for="ev-instances">{{ _("Instances") }}</label>
+                <input class="form-field__input form-field__input--plain" type="number" min="0" id="ev-instances" name="instances" value="{{ values.instances }}"></div>
+            {% for key, label in (('precision_value', _('Precision')), ('recall_value', _('Recall')), ('map50', 'mAP50'), ('map50_95', 'mAP50-95'), ('conf_threshold', _('Confidence threshold used')), ('iou_threshold', _('IoU threshold used'))) %}
+            <div class="form-field"><label class="form-field__label" for="ev-{{ key }}">{{ label }} (0–1)</label>
+                <input class="form-field__input form-field__input--plain" type="number" step="0.0001" min="0" max="1" id="ev-{{ key }}" name="{{ key }}" value="{{ values[key] }}"></div>
+            {% endfor %}
+        </div>
+        <div class="form-field"><label class="form-field__label" for="ev-per-class">{{ _("Per-class metrics (JSON, optional)") }}</label>
+            <textarea class="form-field__input" id="ev-per-class" name="per_class" rows="3" placeholder='{"CRILE_WOOD": {"precision": 0.91, "recall": 0.88}}'>{{ values.per_class }}</textarea></div>
+        <div class="form-field"><label class="form-field__label" for="ev-notes">{{ _("Notes") }}</label>
+            <input class="form-field__input form-field__input--plain" id="ev-notes" name="notes" maxlength="500" value="{{ values.notes }}"></div>
+        <div class="form-actions"><button type="submit" class="btn btn--primary">{{ _("Record evaluation") }}</button></div>
+    </form>
+</section>
+
+<section class="card" style="margin-top:1rem;" data-model-regressions>
+    <h2 class="card__title">{{ _("Regression runs against a baseline") }}</h2>
+    <p class="muted">{{ _("Real inference of this model and a baseline model on the same reference videos (scripts/model_regression.py). It shows agreement with the baseline, not accuracy.") }}</p>
+    <table class="data-table">
+        <thead><tr><th>{{ _("Executed") }}</th><th>{{ _("Reference set") }}</th><th>{{ _("Baseline") }}</th><th>{{ _("Identical videos") }}</th><th>{{ _("Differences") }}</th></tr></thead>
+        <tbody>
+        {% for r in overview.regressions|default([]) %}
+        <tr data-regression="{{ r.id }}" data-all-identical="{{ 'true' if r.all_identical else 'false' }}">
+            <td>{{ r.executed_at[:16]|replace('T', ' ') }}</td>
+            <td>{{ r.reference_set }}<br><small><code>{{ r.reference_set_sha256[:16] }}…</code></small></td>
+            <td>{{ r.baseline_version }}</td>
+            <td>{{ macros.status_badge(r.items_identical ~ ' / ' ~ r.items_total, 'success' if r.all_identical else 'warning') }}</td>
+            <td>{% for item in r['items'] if not item.identical %}<div><code>{{ item.video }}</code>: {{ _("first") }} {{ item.baseline.first.total }} → {{ item.candidate.first.total }}, {{ _("last") }} {{ item.baseline.last.total }} → {{ item.candidate.last.total }}</div>{% else %}—{% endfor %}</td>
+        </tr>
+        {% else %}<tr><td colspan="5" class="data-table__empty-state">{{ _("No regression run recorded.") }}</td></tr>{% endfor %}
+        </tbody>
+    </table>
+    <form class="form" method="post" enctype="multipart/form-data" data-regression-form>
+        {{ csrf_field() }}
+        <input type="hidden" name="kind" value="regression">
+        <div class="form-field"><label class="form-field__label" for="rg-file">{{ _("Report file (JSON)") }}</label>
+            <input class="form-field__input form-field__input--plain" type="file" accept="application/json,.json" id="rg-file" name="report_file"></div>
+        <div class="form-field"><label class="form-field__label" for="rg-report">{{ _("Or paste the report") }}</label>
+            <textarea class="form-field__input" id="rg-report" name="report" rows="3">{{ values.report|default('') }}</textarea></div>
+        <div class="form-field"><label class="form-field__label" for="rg-notes">{{ _("Notes") }}</label>
+            <input class="form-field__input form-field__input--plain" id="rg-notes" name="notes" maxlength="300" value="{{ values.regression_notes|default('') }}"></div>
+        <div class="form-actions"><button type="submit" class="btn btn--primary">{{ _("Record regression run") }}</button></div>
+    </form>
+</section>
+
+<section class="card" style="margin-top:1rem;">
+    <h2 class="card__title">{{ _("Model history") }}</h2>
+    <table class="data-table" data-model-history>
+        <thead><tr><th>{{ _("Action") }}</th><th>{{ _("When") }}</th><th>{{ _("By") }}</th></tr></thead>
+        <tbody>
+        {% for h in overview.history %}
+        <tr><td><code>{{ h.action }}</code></td><td>{{ h.at[:16]|replace('T', ' ') }}</td><td>{{ h.by or '—' }}</td></tr>
+        {% else %}<tr><td colspan="3" class="data-table__empty-state">{{ _("No recorded actions.") }}</td></tr>{% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endblock %}

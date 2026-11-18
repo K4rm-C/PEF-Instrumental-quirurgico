@@ -75,45 +75,31 @@
 
     <section class="card">
         <h2 class="card__title" id="associated-kits-heading">{{ _("Associated Kits") }}</h2>
+        <p class="form-field__helper">{{ _("Kit links are maintained by the SPD supervisor. Administration only chooses the default among linked kits.") }}</p>
+        {% if associated_kits %}
         <div class="table-wrapper">
             <table class="data-table" aria-labelledby="associated-kits-heading">
                 <thead>
                     <tr>
                         <th scope="col">{{ _("Kit") }}</th>
                         <th scope="col">{{ _("Technique Label") }}</th>
-                        <th scope="col">{{ _("Default") }}</th>
                         <th scope="col">{{ _("Active") }}</th>
-                        <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                        <th scope="col">{{ _("Default") }}</th>
                     </tr>
                 </thead>
-                <tbody id="associated-kits-rows" data-remove-label="{{ _('Remove') }}">
+                <tbody>
                     {% for item in associated_kits %}
-                    {% set row_index = item.row_index|default(loop.index0) %}
-                    <tr class="js-procedure-kit-row" data-row-index="{{ row_index }}">
-                        <td>
-                            <input type="hidden" name="kit_row_index[]" value="{{ row_index }}">
-                            <div class="form-field__input-wrapper">
-                                <select class="form-field__input form-field__select" name="kit[]">
-                                    {% for kit in kits %}
-                                    <option value="{{ kit.value }}" {% if kit.value == item.kit_value %}selected{% endif %}>{{ kit.label }}</option>
-                                    {% endfor %}
-                                </select>
-                                <span class="form-field__select-icon">{{ macros.icon_chevron_down() }}</span>
-                            </div>
-                        </td>
-                        <td><input class="data-table__input" type="text" name="technique_label[]" value="{{ item.technique_label }}"></td>
+                    <tr>
+                        <td>{{ item.kit_label }}</td>
+                        <td>{{ item.technique_label or '—' }}</td>
+                        <td>{{ _("Yes") if item.active else _("No") }}</td>
                         <td>
                             <div class="form-checkbox">
-                                <input type="checkbox" name="is_default[]" value="{{ row_index }}" {% if item.is_default %}checked{% endif %}>
+                                <input type="radio" name="default_kit_id" value="{{ item.kit_value }}"
+                                       {% if item.is_default %}checked{% endif %}
+                                       {% if not item.active %}disabled{% endif %}
+                                       aria-label="{{ _('Default kit') }}">
                             </div>
-                        </td>
-                        <td>
-                            <div class="form-checkbox">
-                                <input type="checkbox" name="kit_active[]" value="{{ row_index }}" {% if item.active %}checked{% endif %}>
-                            </div>
-                        </td>
-                        <td class="data-table__action-column">
-                            <button type="button" class="link-danger js-procedure-remove-row">{{ _("Remove") }}</button>
                         </td>
                     </tr>
                     {% endfor %}
@@ -121,10 +107,9 @@
             </table>
         </div>
         <p class="form-field__helper">{{ _("Only one associated kit can be the Default Kit.") }}</p>
-        <button type="button" class="link-action" id="add-kit-btn">
-            {{ macros.icon_plus_circle() }}
-            <span>{{ _("Add Kit") }}</span>
-        </button>
+        {% else %}
+        <p class="form-field__helper">{{ _("No kits linked yet. An SPD supervisor must assign kits before a default can be chosen.") }}</p>
+        {% endif %}
     </section>
 
     <section class="card">
@@ -185,9 +170,6 @@
 {% endblock %}
 
 {% block page_scripts %}
-<script id="procedure-kit-options" type="application/json">
-[{% for kit in kits %}{"value": {{ kit.value|tojson }}, "label": {{ kit.label|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]
-</script>
 <script id="procedure-phase-options" type="application/json">
 [{% for phase in phases %}{"value": {{ phase.value|tojson }}, "label": {{ phase.label|tojson }}}{% if not loop.last %},{% endif %}{% endfor %}]
 </script>

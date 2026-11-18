@@ -1,0 +1,106 @@
+{
+  "format": "pef-model-regression/1",
+  "reference_set": "ms031-ref-v1",
+  "baseline_sha256": "6215cb746e20eb9e10c812fe03679b59263bf268b1fb0d419724611db2c785d9",
+  "candidate_sha256": "6215cb746e20eb9e10c812fe03679b59263bf268b1fb0d419724611db2c785d9",
+  "runner": "scripts/model_regression.py (VisionWorker image, real inference)",
+  "executed_at": "2026-11-10T18:12:18.059422+00:00",
+  "items": [
+    {
+      "video": "ms031_full.avi",
+      "video_sha256": "37bd3d1213172dbeec930df522954e1611d765ddec001de82480fa76e8ba1efc",
+      "baseline": {
+        "first": {
+          "total": 8,
+          "counts": {
+            "Type": 8
+          }
+        },
+        "last": {
+          "total": 9,
+          "counts": {
+            "Type": 9
+          }
+        }
+      },
+      "candidate": {
+        "first": {
+          "total": 8,
+          "counts": {
+            "Type": 8
+          }
+        },
+        "last": {
+          "total": 9,
+          "counts": {
+            "Type": 9
+          }
+        }
+      }
+    },
+    {
+      "video": "ms031_one_removed.avi",
+      "video_sha256": "b556ecd5415e88ead5c4eeb529cc1ffd0da2960123e0e9788c17b3a9767b474c",
+      "baseline": {
+        "first": {
+          "total": 7,
+          "counts": {
+            "Type": 7
+          }
+        },
+        "last": {
+          "total": 7,
+          "counts": {
+            "Type": 7
+          }
+        }
+      },
+      "candidate": {
+        "first": {
+          "total": 7,
+          "counts": {
+            "Type": 7
+          }
+        },
+        "last": {
+          "total": 7,
+          "counts": {
+            "Type": 7
+          }
+        }
+      }
+    },
+    {
+      "video": "tray_full.mp4",
+      "video_sha256": "391fb14eb0035c81208023398d6547531b2f47d1d9a4b71b423038bdfd805a6f",
+      "baseline": {
+        "first": {
+          "total": 8,
+          "counts": {
+            "Type": 8
+          }
+        },
+        "last": {
+          "total": 9,
+          "counts": {
+            "Type": 9
+          }
+        }
+      },
+      "candidate": {
+        "first": {
+          "total": 8,
+          "counts": {
+            "Type": 8
+          }
+        },
+        "last": {
+          "total": 9,
+          "counts": {
+            "Type": 9
+          }
+        }
+      }
+    }
+  ]
+}

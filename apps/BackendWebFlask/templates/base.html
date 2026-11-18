@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {# MS-04: signed double-submit token; static/js/csrf.js sends it as X-CSRF-Token on same-origin fetch/XHR. #}
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}{{ _("Surgical Instrument Traceability System") }}{% endblock %}</title>
 
     {# Applied before any stylesheet renders so the correct theme paints on the first frame
@@ -32,6 +34,9 @@
             ok: {{ _("OK")|tojson }},
             cancel: {{ _("Cancel")|tojson }},
             close: {{ _("Close")|tojson }},
+            leaveSessionTitle: {{ _("Leave this session?")|tojson }},
+            leaveSessionMessage: {{ _("You are working in an active session. If you leave now, you can resume it later from your sessions list.")|tojson }},
+            leaveSessionOk: {{ _("Leave")|tojson }},
             continue: {{ _("Continue")|tojson }},
             save: {{ _("Save")|tojson }},
             languageChangeFailed: {{ _("The language could not be changed. Please try again.")|tojson }},
@@ -113,12 +118,16 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/tabs.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/evidence.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/components/app-modal.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/family-examples.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/discrepancy-review.css') }}">
     {% block page_styles %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}" data-auth-service-url="{{ config.AUTH_BROWSER_URL }}"
       data-locale-url="{{ request.script_root }}/locale">
     {% block content %}{% endblock %}
 
+    {# Must run before other scripts that POST via fetch (language, capture-rf, …). #}
+    <script src="{{ url_for('static', filename='js/csrf.js') }}"></script>
     <script src="{{ url_for('static', filename='js/theme.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/dropdown.js') }}" defer></script>
     <script src="{{ url_for('static', filename='js/language.js') }}" defer></script>

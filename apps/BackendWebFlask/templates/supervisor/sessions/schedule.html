@@ -51,10 +51,15 @@
 {% set form_values = form_values|default({}) %}
 {# One form, three client-side steps (js/pages/v3-wizard.js). Hidden steps keep their values;
    schedule-session.js still owns stock recheck, kit reload, physicians and the privacy modal. #}
+<script id="procedure-kits-data" type="application/json">{{ procedure_kits|default({})|tojson }}</script>
 <form method="post" class="v3-stack" id="schedule-session-form"
       data-stock-recheck-url="{{ url_for('web.supervisor_session_stock_recheck') }}"
+      data-kit-lines-url="{{ url_for('web.supervisor_session_kit_lines') }}"
       data-schedule-form data-v3-wizard
-      data-kit-reload-url="{{ url_for('web.supervisor_session_new') }}">
+      data-select-kit-label="{{ _('Select kit') }}"
+      data-select-kit-empty="{{ _('Select a kit to load composition.') }}"
+      data-other-label="{{ _('Other') }}">
+
     <input type="hidden" name="action" value="schedule">
     <input type="hidden" name="privacy_notice_version_id" id="privacy-notice-version-hidden" value="">
     <input type="hidden" name="confirm_privacy" id="confirm-privacy-hidden" value="">
@@ -94,7 +99,7 @@
         </label>
         <label class="form-field">
             <span>{{ _("Procedure") }}</span>
-            <select class="form-field__input" name="procedure_type_id" required>
+            <select class="form-field__input" name="procedure_type_id" required data-procedure-select>
                 <option value="" {% if not form_values.procedure_type_id %}selected{% endif %}>{{ _("Select procedure") }}</option>
                 {% for p in procedures|default([]) %}
                 <option value="{{ p.id }}" {% if form_values.procedure_type_id == p.id %}selected{% endif %}>{{ p.name }}</option>
@@ -121,7 +126,8 @@
         </label>
         <label class="form-field">
             <span>{{ _("Kit") }}</span>
-            <select class="form-field__input" name="kit_id" required data-kit-select>
+            <select class="form-field__input" name="kit_id" required data-kit-select
+                    {% if not form_values.procedure_type_id %}disabled{% endif %}>
                 <option value="" {% if not selected_kit %}selected{% endif %}>{{ _("Select kit") }}</option>
                 {% for kit in kits|default([]) %}
                 <option value="{{ kit.id }}" {% if kit.id == selected_kit %}selected{% endif %}>{{ kit.name }}</option>

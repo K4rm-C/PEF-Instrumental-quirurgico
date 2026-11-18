@@ -71,7 +71,7 @@ def cycle_variant(cycle):
 
 
 def format_dt(value, with_time=True):
-    """ISO-8601 UTC string from AdminService -> local 'YYYY-MM-DD HH:MM' (or date only)."""
+    """ISO-8601 UTC string from Administración local -> local 'YYYY-MM-DD HH:MM' (or date only)."""
     if not value:
         return ''
     try:
@@ -110,13 +110,30 @@ def pagination_context(payload, endpoint, filters, **extra_args):
 
 # --- Dashboard ------------------------------------------------------------------------------
 
+SESSION_STATUS_LABELS = {
+    'in_progress': N_('In Progress'), 'or_hold': N_('OR Hold'),
+    'correction_required': N_('Released to SPD Review'), 'awaiting_spd_review': N_('Awaiting SPD Review'),
+}
+HEALTH_LABELS = {'auth': N_('Authentication service'), 'postgresql': N_('PostgreSQL'), 'redis': N_('Redis'),
+                 'mongodb': N_('MongoDB'), 'storage': N_('Object storage')}
+HEALTH_STATUS = {'ok': (N_('Reachable'), 'success'), 'error': (N_('Unreachable'), 'danger'),
+                 'not_configured': (N_('Not configured'), 'neutral')}
+
+
 def dashboard(payload):
     stats = payload.get('stats', {})
     operations = payload.get('operations', {})
     model = payload.get('active_model')
     agreement = operations.get('ai_human_agreement')
     resolution = operations.get('avg_resolution_minutes')
+    health = payload.get('health') or {}
     return {
+        'session_stats': [{'label': SESSION_STATUS_LABELS.get(row['code'], row['code']), 'value': row['count'],
+                           'variant': row['variant']} for row in payload.get('sessions_by_status', [])],
+        'health_rows': [{'label': HEALTH_LABELS.get(name, name), 'status_label': HEALTH_STATUS[item['status']][0],
+                         'status_variant': HEALTH_STATUS[item['status']][1], 'detail': item.get('detail') or '',
+                         'ms': item.get('ms')} for name, item in health.items() if item.get('status') in HEALTH_STATUS],
+        'section_errors': sorted((payload.get('errors') or {}).keys()),
         'dashboard_stats': {
             'active_users': stats.get('active_users', 0),
             'instrument_families': stats.get('active_families', 0),
@@ -131,6 +148,7 @@ def dashboard(payload):
         },
         'catalog_overview': [
             {'label': N_('Instrument Families'), 'value': gettext('%(count)s Active', count=stats.get('active_families', 0))},
+            {'label': N_('Inactive Families'), 'value': stats.get('inactive_families', 0)},
             {'label': N_('Instruments'), 'value': gettext('%(count)s Registered', count=stats.get('registered_instruments', 0))},
             {'label': N_('Kits'), 'value': gettext('%(count)s Active', count=stats.get('active_kits', 0))},
             {'label': N_('Procedures'), 'value': gettext('%(count)s Registered', count=stats.get('procedures', 0))},
@@ -191,6 +209,16 @@ def family_form_values(item):
         'function': item.get('function_text', ''),
         'status': 'active' if item['active'] else 'inactive',
     }
+
+
+def family_examples(family_id, examples):
+    return [{
+        'id': item['id'], 'example_text': item['example_text'], 'sort_order': item['sort_order'],
+        'image_url': url_for('web.admin_family_example_image', family_id=family_id, example_id=item['id'])
+        if item.get('media_asset_id') else None,
+        'edit_url': url_for('web.admin_family_example_edit', family_id=family_id, example_id=item['id']),
+        'delete_url': url_for('web.admin_family_example_delete', family_id=family_id, example_id=item['id']),
+    } for item in examples]
 
 
 # --- Instruments ----------------------------------------------------------------------------
@@ -323,6 +351,34 @@ def procedure_form_values(item):
     return {'code': item['code'], 'name': item['name']}, kits, phases
 
 
+SETTING_GROUP_LABELS = {'kpi': N_('Dashboard KPI thresholds'), 'security': N_('Security'),
+                        'uploads': N_('Files and uploads')}
+
+
+def setting_groups(items):
+    groups = {}
+    for item in items:
+        groups.setdefault(item['group'], []).append(item)
+    return [{'key': key, 'label': SETTING_GROUP_LABELS.get(key, key), 'items': rows} for key, rows in groups.items()]
+
+
+def privacy_notice_rows(items):
+    rows = []
+    for item in items:
+        label, variant = status(item['active'])
+        rows.append({
+            'id': item['id'], 'version': item['version'], 'effective_at': format_dt(item.get('effective_at')),
+            'checksum': checksum_short(item.get('content_sha256')), 'checksum_full': item.get('content_sha256') or '',
+            'status_label': label, 'status_variant': variant, 'active': item['active'],
+            'document_url': url_for('web.admin_privacy_notice_document', notice_id=item['id'])
+            if item.get('stored_by_portal') else None,
+            'document_uri': item.get('document_uri') or '',
+            'toggle_url': url_for('web.admin_privacy_notice_status', notice_id=item['id'],
+                                  action='deactivate' if item['active'] else 'activate'),
+        })
+    return rows
+
+
 # --- Users and roles ------------------------------------------------------------------------
 
 def user_rows(items):
@@ -348,14 +404,15 @@ def user_rows(items):
 
 def user_form_values(item):
     if not item:
-        return {'name': '', 'email': '', 'institution': '', 'assigned_role_codes': [], 'role_label': '',
-                'status': 'active', 'active': True}
+        return {'name': '', 'email': '', 'institution': '', 'assigned_role_codes': [], 'assigned_room_ids': [],
+                'role_label': '', 'status': 'active', 'active': True}
     return {
         'id': item['id'],
         'name': item['name'],
         'email': item['email'],
         'institution': (item.get('institution') or {}).get('id', ''),
         'assigned_role_codes': [role['code'] for role in item.get('roles', [])],
+        'assigned_room_ids': [room['id'] for room in item.get('operating_rooms', [])],
         'role_label': ' / '.join(role_label(role['code'], role['description']) for role in item.get('roles', [])),
         'status': 'active' if item['active'] else 'inactive',
         'active': item['active'],
@@ -373,13 +430,10 @@ def role_rows(items):
         'assigned_users': item['assigned_users'],
         'system': item.get('system', False),
         'edit_url': url_for('web.admin_role_edit', role_id=item['id']),
-        'delete_url': url_for('web.admin_role_delete', role_id=item['id']),
     } for item in items]
 
 
-def role_form_values(item, institution_name=''):
-    if not item:
-        return {'code': '', 'description': '', 'institution': institution_name, 'assigned_users': 0, 'system': False}
+def role_form_values(item):
     return {
         'id': item['id'],
         'code': item['code'],
@@ -415,6 +469,7 @@ def vision_model_rows(items):
             'active': item['active'],
             'edit_url': url_for('web.admin_vision_model_edit', model_id=item['id']),
             'activate_url': url_for('web.admin_vision_model_activate', model_id=item['id']),
+            'evaluations_url': url_for('web.admin_vision_model_evaluations', model_id=item['id']),
         })
     return rows
 
@@ -473,12 +528,41 @@ def station_rows(items):
     return rows
 
 
+CAMERA_DEVICE_LABELS = {'usb': N_('USB camera'), 'integrated': N_('Integrated camera'), 'ip': N_('IP camera'),
+                        'other': N_('Other device'),
+                        'simulated': N_('Simulated source (test only, not hardware)')}
+
+
+def camera_rows(items):
+    rows = []
+    for item in items:
+        label, variant = status(item['active'])
+        resolution = (f"{item['resolution_width']}×{item['resolution_height']}"
+                      if item.get('resolution_width') else None)
+        rows.append({
+            'id': item['id'],
+            'name': item['name'],
+            'station': (item.get('station') or {}).get('name') or N_('Unassigned'),
+            'device_type': CAMERA_DEVICE_LABELS.get(item['device_type'], item['device_type']),
+            'capture': ' · '.join(filter(None, [resolution, f"{item['fps']} FPS" if item.get('fps') else None])),
+            'roi_configured': item.get('roi_configured', False),
+            'status_label': label,
+            'status_variant': variant,
+            'edit_url': url_for('web.admin_camera_edit', camera_id=item['id']),
+            # MS-12: technician-measured calibration (mm/pixel) and whether it matches the current resolution.
+            'calibration': item.get('calibration'),
+            'calibration_url': url_for('web.admin_camera_calibration', camera_id=item['id']),
+        })
+    return rows
+
+
 # --- Audit log ------------------------------------------------------------------------------
 
 ROLE_SHORT_LABELS = {
     'it_admin': N_('Administrator'),
     'spd_supervisor': N_('SPD Supervisor'),
     'station_operator': N_('Station Operator'),
+    'or_charge': N_('Floor Supervisor'),
 }
 
 ENTITY_LABELS = {

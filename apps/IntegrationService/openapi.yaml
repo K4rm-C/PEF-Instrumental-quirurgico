@@ -1,0 +1,557 @@
+openapi: 3.0.3
+info:
+  title: PEF Integration Service
+  version: 0.1.0
+  description: >-
+    MS-07. Synchronization for desktop / Android / machine clients (change feed with opaque cursors, idempotent
+    operations forwarded to the owner services), a read-only FHIR R4 projection (PEF-DS08, draft: the semantic
+    mapping is pending approval) and FHIR deliveries to authorized destinations. People authenticate with
+    AuthService (/api/v1/auth/login, Bearer); machine clients with client credentials (/api/v1/auth/token,
+    token type client_access). JSON or XML (schemas/integration.xsd) for /api/v1; FHIR JSON for /fhir/r4.
+servers:
+  - url: http://127.0.0.1:5009
+tags:
+  - name: Sync
+  - name: FHIR
+  - name: Integration
+  - name: Health
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema: { type: string, pattern: '^[A-Za-z0-9._:\-]{8,128}$' }
+  responses:
+    BadRequest:
+      description: Invalid request (unknown parameter, invalid cursor, missing Idempotency-Key...)
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unauthorized:
+      description: Missing, invalid, expired or revoked token; inactive user or client
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Forbidden:
+      description: Role or scope not allowed
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    NotFound:
+      description: Not found (or of another institution)
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Conflict:
+      description: Conflict (operation_in_progress, endpoint inactive, duplicate name)
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    Unprocessable:
+      description: Validation error (idempotency_key_mismatch, host_not_allowed, https_required, invalid reference)
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Error' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+    FhirError:
+      description: FHIR OperationOutcome
+      content:
+        application/fhir+json: { schema: { $ref: '#/components/schemas/FhirResource' } }
+    Health:
+      description: Health (200 ok / 503 not ready)
+      content:
+        application/json: { schema: { $ref: '#/components/schemas/Health' } }
+        application/xml: { schema: { $ref: '#/components/schemas/Health' } }
+  schemas:
+    ExportBatch:
+      type: object
+      xml: { name: export_batch }
+      properties:
+        id: { type: string, format: uuid }
+        format: { type: string, enum: [json, xml] }
+        period_from: { type: string, format: date-time }
+        period_to: { type: string, format: date-time }
+        sessions_count: { type: integer }
+        content_sha256: { type: string, pattern: '^[0-9a-f]{64}$' }
+        size_bytes: { type: integer }
+        created_by_user_id: { type: string, nullable: true }
+        created_by_client_id: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        session_ids: { type: array, items: { type: string, format: uuid } }
+    Error:
+      type: object
+      xml: { name: error_response }
+      required: [error, message, details]
+      properties:
+        error:
+          type: string
+          enum: [invalid_request, unauthorized, forbidden, not_found, method_not_allowed, conflict, gone,
+                 payload_too_large, unsupported_media_type, validation_error, invalid_reference, rate_limited,
+                 internal_error, bad_gateway, dependency_unavailable, cursor_expired, idempotency_key_mismatch,
+                 operation_in_progress, operation_outcome_unknown, unsupported_operation]
+        message: { type: string }
+        correlation_id: { type: string, nullable: true }
+        details: { type: object, additionalProperties: true }
+    Health:
+      type: object
+      xml: { name: health }
+      properties:
+        status: { type: string }
+        checks: { type: object, additionalProperties: { type: string } }
+        correlation_id: { type: string }
+    SyncResources:
+      type: object
+      xml: { name: sync_resources }
+      properties:
+        resources:
+          type: array
+          xml: { wrapped: true }
+          items:
+            type: object
+            xml: { name: resource }
+            properties:
+              name: { type: string }
+              href_template: { type: string, nullable: true }
+    Change:
+      type: object
+      xml: { name: change }
+      required: [resource_type, resource_id, operation, version, data_version, changed_at]
+      properties:
+        resource_type:
+          type: string
+          enum: [instrument_family, kit, instrument, surgical_tray, operating_room, capture_station, capture_camera,
+                 physician, work_session]
+        resource_id: { type: string, format: uuid }
+        operation: { type: string, enum: [create, update, deactivate, delete] }
+        version: { type: integer, minimum: 1, description: Version of the resource produced by this change }
+        data_version: { type: integer, minimum: 1, description: Current version of the resource (the one in data) }
+        changed_at: { type: string, format: date-time }
+        href: { type: string, nullable: true, description: Owner API of the resource }
+        data: { type: object, nullable: true, additionalProperties: true, description: Current public projection (null for delete) }
+    SyncPage:
+      type: object
+      xml: { name: sync_page }
+      required: [changes, next_cursor, has_more, types]
+      properties:
+        changes: { type: array, xml: { wrapped: true }, items: { $ref: '#/components/schemas/Change' } }
+        next_cursor: { type: string, description: Opaque; store it and send it back to continue }
+        has_more: { type: boolean }
+        types: { type: array, xml: { wrapped: true }, items: { type: string, xml: { name: type } } }
+    OperationRequest:
+      type: object
+      required: [type]
+      additionalProperties: false
+      properties:
+        type: { type: string, enum: [session.schedule, tray.create, tray.update, notification.read] }
+        target_id: { type: string, format: uuid, description: tray.update / notification.read }
+        payload: { type: object, additionalProperties: true, description: Body forwarded to the owner service }
+    OperationResult:
+      type: object
+      xml: { name: operation_result }
+      additionalProperties: true
+      description: The owner service's answer (status and body), replayed for retries with the same key
+    Endpoint:
+      type: object
+      xml: { name: endpoint }
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        base_url: { type: string }
+        resource_types:
+          type: array
+          xml: { wrapped: true }
+          items: { type: string, enum: [Encounter, Location, Practitioner, Organization, Patient], xml: { name: resource_type } }
+        active: { type: boolean }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    EndpointList:
+      type: object
+      xml: { name: endpoint_list }
+      properties:
+        items: { type: array, xml: { wrapped: true }, items: { $ref: '#/components/schemas/Endpoint' } }
+    Delivery:
+      type: object
+      xml: { name: delivery }
+      properties:
+        id: { type: string, format: uuid }
+        endpoint_id: { type: string, format: uuid }
+        resource_type: { type: string }
+        resource_id: { type: string, format: uuid }
+        status: { type: string, enum: [pending, sent, failed] }
+        attempts_count: { type: integer }
+        last_status_code: { type: integer, nullable: true }
+        last_error: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        sent_at: { type: string, format: date-time, nullable: true }
+        attempts:
+          type: array
+          xml: { wrapped: true }
+          items:
+            type: object
+            xml: { name: attempt }
+            properties:
+              attempted_at: { type: string, format: date-time }
+              status_code: { type: integer, nullable: true }
+              outcome: { type: string, enum: [sent, retry, failed] }
+              error: { type: string, nullable: true }
+    DeliveryList:
+      type: object
+      xml: { name: delivery_list }
+      properties:
+        items: { type: array, xml: { wrapped: true }, items: { $ref: '#/components/schemas/Delivery' } }
+    FhirResource:
+      type: object
+      required: [resourceType]
+      additionalProperties: true
+      properties:
+        resourceType: { type: string }
+security:
+  - bearer: []
+paths:
+  /api/v1/sync/resources:
+    get:
+      tags: [Sync]
+      summary: Resource types the caller may synchronize
+      responses:
+        '200':
+          description: Visible resource types
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/SyncResources' } }
+            application/xml: { schema: { $ref: '#/components/schemas/SyncResources' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/v1/sync/changes:
+    get:
+      tags: [Sync]
+      summary: Changes after a cursor (no cursor = full current state), ordered and consistent
+      description: >-
+        Users: it_admin / spd_supervisor / station_operator (operators: their own sessions only). Machine clients:
+        sync.catalog.read, sync.locations.read, sync.practitioners.read, sync.sessions.read. Only changes of finished
+        transactions are delivered (xid8 watermark): no change is skipped or repeated across pages. 410
+        cursor_expired: restart without a cursor.
+      parameters:
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: types, in: query, schema: { type: string }, description: Comma-separated resource types }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
+      responses:
+        '200':
+          description: One page of changes
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/SyncPage' } }
+            application/xml: { schema: { $ref: '#/components/schemas/SyncPage' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '410':
+          description: Cursor expired
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Error' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+  /api/v1/sync/operations:
+    post:
+      tags: [Sync]
+      summary: Idempotent operation forwarded to its owner service with the caller's token (users only)
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: '#/components/schemas/OperationRequest' } }
+      responses:
+        '200':
+          description: Owner answer (also replayed / recovered; headers Idempotent-Replayed, Idempotent-Recovered)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/OperationResult' } }
+            application/xml: { schema: { $ref: '#/components/schemas/OperationResult' } }
+        '201':
+          description: Created by the owner service
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/OperationResult' } }
+            application/xml: { schema: { $ref: '#/components/schemas/OperationResult' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '415': { $ref: '#/components/responses/BadRequest' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+        '502':
+          description: operation_outcome_unknown - retry with the same Idempotency-Key
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Error' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Error' } }
+  /api/v1/sync/openapi.yaml:
+    get:
+      tags: [Sync]
+      security: []
+      summary: This document
+      responses:
+        '200': { description: OpenAPI 3.0 YAML, content: { application/yaml: { schema: { type: string } } } }
+  /api/v1/sync/schemas/integration.xsd:
+    get:
+      tags: [Sync]
+      security: []
+      summary: XML schema of the responses
+      responses:
+        '200': { description: XSD, content: { application/xml: { schema: { type: string } } } }
+  /fhir/r4/metadata:
+    get:
+      tags: [FHIR]
+      security: []
+      summary: CapabilityStatement
+      responses:
+        '200':
+          description: CapabilityStatement
+          content:
+            application/fhir+json: { schema: { $ref: '#/components/schemas/FhirResource' } }
+  /fhir/r4/{type}/{id}:
+    get:
+      tags: [FHIR]
+      summary: Read Organization / Location / Practitioner / Patient / Encounter (machine clients, fhir.*.read)
+      parameters:
+        - { name: type, in: path, required: true, schema: { type: string, enum: [Organization, Location, Practitioner, Patient, Encounter] } }
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: FHIR resource
+          content:
+            application/fhir+json: { schema: { $ref: '#/components/schemas/FhirResource' } }
+        '401': { $ref: '#/components/responses/FhirError' }
+        '403': { $ref: '#/components/responses/FhirError' }
+        '404': { $ref: '#/components/responses/FhirError' }
+  /fhir/r4/{type}:
+    get:
+      tags: [FHIR]
+      summary: Search Location / Practitioner / Encounter (searchset Bundle)
+      parameters:
+        - { name: type, in: path, required: true, schema: { type: string, enum: [Location, Practitioner, Encounter] } }
+        - { name: _count, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+        - { name: _offset, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: status, in: query, schema: { type: string }, description: Encounter only }
+      responses:
+        '200':
+          description: searchset Bundle
+          content:
+            application/fhir+json: { schema: { $ref: '#/components/schemas/FhirResource' } }
+        '400': { $ref: '#/components/responses/FhirError' }
+        '401': { $ref: '#/components/responses/FhirError' }
+        '403': { $ref: '#/components/responses/FhirError' }
+        '404': { $ref: '#/components/responses/FhirError' }
+  /fhir/r4/Encounter/{id}/$pef-bundle:
+    get:
+      tags: [FHIR]
+      summary: Collection Bundle of an Encounter with its Location, Practitioners, Organization (and Patient with fhir.patient.read)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: collection Bundle
+          content:
+            application/fhir+json: { schema: { $ref: '#/components/schemas/FhirResource' } }
+        '401': { $ref: '#/components/responses/FhirError' }
+        '403': { $ref: '#/components/responses/FhirError' }
+        '404': { $ref: '#/components/responses/FhirError' }
+  /api/v1/integration/endpoints:
+    get:
+      tags: [Integration]
+      summary: FHIR destinations of the institution (it_admin)
+      responses:
+        '200':
+          description: Endpoints
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/EndpointList' } }
+            application/xml: { schema: { $ref: '#/components/schemas/EndpointList' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Integration]
+      summary: Register a FHIR destination (https; host in INTEGRATION_ALLOWED_HOSTS)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, base_url]
+              additionalProperties: false
+              properties:
+                name: { type: string, maxLength: 160 }
+                base_url: { type: string }
+                resource_types: { type: array, items: { type: string, enum: [Encounter, Location, Practitioner, Organization, Patient] } }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Endpoint' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Endpoint' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/integration/endpoints/{id}:
+    patch:
+      tags: [Integration]
+      summary: Activate / deactivate a destination
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [active], properties: { active: { type: boolean } } }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Endpoint' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Endpoint' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/integration/deliveries:
+    get:
+      tags: [Integration]
+      summary: Deliveries of the institution (latest 200)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [pending, sent, failed] } }
+      responses:
+        '200':
+          description: Deliveries
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/DeliveryList' } }
+            application/xml: { schema: { $ref: '#/components/schemas/DeliveryList' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [Integration]
+      summary: Request the delivery of an Encounter (idempotent)
+      parameters:
+        - { $ref: '#/components/parameters/IdempotencyKey' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [endpoint_id, encounter_id]
+              additionalProperties: false
+              properties:
+                endpoint_id: { type: string, format: uuid }
+                encounter_id: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Same request already registered (replay)
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Delivery' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Delivery' } }
+        '202':
+          description: Registered; the worker sends it
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Delivery' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Delivery' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Unprocessable' }
+  /api/v1/integration/deliveries/{id}:
+    get:
+      tags: [Integration]
+      summary: One delivery with its attempts
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Delivery
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/Delivery' } }
+            application/xml: { schema: { $ref: '#/components/schemas/Delivery' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /health:
+    get:
+      tags: [Health]
+      security: []
+      responses: { '200': { $ref: '#/components/responses/Health' }, '503': { $ref: '#/components/responses/Health' } }
+  /health/live:
+    get:
+      tags: [Health]
+      security: []
+      responses: { '200': { $ref: '#/components/responses/Health' } }
+  /health/ready:
+    get:
+      tags: [Health]
+      security: []
+      responses: { '200': { $ref: '#/components/responses/Health' }, '503': { $ref: '#/components/responses/Health' } }
+  /api/v1/integration/exports:
+    post:
+      tags: [integration]
+      summary: MS-12 - create a traceable batch export of the CLOSED sessions of a period (it_admin or scope export.sessions.batch)
+      description: |
+        Own documented format pef-session-batch/1 (JSON or XML). No patient data, no physicians, no images; a counting
+        session is not presented as a clinical event. The exact bytes are stored with their SHA-256 and the batch is
+        immutable. Nothing is sent to any external system (delivery is an institutional decision, D4).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [period_from, period_to]
+              additionalProperties: false
+              properties:
+                format: { type: string, enum: [json, xml], default: json }
+                period_from: { type: string, format: date-time }
+                period_to: { type: string, format: date-time, description: 'exclusive; not in the future; at most 366 days' }
+      responses:
+        '201':
+          description: Batch created
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ExportBatch' } }
+            application/xml: { schema: { $ref: '#/components/schemas/ExportBatch' } }
+        '400': { description: Invalid request }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+        '415': { description: Content-Type must be application/json }
+        '422': { description: 'validation_error (period, format, too_many_sessions) or empty_batch' }
+    get:
+      tags: [integration]
+      summary: MS-12 - batches of the institution, newest first (optional session_id filter)
+      parameters:
+        - { name: session_id, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Batches
+          content:
+            application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExportBatch' } } }
+        '401': { description: Unauthorized }
+        '403': { description: Forbidden }
+  /api/v1/integration/exports/{id}:
+    get:
+      tags: [integration]
+      summary: MS-12 - a batch with its session ids
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Batch
+          content:
+            application/json: { schema: { $ref: '#/components/schemas/ExportBatch' } }
+        '404': { description: Not found (or another institution) }
+  /api/v1/integration/exports/{id}/content:
+    get:
+      tags: [integration]
+      summary: MS-12 - the exact stored document (header X-Content-SHA256; every download is audited)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: The document
+          content:
+            application/json: { schema: { type: object } }
+            application/xml: { schema: { type: string } }
+        '404': { description: Not found (or another institution) }

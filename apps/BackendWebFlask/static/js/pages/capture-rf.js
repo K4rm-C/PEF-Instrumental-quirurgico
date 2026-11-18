@@ -559,6 +559,14 @@
         refreshToolbarMeta();
         setStageLoading(true, i18n.uploading);
         closeWs();
+        stopTracks();
+        /* Drop the last live frame so a failed/skipped poll cannot leave a frozen camera still. */
+        lastProcessed = -1;
+        if (img) {
+            img.removeAttribute("src");
+            img.hidden = true;
+        }
+        if (placeholder) placeholder.hidden = false;
         postCancel().then(function () {
             return fetch(uploadUrl, { method: "POST", body: fd, credentials: "same-origin" });
         }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })

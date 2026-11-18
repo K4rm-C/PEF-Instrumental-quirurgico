@@ -1,0 +1,394 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PEF Session Service — XML responses of the Supervisor reports (DS09 §1.3.4 complement v0.3.0).
+     GET /api/v1/sessions/reports/{summary|stations|kits|operators|options} with Accept: application/xml.
+     Null metrics are xsi:nil="true" (a metric without data is not 0). -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+  <xs:complexType name="Filters">
+    <xs:all>
+      <xs:element name="from" type="xs:dateTime"/>
+      <xs:element name="to" type="xs:dateTime"/>
+      <xs:element name="tz" type="xs:string"/>
+      <xs:element name="kit_id" type="xs:string" nillable="true"/>
+      <xs:element name="operator_id" type="xs:string" nillable="true"/>
+      <xs:element name="status" type="xs:string" nillable="true"/>
+      <xs:element name="station_id" type="xs:string" minOccurs="0" nillable="true"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:complexType name="Breakdown">
+    <xs:all>
+      <xs:element name="family_id" type="xs:string" minOccurs="0" nillable="true"/>
+      <xs:element name="code" type="xs:string" nillable="true"/>
+      <xs:element name="name" type="xs:string" nillable="true"/>
+      <xs:element name="total" type="xs:integer"/>
+      <xs:element name="open" type="xs:integer"/>
+    </xs:all>
+  </xs:complexType>
+
+  <xs:element name="report_summary">
+    <xs:complexType><xs:all>
+      <xs:element name="filters" type="Filters"/>
+      <xs:element name="sessions">
+        <xs:complexType><xs:all>
+          <xs:element name="total" type="xs:integer"/>
+          <xs:element name="by_status">
+            <xs:complexType><xs:sequence>
+              <xs:element name="status" minOccurs="0" maxOccurs="unbounded">
+                <xs:complexType><xs:all>
+                  <xs:element name="code" type="xs:string"/><xs:element name="count" type="xs:integer"/>
+                </xs:all></xs:complexType>
+              </xs:element>
+            </xs:sequence></xs:complexType>
+          </xs:element>
+          <xs:element name="scheduled" type="xs:integer"/>
+          <xs:element name="in_progress" type="xs:integer"/>
+          <xs:element name="pending_review" type="xs:integer"/>
+          <xs:element name="closed" type="xs:integer"/>
+          <xs:element name="reported" type="xs:integer"/>
+          <xs:element name="timed" type="xs:integer"/>
+          <xs:element name="avg_duration_minutes" type="xs:decimal" nillable="true"/>
+          <xs:element name="reported_with_discrepancies" type="xs:integer"/>
+          <xs:element name="with_discrepancies_pct" type="xs:decimal" nillable="true"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="discrepancies">
+        <xs:complexType><xs:all>
+          <xs:element name="total" type="xs:integer"/>
+          <xs:element name="open" type="xs:integer"/>
+          <xs:element name="resolved" type="xs:integer"/>
+          <xs:element name="timed" type="xs:integer"/>
+          <xs:element name="avg_resolution_minutes" type="xs:decimal" nillable="true"/>
+          <xs:element name="by_reason">
+            <xs:complexType><xs:sequence>
+              <xs:element name="reason" type="Breakdown" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence></xs:complexType>
+          </xs:element>
+          <xs:element name="by_family">
+            <xs:complexType><xs:sequence>
+              <xs:element name="family" type="Breakdown" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence></xs:complexType>
+          </xs:element>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="ai_agreement">
+        <xs:complexType><xs:all>
+          <xs:element name="pairs" type="xs:integer"/>
+          <xs:element name="agreed" type="xs:integer"/>
+          <xs:element name="corrections" type="xs:integer"/>
+          <xs:element name="min_pairs" type="xs:integer"/>
+          <xs:element name="sufficient" type="xs:boolean"/>
+          <xs:element name="agreement_pct" type="xs:decimal" nillable="true"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <!-- MS-06: outcomes (productivity), automatic count (system / AI operation, not model accuracy),
+           human interventions. Optional for clients of the earlier contract. -->
+      <xs:element name="outcomes" minOccurs="0">
+        <xs:complexType><xs:all>
+          <xs:element name="approved" type="xs:integer"/>
+          <xs:element name="approved_contingency" type="xs:integer" minOccurs="0"/>
+          <xs:element name="unresolved" type="xs:integer"/>
+          <xs:element name="closed_without_record" type="xs:integer"/>
+          <xs:element name="closed_by_operator" type="xs:integer"/>
+          <xs:element name="pending_review" type="xs:integer"/>
+          <xs:element name="aborted" type="xs:integer"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="automatic_counts" minOccurs="0">
+        <xs:complexType><xs:all>
+          <xs:element name="with_initial_count" type="xs:integer"/>
+          <xs:element name="with_final_count" type="xs:integer"/>
+          <xs:element name="final_first_attempt" type="xs:integer"/>
+          <xs:element name="sessions_with_rejected_final" type="xs:integer"/>
+          <xs:element name="rejected_final_attempts" type="xs:integer"/>
+          <xs:element name="recaptured_final" type="xs:integer"/>
+          <xs:element name="contingency_reports" type="xs:integer"/>
+          <xs:element name="timed_processing" type="xs:integer"/>
+          <xs:element name="final_first_attempt_pct" type="xs:decimal" nillable="true"/>
+          <xs:element name="avg_initial_to_final_minutes" type="xs:decimal" nillable="true"/>
+          <xs:element name="avg_start_to_initial_minutes" type="xs:decimal" nillable="true"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="interventions" minOccurs="0">
+        <xs:complexType><xs:all>
+          <xs:element name="human_corrections" type="xs:integer"/>
+          <xs:element name="contingency_reports" type="xs:integer"/>
+          <xs:element name="discrepancies_resolved" type="xs:integer"/>
+          <xs:element name="rejected_final_attempts" type="xs:integer"/>
+        </xs:all></xs:complexType>
+      </xs:element>
+      <xs:element name="activity">
+        <xs:complexType><xs:sequence>
+          <xs:element name="day" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="date" type="xs:date"/>
+              <xs:element name="sessions" type="xs:integer"/>
+              <xs:element name="reported" type="xs:integer"/>
+              <xs:element name="with_discrepancies" type="xs:integer"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <!-- MS-06: GET /api/v1/sessions/reports/stations -->
+  <xs:element name="station_report">
+    <xs:complexType><xs:all>
+      <xs:element name="filters" type="Filters"/>
+      <xs:element name="page" type="xs:integer"/>
+      <xs:element name="per_page" type="xs:integer"/>
+      <xs:element name="total" type="xs:integer"/>
+      <xs:element name="total_pages" type="xs:integer"/>
+      <xs:element name="stations">
+        <xs:complexType><xs:sequence>
+          <xs:element name="station" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="station_id" type="xs:string" nillable="true"/>
+              <xs:element name="name" type="xs:string" nillable="true"/>
+              <xs:element name="room_code" type="xs:string" nillable="true"/>
+              <xs:element name="active" type="xs:boolean" nillable="true"/>
+              <xs:element name="sessions" type="xs:integer"/>
+              <xs:element name="reported" type="xs:integer"/>
+              <xs:element name="closed" type="xs:integer"/>
+              <xs:element name="sessions_with_discrepancies" type="xs:integer"/>
+              <xs:element name="with_final_count" type="xs:integer"/>
+              <xs:element name="rejected_final_attempts" type="xs:integer"/>
+              <xs:element name="cameras_used" type="xs:integer"/>
+              <xs:element name="avg_duration_minutes" type="xs:decimal" nillable="true"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="kit_report">
+    <xs:complexType><xs:all>
+      <xs:element name="filters" type="Filters"/>
+      <xs:element name="page" type="xs:integer"/>
+      <xs:element name="per_page" type="xs:integer"/>
+      <xs:element name="total" type="xs:integer"/>
+      <xs:element name="total_pages" type="xs:integer"/>
+      <xs:element name="kits">
+        <xs:complexType><xs:sequence>
+          <xs:element name="kit" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="kit_id" type="xs:string" nillable="true"/>
+              <xs:element name="name" type="xs:string" nillable="true"/>
+              <xs:element name="version" type="xs:integer" nillable="true"/>
+              <xs:element name="active" type="xs:boolean" nillable="true"/>
+              <xs:element name="sessions" type="xs:integer"/>
+              <xs:element name="reported_sessions" type="xs:integer"/>
+              <xs:element name="sessions_with_discrepancies" type="xs:integer"/>
+              <xs:element name="discrepancies" type="xs:integer"/>
+              <xs:element name="expected_quantity" type="xs:integer" nillable="true"/>
+              <xs:element name="expected_quantity_counted" type="xs:integer" nillable="true"/>
+              <xs:element name="reported_quantity" type="xs:integer" nillable="true"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="operator_report">
+    <xs:complexType><xs:all>
+      <xs:element name="filters" type="Filters"/>
+      <xs:element name="page" type="xs:integer"/>
+      <xs:element name="per_page" type="xs:integer"/>
+      <xs:element name="total" type="xs:integer"/>
+      <xs:element name="total_pages" type="xs:integer"/>
+      <xs:element name="min_pairs" type="xs:integer"/>
+      <xs:element name="operators">
+        <xs:complexType><xs:sequence>
+          <xs:element name="operator" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="operator_id" type="xs:string"/>
+              <xs:element name="name" type="xs:string"/>
+              <xs:element name="sessions" type="xs:integer"/>
+              <xs:element name="started_sessions" type="xs:integer"/>
+              <xs:element name="counts_completed" type="xs:integer"/>
+              <xs:element name="family_counts" type="xs:integer"/>
+              <xs:element name="ai_pairs" type="xs:integer"/>
+              <xs:element name="ai_agreed" type="xs:integer"/>
+              <xs:element name="human_corrections" type="xs:integer"/>
+              <xs:element name="discrepancies" type="xs:integer"/>
+              <xs:element name="agreement_pct" type="xs:decimal" nillable="true"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="report_options">
+    <xs:complexType><xs:all>
+      <xs:element name="kits">
+        <xs:complexType><xs:sequence>
+          <xs:element name="kit" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="id" type="xs:string"/><xs:element name="name" type="xs:string"/>
+              <xs:element name="version" type="xs:integer"/><xs:element name="active" type="xs:boolean"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="operators">
+        <xs:complexType><xs:sequence>
+          <xs:element name="operator" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="id" type="xs:string"/><xs:element name="name" type="xs:string"/>
+              <xs:element name="active" type="xs:boolean"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="stations" minOccurs="0">
+        <xs:complexType><xs:sequence>
+          <xs:element name="station" minOccurs="0" maxOccurs="unbounded">
+            <xs:complexType><xs:all>
+              <xs:element name="id" type="xs:string"/><xs:element name="name" type="xs:string"/>
+              <xs:element name="room_code" type="xs:string"/><xs:element name="active" type="xs:boolean"/>
+            </xs:all></xs:complexType>
+          </xs:element>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+      <xs:element name="statuses">
+        <xs:complexType><xs:sequence>
+          <xs:element name="status" type="xs:string" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+
+  <xs:element name="error_response">
+    <xs:complexType><xs:all>
+      <xs:element name="error" type="xs:string"/>
+      <xs:element name="message" type="xs:string"/>
+      <xs:element name="correlation_id" type="xs:string" nillable="true"/>
+      <xs:element name="details">
+        <xs:complexType><xs:sequence>
+          <xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence></xs:complexType>
+      </xs:element>
+    </xs:all></xs:complexType>
+  </xs:element>
+  <!-- MS-12: GET /api/v1/sessions/{id}/validation-seal (Supervisor; tamper evidence, not a signature) -->
+  <xs:element name="validation_seal">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="session_id" type="xs:string"/>
+        <xs:element name="status">
+          <xs:simpleType><xs:restriction base="xs:string">
+            <xs:enumeration value="intact"/><xs:enumeration value="altered"/>
+            <xs:enumeration value="not_sealed"/><xs:enumeration value="no_validation"/>
+          </xs:restriction></xs:simpleType>
+        </xs:element>
+        <xs:element name="algorithm" type="xs:string" nillable="true"/>
+        <xs:element name="stored_sha256" type="xs:string" nillable="true"/>
+        <xs:element name="computed_sha256" type="xs:string" nillable="true"/>
+        <xs:element name="close_event_id" type="xs:string" nillable="true"/>
+        <xs:element name="closed_at" type="xs:string" nillable="true"/>
+        <xs:element name="operator_user_id" type="xs:string" nillable="true"/>
+        <xs:element name="close_path" type="xs:string" nillable="true"/>
+        <xs:element name="final_count_event_id" type="xs:string" nillable="true"/>
+        <xs:element name="final_frame_sha256" type="xs:string" nillable="true"/>
+        <xs:element name="lines" type="xs:integer"/>
+        <xs:element name="note" type="xs:string"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- MS-12: GET /api/v1/sessions/{id}/tracking-events (Supervisor; traceability, never a count) -->
+  <xs:element name="tracking_events">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="session_id" type="xs:string"/>
+        <xs:element name="count_event_id" type="xs:string" nillable="true"/>
+        <xs:element name="run_id" type="xs:string" nillable="true"/>
+        <xs:element name="accepted_at" type="xs:string" nillable="true"/>
+        <xs:element name="summary" nillable="true">
+          <xs:complexType><xs:sequence>
+            <xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+        <xs:element name="events_recorded" type="xs:string" nillable="true"/>
+        <xs:element name="events_persisted" type="xs:integer"/>
+        <xs:element name="complete" type="xs:boolean" nillable="true"/>
+        <xs:element name="offset" type="xs:integer"/>
+        <xs:element name="limit" type="xs:integer"/>
+        <xs:element name="events">
+          <xs:complexType><xs:sequence>
+            <xs:element name="event" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType><xs:all>
+                <xs:element name="seq" type="xs:integer"/>
+                <xs:element name="video_t" type="xs:decimal"/>
+                <xs:element name="frame_index" type="xs:integer"/>
+                <xs:element name="track_id" type="xs:integer"/>
+                <xs:element name="event" type="xs:string"/>
+                <xs:element name="family_code" type="xs:string" nillable="true"/>
+                <xs:element name="confidence" type="xs:decimal" nillable="true"/>
+                <xs:element name="detail">
+                  <xs:complexType><xs:sequence>
+                    <xs:any processContents="skip" minOccurs="0" maxOccurs="unbounded"/>
+                  </xs:sequence></xs:complexType>
+                </xs:element>
+              </xs:all></xs:complexType>
+            </xs:element>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- MS-08: GET /api/v1/sessions/trays/{tray_id} -->
+  <xs:element name="tray_sessions">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="tray_id" type="xs:string"/>
+        <xs:element name="tray_code" type="xs:string"/>
+        <xs:element name="sessions">
+          <xs:complexType><xs:sequence>
+            <xs:element name="session" minOccurs="0" maxOccurs="unbounded">
+              <xs:complexType><xs:all>
+                <xs:element name="id" type="xs:string"/>
+                <xs:element name="status" type="xs:string"/>
+                <xs:element name="scheduled_at" type="xs:string" nillable="true"/>
+                <xs:element name="started_at" type="xs:string" nillable="true"/>
+                <xs:element name="ended_at" type="xs:string" nillable="true"/>
+                <xs:element name="kit_id" type="xs:string" nillable="true"/>
+                <xs:element name="kit_name" type="xs:string" nillable="true"/>
+                <xs:element name="kit_version" type="xs:string" nillable="true"/>
+                <xs:element name="operator_name" type="xs:string" nillable="true"/>
+              </xs:all></xs:complexType>
+            </xs:element>
+          </xs:sequence></xs:complexType>
+        </xs:element>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- MS-07: DS09 health document (also answered as XML) -->
+  <xs:element name="health">
+    <xs:complexType>
+      <xs:all>
+        <xs:element name="service" type="xs:string" minOccurs="0"/>
+        <xs:element name="status" type="xs:string"/>
+        <xs:element name="checks">
+          <xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType>
+        </xs:element>
+        <xs:element name="correlation_id" type="xs:string"/>
+      </xs:all>
+    </xs:complexType>
+  </xs:element>
+
+  <!-- MS-07: roots of the session read endpoints. Their full field-level structure is the OpenAPI schema
+       (Session, SessionSummary, ExpectedInventory, CountEvent, Discrepancy); here the documents are declared with
+       open content so the root and the XML envelope are part of the contract. -->
+  <xs:element name="sessions"><xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+  <xs:element name="session"><xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+  <xs:element name="discrepancies"><xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+  <xs:element name="expected_inventory"><xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+  <xs:element name="counts"><xs:complexType><xs:sequence><xs:any processContents="lax" minOccurs="0" maxOccurs="unbounded"/></xs:sequence></xs:complexType></xs:element>
+</xs:schema>

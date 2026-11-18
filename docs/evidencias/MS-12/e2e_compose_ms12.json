@@ -1,0 +1,248 @@
+[
+  {
+    "step": 0,
+    "check": "three roles log in through the TLS Gateway (AuthService)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 1,
+    "check": "Admin uploads the provisional weights, maps classes and activates the model (RF-AD-08)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 1,
+    "check": "Admin registers a SIMULATED camera source with ROI on a station (R08, identified as simulation)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M1",
+    "check": "ms-camaras: Admin records a calibration MEASURED by a technician (mm/px derived only from the two values)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 1,
+    "check": "Admin records a model evaluation (R17; declared value, never computed)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M2",
+    "check": "ms-modelos-ia: regression run of real inference recorded (SHA-256 verified, agreement recomputed by PEF)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 1,
+    "check": "Admin creates a machine client (secret shown once)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 2,
+    "check": "Supervisor schedules a session through the Gateway",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M3",
+    "check": "ms-kits-charolas: SPD authorizes an equivalent family through the Gateway; Operator reads it, cannot write; kit quantities unchanged",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 3,
+    "check": "Operator starts the session",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 4,
+    "check": "Operator chooses the station camera; VisionWorker received its configuration (ROI, simulated) via the signed bind",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M4",
+    "check": "ms-camaras: the current calibration reaches VisionWorker in the signed bind (informational, never a count)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 7,
+    "check": "initial count from the first frame (real YOLO in the container): 3",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 6,
+    "check": "tracking processed the frames: 12 frames, 3 stable tracks",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 8,
+    "check": "final count 2 != reference 3 is rejected (409, capture again)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 9,
+    "check": "recapture equals the current reference: accepted (MS-03.1 rule unchanged)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 6,
+    "check": "the accepted final count carries the tracking summary (traceability) but its total is the last frame",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M5",
+    "check": "ms-tracking-instrumental: complete tracking log persisted (3 events) and read by the Supervisor through the Gateway",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 10,
+    "check": "human validation: changing the total is refused; same total accepted (session to the Supervisor)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M6",
+    "check": "ms-validacion-humana: the integrity seal of the Operator validation is recomputed by SessionService: intact",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 11,
+    "check": "EvidenceService stored 3 real images in Garage; one downloaded through its signed URL",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 12,
+    "check": "Supervisor opens the session (evidence, timeline with the tracking summary)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 13,
+    "check": "Supervisor resolves the authorized discrepancies",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 13,
+    "check": "Supervisor closes with the acknowledgments the page asks for (material_recovered, unreconciled_shortage_acknowledged); close_basis final_count",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 14,
+    "check": "NotificationsService delivered to the Operator: assignment and close (unresolved: shortage acknowledged)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 15,
+    "check": "MonitoringService: 15 components up (services, worker, PostgreSQL, Redis, MongoDB, Garage, VisionWorker)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M7",
+    "check": "ms-monitoreo: IntegrationService and its delivery worker are monitored and up",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 16,
+    "check": "Reports: CSV and PDF exports from the Supervisor screen",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 17,
+    "check": "IntegrationService exposes the new tray through the incremental sync API",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M8",
+    "check": "ms-integracion-hospitalaria: traceable batch of closed sessions (exact bytes + SHA-256, no patient data) by the IT admin and by a machine client with the export scope",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 18,
+    "check": "FHIR adapter delivers the Encounter to the local HAPI test server (transaction Bundle); HAPI stores it",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": 19,
+    "check": "audit trail of the session (10 distinct actions) also readable through AuditService",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "A",
+    "check": "escalated shortage: correction_required, no final count, Supervisor notified (final_count_escalated, 017)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "B",
+    "check": "contingency \"worker unavailable\" while VisionWorker answers is refused (409)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M9",
+    "check": "recovery: EvidenceService stopped during a capture for 25 s; the checkpoint image is stored when it is back",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "C",
+    "check": "another institution's session is invisible (API 404, portal not shown)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "D",
+    "check": "revoked token is refused by AuthService, Catalog, Session and Notifications (Redis revocation)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "E",
+    "check": "CatalogService stopped: Gateway answers 502, collector records down, IT admin notified; restarted: recovered",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "F",
+    "check": "VisionWorker restarted: the reconnection ticket re-binds the session (live preview can resume)",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "G",
+    "check": "after restarting PostgreSQL, Redis, MongoDB and Garage: data, evidence object and revocation persist",
+    "ok": true,
+    "detail": ""
+  },
+  {
+    "step": "M10",
+    "check": "ms-auditoria: audit trail of this run consistent across services (53 rows: actor and resource institution, no duplicates)",
+    "ok": true,
+    "detail": ""
+  }
+]

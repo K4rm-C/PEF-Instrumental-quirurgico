@@ -1,0 +1,15 @@
+# Live preview WebSocket (VisionWorker /ws). The worker checks Origin and the HMAC ticket on bind.
+limit_conn pef_conn ${PEF_GW_MAX_CONN_PER_IP};
+limit_except GET { deny all; }
+proxy_http_version 1.1;
+proxy_set_header Upgrade    $http_upgrade;
+proxy_set_header Connection $pef_connection_upgrade;
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-For   $remote_addr;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header Cookie "";
+proxy_set_header X-PEF-Signature "";
+proxy_connect_timeout 5s;
+proxy_read_timeout  ${PEF_GW_WS_TIMEOUT};
+proxy_send_timeout  ${PEF_GW_WS_TIMEOUT};
+proxy_buffering off;

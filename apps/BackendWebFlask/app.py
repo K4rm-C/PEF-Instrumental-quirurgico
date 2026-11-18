@@ -19,6 +19,12 @@ def create_app():
 	babel.init_app(app, locale_selector=select_locale)
 	install_jinja_gettext(app)
 	app.register_blueprint(web_bp)
+	# MS-04 CSRF on portal state-changing requests (services/csrf.py).
+	from services import csrf
+	csrf.init_app(app)
+	# PEF-DS06 checkpoints outbox (no-op unless MONGO_URL is configured).
+	from services import mongo_checkpoints
+	mongo_checkpoints.start_outbox_thread(app)
 
 	@app.before_request
 	def log_request_start():

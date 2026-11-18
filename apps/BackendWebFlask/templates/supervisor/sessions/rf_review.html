@@ -40,7 +40,6 @@
     <dl class="detail-list">
         <div><dt>{{ _("Expected") }}</dt><dd>{{ disc.expected_quantity if disc.expected_quantity is not none else '—' }}</dd></div>
         <div><dt>{{ _(disc.quantity_label|default("Detected")) }}</dt><dd>{{ disc.detected_quantity if disc.detected_quantity is not none else '—' }}</dd></div>
-        <div><dt>{{ _("Description") }}</dt><dd>{{ disc.display_description|default(disc.description) }}</dd></div>
         <div><dt>{{ _("Resolved") }}</dt>
             <dd>
                 {% if disc.resolved %}
@@ -51,6 +50,19 @@
             </dd>
         </div>
     </dl>
+    {% set op_note = disc.display_description|default(disc.description) %}
+    {% if op_note %}
+    <div class="discrepancy-op-bubble" role="note">
+        <p class="discrepancy-op-bubble__label">{{ _("Operator note") }}</p>
+        <p class="discrepancy-op-bubble__text">{{ op_note }}</p>
+    </div>
+    {% endif %}
+    {% if disc.resolved and disc.suggested_resolution %}
+    <div class="form-field" style="margin-top: 0.75rem;">
+        <p class="form-field__label">{{ _("SPD resolution") }}</p>
+        <p class="form-field__helper" style="white-space: pre-wrap;">{{ disc.suggested_resolution }}</p>
+    </div>
+    {% endif %}
     {% if not disc.resolved %}
     <form method="post" action="{{ url_for('web.supervisor_discrepancy_review', session_id=session.id) }}"
           data-discrepancy-resolve-form

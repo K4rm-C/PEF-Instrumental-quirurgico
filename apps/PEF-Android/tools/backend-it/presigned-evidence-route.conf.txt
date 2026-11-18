@@ -1,0 +1,25 @@
+# --- PROTOTYPE (ANDROID-02): presigned evidence downloads through the gateway --------------------------------
+# EvidenceService signs URLs for S3_PUBLIC_ENDPOINT = this gateway's public URL (path-style: /<bucket>/<key>?X-Amz-*).
+# Only GET/HEAD, only requests that carry a SigV4 query signature, path and Host forwarded UNCHANGED (they are part
+# of the signature). Garage validates the signature and expiry; the bucket stays private. No Bearer/Cookie forwarded.
+location ^~ /${PEF_GW_EVIDENCE_BUCKET}/ {
+    limit_except GET { deny all; }
+    if ($args !~ "(^|&)X-Amz-Signature=[0-9a-f]{64}(&|$)") {
+        return 403 '{"error":"forbidden","message":"A presigned URL is required"}';
+    }
+    limit_req  zone=pef_api burst=${PEF_GW_BURST_API} nodelay;
+    limit_conn pef_conn ${PEF_GW_MAX_CONN_PER_IP};
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $http_host;
+    proxy_set_header Authorization "";
+    proxy_set_header Cookie "";
+    proxy_hide_header Set-Cookie;
+    proxy_hide_header Server;
+    proxy_connect_timeout 5s;
+    proxy_read_timeout ${PEF_GW_UPSTREAM_TIMEOUT};
+    proxy_next_upstream off;
+    add_header Cache-Control "private, no-store" always;
+    add_header X-Content-Type-Options nosniff always;
+    proxy_pass http://pef_garage;
+}

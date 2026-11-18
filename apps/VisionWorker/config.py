@@ -35,15 +35,15 @@ CONF_DISPLAY_THRESHOLD = float(os.getenv("VISION_CONF_DISPLAY_THRESHOLD", "0.70"
 # Overlay naming for reassigned: raw top-1 >= display AND assigned visual >= this
 CONF_DISPLAY_REASSIGN = float(os.getenv("VISION_CONF_DISPLAY_REASSIGN", "0.60"))
 # Reassign: piso absoluto + cercanía al raw top-1 (scores sigmoid independientes)
-REASSIGN_MIN_SCORE = float(os.getenv("VISION_REASSIGN_MIN_SCORE", "0.45"))
-REASSIGN_MAX_GAP = float(os.getenv("VISION_REASSIGN_MAX_GAP", "0.35"))
+REASSIGN_MIN_SCORE = float(os.getenv("VISION_REASSIGN_MIN_SCORE", "0.55"))
+REASSIGN_MAX_GAP = float(os.getenv("VISION_REASSIGN_MAX_GAP", "0.20"))
 TOPK = max(1, int(os.getenv("VISION_TOPK", "5")))
 # Compact audit trail in payloads / metrics (class row after NMS, not 8400 anchors)
 TOPK_PERSIST = max(1, min(TOPK, int(os.getenv("VISION_TOPK_PERSIST", "4"))))
-VISUAL_WEIGHT = float(os.getenv("VISION_VISUAL_WEIGHT", "0.75"))
-CONTEXT_WEIGHT = float(os.getenv("VISION_CONTEXT_WEIGHT", "0.25"))
+VISUAL_WEIGHT = float(os.getenv("VISION_VISUAL_WEIGHT", "0.95"))
+CONTEXT_WEIGHT = float(os.getenv("VISION_CONTEXT_WEIGHT", "0.05"))
 NMS_IOU = float(os.getenv("VISION_NMS_IOU", "0.45"))
-IMGSZ = int(os.getenv("VISION_IMGSZ", "640"))
+IMGSZ = int(os.getenv("VISION_IMGSZ", "896"))  # align with NovSplit yolo26m train (multiple of 32)
 
 
 def _env_flag(name: str, default: bool) -> bool:
@@ -66,26 +66,29 @@ _stride_pin = _env_int("VISION_FRAME_STRIDE")
 FRAME_STRIDE_CUDA = _env_int("VISION_FRAME_STRIDE_CUDA") or _stride_pin or 1
 FRAME_STRIDE_CPU = _env_int("VISION_FRAME_STRIDE_CPU") or _stride_pin or 5
 FRAME_STRIDE = FRAME_STRIDE_CPU
-# Keep last good family tally/boxes for this many seconds of *video time*
-# PoC: halved vs prior defaults so the count board tracks live removals sooner.
-HOLD_SECONDS = float(os.getenv("VISION_HOLD_SECONDS", "1.25"))
+# Keep last good family tally/boxes for this many seconds of *video time*.
+# Half of prior sticky window so the board follows pickups/moves sooner.
+HOLD_SECONDS = float(os.getenv("VISION_HOLD_SECONDS", "0.275"))
 # Keep family *name* on overlay after last renew (named sticky does not shrink on absent).
-NAME_HOLD_SECONDS = float(os.getenv("VISION_NAME_HOLD_SECONDS", "6.0"))
+NAME_HOLD_SECONDS = float(os.getenv("VISION_NAME_HOLD_SECONDS", "0.35"))
 # Confusion / missing-family retention when the family appears only in top2–N
 # (top1 already assigned). Renew while it stays in selectable top2–N. Never for top1.
-CONFUSION_HOLD_SECONDS = float(os.getenv("VISION_CONFUSION_HOLD_SECONDS", "2.5"))
-# Do not seed/refresh holds with weaker ghosts
-HOLD_MIN_SCORE = float(os.getenv("VISION_HOLD_MIN_SCORE", "0.35"))
+CONFUSION_HOLD_SECONDS = float(os.getenv("VISION_CONFUSION_HOLD_SECONDS", "0.20"))
+# Do not seed/refresh holds with candidates at ≤0.49 confidence (enter only if > 0.49).
+HOLD_MIN_SCORE = float(os.getenv("VISION_HOLD_MIN_SCORE", "0.50"))
+# If a held label's live confidence falls below this, drop the hold immediately.
+HOLD_DROP_SCORE = float(os.getenv("VISION_HOLD_DROP_SCORE", "0.35"))
 # When family is confirmed absent (0 live), shrink count hold to this TTL (video seconds).
 # Longer than a blink; shorter than full HOLD so removals clear faster than occlusions.
-HOLD_ABSENT_SECONDS = float(os.getenv("VISION_HOLD_ABSENT_SECONDS", "0.55"))
+HOLD_ABSENT_SECONDS = float(os.getenv("VISION_HOLD_ABSENT_SECONDS", "0.09"))
 # Seed / absent grace: N inferences *at CPU stride*, converted to tape seconds via fps.
 # CUDA (stride 1) waits the same video time as CPU (stride 5), not N raw frames.
-HOLD_ABSENT_STREAK = max(1, int(os.getenv("VISION_HOLD_ABSENT_STREAK", "2")))
-HOLD_SEED_FRAMES = max(1, int(os.getenv("VISION_HOLD_SEED_FRAMES", "2")))
+# Seed also gates *table promotion* (anti-flicker): brief matrix swaps never reach the board.
+HOLD_ABSENT_STREAK = max(1, int(os.getenv("VISION_HOLD_ABSENT_STREAK", "1")))
+HOLD_SEED_FRAMES = max(1, int(os.getenv("VISION_HOLD_SEED_FRAMES", "3")))
 # If any live box overlaps last hold geometry ≥ this IoU, treat as occlusion
-# (delay absent shrink; do not refresh the hold clock).
-HOLD_ZONE_IOU = float(os.getenv("VISION_HOLD_ZONE_IOU", "0.15"))
+# (delay absent shrink; do not refresh the hold clock). Stricter = faster clear on moves.
+HOLD_ZONE_IOU = float(os.getenv("VISION_HOLD_ZONE_IOU", "0.22"))
 # Sample tallies into timeline NDJSON (+ PG video_window) at most once per this many *video* seconds.
 # CUDA folds many inferences into that window; CPU may write almost every inference without exceeding 1 Hz of tape.
 COUNT_SAMPLE_INTERVAL_S = max(0.05, float(os.getenv("VISION_COUNT_SAMPLE_INTERVAL_S", "1.0")))

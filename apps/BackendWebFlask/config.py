@@ -23,6 +23,9 @@ def database_url():
 
 def _with_connection_timeout(url):
     parsed = urlsplit(url)
+    # connect_timeout is a libpq option; rebuilding other URLs (e.g. sqlite:///C:/...) breaks them.
+    if not parsed.scheme.startswith('postgresql'):
+        return url
     query = dict(parse_qsl(parsed.query, keep_blank_values=True))
     query.setdefault('connect_timeout', os.getenv('DB_CONNECT_TIMEOUT', '5'))
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
@@ -45,16 +48,29 @@ class Config:
     }
     # Development-only view-data fallback. Authentication always uses the auth service.
     FRONTEND_DEMO_MODE = os.getenv('FRONTEND_DEMO_MODE', 'false').strip().lower() == 'true'
+    # Development only: without SESSION_SERVICE_URL, Supervisor Indicators may show old local aggregates.
+    SUPERVISOR_INDICATORS_LOCAL_FALLBACK = (
+        os.getenv('SUPERVISOR_INDICATORS_LOCAL_FALLBACK', 'false').strip().lower() == 'true'
+    )
     AUTH_SERVICE_URL = os.getenv('AUTH_SERVICE_URL', os.getenv('AUTH_URL', 'http://127.0.0.1:5001')).strip().rstrip('/')
     AUTH_BROWSER_URL = os.getenv('AUTH_BROWSER_URL', AUTH_SERVICE_URL).strip().rstrip('/')
     AUTH_SERVICE_TIMEOUT = float(os.getenv('AUTH_SERVICE_TIMEOUT', '5'))
-    # Administration microservice (apps/AdminService): catalogs, users, configuration, audit.
-    ADMIN_SERVICE_URL = os.getenv('ADMIN_SERVICE_URL', 'http://127.0.0.1:5003').strip().rstrip('/')
-    ADMIN_SERVICE_TIMEOUT = float(os.getenv('ADMIN_SERVICE_TIMEOUT', '10'))
-    # Timezone used to show dates coming from AdminService (it returns UTC).
+    # Admin UI uses in-process admin_local (+ optional CatalogService via CATALOG_SERVICE_URL).
+    # Legacy AdminService (:5003) is no longer the supported path; :5003 in the integral stack is Catalog.
     ADMIN_DISPLAY_TIMEZONE = os.getenv('ADMIN_DISPLAY_TIMEZONE', 'America/Mexico_City')
     # i18n (Flask-Babel). English msgids are the source text; public locale codes are
     # i18n.SUPPORTED_LOCALES (en, es-MX), catalogs live in translations/<babel locale>/.
     BABEL_DEFAULT_LOCALE = 'en'
     BABEL_DEFAULT_TIMEZONE = 'UTC'
     BABEL_TRANSLATION_DIRECTORIES = 'translations'
+    # Portal cookies / CSRF (MS-04). Auth cookies still come from AuthService.
+    PORTAL_COOKIE_SECURE = os.getenv('PORTAL_COOKIE_SECURE', 'false').strip().lower() == 'true'
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    SESSION_COOKIE_SECURE = PORTAL_COOKIE_SECURE
+    CSRF_TRUSTED_ORIGINS = tuple(
+        o.strip().rstrip('/')
+        for o in os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+        if o.strip()
+    )
+    CSRF_ENABLED = True

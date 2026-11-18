@@ -27,6 +27,7 @@ from config import (
     FRAME_STRIDE_CUDA,
     HOLD_ABSENT_SECONDS,
     HOLD_ABSENT_STREAK,
+    HOLD_DROP_SCORE,
     HOLD_MIN_SCORE,
     HOLD_SECONDS,
     HOLD_SEED_FRAMES,
@@ -146,6 +147,7 @@ class SessionState:
     name_hold_seconds: float = NAME_HOLD_SECONDS
     confusion_hold_seconds: float = CONFUSION_HOLD_SECONDS
     hold_min_score: float = HOLD_MIN_SCORE
+    hold_drop_score: float = HOLD_DROP_SCORE
     hold_absent_seconds: float = HOLD_ABSENT_SECONDS
     hold_absent_streak: int = HOLD_ABSENT_STREAK
     hold_seed_frames: int = HOLD_SEED_FRAMES
@@ -202,6 +204,8 @@ class SessionState:
             "hold_seconds": self.hold_seconds,
             "name_hold_seconds": self.name_hold_seconds,
             "confusion_hold_seconds": self.confusion_hold_seconds,
+            "hold_min_score": self.hold_min_score,
+            "hold_drop_score": self.hold_drop_score,
             "hold_absent_seconds": self.hold_absent_seconds,
             "hold_absent_streak": self.hold_absent_streak,
             "hold_seed_frames": self.hold_seed_frames,
@@ -445,6 +449,9 @@ def _refresh_confusion_holds(
             if exp_q <= 0:
                 continue
             score = float((entry or {}).get("score") or 0.0)
+            # Same enter floor as count-hold: weak top2–N ghosts never seed confusion hold.
+            if score < float(state.hold_min_score):
+                continue
             family_name = (
                 (entry or {}).get("family_name")
                 or (state.expected.get(code) or {}).get("family_name")
@@ -612,10 +619,11 @@ def _should_refresh_hold(
     live_named: bool,
     min_score: float,
 ) -> bool:
-    if live_best < min_score and not live_named:
+    # Never enter/refresh hold from weak candidates (≤ enter floor, default 0.49).
+    if live_best < min_score:
         return False
     if prev is None:
-        return live_best >= min_score or live_named
+        return True
     prev_best = float(prev.get("best_score") or 0.0)
     prev_named = bool(prev.get("named"))
     if prev_named and not live_named and live_best < prev_best - 0.02:
@@ -623,6 +631,31 @@ def _should_refresh_hold(
     if live_named:
         return True
     return live_best + 0.02 >= prev_best
+
+
+def _drop_weak_holds(
+    state: SessionState,
+    *,
+    public_boxes: list[dict[str, Any]],
+    live_codes: set[str],
+    drop_score: float,
+) -> None:
+    """Immediately clear holds whose live label confidence fell below the drop floor."""
+    if drop_score <= 0:
+        return
+    for code in list(state._hold_by_family.keys()):
+        if code not in live_codes:
+            continue
+        live_best, _ = _family_live_stats(public_boxes, code)
+        if live_best > 0.0 and live_best < drop_score:
+            state._hold_by_family.pop(code, None)
+            state._last_good_live_t.pop(code, None)
+            state._live_since.pop(code, None)
+            state._confusion_by_family.pop(code, None)
+    for code in list(state._confusion_by_family.keys()):
+        hold = state._confusion_by_family.get(code) or {}
+        if float(hold.get("score") or 0.0) < drop_score:
+            state._confusion_by_family.pop(code, None)
 
 
 def _video_fps(state: SessionState) -> float:
@@ -657,19 +690,21 @@ def _apply_hold(
     """
     Count-hold + sticky naming + confusion (top2–N) retention:
     - Seed / refresh long *count* TTL only after sustained live (CPU-stride-equivalent tape time).
+    - Table promotion uses the same seed gate: brief matrix flickers never change the board.
     - Count clock is a timeout from last sustained live; zone overlap does not restart it.
     - Named sticky: keep the family *name* while the slot is occupied; do not shrink
       name_until on confirmed absence (name expires only after name_hold_seconds).
     - Unassigned type box in the same slot also keeps the name; another family does not.
     - After tape-time of absence without same-slot occupancy, shrink *count* to HOLD_ABSENT_SECONDS.
     - Confusion: missing families that appear only in top2–N (top1 already assigned) get a
-      5 s renewing hold. Never seeded from top1.
+      short renewing hold. Never seeded from top1.
     - A 1-frame flicker does not reset the absence clock nor extend the long count hold.
     """
     ttl = max(0.0, float(state.hold_seconds))
     name_ttl = max(ttl, float(state.name_hold_seconds))
     absent_ttl = max(0.05, float(state.hold_absent_seconds))
     min_score = float(state.hold_min_score)
+    drop_score = float(getattr(state, "hold_drop_score", HOLD_DROP_SCORE) or HOLD_DROP_SCORE)
     seed_need = max(1, int(state.hold_seed_frames))
     absent_need = max(1, int(state.hold_absent_streak))
     zone_iou = float(state.hold_zone_iou)
@@ -689,6 +724,13 @@ def _apply_hold(
         else:
             state._live_since.pop(code, None)
 
+    # Collapse: held label fell below drop floor → clear sticky immediately.
+    _drop_weak_holds(
+        state, public_boxes=public_boxes, live_codes=live_codes, drop_score=drop_score
+    )
+
+    # Families whose live matrix resolution is sustained long enough for the board.
+    sustained_live: set[str] = set()
     for code in live_codes:
         fam_boxes = [b for b in public_boxes if b.get("family_code") == code]
         live_best, live_named = _family_live_stats(public_boxes, code)
@@ -697,7 +739,9 @@ def _apply_hold(
         live_dur = 0.0 if live_since is None else max(0.0, video_t - float(live_since))
         sustained = (live_dur + dt) >= seed_s
         if not sustained:
+            # Flicker / brief swap: do not seed or refresh the long count TTL.
             continue
+        sustained_live.add(code)
         state._last_good_live_t[code] = video_t
         if _should_refresh_hold(
             prev=prev, live_best=live_best, live_named=live_named, min_score=min_score
@@ -770,6 +814,14 @@ def _apply_hold(
     for box in public_boxes:
         code = _box_family_code(box)
         if code:
+            # Unsustained resolution: keep prior sticky geometry if any, else hide (anti-flicker).
+            if code in live_codes and code not in sustained_live:
+                hold = state._hold_by_family.get(code)
+                if hold and video_t <= float(hold.get("until") or 0):
+                    sticky_boxes.append(
+                        _apply_sticky_name(box, hold, video_t, hold_code=code)
+                    )
+                continue
             hold = state._hold_by_family.get(code)
             sticky_boxes.append(_apply_sticky_name(box, hold or {}, video_t, hold_code=code))
             continue
@@ -784,7 +836,7 @@ def _apply_hold(
                 best_code = hcode
         if best_code:
             live_n = int((counts.get(best_code) or {}).get("detected_quantity") or 0)
-            if live_n > 0:
+            if live_n > 0 and best_code in sustained_live:
                 sticky_boxes.append(box)
             else:
                 sticky_boxes.append(
@@ -802,15 +854,30 @@ def _apply_hold(
     held_boxes: list[dict[str, Any]] = []
     for code in list(state.expected.keys()):
         det = int(out_counts.get(code, {}).get("detected_quantity") or 0)
-        if det > 0:
+        hold = state._hold_by_family.get(code)
+        if det > 0 and code in sustained_live:
             out_counts[code]["held"] = False
-            hold = state._hold_by_family.get(code)
             if hold and hold.get("named") and video_t <= float(hold.get("name_until") or 0):
                 out_counts[code]["sticky_name"] = True
-            # Live assignment wins over confusion ghost for this family.
             state._confusion_by_family.pop(code, None)
             continue
-        hold = state._hold_by_family.get(code)
+        if det > 0 and code not in sustained_live:
+            # Brief matrix resolution: do not promote to the table yet.
+            out_counts[code]["detected_quantity"] = 0
+            out_counts[code]["raw_detected_quantity"] = counts.get(code, {}).get(
+                "raw_detected_quantity", det
+            )
+            out_counts[code]["pending_promote"] = True
+            out_counts[code]["difference"] = 0 - int(
+                out_counts[code].get("expected_quantity") or 0
+            )
+            det = 0
+        if det > 0:
+            out_counts[code]["held"] = False
+            if hold and hold.get("named") and video_t <= float(hold.get("name_until") or 0):
+                out_counts[code]["sticky_name"] = True
+            state._confusion_by_family.pop(code, None)
+            continue
         if not hold:
             continue
         if video_t > float(hold["until"]):
@@ -1262,6 +1329,7 @@ def prepare_live_run(state: SessionState) -> None:
     state.name_hold_seconds = NAME_HOLD_SECONDS
     state.confusion_hold_seconds = CONFUSION_HOLD_SECONDS
     state.hold_min_score = HOLD_MIN_SCORE
+    state.hold_drop_score = HOLD_DROP_SCORE
     state.hold_absent_seconds = HOLD_ABSENT_SECONDS
     state.hold_absent_streak = HOLD_ABSENT_STREAK
     state.hold_seed_frames = HOLD_SEED_FRAMES
@@ -1366,6 +1434,7 @@ def process_video_file(path: str, state: SessionState) -> None:
     state.name_hold_seconds = NAME_HOLD_SECONDS
     state.confusion_hold_seconds = CONFUSION_HOLD_SECONDS
     state.hold_min_score = HOLD_MIN_SCORE
+    state.hold_drop_score = HOLD_DROP_SCORE
     state.hold_absent_seconds = HOLD_ABSENT_SECONDS
     state.hold_absent_streak = HOLD_ABSENT_STREAK
     state.hold_seed_frames = HOLD_SEED_FRAMES

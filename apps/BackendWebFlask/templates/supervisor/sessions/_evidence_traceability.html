@@ -1,0 +1,116 @@
+{#
+    MS-03 — Evidence & Traceability of a REAL session (Session Details → Timeline, Review Detail).
+    Expects `evidence` from services/supervisor_evidence.session_evidence(detail). Same v3 components as the
+    demo screen (v3-evidence figures, data-table); nothing here comes from demo data. Images load through the
+    portal route that re-authorizes the session and the asset; a missing image shows its own placeholder and
+    never breaks the page. YOLO boxes (pixels) are placed by js/pages/evidence-overlay.js once the image loads.
+#}
+<section class="v3-stack" data-evidence-traceability aria-label="{{ _('Evidence & Traceability') }}">
+    <h3 class="card__title">{{ _("Evidence & Traceability") }}</h3>
+
+    {% for note in evidence.notes %}
+    <p class="alert alert--warning" role="status" data-evidence-note>{{ _(note) }}</p>
+    {% endfor %}
+
+    <dl class="detail-list" data-evidence-model>
+        <div><dt>{{ _("Vision model") }}</dt>
+            <dd>{% if evidence.model %}{{ evidence.model.version_tag }}{% else %}{{ _("No model pinned (manual session or no inference yet)") }}{% endif %}</dd></div>
+        {% if evidence.model %}
+        <div><dt>{{ _("Weights SHA-256") }}</dt>
+            <dd>{% if evidence.model.sha256 %}<code title="{{ evidence.model.sha256 }}">{{ evidence.model.sha256[:12] }}…</code>{% else %}{{ _("Not registered") }}{% endif %}</dd></div>
+        {% endif %}
+    </dl>
+
+    {% if evidence.captures %}
+    <div class="v3-evidence-grid" data-evidence-captures>
+        {% for capture in evidence.captures %}
+        <figure class="v3-evidence v3-evidence--tall" data-evidence-figure data-media-asset-id="{{ capture.media_asset_id or '' }}">
+            <div class="v3-evidence__header">
+                <span class="v3-evidence__title">{{ _(capture.reason_label) }}{% if capture.seq %} · #{{ capture.seq }}{% endif %}</span>
+                {% if capture.model_version %}<span class="v3-evidence__tag v3-evidence__tag--info">{{ capture.model_version }}</span>{% endif %}
+            </div>
+            <div class="v3-evidence__frame{% if not capture.image_available %} v3-evidence__frame--placeholder{% endif %}">
+                {% if capture.image_available %}
+                <img class="v3-evidence__image" src="{{ capture.image_url }}" loading="lazy" data-evidence-image
+                     alt="{{ _('Tray image of the checkpoint captured at %(when)s', when=capture.captured_at) }}">
+                {% if capture.boxes %}
+                <div class="v3-evidence__overlay" aria-hidden="true" data-evidence-overlay>
+                    {% for box in capture.boxes %}
+                    <span class="v3-evidence__box" hidden data-bbox="{{ box.x }},{{ box.y }},{{ box.w }},{{ box.h }}">
+                        <span class="v3-evidence__box-label">{{ box.label }}{% if box.confidence_label %} {{ box.confidence_label }}{% endif %}</span>
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% else %}
+                <div class="v3-evidence__placeholder" role="img" aria-label="{{ _(capture.image_missing_reason) }}" data-evidence-missing>
+                    <span class="v3-evidence__placeholder-label">{{ _(capture.image_missing_reason) }}</span>
+                </div>
+                {% endif %}
+            </div>
+            <figcaption class="v3-evidence__meta">
+                <span>{{ capture.captured_at or '—' }}{% if capture.phase_code %} · {{ capture.phase_code }}{% endif %}</span>
+                <span>{% if capture.detections is not none %}{{ _("%(count)s detections", count=capture.detections) }}{% endif %}{% if capture.sha256 %} · <code title="{{ capture.sha256 }}">{{ capture.sha256[:8] }}</code>{% endif %}</span>
+            </figcaption>
+        </figure>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="v3-empty-state" data-evidence-empty>{{ _("No evidence images have been recorded for this session.") }}</p>
+    {% endif %}
+
+    <div class="table-wrapper">
+        <table class="data-table" data-evidence-ai-counts>
+            <caption class="visually-hidden">{{ _("AI counts") }}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("When") }}</th>
+                    <th scope="col">{{ _("AI count") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Reference") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Detected") }}</th>
+                    <th scope="col">{{ _("Model") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in evidence.ai_counts %}
+                <tr>
+                    <td>{{ event.occurred_at or '—' }}</td>
+                    <td>{{ event.event_label or event.event_name }} <code>{{ event.event_code }}</code></td>
+                    <td class="data-table__numeric-column">{{ event.expected_quantity if event.expected_quantity is not none else '—' }}</td>
+                    <td class="data-table__numeric-column">{{ event.detected_quantity if event.detected_quantity is not none else '—' }}</td>
+                    <td>{{ event.model_version or '—' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5">{{ _("No AI counts recorded.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if evidence.human_counts %}
+    <div class="table-wrapper">
+        <table class="data-table" data-evidence-human-counts>
+            <caption class="visually-hidden">{{ _("Human validation") }}</caption>
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("When") }}</th>
+                    <th scope="col">{{ _("Human validation") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Expected") }}</th>
+                    <th scope="col" class="data-table__numeric-column">{{ _("Validated") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in evidence.human_counts %}
+                <tr>
+                    <td>{{ event.occurred_at or '—' }}</td>
+                    <td>{{ event.family_name or event.event_label }}</td>
+                    <td class="data-table__numeric-column">{{ event.expected_quantity if event.expected_quantity is not none else '—' }}</td>
+                    <td class="data-table__numeric-column">{{ event.detected_quantity if event.detected_quantity is not none else '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</section>
+<script src="{{ url_for('static', filename='js/pages/evidence-overlay.js') }}" defer></script>

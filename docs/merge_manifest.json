@@ -1,0 +1,19 @@
+{
+  "v1": {
+    "original_entries": 818
+  },
+  "supervisor": {
+    "original_entries": 515
+  },
+  "main": {
+    "original_entries": 499
+  },
+  "generation": "2026-11-01",
+  "strategy": "V1 runtime baseline + ZIP3 WS camera preview active (isolated) + schema 008 + ZIP2 Supervisor code staged, without double writers",
+  "websocket_zip3": {
+    "status": "backend + browser route wired for optional preview; YOLO weight + end-to-end runtime need verification",
+    "route": "/operator/sessions/{id}/capture/ws-ticket",
+    "worker": "/ws",
+    "count_authority": "V1 file-first/last-frame gated path unchanged"
+  }
+}

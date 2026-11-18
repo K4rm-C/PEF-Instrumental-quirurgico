@@ -81,6 +81,7 @@
         </div>
         <div class="page-heading__actions">
             <form method="post" action="{{ finish_url }}">
+                {{ csrf_field() }}
                 <button type="submit" class="btn btn--primary">{{ _("Finish counting") }}</button>
             </form>
             <a class="btn btn--secondary" href="{{ url_for('web.operator_sessions') }}">{{ _("Back") }}</a>
@@ -240,6 +241,7 @@
 {% endblock %}
 
 {% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/session-leave-guard.js') }}" data-enabled="1" defer></script>
 <script
     src="{{ url_for('static', filename='js/pages/capture-rf.js') }}"
     data-state-url="{{ state_url }}"

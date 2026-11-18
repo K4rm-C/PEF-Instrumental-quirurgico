@@ -1,0 +1,35 @@
+# Android Studio / IntelliJ
+*.iml
+.idea/
+captures/
+.navigation/
+
+# Gradle / Kotlin
+.gradle/
+build/
+.kotlin/
+.externalNativeBuild/
+.cxx/
+
+# Configuración local (rutas del SDK, URLs personales, credenciales de firma)
+local.properties
+*.keystore
+*.jks
+keystore.properties
+google-services.json
+
+# Artefactos
+*.apk
+*.aab
+*.ap_
+*.dex
+*.hprof
+output-metadata.json
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Variables locales
+.env
+.env.*

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- AppCompat es necesario para el idioma por aplicación (AppCompatDelegate) en API < 33.
+         Los colores reales de la interfaz los define Compose (ui/theme). -->
+    <style name="Theme.CursoBasico" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

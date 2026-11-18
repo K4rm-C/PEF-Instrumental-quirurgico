@@ -14,6 +14,8 @@
                               to empty/"active" so the create form renders blank
       categories              list of {value, label} for the Category select
       save_url, cancel_url    URL strings, default "#"
+      examples (edit only)    list of {id, image_url, example_text, sort_order, edit_url, delete_url}
+      add_example_url         POST target (multipart: image, example_text, sort_order)
     Save posts to save_url; the view forwards it to AdminService (POST/PUT /api/v1/families),
     which validates, persists and audits it. form_error shows the service's validation message.
 #}
@@ -105,10 +107,125 @@
             </div>
         </div>
 
+        {% if is_edit %}
+        {# Examples live inside the visual flow of the form, but HTML forbids nested <form>s:
+           the upload/delete forms are declared after </form> and referenced via the form="" attribute. #}
+        <section class="family-examples" id="family-examples" aria-labelledby="family-examples-title">
+            <h2 class="family-examples__title" id="family-examples-title">{{ _("Reference examples") }}</h2>
+            {% if examples %}
+            <ul class="family-examples__list">
+                {% for example in examples %}
+                <li class="family-examples__item">
+                    <a class="family-examples__thumb" href="#family-example-view-{{ example.id }}" title="{{ _('View image') }}">
+                        <img src="{{ example.image_url }}" alt="{{ example.example_text or instrument_family.name }}" loading="lazy">
+                    </a>
+                    <div class="family-examples__meta">
+                        {% if example.example_text %}<span class="family-examples__text">{{ example.example_text }}</span>{% endif %}
+                        <span class="family-examples__order">{{ _("Order") }}: {{ example.sort_order|default(0, true) }}</span>
+                    </div>
+                    <div class="family-examples__actions">
+                        {% if example.edit_url %}
+                        <label class="btn btn--secondary btn--sm family-examples__replace-label" for="family-example-replace-{{ example.id }}">{{ _("Replace") }}</label>
+                        <input class="family-examples__replace-input" type="file" id="family-example-replace-{{ example.id }}"
+                               name="image" accept="image/jpeg,image/png,image/webp"
+                               form="family-example-replace-{{ example.id }}"
+                               data-family-example-replace="family-example-replace-{{ example.id }}">
+                        {% endif %}
+                        {% if example.delete_url %}
+                        <button type="submit" class="btn btn--secondary btn--sm family-examples__delete" form="family-example-delete-{{ example.id }}">{{ _("Delete") }}</button>
+                        {% endif %}
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+
+            {% if add_example_url %}
+            <div class="family-examples__upload">
+                <p class="form-field__helper">{{ _("Upload a reference image (PNG, JPG or WebP) to help identify this family. Delete or Replace removes the previous file from object storage.") }}</p>
+                <div class="family-examples__upload-row">
+                    <div class="form-field family-examples__field">
+                        <label class="form-field__label" for="family-example-image">{{ _("Image") }}</label>
+                        <input class="form-field__input form-field__input--plain" type="file" id="family-example-image" name="image" accept="image/*" form="family-example-upload" required>
+                    </div>
+                    <div class="form-field family-examples__field family-examples__field--grow">
+                        <label class="form-field__label" for="family-example-text">{{ _("Description") }}</label>
+                        <input class="form-field__input form-field__input--plain" type="text" id="family-example-text" name="example_text" maxlength="255" form="family-example-upload">
+                    </div>
+                    <div class="form-field family-examples__field family-examples__field--narrow">
+                        <label class="form-field__label" for="family-example-order">{{ _("Order") }}</label>
+                        <input class="form-field__input form-field__input--plain" type="number" id="family-example-order" name="sort_order" value="{{ (examples|length) + 1 if examples else 1 }}" min="0" step="1" form="family-example-upload">
+                    </div>
+                    <button type="submit" class="btn btn--secondary family-examples__submit" form="family-example-upload">{{ _("Upload") }}</button>
+                </div>
+            </div>
+            {% endif %}
+        </section>
+        {% endif %}
+
         <div class="form-actions">
             <a class="btn btn--secondary" href="{{ cancel_url|default('#') }}">{{ _("Cancel") }}</a>
             <button type="submit" class="btn btn--primary">{{ submit_label }}</button>
         </div>
     </form>
+
+    {% if is_edit %}
+    {% if add_example_url %}
+    <form id="family-example-upload" action="{{ add_example_url }}" method="post" enctype="multipart/form-data" hidden>
+        {{ csrf_field() }}
+    </form>
+    {% endif %}
+    {% for example in examples or [] %}
+    {% if example.edit_url %}
+    <form id="family-example-replace-{{ example.id }}" action="{{ example.edit_url }}" method="post" enctype="multipart/form-data" hidden
+          data-app-confirm="{{ _('Replace this reference image? The previous file will be removed from storage.') }}"
+          data-app-confirm-ok="{{ _('Replace') }}">
+        {{ csrf_field() }}
+        <input type="hidden" name="example_text" value="{{ example.example_text or '' }}">
+        <input type="hidden" name="sort_order" value="{{ example.sort_order|default(0, true) }}">
+    </form>
+    {% endif %}
+    {% if example.delete_url %}
+    <form id="family-example-delete-{{ example.id }}" action="{{ example.delete_url }}" method="post" hidden
+          data-app-confirm="{{ _('Delete this reference image? The file will also be removed from storage.') }}" data-app-confirm-ok="{{ _('Delete') }}">
+        {{ csrf_field() }}
+    </form>
+    {% endif %}
+    {% endfor %}
+
+    {# CSS-only lightbox (:target): thumbnail opens the overlay, Close returns to the section. #}
+    {% for example in examples or [] %}
+    <div class="family-examples__overlay" id="family-example-view-{{ example.id }}" role="dialog" aria-modal="true" aria-label="{{ _('Reference image') }}">
+        <div class="family-examples__overlay-panel">
+            <img src="{{ example.image_url }}" alt="{{ example.example_text or instrument_family.name }}">
+            {% if example.example_text %}<p class="family-examples__overlay-caption">{{ example.example_text }}</p>{% endif %}
+            <a class="btn btn--secondary" href="#family-examples">{{ _("Close") }}</a>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
 </section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(function () {
+    document.querySelectorAll("[data-family-example-replace]").forEach(function (input) {
+        input.addEventListener("change", function () {
+            if (!input.files || !input.files.length) {
+                return;
+            }
+            var form = document.getElementById(input.getAttribute("data-family-example-replace"));
+            if (!form) {
+                return;
+            }
+            if (typeof form.requestSubmit === "function") {
+                form.requestSubmit();
+            } else {
+                form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+            }
+        });
+    });
+})();
+</script>
 {% endblock %}

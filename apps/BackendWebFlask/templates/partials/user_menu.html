@@ -2,21 +2,18 @@
 {% set current_user = current_user|default({
     'name': _('Guest User'),
     'role_label': _('Operator'),
-    'avatar_url': none
+    'avatar_url': none,
+    'switchable_roles': []
 }) %}
 {% set name_parts = current_user.name.split() %}
 {% set user_initials = (name_parts[0][0] ~ (name_parts[-1][0] if name_parts|length > 1 else '')) | upper %}
+{% set switchable = current_user.switchable_roles|default([], true) %}
 
 {#
-    Integration point: current_user (name, role_label, avatar_url) must come from the
-    authenticated session once login exists; the values above are a placeholder fallback
-    only so this header is visually reviewable today.
-
-    Dropdown content for this menu (e.g. a profile/sign-out list) is not yet approved in
-    Figma, so only the visual affordance (avatar + name + role + chevron) is implemented.
-    The sidebar already exposes "My Profile" and "Sign Out" as placeholder links.
+    Profile dropdown: View profile | Switch view (other web roles) | Sign out (confirm).
+    App-only or_charge never appears as a switchable web view.
 #}
-<div class="user-menu">
+<div class="user-menu dropdown" data-dropdown>
     {% if current_user.avatar_url %}
         <img class="user-menu__avatar user-menu__avatar--photo" src="{{ current_user.avatar_url }}" alt="">
     {% else %}
@@ -27,7 +24,33 @@
         <span class="user-menu__role">{{ _(current_user.role_label) }}</span>
     </span>
     <button type="button" class="icon-button user-menu__toggle" aria-haspopup="true" aria-expanded="false"
-            aria-label="{{ _('User menu') }}">
+            aria-label="{{ _('User menu') }}" data-dropdown-trigger>
         {{ macros.icon_chevron_down() }}
     </button>
+    <ul class="dropdown__menu user-menu__dropdown" role="menu" data-dropdown-menu hidden>
+        {% if nav_urls and nav_urls.profile %}
+        <li role="none">
+            <a class="dropdown__item" role="menuitem" href="{{ nav_urls.profile }}">{{ _('View profile') }}</a>
+        </li>
+        {% endif %}
+        {% if switchable %}
+        <li role="none" class="dropdown__separator" aria-hidden="true"></li>
+        <li role="presentation" class="dropdown__section-label">{{ _('Switch view') }}</li>
+        {% for option in switchable %}
+        <li role="none">
+            <form method="post" action="{{ option.url }}" class="user-menu__switch-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="dropdown__item" role="menuitem">{{ _(option.label) }}</button>
+            </form>
+        </li>
+        {% endfor %}
+        {% endif %}
+        <li role="none" class="dropdown__separator" aria-hidden="true"></li>
+        <li role="none">
+            <a class="dropdown__item" role="menuitem" href="{{ nav_urls.sign_out|default('#') }}"
+               data-auth-logout
+               data-app-confirm-link="{{ _('Sign out of the portal?') }}"
+               data-app-confirm-title="{{ _('Sign out') }}">{{ _('Sign out') }}</a>
+        </li>
+    </ul>
 </div>

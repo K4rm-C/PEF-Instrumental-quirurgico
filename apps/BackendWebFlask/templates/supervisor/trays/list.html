@@ -1,0 +1,59 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{# MS-08: physical trays of the institution (CatalogService). Context: trays, tray_notice, status_filter, statuses,
+   new_tray_url. #}
+{% block title %}{{ _("Trays") }} · {{ _("SPD") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'trays' %}
+{% include "partials/sidebar_supervisor.html" %}
+{% endblock %}
+
+{% block page_content %}
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Trays") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Physical trays, their kit and their history") }}</p>
+    </div>
+    <a class="btn btn--primary btn--small" href="{{ new_tray_url }}">{{ macros.icon_plus() }}<span>{{ _("New Tray") }}</span></a>
+</div>
+
+{% if tray_notice %}
+<div class="alert alert--warning" role="status" data-tray-unavailable><span class="alert__message">{{ tray_notice }}</span></div>
+{% endif %}
+
+<section class="card">
+    <form class="filters" method="get">
+        <div class="form-field">
+            <label class="form-field__label" for="tray-filter">{{ _("Status") }}</label>
+            <div class="form-field__input-wrapper">
+                <select class="form-field__input form-field__select" id="tray-filter" name="status" onchange="this.form.submit()">
+                    <option value="">{{ _("All") }}</option>
+                    {% for code, label in statuses.items() %}<option value="{{ code }}" {% if status_filter == code %}selected{% endif %}>{{ _(label) }}</option>{% endfor %}
+                </select>
+            </div>
+        </div>
+    </form>
+    <div class="table-wrapper">
+        <table class="data-table" data-table="trays">
+            <thead>
+                <tr><th>{{ _("Tray Code") }}</th><th>{{ _("Name") }}</th><th>{{ _("Kit") }}</th><th>{{ _("Status") }}</th><th class="data-table__action-column">{{ _("Action") }}</th></tr>
+            </thead>
+            <tbody>
+                {% for tray in trays %}
+                <tr data-tray="{{ tray.code }}">
+                    <th scope="row">{{ tray.code }}</th>
+                    <td>{{ tray.name or '—' }}</td>
+                    <td>{% if tray.kit_id %}{{ tray.kit_name }} · v{{ tray.kit_version }}{% if tray.kit_superseded %} <span class="status-badge status-badge--warning" data-kit-superseded>{{ _("Kit superseded") }}</span>{% endif %}{% else %}—{% endif %}</td>
+                    <td>{{ macros.status_badge(tray.status_label, tray.status_variant) }}</td>
+                    <td class="data-table__action-column"><a class="btn btn--secondary btn--small" href="{{ tray.url }}">{{ _("View") }}</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="data-table__empty-state">{{ _("No trays registered.") }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

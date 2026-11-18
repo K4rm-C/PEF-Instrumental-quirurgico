@@ -5,9 +5,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Prefer repo-root .env when present.
+# Prefer repo-root .env when present. In Docker the app lives at /app (no repo parent).
 _ROOT = Path(__file__).resolve().parent
-_REPO = _ROOT.parents[1]
+try:
+    _REPO = _ROOT.parents[1]
+except IndexError:
+    _REPO = _ROOT
 load_dotenv(_REPO / ".env")
 load_dotenv()
 

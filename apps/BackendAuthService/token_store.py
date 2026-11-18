@@ -1,8 +1,14 @@
 """Redis-backed JWT session store (PEF-DS01).
 
 Keys:
-  auth:jwt:{jti}              → JSON session metadata, TTL = JWT lifetime
-  auth:login_fail:{identity}  → integer fail counter, short TTL
+  auth:jwt:{jti}               → JSON session metadata, TTL = JWT lifetime
+  auth:user_tokens:{user_id}   → set of the jti issued to that user (index used to revoke every
+                                 session of an account: deactivation, password reset); TTL = the
+                                 longest token it lists
+  auth:login_fail:{identity}   → integer fail counter, short TTL
+
+Revocation never depends on the index alone: every request also checks the user (and institution)
+is active in PostgreSQL, so a token missing from the index is still rejected once the account is off.
 """
 
 from __future__ import annotations
@@ -34,6 +40,9 @@ class RedisTokenStore:
 	def _fail_key(self, identity: str) -> str:
 		return f"auth:login_fail:{identity}"
 
+	def _user_tokens_key(self, user_id: str) -> str:
+		return f"auth:user_tokens:{user_id}"
+
 	def store_token(
 		self,
 		*,
@@ -52,7 +61,14 @@ class RedisTokenStore:
 			"revoked": False,
 			"exp": expires_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
 		}
-		self.client.set(self._jwt_key(jti), json.dumps(payload), ex=ttl)
+		index = self._user_tokens_key(str(user_id))
+		pipeline = self.client.pipeline()
+		pipeline.set(self._jwt_key(jti), json.dumps(payload), ex=ttl)
+		pipeline.sadd(index, jti)
+		pipeline.ttl(index)
+		index_ttl = pipeline.execute()[-1]
+		if index_ttl is None or index_ttl < ttl:  # only ever extended (-1/-2: no TTL / new key)
+			self.client.expire(index, ttl)
 
 	def get_token(self, jti: str) -> dict[str, Any] | None:
 		raw = self.client.get(self._jwt_key(jti))
@@ -85,6 +101,20 @@ class RedisTokenStore:
 			self.client.set(key, json.dumps(data), ex=ttl)
 		else:
 			self.client.set(key, json.dumps(data), ex=60)
+
+	def revoke_user_tokens(self, user_id: str, keep: set[str] | frozenset[str] = frozenset()) -> int:
+		"""Revoke every live session of a user (except the jti in `keep`). Returns how many."""
+		index = self._user_tokens_key(str(user_id))
+		revoked = 0
+		for jti in self.client.smembers(index):
+			if jti in keep:
+				continue
+			stored = self.get_token(jti)
+			if stored and not stored.get("revoked"):
+				self.revoke_token(jti)
+				revoked += 1
+			self.client.srem(index, jti)
+		return revoked
 
 	def is_login_blocked(self, identity: str) -> bool:
 		raw = self.client.get(self._fail_key(identity))

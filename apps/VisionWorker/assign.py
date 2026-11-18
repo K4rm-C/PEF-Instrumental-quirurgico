@@ -217,20 +217,22 @@ def _build_edges(
                 elif visual < raw_conf - reassign_max_gap:
                     continue
 
+            # Lean context (NovSplit model is strong): avoid quota/open_alt skew that
+            # renames leftover boxes after an instrument leaves the tray.
             context = 0.0
             if quotas.get(code, 0) > 0:
-                context += 0.5
+                context += 0.12
             dest_cat = exp_meta.get("category_name") or "Type"
             if dest_cat == raw_cat:
-                context += 0.3
+                context += 0.08
             if is_raw:
-                context += 0.2
+                context += 0.10
             elif abs(raw_conf - visual) <= reassign_max_gap:
-                context += 0.2
+                context += 0.05
             if memory and prev_family and prev_family == code:
-                context += track_prior
+                context += min(0.10, float(track_prior) * 0.4)
             if open_alt:
-                context += 0.25
+                context += 0.04
             context = min(1.0, context)
             final = visual_w * float(visual) + context_w * context
             edges.append((final, float(visual), context, bi, code))

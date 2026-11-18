@@ -12,6 +12,7 @@ Two buffers that must not be mixed:
 from __future__ import annotations
 
 import json
+import logging
 import threading
 import time
 import uuid
@@ -21,6 +22,8 @@ from typing import Any, Callable
 from flask import request
 
 from config import WS_ORIGINS, WS_SECRET
+
+logger = logging.getLogger("pef.vision.ws")
 from evidence_queue import push_camera_jpeg
 from inference import (
     SessionState,
@@ -197,6 +200,7 @@ def register_live_ws(sock, *, get_state: GetState) -> None:
                         return
                     prepare_live_run(state)
                     bound = state
+                    logger.info("ws session.bind session=%s", sid)
                     send(_status_payload(bound, "ready"))
                     continue
 

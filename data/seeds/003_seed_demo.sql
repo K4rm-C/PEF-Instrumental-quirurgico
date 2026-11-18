@@ -66,7 +66,7 @@ INSERT INTO role (id, code, description, institution_id) VALUES
    'Technical administrator. Manages catalogs, users, and configuration.',
    '11111111-1111-1111-1111-111111111111'),
   ('14141414-0000-4000-8000-000000000004', 'or_charge',
-   'Floor supervisor. Watches OR holds and comments; does not close SPD cycle.',
+   'Floor supervisor (App). Institution sessions, holds, evidence and OR alerts; does not close SPD cycle.',
    '11111111-1111-1111-1111-111111111111');
 
 -- ui_preferences: clave DS01 `locale` (en | es-MX) + theme. Babel/traduccion real = fase i18n posterior.
@@ -282,7 +282,7 @@ JOIN instrument_family f ON f.code = v.family_code;
 
 INSERT INTO procedure_kit (procedure_type_id, kit_id, technique_label, is_default, active)
 SELECT pt.id, '51515151-0000-4000-8000-000000000001', 'Video demo', TRUE, TRUE
-FROM cat_procedure_type pt WHERE pt.code = 'lap_chole';
+FROM cat_procedure_type pt WHERE pt.code = 'demo';
 
 -- Demo Kit 2: smaller mixed set for schedule / inventory QA
 INSERT INTO kit (id, name, version, active, institution_id) VALUES
@@ -303,10 +303,111 @@ JOIN instrument_family f ON f.code = v.family_code;
 
 INSERT INTO procedure_kit (procedure_type_id, kit_id, technique_label, is_default, active)
 SELECT pt.id, '51515151-0000-4000-8000-000000000002', 'Compact demo', FALSE, TRUE
-FROM cat_procedure_type pt WHERE pt.code = 'lap_chole';
+FROM cat_procedure_type pt WHERE pt.code = 'demo';
+
+-- Procedure kits for common SPD procedures (also applied by migration 020 on existing DBs)
+INSERT INTO kit (id, name, version, active, institution_id) VALUES
+  ('51515151-0000-4000-8000-000000000003', 'Kit parto vaginal', 1, TRUE,
+   '11111111-1111-1111-1111-111111111111'),
+  ('51515151-0000-4000-8000-000000000004', 'Kit hernioplastia abierta', 1, TRUE,
+   '11111111-1111-1111-1111-111111111111'),
+  ('51515151-0000-4000-8000-000000000005', 'Kit desbridamiento y cierre', 1, TRUE,
+   '11111111-1111-1111-1111-111111111111'),
+  ('51515151-0000-4000-8000-000000000006', 'Kit exéresis / cirugía menor', 1, TRUE,
+   '11111111-1111-1111-1111-111111111111'),
+  ('51515151-0000-4000-8000-000000000007', 'Kit apendicectomía abierta', 1, TRUE,
+   '11111111-1111-1111-1111-111111111111'),
+  ('51515151-0000-4000-8000-000000000008', 'Kit cesárea', 1, TRUE,
+   '11111111-1111-1111-1111-111111111111');
+
+INSERT INTO kit_item (kit_id, family_id, quantity)
+SELECT v.kit_id::uuid, f.id, v.qty
+FROM (VALUES
+  ('51515151-0000-4000-8000-000000000003', 'FOERSTER', 1),
+  ('51515151-0000-4000-8000-000000000003', 'KELLY_FORCEPS', 1),
+  ('51515151-0000-4000-8000-000000000003', 'ROCHESTER', 1),
+  ('51515151-0000-4000-8000-000000000003', 'ADSON_PLAIN', 1),
+  ('51515151-0000-4000-8000-000000000003', 'ADSON_TEETH', 1),
+  ('51515151-0000-4000-8000-000000000003', 'MAYO_STRAIGHT', 1),
+  ('51515151-0000-4000-8000-000000000003', 'MAYO_CURVED', 1),
+  ('51515151-0000-4000-8000-000000000003', 'MAYOHEG', 1),
+  ('51515151-0000-4000-8000-000000000003', 'OLSENHEG', 1),
+  ('51515151-0000-4000-8000-000000000003', 'SCALPEL3', 1),
+  ('51515151-0000-4000-8000-000000000003', 'FARABEUF', 2),
+  ('51515151-0000-4000-8000-000000000004', 'SCALPEL3', 1),
+  ('51515151-0000-4000-8000-000000000004', 'SCALPEL4', 1),
+  ('51515151-0000-4000-8000-000000000004', 'ADSON_PLAIN', 1),
+  ('51515151-0000-4000-8000-000000000004', 'ADSON_TEETH', 1),
+  ('51515151-0000-4000-8000-000000000004', 'ALLIS', 1),
+  ('51515151-0000-4000-8000-000000000004', 'KELLY_FORCEPS', 1),
+  ('51515151-0000-4000-8000-000000000004', 'MOSQUITO', 1),
+  ('51515151-0000-4000-8000-000000000004', 'MAYO_STRAIGHT', 1),
+  ('51515151-0000-4000-8000-000000000004', 'MAYO_CURVED', 1),
+  ('51515151-0000-4000-8000-000000000004', 'MAYOHEG', 1),
+  ('51515151-0000-4000-8000-000000000004', 'OLSENHEG', 1),
+  ('51515151-0000-4000-8000-000000000004', 'FARABEUF', 2),
+  ('51515151-0000-4000-8000-000000000005', 'SCALPEL3', 1),
+  ('51515151-0000-4000-8000-000000000005', 'ADSON_PLAIN', 1),
+  ('51515151-0000-4000-8000-000000000005', 'ADSON_TEETH', 1),
+  ('51515151-0000-4000-8000-000000000005', 'ALLIS', 1),
+  ('51515151-0000-4000-8000-000000000005', 'KELLY_FORCEPS', 1),
+  ('51515151-0000-4000-8000-000000000005', 'MOSQUITO', 1),
+  ('51515151-0000-4000-8000-000000000005', 'MAYO_STRAIGHT', 1),
+  ('51515151-0000-4000-8000-000000000005', 'MAYO_CURVED', 1),
+  ('51515151-0000-4000-8000-000000000005', 'MAYOHEG', 1),
+  ('51515151-0000-4000-8000-000000000005', 'OLSENHEG', 1),
+  ('51515151-0000-4000-8000-000000000005', 'FARABEUF', 2),
+  ('51515151-0000-4000-8000-000000000006', 'SCALPEL3', 1),
+  ('51515151-0000-4000-8000-000000000006', 'ADSON_PLAIN', 1),
+  ('51515151-0000-4000-8000-000000000006', 'ADSON_TEETH', 1),
+  ('51515151-0000-4000-8000-000000000006', 'KELLY_FORCEPS', 1),
+  ('51515151-0000-4000-8000-000000000006', 'MOSQUITO', 1),
+  ('51515151-0000-4000-8000-000000000006', 'ALLIS', 1),
+  ('51515151-0000-4000-8000-000000000006', 'MAYO_STRAIGHT', 1),
+  ('51515151-0000-4000-8000-000000000006', 'MAYO_CURVED', 1),
+  ('51515151-0000-4000-8000-000000000006', 'MAYOHEG', 1),
+  ('51515151-0000-4000-8000-000000000006', 'FARABEUF', 2),
+  ('51515151-0000-4000-8000-000000000007', 'SCALPEL3', 1),
+  ('51515151-0000-4000-8000-000000000007', 'KELLY_FORCEPS', 1),
+  ('51515151-0000-4000-8000-000000000007', 'MOSQUITO', 1),
+  ('51515151-0000-4000-8000-000000000007', 'ALLIS', 1),
+  ('51515151-0000-4000-8000-000000000007', 'ADSON_PLAIN', 1),
+  ('51515151-0000-4000-8000-000000000007', 'ADSON_TEETH', 1),
+  ('51515151-0000-4000-8000-000000000007', 'MAYO_STRAIGHT', 1),
+  ('51515151-0000-4000-8000-000000000007', 'MAYO_CURVED', 1),
+  ('51515151-0000-4000-8000-000000000007', 'MAYOHEG', 1),
+  ('51515151-0000-4000-8000-000000000007', 'FARABEUF', 2),
+  ('51515151-0000-4000-8000-000000000007', 'PROBE', 1),
+  ('51515151-0000-4000-8000-000000000007', 'FOERSTER', 1),
+  ('51515151-0000-4000-8000-000000000007', 'ROCHESTER', 1),
+  ('51515151-0000-4000-8000-000000000008', 'SCALPEL3', 1),
+  ('51515151-0000-4000-8000-000000000008', 'KELLY_FORCEPS', 1),
+  ('51515151-0000-4000-8000-000000000008', 'ROCHESTER', 1),
+  ('51515151-0000-4000-8000-000000000008', 'ALLIS', 1),
+  ('51515151-0000-4000-8000-000000000008', 'FOERSTER', 1),
+  ('51515151-0000-4000-8000-000000000008', 'ADSON_PLAIN', 1),
+  ('51515151-0000-4000-8000-000000000008', 'ADSON_TEETH', 1),
+  ('51515151-0000-4000-8000-000000000008', 'MAYO_STRAIGHT', 1),
+  ('51515151-0000-4000-8000-000000000008', 'MAYO_CURVED', 1),
+  ('51515151-0000-4000-8000-000000000008', 'MAYOHEG', 1),
+  ('51515151-0000-4000-8000-000000000008', 'FARABEUF', 2)
+) AS v(kit_id, family_code, qty)
+JOIN instrument_family f ON f.code = v.family_code;
+
+INSERT INTO procedure_kit (procedure_type_id, kit_id, technique_label, is_default, active)
+SELECT pt.id, v.kit_id, v.label, TRUE, TRUE
+FROM (VALUES
+  ('vaginal_delivery',     '51515151-0000-4000-8000-000000000003'::uuid, 'Standard'),
+  ('hernia_repair',        '51515151-0000-4000-8000-000000000004'::uuid, 'Open'),
+  ('wound_debridement',    '51515151-0000-4000-8000-000000000005'::uuid, 'Standard'),
+  ('soft_tissue_excision', '51515151-0000-4000-8000-000000000006'::uuid, 'Standard'),
+  ('appendectomy',         '51515151-0000-4000-8000-000000000007'::uuid, 'Open'),
+  ('cesarean',             '51515151-0000-4000-8000-000000000008'::uuid, 'Standard')
+) AS v(proc_code, kit_id, label)
+JOIN cat_procedure_type pt ON pt.code = v.proc_code;
 
 -- -----------------------------------------------------------------------------
--- 7. Secuencia de fases del procedimiento (demo basico)
+-- 7. Secuencia de fases del procedimiento (Demo + lap_chole legacy sessions)
 -- -----------------------------------------------------------------------------
 INSERT INTO procedure_phase (procedure_type_id, phase_id, sort_order, is_count_required, active)
 SELECT pt.id, ph.id, v.ord, v.req, TRUE
@@ -319,7 +420,7 @@ CROSS JOIN (VALUES
   ('final_count',  5, TRUE)
 ) AS v(phase_code, ord, req)
 JOIN cat_operation_phase ph ON ph.code = v.phase_code
-WHERE pt.code = 'lap_chole';
+WHERE pt.code IN ('demo', 'lap_chole');
 
 -- -----------------------------------------------------------------------------
 -- 8. Operacion

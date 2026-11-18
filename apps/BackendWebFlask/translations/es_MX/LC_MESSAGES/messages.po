@@ -6036,6 +6036,24 @@ msgstr "Motivo (si Dif. ≠ 0)"
 msgid "Required if Other"
 msgstr "Obligatorio si es Otro"
 
+msgid "Required when Diff ≠ 0 (min. 10 characters)"
+msgstr "Obligatorio si Diff ≠ 0 (mín. 10 caracteres)"
+
+msgid "Operator report notes must have at least 10 characters when reported quantity differs from expected."
+msgstr "Las notas del reporte del operador deben tener al menos 10 caracteres cuando la cantidad reportada difiere de la esperada."
+
+msgid "Missing operator report"
+msgstr "Falta el reporte del operador"
+
+msgid "Required when Diff ≠ 0 (min. 10 characters)"
+msgstr "Obligatorio si Diff ≠ 0 (mín. 10 caracteres)"
+
+msgid "Operator report notes must have at least 10 characters when reported quantity differs from expected."
+msgstr "Las notas del reporte del operador deben tener al menos 10 caracteres cuando la cantidad reportada difiere de la esperada."
+
+msgid "Missing operator report"
+msgstr "Falta el reporte del operador"
+
 #: templates/operator/sessions/manual_report.html:75
 msgid "Submit report and close counting"
 msgstr "Enviar reporte y cerrar conteo"
@@ -7490,13 +7508,21 @@ msgstr "Revisión de discrepancias"
 msgid "Discrepancy review (SP-06)"
 msgstr "Revisión de discrepancias (SP-06)"
 
-#: templates/supervisor/sessions/rf_review.html:60
-#: templates/supervisor/sessions/rf_review.html:116
+#: templates/supervisor/sessions/rf_review.html:56
+msgid "Operator note"
+msgstr "Nota del operador"
+
+#: templates/supervisor/sessions/rf_review.html:62
+msgid "SPD resolution"
+msgstr "Resolución SPD"
+
+#: templates/supervisor/sessions/rf_review.html:72
+#: templates/supervisor/sessions/rf_review.html:128
 msgid "Outcome"
 msgstr "Resultado"
 
-#: templates/supervisor/sessions/rf_review.html:62
-#: templates/supervisor/sessions/rf_review.html:63
+#: templates/supervisor/sessions/rf_review.html:74
+#: templates/supervisor/sessions/rf_review.html:75
 msgid "Resolve with notes only"
 msgstr "Resolver solo con notas"
 

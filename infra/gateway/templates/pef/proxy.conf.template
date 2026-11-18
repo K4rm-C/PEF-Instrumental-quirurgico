@@ -1,0 +1,26 @@
+# Common proxy rules for the published API routes (Bearer only).
+limit_req  zone=pef_api burst=${PEF_GW_BURST_API} nodelay;
+limit_conn pef_conn ${PEF_GW_MAX_CONN_PER_IP};
+proxy_http_version 1.1;
+proxy_set_header Connection "";
+proxy_set_header Host $host;
+# The gateway's view of the client replaces whatever the client sent (services trust exactly one hop).
+proxy_set_header X-Forwarded-For   $remote_addr;
+proxy_set_header X-Real-IP         $remote_addr;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Correlation-ID  $pef_correlation_id;
+# Bearer-only API: ambient browser credentials never reach a service, internal signatures cannot be injected.
+proxy_set_header Cookie "";
+proxy_set_header X-PEF-Signature "";
+proxy_hide_header Set-Cookie;
+# The gateway answers with its own X-Correlation-ID (same value the service received): never twice.
+proxy_hide_header X-Correlation-ID;
+proxy_hide_header Server;
+proxy_hide_header X-Powered-By;
+proxy_connect_timeout 5s;
+proxy_send_timeout    ${PEF_GW_UPSTREAM_TIMEOUT};
+proxy_read_timeout    ${PEF_GW_UPSTREAM_TIMEOUT};
+proxy_next_upstream off;
+add_header X-Correlation-ID $pef_correlation_id always;
+add_header X-Content-Type-Options nosniff always;
+add_header Strict-Transport-Security $pef_hsts always;

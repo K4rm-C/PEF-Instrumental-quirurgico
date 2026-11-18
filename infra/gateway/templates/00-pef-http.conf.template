@@ -1,0 +1,50 @@
+# PEF API Gateway (MS-04) — http-level settings. Rendered by the nginx image (envsubst of ${PEF_GW_*} only;
+# nginx's own $variables are left as they are). See GUIA_API_GATEWAY.md.
+
+server_tokens off;
+
+# Internal services (Compose network names by default; never published to the outside by the gateway).
+# No keepalive pool: one connection per request, so an idle connection the service already closed can never
+# turn into a 502 for a request nginx must not retry (POST).
+# MS-11: in Docker the upstreams are service NAMES whose IP changes when a container is recreated. With
+# PEF_GW_RESOLVER_DIRECTIVE (Docker DNS) and PEF_GW_UPSTREAM_RESOLVE=" resolve" (nginx >= 1.27.3) nginx re-resolves
+# them; without it a recreated service answered 502 until nginx was reloaded. On the VM both are EMPTY: the
+# upstreams are fixed 127.0.0.1 addresses and the system nginx (1.26) has no `resolve` parameter.
+${PEF_GW_RESOLVER_DIRECTIVE}
+upstream pef_auth { zone pef_up_auth 64k; server ${PEF_GW_AUTH_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+upstream pef_catalog { zone pef_up_catalog 64k; server ${PEF_GW_CATALOG_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+upstream pef_session { zone pef_up_session 64k; server ${PEF_GW_SESSION_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+upstream pef_evidence { zone pef_up_evidence 64k; server ${PEF_GW_EVIDENCE_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+upstream pef_notifications { zone pef_up_notifications 64k; server ${PEF_GW_NOTIFICATIONS_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+upstream pef_monitoring { zone pef_up_monitoring 64k; server ${PEF_GW_MONITORING_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+upstream pef_integration { zone pef_up_integration 64k; server ${PEF_GW_INTEGRATION_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+upstream pef_vision { zone pef_up_vision 64k; server ${PEF_GW_VISION_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+upstream pef_portal { zone pef_up_portal 64k; server ${PEF_GW_PORTAL_UPSTREAM}${PEF_GW_UPSTREAM_RESOLVE}; }
+
+# DS09: X-Correlation-ID is kept when it is well formed, otherwise the gateway generates one.
+map $http_x_correlation_id $pef_correlation_id {
+    "~^[A-Za-z0-9._:-]{8,128}$" $http_x_correlation_id;
+    default                    $request_id;
+}
+map $http_upgrade $pef_connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+# HSTS only on the TLS listener (an empty value is not sent).
+map $scheme $pef_hsts {
+    https   "max-age=31536000";
+    default "";
+}
+
+# Basic abuse controls per client address.
+limit_req_zone  $binary_remote_addr zone=pef_api:10m  rate=${PEF_GW_RATE_API};
+limit_req_zone  $binary_remote_addr zone=pef_auth:10m rate=${PEF_GW_RATE_AUTH};
+# Browser portal (pages load many static assets): its own, higher budget.
+limit_req_zone  $binary_remote_addr zone=pef_portal:10m rate=${PEF_GW_RATE_PORTAL};
+limit_conn_zone $binary_remote_addr zone=pef_conn:10m;
+limit_req_status  429;
+limit_conn_status 429;
+
+# Access log without query strings, headers or bodies (no tokens or personal data).
+log_format pef_gateway '$remote_addr [$time_iso8601] "$request_method $uri" $status $body_bytes_sent '
+                       'rt=$request_time up=$upstream_status cid=$pef_correlation_id';
