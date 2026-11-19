@@ -63,7 +63,7 @@ No se añadió ninguna biblioteca de imágenes ni de inyección de dependencias.
 ## 3. Configuración del Gateway, emulador y teléfono
 
 ### 3.1 URL base (Retrofit)
-La URL base es un `BuildConfig.API_BASE_URL` por tipo de compilación, configurable sin tocar código:
+La URL base de **debug** se descubre en runtime (última URL buena → `BuildConfig` → `10.0.2.2` → barrido LAN `/24` de `/healthz`). Tras cambiar de Wi‑Fi basta con **Reintentar** en el login; no hace falta editar IP a mano ni reinstalar. El seed de compilación sigue siendo un `BuildConfig.API_BASE_URL` configurable:
 
 | Propiedad Gradle | Valor por defecto | Uso |
 |---|---|---|

@@ -62,3 +62,22 @@
     color: var(--color-text-tertiary);
     font-size: var(--font-size-xs);
 }
+
+.sign-in-card__landing {
+    margin: var(--space-4) 0 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.sign-in-card__landing-link {
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    text-decoration: underline;
+    text-underline-offset: 0.15em;
+}
+
+.sign-in-card__landing-link:hover,
+.sign-in-card__landing-link:focus-visible {
+    color: var(--color-primary, var(--color-text-primary));
+}

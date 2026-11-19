@@ -35,8 +35,8 @@
 
     <!-- Errores -->
     <string name="error_offline">Sin conexión con el servidor. Revisa la red e inténtalo de nuevo.</string>
-    <string name="login_gateway_checking">Comprobando API Gateway…</string>
-    <string name="login_gateway_unreachable">No se alcanza el API Gateway. Tras cambiar de Wi‑Fi ejecuta scripts/pef_lan_endpoint.ps1, confirma que Docker gateway está arriba y pulsa Reintentar.</string>
+    <string name="login_gateway_checking">Buscando el API Gateway en este Wi‑Fi…</string>
+    <string name="login_gateway_unreachable">No se alcanza el API Gateway (último intento: %1$s). Levanta el stack con scripts/pef_up.ps1, confirma Docker gateway en el puerto 8080 y pulsa Reintentar. El teléfono y la PC deben estar en el mismo Wi‑Fi (sin aislamiento de clientes). En debug la app barre la LAN sola: no hace falta reinstalar al cambiar de IP.</string>
     <string name="login_gateway_retry">Reintentar conexión</string>
     <string name="error_timeout">El servidor tardó demasiado en responder.</string>
     <string name="error_unauthorized">Tu sesión ya no es válida. Inicia sesión de nuevo.</string>
@@ -62,6 +62,8 @@
     <string name="login_error_invalid_credentials">Correo o contraseña incorrectos.</string>
     <string name="login_error_rate_limited">Demasiados intentos. Inténtalo más tarde.</string>
     <string name="login_error_generic">No se pudo iniciar sesión.</string>
+    <string name="login_show_password">Mostrar contraseña</string>
+    <string name="login_hide_password">Ocultar contraseña</string>
     <string name="login_session_expired">Tu sesión expiró o fue revocada. Inicia sesión de nuevo.</string>
     <string name="login_signed_out">Cerraste sesión.</string>
     <string name="login_signed_out_local_only">Sesión cerrada en este dispositivo. El servidor no pudo confirmar la revocación; los tokens caducarán por sí solos.</string>

@@ -96,9 +96,9 @@ class LoginViewModel(
                     _state.update { LoginUiState(email = it.email) }
                 }
                 is ApiResult.Failure -> _state.update {
+                    // Keep the password so the user can fix a typo (e.g. missing '!') without retyping.
                     it.copy(
                         loading = false,
-                        password = "",
                         errorRes = loginErrorRes(result.error),
                         errorDetail = result.error.correlationId,
                     )

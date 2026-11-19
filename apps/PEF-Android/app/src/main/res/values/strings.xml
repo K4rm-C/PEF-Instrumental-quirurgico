@@ -35,8 +35,8 @@
 
     <!-- Errors -->
     <string name="error_offline">No connection to the server. Check the network and try again.</string>
-    <string name="login_gateway_checking">Checking API Gateway…</string>
-    <string name="login_gateway_unreachable">Cannot reach the API Gateway. Run scripts/pef_lan_endpoint.ps1 after changing Wi‑Fi, ensure Docker gateway is up, then Retry.</string>
+    <string name="login_gateway_checking">Looking for the API Gateway on this Wi‑Fi…</string>
+    <string name="login_gateway_unreachable">Cannot reach the API Gateway (last try: %1$s). Bring the stack up with scripts/pef_up.ps1, confirm Docker gateway on port 8080, then Retry. Phone and PC must be on the same Wi‑Fi (disable client isolation). Debug builds scan the LAN automatically — no rebuild needed when the IP changes.</string>
     <string name="login_gateway_retry">Retry connection</string>
     <string name="error_timeout">The server took too long to respond.</string>
     <string name="error_unauthorized">Your session is no longer valid. Sign in again.</string>
@@ -62,6 +62,8 @@
     <string name="login_error_invalid_credentials">Invalid email or password.</string>
     <string name="login_error_rate_limited">Too many attempts. Try again later.</string>
     <string name="login_error_generic">Could not sign in.</string>
+    <string name="login_show_password">Show password</string>
+    <string name="login_hide_password">Hide password</string>
     <string name="login_session_expired">Your session expired or was revoked. Sign in again.</string>
     <string name="login_signed_out">You have signed out.</string>
     <string name="login_signed_out_local_only">Signed out on this device. The server could not confirm the revocation; the tokens will expire on their own.</string>

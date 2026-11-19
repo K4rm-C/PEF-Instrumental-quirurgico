@@ -174,6 +174,23 @@ def dashboard(payload):
              'value': gettext('%(minutes)s min', minutes=f'{resolution:.1f}') if resolution is not None
              else gettext('No data yet')},
         ],
+        # Sessions tab hero tiles (same visual language as Catalogs stat cards).
+        'operation_stat_cards': [
+            {'label': N_('Total Sessions'), 'value': operations.get('total_sessions', 0), 'variant': 'info'},
+            {'label': N_('Total Discrepancies'), 'value': operations.get('total_discrepancies', 0),
+             'variant': 'neutral'},
+            {'label': N_('Open Discrepancies'), 'value': operations.get('open_discrepancies', 0),
+             'variant': 'warning' if operations.get('open_discrepancies') else 'success'},
+            {'label': N_('Human Corrections'), 'value': operations.get('human_corrections', 0),
+             'variant': 'neutral'},
+            {'label': N_('AI-Human Agreement'),
+             'value': f'{agreement:.1f}%' if agreement is not None else gettext('No data yet'),
+             'variant': 'info'},
+            {'label': N_('Average Resolution Time'),
+             'value': gettext('%(minutes)s min', minutes=f'{resolution:.1f}') if resolution is not None
+             else gettext('No data yet'),
+             'variant': 'neutral'},
+        ],
     }
 
 
@@ -183,12 +200,22 @@ def family_rows(items):
     rows = []
     for item in items:
         label, variant = status(item['active'])
+        code = item['code']
+        example_id = item.get('first_example_id')
         rows.append({
             'id': item['id'],
-            'code': item['code'],
+            'code': code,
             'name': family_label(item),
             'category': category_label(item.get('category')),
-            'function': localize_db_text('instrument_family.function', item['code'], item.get('function_text')) or '',
+            'function': localize_db_text('instrument_family.function', code, item.get('function_text')) or '',
+            'how_to_identify': localize_db_text('instrument_family.identify', code, item.get('identify_text')) or '',
+            'classification_characteristics': localize_db_text(
+                'instrument_family.classify', code, item.get('classify_text')) or '',
+            'thumb_url': (
+                url_for('web.admin_family_example_image', family_id=item['id'], example_id=example_id)
+                if example_id else None
+            ),
+            'overlay_id': f"family-ref-{item['id']}",
             'status_label': label,
             'status_variant': variant,
             'edit_url': url_for('web.admin_instrument_family_edit', family_id=item['id']),
@@ -352,7 +379,7 @@ def procedure_form_values(item):
 
 
 SETTING_GROUP_LABELS = {'kpi': N_('Dashboard KPI thresholds'), 'security': N_('Security'),
-                        'uploads': N_('Files and uploads')}
+                        'uploads': N_('Files and uploads'), 'integration': N_('Hospital integrations')}
 
 
 def setting_groups(items):

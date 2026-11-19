@@ -5,24 +5,29 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.cursobasico.auth.AuthState
 import com.example.cursobasico.auth.SecureTokenStore
 import com.example.cursobasico.auth.SessionManager
 import com.example.cursobasico.auth.TokenStore
 import com.example.cursobasico.data.remote.AuthApi
 import com.example.cursobasico.data.remote.AuthInterceptor
 import com.example.cursobasico.data.remote.AuthPublicApi
+import com.example.cursobasico.data.remote.BaseUrlHolder
+import com.example.cursobasico.data.remote.BaseUrlInterceptor
 import com.example.cursobasico.data.remote.CatalogApi
 import com.example.cursobasico.data.remote.EvidenceApi
+import com.example.cursobasico.data.remote.GatewayEndpointStore
+import com.example.cursobasico.data.remote.GatewayLocator
 import com.example.cursobasico.data.remote.NetworkModule
 import com.example.cursobasico.data.remote.NotificationsApi
 import com.example.cursobasico.data.remote.SessionApi
 import com.example.cursobasico.data.remote.TokenAuthenticator
+import com.example.cursobasico.data.remote.normalizeGatewayBaseUrl
 import com.example.cursobasico.data.repository.DiscrepancyStatsRepository
 import com.example.cursobasico.data.repository.EvidenceRepository
 import com.example.cursobasico.data.repository.NotificationRepository
 import com.example.cursobasico.data.repository.SessionRepository
 import com.example.cursobasico.preferences.PreferencesRepository
-import com.example.cursobasico.auth.AuthState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -43,15 +48,19 @@ import java.util.concurrent.atomic.AtomicBoolean
  * - Cliente público: login y refresh (sin Bearer, sin autenticador).
  * - Cliente autenticado: Bearer + renovación automática ante 401.
  * - Cliente de imágenes: sin Bearer y sin caché en disco, solo para URLs prefirmadas de evidencias.
+ * - [BaseUrlInterceptor] permite cambiar de Wi‑Fi / IP sin reinstalar (debug).
  */
 class PefNetwork(
-    private val baseUrl: String,
+    initialBaseUrl: String,
     tokenStore: TokenStore,
+    val baseUrlHolder: BaseUrlHolder = BaseUrlHolder(initialBaseUrl),
     debugLogging: Boolean = false,
     readTimeoutMillis: Long = 30_000,
 ) {
-    private val baseClient = NetworkModule.baseClient(debugLogging, readTimeoutMillis)
-    private val publicRetrofit = NetworkModule.retrofit(baseUrl, baseClient)
+    private val baseClient = NetworkModule.baseClient(debugLogging, readTimeoutMillis).newBuilder()
+        .addInterceptor(BaseUrlInterceptor(baseUrlHolder))
+        .build()
+    private val publicRetrofit = NetworkModule.retrofit(normalizeGatewayBaseUrl(initialBaseUrl), baseClient)
 
     val sessionManager = SessionManager(tokenStore, publicRetrofit.create(AuthPublicApi::class.java))
 
@@ -63,7 +72,7 @@ class PefNetwork(
         .addInterceptor(AuthInterceptor(sessionManager))
         .authenticator(TokenAuthenticator(sessionManager))
         .build()
-    private val authedRetrofit = NetworkModule.retrofit(baseUrl, authedClient)
+    private val authedRetrofit = NetworkModule.retrofit(normalizeGatewayBaseUrl(initialBaseUrl), authedClient)
 
     val imageClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -81,22 +90,24 @@ class PefNetwork(
         sessionManager.attach(authApi)
     }
 
-    /**
-     * Cold-start reachability of the API Gateway (`GET /healthz`).
-     * Retries briefly so a slow Docker/Gateway boot after Android Studio Run still connects.
-     */
-    suspend fun probeGateway(retries: Int = 3): Boolean = withContext(Dispatchers.IO) {
-        val url = baseUrl.trimEnd('/') + "/healthz"
+    /** Cold-start reachability of the API Gateway (`GET /healthz`) on the active base URL. */
+    suspend fun probeGateway(retries: Int = 5): Boolean = withContext(Dispatchers.IO) {
+        val url = baseUrlHolder.get().trimEnd('/') + "/healthz"
+        val probeClient = baseClient.newBuilder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.SECONDS)
+            .callTimeout(8, TimeUnit.SECONDS)
+            .build()
         repeat(retries) { attempt ->
             try {
-                val request = Request.Builder().url(url).get().build()
-                baseClient.newCall(request).execute().use { response ->
+                val request = Request.Builder().url(url).get().header("Accept", "application/json").build()
+                probeClient.newCall(request).execute().use { response ->
                     if (response.isSuccessful) return@withContext true
                 }
             } catch (_: Exception) {
-                // Gateway down, wrong IP, or missing reverse — retry below.
+                // Gateway down, wrong IP, Wi‑Fi isolation, or stale URL — retry / discover.
             }
-            if (attempt < retries - 1) delay(400L * (attempt + 1))
+            if (attempt < retries - 1) delay(500L * (attempt + 1))
         }
         false
     }
@@ -106,9 +117,14 @@ private val Context.uiPreferencesStore: DataStore<Preferences> by preferencesDat
 
 /** Contenedor manual de dependencias (sin framework de inyección: la app es pequeña). */
 class AppContainer(application: Application) {
+    private val appContext = application.applicationContext
+    private val endpointStore = GatewayEndpointStore(appContext)
+    val baseUrlHolder = BaseUrlHolder(BuildConfig.API_BASE_URL)
+
     val network = PefNetwork(
-        baseUrl = BuildConfig.API_BASE_URL,
+        initialBaseUrl = BuildConfig.API_BASE_URL,
         tokenStore = SecureTokenStore(application),
+        baseUrlHolder = baseUrlHolder,
         debugLogging = BuildConfig.DEBUG,
     )
     val sessionManager: SessionManager get() = network.sessionManager
@@ -122,14 +138,17 @@ class AppContainer(application: Application) {
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val restoreStarted = AtomicBoolean(false)
     private val _gatewayReachable = MutableStateFlow<Boolean?>(null)
-    /** null = probing; true/false = last /healthz result. */
+    /** null = probing/discovering; true/false = last result. */
     val gatewayReachable: StateFlow<Boolean?> = _gatewayReachable.asStateFlow()
+
+    private val _activeGatewayUrl = MutableStateFlow(baseUrlHolder.get())
+    /** URL efectiva del Gateway (tras descubrimiento o BuildConfig). */
+    val activeGatewayUrl: StateFlow<String> = _activeGatewayUrl.asStateFlow()
 
     init {
         appScope.launch {
             sessionManager.state.collect { state ->
                 when (state) {
-                    // Sincronización de solo lectura con ui_preferences (GET /me o login).
                     is AuthState.LoggedIn -> preferencesRepository.applyServerDefaults(state.user.uiPreferences)
                     is AuthState.LoggedOut -> notificationRepository.clear()
                     AuthState.Restoring -> Unit
@@ -138,11 +157,11 @@ class AppContainer(application: Application) {
         }
     }
 
-    /** Probe Gateway then restore encrypted session — once per process. */
+    /** Probe / discover Gateway then restore encrypted session — once per process. */
     fun restoreSessionOnce() {
         if (restoreStarted.compareAndSet(false, true)) {
             appScope.launch {
-                _gatewayReachable.value = network.probeGateway()
+                resolveGateway()
                 sessionManager.restore()
             }
         }
@@ -151,7 +170,36 @@ class AppContainer(application: Application) {
     fun retryGatewayProbe() {
         appScope.launch {
             _gatewayReachable.value = null
-            _gatewayReachable.value = network.probeGateway()
+            resolveGateway(forceDiscover = true)
+        }
+    }
+
+    private suspend fun resolveGateway(forceDiscover: Boolean = false) {
+        if (!forceDiscover && network.probeGateway(retries = 2)) {
+            _activeGatewayUrl.value = baseUrlHolder.get()
+            _gatewayReachable.value = true
+            endpointStore.save(baseUrlHolder.get())
+            return
+        }
+
+        if (BuildConfig.DEBUG) {
+            val found = GatewayLocator.discover(
+                store = endpointStore,
+                buildConfigUrl = BuildConfig.API_BASE_URL,
+            )
+            if (found != null) {
+                baseUrlHolder.set(found)
+                endpointStore.save(found)
+                _activeGatewayUrl.value = found
+                _gatewayReachable.value = true
+                return
+            }
+        }
+
+        _activeGatewayUrl.value = baseUrlHolder.get()
+        _gatewayReachable.value = network.probeGateway(retries = 3)
+        if (_gatewayReachable.value == true) {
+            endpointStore.save(baseUrlHolder.get())
         }
     }
 }

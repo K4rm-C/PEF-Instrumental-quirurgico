@@ -461,7 +461,7 @@ def main() -> None:
         )
     assert "FOERSTER" in state_enter._hold_by_family
 
-    # Drop floor: held label falling below 0.35 clears sticky immediately.
+    # Drop floor: one weak frame keeps hold (hysteresis); streak clears it.
     state_drop = SessionState(session_id="smoke-hold-drop-floor")
     state_drop.expected = state.expected
     state_drop.hold_seed_frames = 3
@@ -469,6 +469,7 @@ def main() -> None:
     state_drop.name_hold_seconds = 2.0
     state_drop.hold_min_score = 0.50
     state_drop.hold_drop_score = 0.35
+    state_drop.hold_drop_streak = 3
     for t in (0.0, 0.2, 0.4):
         _apply_hold(
             state_drop,
@@ -485,7 +486,118 @@ def main() -> None:
         public_boxes=[collapsed],
         video_t=0.6,
     )
+    assert "FOERSTER" in state_drop._hold_by_family
+    assert state_drop._hold_drop_weak_streak.get("FOERSTER") == 1
+    for t in (0.8, 1.0):
+        _apply_hold(
+            state_drop,
+            counts=_counts("FOERSTER", 1),
+            public_boxes=[collapsed],
+            video_t=t,
+        )
     assert "FOERSTER" not in state_drop._hold_by_family
+
+    # Soft-name: mid-conf assigned Type with open quota → name after dwell.
+    from inference import _apply_soft_names
+
+    state_soft = SessionState(session_id="smoke-soft-name")
+    state_soft.expected = {
+        "ADSON": {
+            "family_id": "a1",
+            "family_code": "ADSON",
+            "family_name": "Adson",
+            "category_name": "Grasping",
+            "expected_quantity": 2,
+        }
+    }
+    state_soft.soft_name_seconds = 1.5
+    state_soft.soft_name_min_score = 0.48
+    strong = {
+        "xyxy": [10.0, 10.0, 40.0, 80.0],
+        "family_code": "ADSON",
+        "family_name": "Adson",
+        "category_name": "Grasping",
+        "label": "Adson",
+        "confidence": 0.88,
+        "high_confidence": True,
+        "track_id": 1,
+    }
+    weak = {
+        "xyxy": [60.0, 10.0, 90.0, 80.0],
+        "family_code": "ADSON",
+        "family_name": "Adson",
+        "category_name": "Grasping",
+        "label": "Grasping",
+        "confidence": 0.50,
+        "high_confidence": False,
+        "track_id": 2,
+    }
+    soft_counts = {
+        "ADSON": {
+            "family_code": "ADSON",
+            "expected_quantity": 2,
+            "detected_quantity": 2,
+            "difference": 0,
+            "box_confidences": [0.88, 0.50],
+        }
+    }
+    boxes_soft = [dict(strong), dict(weak)]
+    assert _apply_soft_names(
+        state_soft, boxes=boxes_soft, counts=soft_counts, video_t=0.0
+    ) == 0
+    assert boxes_soft[1]["high_confidence"] is False
+    assert _apply_soft_names(
+        state_soft, boxes=boxes_soft, counts=soft_counts, video_t=1.0
+    ) == 0
+    n = _apply_soft_names(
+        state_soft, boxes=boxes_soft, counts=soft_counts, video_t=1.6
+    )
+    assert n == 1
+    assert boxes_soft[1]["high_confidence"] is True
+    assert boxes_soft[1].get("soft_named") is True
+    assert boxes_soft[1]["label"] == "Adson"
+
+    # No soft-name when quota names are already filled.
+    state_full = SessionState(session_id="smoke-soft-full")
+    state_full.expected = state_soft.expected
+    state_full.soft_name_seconds = 0.5
+    state_full.soft_name_min_score = 0.48
+    full_boxes = [
+        dict(strong),
+        {
+            **dict(weak),
+            "track_id": 3,
+            "high_confidence": False,
+            "label": "Grasping",
+            "confidence": 0.52,
+        },
+    ]
+    # expected_quantity 2 but both already named → no promote for a third Type.
+    state_full.expected = {
+        "ADSON": {
+            "family_id": "a1",
+            "family_code": "ADSON",
+            "family_name": "Adson",
+            "category_name": "Grasping",
+            "expected_quantity": 1,
+        }
+    }
+    full_counts = {
+        "ADSON": {
+            "family_code": "ADSON",
+            "expected_quantity": 1,
+            "detected_quantity": 1,
+            "difference": 0,
+        }
+    }
+    for t in (0.0, 0.6, 1.2):
+        assert (
+            _apply_soft_names(
+                state_full, boxes=full_boxes, counts=full_counts, video_t=t
+            )
+            == 0
+        )
+    assert full_boxes[1]["high_confidence"] is False
 
     print("OK smoke_hold_gates")
 

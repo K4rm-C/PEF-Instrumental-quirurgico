@@ -1,0 +1,115 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("Integration arc") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'hospital_integration_arc' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Hospital operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("Integration arc") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{% set clients = clients|default([], true) %}
+{% set channel = channel|default({}, true) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("Integration arc") }}</h1>
+        <p class="page-heading__subtitle">{{ _("HIS / HL7-FHIR channel status for this institution, based on PEF machine clients and local sync activity.") }}</p>
+    </div>
+    <a class="btn btn--secondary" href="{{ manage_clients_url|default('#') }}">{{ _("Manage clients") }}</a>
+</div>
+
+<section class="card">
+    <div class="card__title-bar">
+        <h2 class="card__title">{{ _("Channel status") }}</h2>
+    </div>
+    <div class="info-grid info-grid--three">
+        <div class="info-grid__item">
+            {{ _("Module") }}<br>
+            <strong>{{ _("Available in PEF") }}</strong>
+        </div>
+        <div class="info-grid__item">
+            {{ _("Channel") }}<br>
+            {{ macros.status_badge(channel.status_label, channel.status_variant) }}
+        </div>
+        <div class="info-grid__item">
+            {{ _("Last client activity") }}<br>
+            <strong>{{ channel.last_activity or _("Never") }}</strong>
+        </div>
+        <div class="info-grid__item">
+            {{ _("Active clients") }}<br>
+            <strong>{{ channel.active_clients }} / {{ channel.total_clients }}</strong>
+        </div>
+        <div class="info-grid__item">
+            {{ _("FHIR / sync scopes in use") }}<br>
+            <strong>{{ channel.fhir_scope_count }}</strong>
+        </div>
+    </div>
+    <form method="post" action="{{ toggle_url }}" class="v3-op-capture__toolbar" style="margin-top: var(--space-4);">
+        {{ csrf_field() }}
+        <input type="hidden" name="enabled" value="{{ '0' if channel.enabled else '1' }}">
+        <button type="submit" class="btn {% if channel.enabled %}btn--secondary{% else %}btn--primary{% endif %}">
+            {% if channel.enabled %}{{ _("Disable HIS channel") }}{% else %}{{ _("Enable HIS channel") }}{% endif %}
+        </button>
+        <p class="form-field__helper">{{ _("Enabling marks the PEF integration module as ready for machine clients. External HIS connectivity still depends on those clients and their scopes.") }}</p>
+    </form>
+</section>
+
+<section class="card">
+    <div class="card__title-bar">
+        <h2 class="card__title">{{ _("Integration clients") }}</h2>
+        <a class="btn btn--primary btn--small" href="{{ new_client_url|default('#') }}">
+            {{ macros.icon_plus() }}
+            <span>{{ _("New client") }}</span>
+        </a>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Name") }}</th>
+                    <th scope="col">{{ _("Client ID") }}</th>
+                    <th scope="col">{{ _("Scopes") }}</th>
+                    <th scope="col">{{ _("Last used") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for client in clients %}
+                <tr>
+                    <th scope="row">{{ client.name }}</th>
+                    <td><code>{{ client.client_id }}</code></td>
+                    <td>{{ client.scopes_text or "—" }}</td>
+                    <td>{{ client.last_used_at or _("Never") }}</td>
+                    <td>{{ macros.status_badge(client.status_label, client.status_variant) }}</td>
+                    <td class="data-table__action-column">
+                        <form method="post" action="{{ client.toggle_url }}" style="display:inline;">
+                            {{ csrf_field() }}
+                            <input type="hidden" name="status" value="{{ 'inactive' if client.active else 'active' }}">
+                            <button type="submit" class="btn btn--secondary btn--small">
+                                {% if client.active %}{{ _("Disable") }}{% else %}{{ _("Enable") }}{% endif %}
+                            </button>
+                        </form>
+                        <a class="btn btn--secondary btn--small" href="{{ client.edit_url }}">{{ _("Edit") }}</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="data-table__empty-state">{{ _("No integration clients registered yet. Create one to expose FHIR and catalog sync scopes.") }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

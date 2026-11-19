@@ -1,11 +1,13 @@
-﻿# Detect primary LAN IPv4 and rewrite local endpoint env for portal / Auth CORS / Android / S3.
-# Re-run after changing Wi-Fi/network. Does not hardcode an IP in the repo.
+﻿# Detect primary LAN IPv4 and rewrite local endpoint env for portal / Auth CORS /
+# VisionWorker browser WS / Android / S3. Re-run after changing Wi-Fi/network.
+# Does not hardcode an IP in the repo.
 #
 # Usage (repo root):
 #   .\scripts\pef_lan_endpoint.ps1
 #   .\scripts\pef_lan_endpoint.ps1 -Ip 192.168.1.50
 # Then recreate services that read .env:
 #   docker compose -f docker-compose.integral.yml --env-file .env --profile gateway up -d --force-recreate auth web gateway evidence-worker
+# Restart host VisionWorker (python main.py) so VISION_WS_ORIGINS is reloaded.
 
 [CmdletBinding()]
 param(
@@ -14,6 +16,8 @@ param(
     [int]$AuthPort = 5001,
     [int]$GatewayPort = 8080,
     [int]$S3Port = 3900,
+    [int]$VisionPort = 5002,
+    [int]$HttpsPort = 5443,
     [switch]$SkipAndroid
 )
 
@@ -66,21 +70,31 @@ function Set-EnvKey([string]$Path, [string]$Key, [string]$Value) {
         }
     }
     if (-not $found) { $out += "$Key=$Value" }
-    Set-Content -Path $Path -Value $out -Encoding UTF8
+    # UTF-8 without BOM (Docker Compose --env-file rejects a leading BOM).
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllLines((Resolve-Path $Path), [string[]]$out, $utf8)
 }
 
 if (-not $Ip) { $Ip = Get-LanIPv4 }
 if ($Ip -notmatch '^\d{1,3}(\.\d{1,3}){3}$') { throw "Invalid IPv4: $Ip" }
 
 $portal = "http://${Ip}:${WebPort}"
+$portalHttps = "https://${Ip}:${HttpsPort}"
 $auth = "http://${Ip}:${AuthPort}"
+# Relative /auth → same-origin through portal-lan HTTPS (no CORS; works on any LAN IP).
+$authBrowser = "/auth"
 $gateway = "http://${Ip}:${GatewayPort}"
 $s3 = "http://${Ip}:${S3Port}"
+# Browser WS goes through the LAN HTTPS front (wss) so live camera pages stay same-origin secure.
+# Server-side HTTP to Vision stays loopback / host.docker.internal inside Compose.
+$visionHttp = "http://${Ip}:${VisionPort}"
+$visionWs = "wss://${Ip}:${HttpsPort}/ws"
 
 $origins = @(
     "http://127.0.0.1:${WebPort}",
     "http://localhost:${WebPort}",
     $portal,
+    $portalHttps,
     "http://127.0.0.1:${GatewayPort}",
     "http://localhost:${GatewayPort}",
     $gateway
@@ -89,18 +103,27 @@ $origins = @(
 $wsOrigins = @(
     "http://127.0.0.1:${WebPort}",
     "http://localhost:${WebPort}",
-    $portal
+    $portal,
+    $portalHttps
 ) -join ","
 
 $envPath = Join-Path $Root ".env"
 Set-EnvKey $envPath "HOST_LAN_IP" $Ip
 Set-EnvKey $envPath "HOST_BIND" "0.0.0.0"
+Set-EnvKey $envPath "PORTAL_HTTPS_PORT" "$HttpsPort"
 Set-EnvKey $envPath "AUTH_ALLOWED_ORIGINS" $origins
-Set-EnvKey $envPath "AUTH_BROWSER_URL" $auth
+# Cookie login + CSRF from the HTTPS LAN portal (secure context for getUserMedia).
+Set-EnvKey $envPath "AUTH_BROWSER_URL" $authBrowser
 Set-EnvKey $envPath "AUTH_SERVICE_URL" $auth
+Set-EnvKey $envPath "AUTH_COOKIE_SECURE" "true"
+Set-EnvKey $envPath "AUTH_COOKIE_SAMESITE" "Lax"
+Set-EnvKey $envPath "AUTH_TRUSTED_PROXIES" "1"
+Set-EnvKey $envPath "PORTAL_COOKIE_SECURE" "true"
+Set-EnvKey $envPath "CSRF_TRUSTED_ORIGINS" $portalHttps
 Set-EnvKey $envPath "VISION_WS_ORIGINS" $wsOrigins
-Set-EnvKey $envPath "VISION_WORKER_URL" "http://127.0.0.1:5002"
-Set-EnvKey $envPath "VISION_WORKER_WS_URL" "ws://127.0.0.1:5002/ws"
+Set-EnvKey $envPath "VISION_WORKER_URL" "http://127.0.0.1:${VisionPort}"
+Set-EnvKey $envPath "VISION_WORKER_WS_URL" $visionWs
+Set-EnvKey $envPath "VISION_WORKER_PORT" "$VisionPort"
 Set-EnvKey $envPath "S3_PUBLIC_ENDPOINT" $s3
 Set-EnvKey $envPath "S3_ENDPOINT" $s3
 
@@ -109,7 +132,19 @@ $visionEnv = Join-Path $Root "apps\VisionWorker\.env"
 if (Test-Path $visionEnv) {
     Set-EnvKey $visionEnv "AUTH_ALLOWED_ORIGINS" $origins
     Set-EnvKey $visionEnv "VISION_WS_ORIGINS" $wsOrigins
+    Set-EnvKey $visionEnv "VISION_WORKER_WS_URL" $visionWs
+    Set-EnvKey $visionEnv "VISION_WORKER_HOST" "0.0.0.0"
+    Set-EnvKey $visionEnv "VISION_WORKER_PORT" "$VisionPort"
     Set-EnvKey $visionEnv "S3_PUBLIC_ENDPOINT" $s3
+}
+
+# AuthService local .env (kept in sync for host runs / docs; Compose reads root .env)
+$authEnv = Join-Path $Root "apps\BackendAuthService\.env"
+if (Test-Path $authEnv) {
+    Set-EnvKey $authEnv "AUTH_ALLOWED_ORIGINS" $origins
+    Set-EnvKey $authEnv "AUTH_COOKIE_SECURE" "true"
+    Set-EnvKey $authEnv "AUTH_COOKIE_SAMESITE" "Lax"
+    Set-EnvKey $authEnv "AUTH_TRUSTED_PROXIES" "1"
 }
 
 if (-not $SkipAndroid) {
@@ -140,13 +175,16 @@ if (-not $SkipAndroid) {
 
 Write-Host ""
 Write-Host "pef_lan_endpoint: HOST_LAN_IP=$Ip"
-Write-Host "  portal     $portal"
-Write-Host "  auth       $auth"
-Write-Host "  gateway    $gateway/"
-Write-Host "  S3 public  $s3"
-Write-Host "  CORS       AUTH_ALLOWED_ORIGINS updated (loopback + LAN)"
+Write-Host "  Dirígete a (cámara): $portalHttps/"
+Write-Host "  portal HTTP          $portal"
+Write-Host "  auth browser         $authBrowser"
+Write-Host "  gateway              $gateway/"
+Write-Host "  vision WS            $visionWs"
+Write-Host "  vision HTTP          $visionHttp"
+Write-Host "  S3 public            $s3"
 Write-Host ""
-Write-Host "Next:"
-Write-Host "  docker compose -f docker-compose.integral.yml --env-file .env --profile gateway up -d --force-recreate auth web gateway evidence-worker"
-Write-Host "  Android Studio: Sync Gradle / Run (pef.apiBaseUrl.debug -> $gateway/)"
+Write-Host "Next: .\scripts\pef_up.ps1   (cert + compose including lan-https)"
+Write-Host "  Or: .\scripts\pef_lan_cert.ps1 then compose with -f docker-compose.lan-https.yml"
+Write-Host "  Restart VisionWorker on the host (binds 0.0.0.0:$VisionPort)."
+Write-Host "  Firewall: allow TCP $HttpsPort (portal HTTPS), $GatewayPort, $VisionPort."
 Write-Host ""

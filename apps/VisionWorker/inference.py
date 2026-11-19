@@ -28,12 +28,15 @@ from config import (
     HOLD_ABSENT_SECONDS,
     HOLD_ABSENT_STREAK,
     HOLD_DROP_SCORE,
+    HOLD_DROP_STREAK,
     HOLD_MIN_SCORE,
     HOLD_SECONDS,
     HOLD_SEED_FRAMES,
     HOLD_ZONE_IOU,
     METRICS_DIR,
     NAME_HOLD_SECONDS,
+    SOFT_NAME_MIN_SCORE,
+    SOFT_NAME_SECONDS,
     TRACK_MEMORY,
     WORKER_PIPELINE,
     WEIGHTS_PATH,
@@ -148,10 +151,13 @@ class SessionState:
     confusion_hold_seconds: float = CONFUSION_HOLD_SECONDS
     hold_min_score: float = HOLD_MIN_SCORE
     hold_drop_score: float = HOLD_DROP_SCORE
+    hold_drop_streak: int = HOLD_DROP_STREAK
     hold_absent_seconds: float = HOLD_ABSENT_SECONDS
     hold_absent_streak: int = HOLD_ABSENT_STREAK
     hold_seed_frames: int = HOLD_SEED_FRAMES
     hold_zone_iou: float = HOLD_ZONE_IOU
+    soft_name_seconds: float = SOFT_NAME_SECONDS
+    soft_name_min_score: float = SOFT_NAME_MIN_SCORE
     video_fps: float = 30.0
     frame_stride: int = FRAME_STRIDE_CPU
     count_sample_interval_s: float = COUNT_SAMPLE_INTERVAL_S
@@ -177,6 +183,10 @@ class SessionState:
     _live_since: dict[str, float] = field(default_factory=dict)
     # family_code -> video_t of last *sustained* live (seed-gate met)
     _last_good_live_t: dict[str, float] = field(default_factory=dict)
+    # family_code -> consecutive live frames below hold_drop_score
+    _hold_drop_weak_streak: dict[str, int] = field(default_factory=dict)
+    # soft-name dwell key -> video_t when dwell started
+    _soft_name_dwell: dict[str, float] = field(default_factory=dict)
     # IoU tracks for EMA / assignment prior (VISION_TRACK_MEMORY)
     _tracks: list[dict[str, Any]] = field(default_factory=list)
 
@@ -206,11 +216,14 @@ class SessionState:
             "confusion_hold_seconds": self.confusion_hold_seconds,
             "hold_min_score": self.hold_min_score,
             "hold_drop_score": self.hold_drop_score,
+            "hold_drop_streak": self.hold_drop_streak,
             "hold_absent_seconds": self.hold_absent_seconds,
             "hold_absent_streak": self.hold_absent_streak,
             "hold_seed_frames": self.hold_seed_frames,
             "hold_seed_s": _hold_gate_s(self, self.hold_seed_frames),
             "hold_absent_grace_s": _hold_gate_s(self, self.hold_absent_streak),
+            "soft_name_seconds": self.soft_name_seconds,
+            "soft_name_min_score": self.soft_name_min_score,
             "video_fps": self.video_fps,
             "frame_stride": self.frame_stride,
             "count_sample_interval_s": self.count_sample_interval_s,
@@ -337,8 +350,10 @@ def _public_box(box: dict[str, Any], *, held: bool = False, sticky_name: bool = 
         "raw": box.get("raw"),
         "refined": box.get("refined"),
         "audit": box.get("audit"),
+        "track_id": box.get("track_id"),
+        "soft_named": bool(box.get("soft_named")),
         "held": held,
-        "sticky_name": sticky_name,
+        "sticky_name": sticky_name or bool(box.get("sticky_name")),
     }
 
 
@@ -640,22 +655,168 @@ def _drop_weak_holds(
     live_codes: set[str],
     drop_score: float,
 ) -> None:
-    """Immediately clear holds whose live label confidence fell below the drop floor."""
+    """Clear holds after sustained live confidence below the drop floor (hysteresis)."""
     if drop_score <= 0:
+        state._hold_drop_weak_streak.clear()
         return
+    need = max(1, int(getattr(state, "hold_drop_streak", HOLD_DROP_STREAK) or HOLD_DROP_STREAK))
     for code in list(state._hold_by_family.keys()):
         if code not in live_codes:
+            state._hold_drop_weak_streak.pop(code, None)
             continue
         live_best, _ = _family_live_stats(public_boxes, code)
         if live_best > 0.0 and live_best < drop_score:
+            streak = int(state._hold_drop_weak_streak.get(code, 0)) + 1
+            state._hold_drop_weak_streak[code] = streak
+            if streak < need:
+                continue
             state._hold_by_family.pop(code, None)
             state._last_good_live_t.pop(code, None)
             state._live_since.pop(code, None)
             state._confusion_by_family.pop(code, None)
+            state._hold_drop_weak_streak.pop(code, None)
+        else:
+            state._hold_drop_weak_streak.pop(code, None)
     for code in list(state._confusion_by_family.keys()):
         hold = state._confusion_by_family.get(code) or {}
         if float(hold.get("score") or 0.0) < drop_score:
             state._confusion_by_family.pop(code, None)
+
+
+def _soft_name_key(box: dict[str, Any], family_code: str) -> str:
+    tid = box.get("track_id")
+    if tid is not None and str(tid).strip() != "":
+        return f"t:{tid}:{family_code}"
+    xy = box.get("xyxy") or [0, 0, 0, 0]
+    try:
+        x0, y0 = float(xy[0]), float(xy[1])
+    except (TypeError, ValueError, IndexError):
+        x0, y0 = 0.0, 0.0
+    return f"s:{family_code}:{int(x0 // 24)}:{int(y0 // 24)}"
+
+
+def _promote_soft_named_box(box: dict[str, Any], *, code: str, exp: dict[str, Any]) -> None:
+    family_name = exp.get("family_name") or box.get("family_name") or code
+    box["family_code"] = code
+    box["family_id"] = exp.get("family_id") or box.get("family_id")
+    box["family_name"] = family_name
+    box["category_name"] = exp.get("category_name") or box.get("category_name")
+    box["label"] = family_name
+    box["high_confidence"] = True
+    box["soft_named"] = True
+    refined = box.get("refined")
+    if isinstance(refined, dict):
+        refined = dict(refined)
+        refined["family_code"] = code
+        refined["family_id"] = box.get("family_id")
+        refined["family_name"] = family_name
+        refined["category_name"] = box.get("category_name")
+        refined["label"] = family_name
+        refined["high_confidence"] = True
+        refined["soft_named"] = True
+        box["refined"] = refined
+
+
+def _apply_soft_names(
+    state: SessionState,
+    *,
+    boxes: list[dict[str, Any]],
+    counts: dict[str, dict[str, Any]],
+    video_t: float,
+) -> int:
+    """
+    Promote Type → family name when a box dwells on an open quota below display 0.70.
+
+    Does not lower the global naming threshold: only sustained mid-conf boxes with
+    remaining expected slots get a soft name (Adson twin / similar).
+    """
+    dwell_s = max(0.0, float(getattr(state, "soft_name_seconds", SOFT_NAME_SECONDS) or 0.0))
+    min_score = float(
+        getattr(state, "soft_name_min_score", SOFT_NAME_MIN_SCORE) or SOFT_NAME_MIN_SCORE
+    )
+    if dwell_s <= 0 or min_score <= 0:
+        state._soft_name_dwell.clear()
+        return 0
+
+    named_n: dict[str, int] = {code: 0 for code in state.expected}
+    det_n: dict[str, int] = {
+        code: int((counts.get(code) or {}).get("detected_quantity") or 0)
+        for code in state.expected
+    }
+    for box in boxes:
+        code = box.get("family_code")
+        if code and box.get("high_confidence"):
+            named_n[code] = named_n.get(code, 0) + 1
+
+    candidates: list[tuple[float, int, str, bool]] = []
+    for idx, box in enumerate(boxes):
+        if box.get("high_confidence"):
+            continue
+        conf = float(box.get("confidence") or 0.0)
+        if conf < min_score:
+            continue
+        code = box.get("family_code")
+        type_promote = False
+        if not code:
+            raw = box.get("raw") if isinstance(box.get("raw"), dict) else {}
+            raw_code = raw.get("family_code")
+            if raw_code in state.expected:
+                code = str(raw_code)
+                type_promote = True
+            else:
+                continue
+        if code not in state.expected:
+            continue
+        exp_q = int((state.expected.get(code) or {}).get("expected_quantity") or 0)
+        if exp_q <= 0:
+            continue
+        open_names = exp_q - int(named_n.get(code, 0))
+        if open_names <= 0:
+            continue
+        if type_promote and int(det_n.get(code, 0)) >= exp_q:
+            continue
+        candidates.append((conf, idx, code, type_promote))
+
+    candidates.sort(key=lambda row: row[0], reverse=True)
+    active_keys: set[str] = set()
+    promoted = 0
+    for conf, idx, code, type_promote in candidates:
+        exp_q = int((state.expected.get(code) or {}).get("expected_quantity") or 0)
+        if int(named_n.get(code, 0)) >= exp_q:
+            continue
+        if type_promote and int(det_n.get(code, 0)) >= exp_q:
+            continue
+        box = boxes[idx]
+        key = _soft_name_key(box, code)
+        active_keys.add(key)
+        started = state._soft_name_dwell.get(key)
+        if started is None:
+            state._soft_name_dwell[key] = video_t
+            continue
+        if (video_t - float(started)) < dwell_s:
+            continue
+        exp = state.expected[code]
+        _promote_soft_named_box(box, code=code, exp=exp)
+        named_n[code] = int(named_n.get(code, 0)) + 1
+        if type_promote:
+            meta = counts.get(code)
+            if meta is not None:
+                meta["detected_quantity"] = int(meta.get("detected_quantity") or 0) + 1
+                meta["difference"] = int(meta["detected_quantity"]) - int(
+                    meta.get("expected_quantity") or 0
+                )
+                confs = list(meta.get("box_confidences") or [])
+                confs.append(round(conf, 4))
+                meta["box_confidences"] = confs
+                meta["best_confidence"] = max(confs) if confs else conf
+                meta["weakest_confidence"] = min(confs) if confs else conf
+            det_n[code] = int(det_n.get(code, 0)) + 1
+        promoted += 1
+
+    for key in list(state._soft_name_dwell.keys()):
+        if key not in active_keys:
+            state._soft_name_dwell.pop(key, None)
+    return promoted
 
 
 def _video_fps(state: SessionState) -> float:
@@ -699,6 +860,7 @@ def _apply_hold(
     - Confusion: missing families that appear only in top2–N (top1 already assigned) get a
       short renewing hold. Never seeded from top1.
     - A 1-frame flicker does not reset the absence clock nor extend the long count hold.
+    - Drop floor uses HOLD_DROP_STREAK hysteresis (brief conf dips do not clear sticky).
     """
     ttl = max(0.0, float(state.hold_seconds))
     name_ttl = max(ttl, float(state.name_hold_seconds))
@@ -724,7 +886,7 @@ def _apply_hold(
         else:
             state._live_since.pop(code, None)
 
-    # Collapse: held label fell below drop floor → clear sticky immediately.
+    # Collapse: held label below drop floor for HOLD_DROP_STREAK live frames.
     _drop_weak_holds(
         state, public_boxes=public_boxes, live_codes=live_codes, drop_score=drop_score
     )
@@ -1288,6 +1450,8 @@ def reset_hold_state(state: SessionState) -> None:
     state._confusion_by_family = {}
     state._live_since = {}
     state._last_good_live_t = {}
+    state._hold_drop_weak_streak = {}
+    state._soft_name_dwell = {}
     state._tracks = []
 
 
@@ -1330,10 +1494,13 @@ def prepare_live_run(state: SessionState) -> None:
     state.confusion_hold_seconds = CONFUSION_HOLD_SECONDS
     state.hold_min_score = HOLD_MIN_SCORE
     state.hold_drop_score = HOLD_DROP_SCORE
+    state.hold_drop_streak = HOLD_DROP_STREAK
     state.hold_absent_seconds = HOLD_ABSENT_SECONDS
     state.hold_absent_streak = HOLD_ABSENT_STREAK
     state.hold_seed_frames = HOLD_SEED_FRAMES
     state.hold_zone_iou = HOLD_ZONE_IOU
+    state.soft_name_seconds = SOFT_NAME_SECONDS
+    state.soft_name_min_score = SOFT_NAME_MIN_SCORE
     state.category_summary = {}
 
 
@@ -1372,6 +1539,12 @@ def run_frame(
     )
     commit_track_families(state._tracks, refined, enabled=TRACK_MEMORY)
     public_boxes = [_public_box(box) for box in refined]
+    soft_n = _apply_soft_names(
+        state, boxes=public_boxes, counts=counts, video_t=video_t
+    )
+    if soft_n:
+        metrics = dict(metrics or {})
+        metrics["soft_named_count"] = int(soft_n)
     held_counts, held_boxes = _apply_hold(
         state, counts=counts, public_boxes=public_boxes, video_t=video_t
     )
@@ -1435,10 +1608,13 @@ def process_video_file(path: str, state: SessionState) -> None:
     state.confusion_hold_seconds = CONFUSION_HOLD_SECONDS
     state.hold_min_score = HOLD_MIN_SCORE
     state.hold_drop_score = HOLD_DROP_SCORE
+    state.hold_drop_streak = HOLD_DROP_STREAK
     state.hold_absent_seconds = HOLD_ABSENT_SECONDS
     state.hold_absent_streak = HOLD_ABSENT_STREAK
     state.hold_seed_frames = HOLD_SEED_FRAMES
     state.hold_zone_iou = HOLD_ZONE_IOU
+    state.soft_name_seconds = SOFT_NAME_SECONDS
+    state.soft_name_min_score = SOFT_NAME_MIN_SCORE
     state.category_summary = {}
     # Truncate prior timeline for this new run id (file is new per run_id).
     cap = cv2.VideoCapture(path)

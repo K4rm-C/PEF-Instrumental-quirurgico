@@ -52,6 +52,12 @@
     </form>
 
     <p class="sign-in-card__footnote">{{ _("Access is restricted to authorized personnel.") }}</p>
+
+    <p class="sign-in-card__landing">
+        <a class="sign-in-card__landing-link" href="{{ url_for('web.index') }}">
+            {{ _("About this project — view the public overview") }}
+        </a>
+    </p>
 </div>
 {% endblock %}
 

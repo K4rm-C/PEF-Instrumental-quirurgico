@@ -16,14 +16,20 @@
 </ol>
 {% endblock %}
 
+{% block page_styles %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/components/tabs.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/pages/v3-pages.css') }}">
+{% endblock %}
+
 {% block page_content %}
-{# Values come from AdminService GET /api/v1/dashboard (controllers/admin_presenters.dashboard).
-   When the service is unavailable the page renders zeros and the flash message explains why. #}
 {% set dashboard_stats = dashboard_stats|default({}, true) %}
 {% set secondary_stats = secondary_stats|default({}, true) %}
 {% set catalog_overview = catalog_overview|default([], true) %}
 {% set system_overview = system_overview|default([], true) %}
 {% set operational_metrics = operational_metrics|default([], true) %}
+{% set session_stats = session_stats|default([], true) %}
+{% set operation_stat_cards = operation_stat_cards|default([], true) %}
 
 <div class="page-heading">
     <div>
@@ -32,67 +38,116 @@
     </div>
 </div>
 
-<section class="stat-card-grid" aria-label="{{ _('Key system metrics') }}">
-    {{ macros.stat_card(_("Active Users"), dashboard_stats.active_users|default(0), 'info') }}
-    {{ macros.stat_card(_("Instrument Families"), dashboard_stats.instrument_families|default(0), 'neutral') }}
-    {{ macros.stat_card(_("Registered Instruments"), dashboard_stats.registered_instruments|default(0), 'neutral') }}
-    {{ macros.stat_card(_("Active Kits"), dashboard_stats.active_kits|default(0), 'neutral') }}
-</section>
+<div class="v3-stack v3-page" data-v3-tabs data-v3-tabs-hash>
+    <div class="v3-tabs" role="tablist" aria-label="{{ _('Dashboard sections') }}">
+        <button type="button" class="v3-tabs__link v3-tabs__link--active" role="tab"
+                id="tab-catalogs" data-tab-target="catalogs" aria-controls="tab-panel-catalogs"
+                aria-selected="true">{{ _("Catalogs") }}</button>
+        <button type="button" class="v3-tabs__link" role="tab"
+                id="tab-sessions" data-tab-target="sessions" aria-controls="tab-panel-sessions"
+                aria-selected="false" tabindex="-1">{{ _("Sessions") }}</button>
+    </div>
 
-<section class="stat-card-grid" aria-label="{{ _('Secondary system metrics') }}">
-    {{ macros.stat_card(_("Procedures"), secondary_stats.procedures|default(0), 'neutral') }}
-    {{ macros.stat_card(_("Capture Stations"), secondary_stats.capture_stations|default(0), 'neutral') }}
-    {{ macros.stat_card(_("Vision Models"), secondary_stats.vision_models|default(0), 'neutral') }}
-    {{ macros.stat_card(_("Active Vision Model"), secondary_stats.active_vision_model|default(0), 'neutral') }}
-</section>
+    <section class="v3-tab-panel" role="tabpanel" id="tab-panel-catalogs" aria-labelledby="tab-catalogs" data-tab-panel="catalogs">
+        <section class="stat-card-grid" aria-label="{{ _('Key system metrics') }}">
+            {{ macros.stat_card(_("Active Users"), dashboard_stats.active_users|default(0), 'info') }}
+            {{ macros.stat_card(_("Instrument Families"), dashboard_stats.instrument_families|default(0), 'neutral') }}
+            {{ macros.stat_card(_("Registered Instruments"), dashboard_stats.registered_instruments|default(0), 'neutral') }}
+            {{ macros.stat_card(_("Active Kits"), dashboard_stats.active_kits|default(0), 'neutral') }}
+        </section>
 
-<section class="dashboard-panels">
-    <div class="card">
-        <h2 class="card__title">{{ _("Catalog Overview") }}</h2>
-        <div class="table-wrapper">
-            <table class="data-table">
-                <tbody>
-                    {% for item in catalog_overview %}
-                    <tr>
-                        <th scope="row">{{ _(item.label) }}</th>
-                        <td class="data-table__numeric-column">{{ item.value }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <section class="stat-card-grid" aria-label="{{ _('Secondary system metrics') }}">
+            {{ macros.stat_card(_("Procedures"), secondary_stats.procedures|default(0), 'neutral') }}
+            {{ macros.stat_card(_("Capture Stations"), secondary_stats.capture_stations|default(0), 'neutral') }}
+            {{ macros.stat_card(_("Vision Models"), secondary_stats.vision_models|default(0), 'neutral') }}
+            {{ macros.stat_card(_("Active Vision Model"), secondary_stats.active_vision_model|default(0), 'neutral') }}
+        </section>
+
+        <section class="dashboard-panels">
+            <div class="card">
+                <h2 class="card__title">{{ _("Catalog Overview") }}</h2>
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <tbody>
+                            {% for item in catalog_overview %}
+                            <tr>
+                                <th scope="row">{{ _(item.label) }}</th>
+                                <td class="data-table__numeric-column">{{ item.value }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2 class="card__title">{{ _("System Overview") }}</h2>
+                <div class="table-wrapper">
+                    <table class="data-table">
+                        <tbody>
+                            {% for item in system_overview %}
+                            <tr>
+                                <th scope="row">{{ _(item.label) }}</th>
+                                <td class="data-table__numeric-column">{{ item.value }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </section>
+
+    <section class="v3-tab-panel" role="tabpanel" id="tab-panel-sessions" aria-labelledby="tab-sessions" data-tab-panel="sessions" hidden>
+        <div class="page-heading page-heading--compact">
+            <div>
+                <h2 class="page-heading__title">{{ _("Operation metrics") }}</h2>
+                <p class="page-heading__subtitle">{{ _("Counting sessions, discrepancies, and AI agreement for this institution.") }}</p>
+            </div>
         </div>
-    </div>
 
-    <div class="card">
-        <h2 class="card__title">{{ _("System Overview") }}</h2>
-        <div class="table-wrapper">
-            <table class="data-table">
-                <tbody>
-                    {% for item in system_overview %}
-                    <tr>
-                        <th scope="row">{{ _(item.label) }}</th>
-                        <td class="data-table__numeric-column">{{ item.value }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
-</section>
+        <section class="stat-card-grid" aria-label="{{ _('Operation metrics') }}">
+            {% for card in operation_stat_cards %}
+            {{ macros.stat_card(card.label, card.value, card.variant|default('neutral')) }}
+            {% else %}
+            {{ macros.stat_card(_("Total Sessions"), 0, 'info') }}
+            {{ macros.stat_card(_("Total Discrepancies"), 0, 'neutral') }}
+            {{ macros.stat_card(_("Open Discrepancies"), 0, 'warning') }}
+            {{ macros.stat_card(_("Human Corrections"), 0, 'neutral') }}
+            {% endfor %}
+        </section>
 
-<section class="card">
-    <h2 class="card__title">{{ _("Operational Metrics") }}</h2>
-    <div class="table-wrapper">
-        <table class="data-table">
-            <tbody>
-                {% for item in operational_metrics %}
-                <tr>
-                    <th scope="row">{{ _(item.label) }}</th>
-                    <td class="data-table__numeric-column">{{ item.value }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</section>
+        {% if session_stats %}
+        <section class="stat-card-grid" aria-label="{{ _('Sessions by status') }}">
+            {% for row in session_stats %}
+            {{ macros.stat_card(row.label, row.value, row.variant|default('neutral')) }}
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        <section class="card">
+            <h2 class="card__title">{{ _("Operational Metrics") }}</h2>
+            <div class="table-wrapper">
+                <table class="data-table">
+                    <tbody>
+                        {% for item in operational_metrics %}
+                        <tr>
+                            <th scope="row">{{ _(item.label) }}</th>
+                            <td class="data-table__numeric-column">{{ item.value }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="2" class="data-table__empty-state">{{ _("No operational metrics available yet.") }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </section>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ url_for('static', filename='js/pages/v3-tabs.js') }}" defer></script>
 {% endblock %}

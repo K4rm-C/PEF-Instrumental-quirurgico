@@ -1,58 +1,58 @@
-# PEF — Instrumental quirúrgico
+# PEF — Surgical Instrument Traceability
 
-Conteo y trazabilidad asistidos por visión de instrumental quirúrgico (PEF · UDEM).
+Vision-assisted counting and digital traceability of surgical instruments (PEF · UDEM).
 
-Portal web (operador / SPD / administración), autenticación JWT, visión YOLO, evidencia en anillo, microservicios de catálogo/sesión/evidencia y app Android.
+Web portal (operator / SPD / administration), JWT authentication, YOLO vision, ring evidence, catalog/session/evidence microservices, and an Android app.
 
 ## Stack
 
-| Capa | Componentes |
+| Layer | Components |
 | --- | --- |
-| Portal | `BackendWebFlask` (admin in-process vía `admin_local`) |
-| Identidad | `BackendAuthService` — cookies portal + `/api/v1/auth` (Android) |
-| Visión / evidencia OP | `VisionWorker` (host, CUDA) · `EvidenceWorker` (Docker) |
-| Microservicios | Catalog, Session, EvidenceService, Audit, Notifications, Monitoring, Integration |
-| Cliente móvil | `apps/PEF-Android` |
+| Portal | `BackendWebFlask` (admin in-process via `admin_local`) |
+| Identity | `BackendAuthService` — portal cookies + `/api/v1/auth` (Android) |
+| Vision / OP evidence | `VisionWorker` (host, CUDA) · `EvidenceWorker` (Docker) |
+| Microservices | Catalog, Session, EvidenceService, Audit, Notifications, Monitoring, Integration |
+| Mobile client | `apps/PEF-Android` |
 | Infra | PostgreSQL, Redis, MongoDB, Garage (S3) |
 
-`apps/AdminService/` es **legado**; el panel admin del portal ya no lo requiere. Catálogo de producto: `CatalogService` (`:5003`).
+`apps/AdminService/` is **legacy**; the portal admin panel no longer requires it. Product catalog: `CatalogService` (`:5003`).
 
-## Equipo
+## Team
 
-| Integrante | Matrícula |
+| Member | Student ID |
 | --- | --- |
 | Benjamin Charles Legorreta | 599860 |
 | Pedro Elidio Sora Gonzalez | 596630 |
 | Angel Uriel Muñoz Moreno | 604386 |
 
-Apoyo: Luis Carlos Rodriguez Medrano, Carlos Ignacio Huerta Carrizales, Juan Hermilo Reyes Perez.
+Support: Luis Carlos Rodriguez Medrano, Carlos Ignacio Huerta Carrizales, Juan Hermilo Reyes Perez.
 
-Asesor: Dr. Raul Morales Salcedo.
+Advisor: Dr. Raul Morales Salcedo.
 
 ---
 
-## Prerrequisitos
+## Prerequisites
 
-- Docker Desktop en ejecución
-- Python 3.11+ en `PATH` (**solo** para VisionWorker en el host)
+- Docker Desktop running
+- Python 3.11+ on `PATH` (**only** for VisionWorker on the host)
 - Git
-- Pesos YOLO: `apps/VisionWorker/weights/best.pt` (no versionados; `*.pt` en `.gitignore`)
-- `ffmpeg` en PATH (o `.\tools\ensure-ffmpeg.ps1` en Windows) — lo usa EvidenceWorker en Docker y Vision en el host
+- YOLO weights: `apps/VisionWorker/weights/best.pt` (not versioned; `*.pt` in `.gitignore`)
+- `ffmpeg` on PATH (or `.\tools\ensure-ffmpeg.ps1` on Windows) — used by EvidenceWorker in Docker and Vision on the host
 
-### Compose canónico
+### Canonical Compose
 
-Para el stack MS + portal + seeds usar **`docker-compose.integral.yml`** (overlays: `docker-compose.vision-cpu.yml`, perfil `gateway`).  
-`docker-compose.yml` queda como referencia/infra legacy (scripts e2e/VM antiguos); no es el arranque demo diario.
+For the MS + portal + seeds stack use **`docker-compose.integral.yml`** (overlays: `docker-compose.vision-cpu.yml`, `gateway` profile).  
+`docker-compose.yml` remains as legacy infra reference (older e2e/VM scripts); it is not the daily demo startup.
 
-Puertos por defecto (ver `.env.example`):
+Default ports (see `.env.example`):
 
-| Rango | Uso |
+| Range | Use |
 | --- | --- |
 | `5433`, `6379`, `27017`, `3900`–`3903` | Infra |
 | `5000`–`5001` | Web, Auth (Docker) |
 | `5002` | VisionWorker (host) |
-| `5003`–`5009` | Microservicios (Docker) |
-| `8080` | API Gateway (opcional) |
+| `5003`–`5009` | Microservices (Docker) |
+| `8080` | API Gateway (optional) |
 
 ```powershell
 docker --version
@@ -62,63 +62,86 @@ python --version
 
 ---
 
-## Arranque (flujo único)
+## Startup (single flow)
 
-Todo desde la **raíz** del repositorio (`PEF-Instrumental-quirurgico`).
+Everything from the **repository root** (`PEF-Instrumental-quirurgico`).
 
-Stack en Docker (infra + Auth/MS/portal/`evidence-worker`) y **una terminal** con VisionWorker en el host (CUDA).
+Stack in Docker (infra + Auth/MS/portal/`evidence-worker`) and **one terminal** with VisionWorker on the host (CUDA).
 
-### 1. Configurar entorno
+### 1. Configure environment
 
-Solo la primera vez, o cuando cambie `.env.example`:
+First time only, or when `.env.example` changes:
 
 ```powershell
 copy .env.example .env
 copy .env apps\VisionWorker\.env
 ```
 
-VisionWorker lee el `.env` de su carpeta. El resto de servicios toman variables desde Compose / `.env` de la raíz.
+VisionWorker reads the `.env` in its own folder. Other services take variables from Compose / the root `.env`.
 
-### 2. Levantar Docker
+### 2. Start Docker
 
 ```powershell
 docker compose -f docker-compose.integral.yml --env-file .env up -d --build
 docker compose -f docker-compose.integral.yml ps
 ```
 
-En el primer arranque (volumen Postgres vacío) se aplican solos:
+On first boot (empty Postgres volume) these run automatically:
 
-1. `data/migrations/001_init.sql` + migraciones `004`…`021`
-2. `data/seeds/002_seed_catalogs.sql` y `003_seed_demo.sql` (canónicos **+** cuentas/ORs Locust fusionados)
-3. `garage-init` — buckets `privacy-notices` y `pef-admin`
-4. `seed-family-examples` — sube `data/seeds/example_images/` a Garage y crea `media_asset` + `family_example`
-5. `seed-demo-volume` — re-aplica `004_seed_demo_locust.sql` (idempotente) y genera historial/KPIs/auditoría/monitoring con cantidades variables (`SEED_*` en `.env`)
+1. `data/migrations/001_init.sql` + migrations `004`…`021`
+2. `data/seeds/002_seed_catalogs.sql` and `003_seed_demo.sql` (canonical **+** merged Locust accounts/ORs)
+3. `garage-init` — buckets `privacy-notices` and `pef-admin`
+4. `seed-family-examples` — uploads `data/seeds/example_images/` to Garage and creates `media_asset` + `family_example`
+5. `seed-demo-volume` — re-applies `004_seed_demo_locust.sql` (idempotent) and generates history/KPIs/audit/monitoring with variable counts (`SEED_*` in `.env`)
 
-Reinicios posteriores **no** re-ejecutan los SQL de init; fotos y volumen sí vuelven a correr y son **idempotentes**. Semilla limpia:
+Later restarts **do not** re-run the init SQL; photo and volume seeds do run again and are **idempotent**. Clean seed:
 
 ```powershell
 docker compose -f docker-compose.integral.yml --env-file .env down -v
 docker compose -f docker-compose.integral.yml --env-file .env up -d --build
 ```
 
-Gateway opcional (Android / entrada única):
+Optional gateway (Android / single entry):
 
 ```powershell
 docker compose -f docker-compose.integral.yml --env-file .env --profile gateway up -d gateway
 ```
 
-### IP LAN flexible (portal / App / CORS)
+### Flexible LAN IP (portal / App / CORS / Vision WS)
 
-Al cambiar de red Wi‑Fi la IP del host cambia. No hardcodear IPs en el repo:
+Do **not** hardcode IPs and do **not** rely on localhost for demos. On any Wi‑Fi:
 
 ```powershell
-.\scripts\pef_lan_endpoint.ps1
-docker compose -f docker-compose.integral.yml --env-file .env --profile gateway up -d --force-recreate auth web gateway evidence-worker
+.\scripts\pef_up.ps1
 ```
 
-El script actualiza `.env` (`HOST_LAN_IP`, `AUTH_ALLOWED_ORIGINS`, `AUTH_BROWSER_URL`, `VISION_WS_ORIGINS`, `S3_PUBLIC_ENDPOINT`) y `apps/PEF-Android/local.properties` (`pef.apiBaseUrl.debug`). Gateway publica en `HOST_BIND` (default `0.0.0.0`).
+That detects the LAN IP, rewrites `.env` + Android `local.properties`, mints a lab TLS cert for that IP, and starts Gateway + **HTTPS portal** (`docker-compose.lan-https.yml` → port **5443**).
 
-### 3. VisionWorker en el host (CUDA)
+Open the portal at **`https://<HOST_LAN_IP>:5443/`** (accept the lab certificate once). Browsers only allow the live camera in a secure context; plain `http://<LAN>:5000` can still upload videos, but **Start camera** needs HTTPS.
+
+What gets updated: `HOST_LAN_IP`, `AUTH_ALLOWED_ORIGINS`, `AUTH_BROWSER_URL=/auth` (same-origin via portal-lan), `VISION_WORKER_WS_URL=wss://<LAN>:5443/ws`, `PORTAL_COOKIE_SECURE`, `CSRF_TRUSTED_ORIGINS`, `S3_PUBLIC_ENDPOINT`, and `pef.apiBaseUrl.debug`. Services bind on `HOST_BIND=0.0.0.0`. Restart host VisionWorker after the script if you use live capture. The LAN nginx template always allows `OPTIONS` on `/auth/*` so CORS preflight cannot 403 after redeploy.
+
+**Android (debug):** the app discovers the Gateway at runtime on the current Wi‑Fi. Tap **Retry** after changing networks — no rebuild required for IP changes.
+
+#### Windows firewall (Gateway + VisionWorker + portal HTTPS)
+
+Allow inbound TCP so phones/other PCs can reach the stack. Run **PowerShell as Administrator**:
+
+```powershell
+New-NetFirewallRule -DisplayName "PEF Portal HTTPS LAN 5443" -Direction Inbound -Protocol TCP -LocalPort 5443 -Action Allow
+New-NetFirewallRule -DisplayName "PEF Gateway LAN 8080" -Direction Inbound -Protocol TCP -LocalPort 8080 -Action Allow
+New-NetFirewallRule -DisplayName "PEF VisionWorker LAN 5002" -Direction Inbound -Protocol TCP -LocalPort 5002 -Action Allow
+```
+
+Remove later if needed:
+
+```powershell
+Remove-NetFirewallRule -DisplayName "PEF Portal HTTPS LAN 5443"
+Remove-NetFirewallRule -DisplayName "PEF Gateway LAN 8080"
+Remove-NetFirewallRule -DisplayName "PEF VisionWorker LAN 5002"
+```
+
+### 3. VisionWorker on the host (CUDA)
 
 ```powershell
 cd apps\VisionWorker
@@ -128,36 +151,37 @@ pip install -r requirements.txt
 python main.py
 ```
 
-Comprobar: [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) → `"weights_present": true`.
+Check: [http://127.0.0.1:5002/health](http://127.0.0.1:5002/health) → `"weights_present": true`.  
+From another LAN client (after firewall rule): `http://<HOST_LAN_IP>:5002/health`.
 
-El portal y `evidence-worker` apuntan a Vision en `host.docker.internal:5002`.
+The portal and `evidence-worker` reach Vision at `host.docker.internal:5002`. Browser live WS uses `VISION_WORKER_WS_URL` (LAN IP after `pef_lan_endpoint.ps1`).
 
-### 4. Verificar
+### 4. Verify
 
 ```powershell
 .\scripts\smoke_module_health.ps1
 .\scripts\smoke_auth.ps1
 ```
 
-Login UI: [http://127.0.0.1:5000/sign-in](http://127.0.0.1:5000/sign-in).
+UI login: [http://127.0.0.1:5000/sign-in](http://127.0.0.1:5000/sign-in).
 
 ---
 
-## Opción B — VisionWorker en Docker (solo CPU)
+## Option B — VisionWorker in Docker (CPU only)
 
-Sin CUDA/GPU. No corras Vision en el host al mismo tiempo (conflicto en `:5002`).
+No CUDA/GPU. Do not also run Vision on the host (port `:5002` conflict).
 
 ```powershell
 docker compose -f docker-compose.integral.yml -f docker-compose.vision-cpu.yml --profile vision-container --env-file .env up -d --build
 ```
 
-Coloca `best.pt` en `apps/VisionWorker/weights/` (montaje de solo lectura).
+Place `best.pt` in `apps/VisionWorker/weights/` (read-only mount). Published as `${HOST_BIND:-0.0.0.0}:${VISION_PORT:-5002}:5002`.
 
 ---
 
-## URLs y puertos
+## URLs and ports
 
-| Servicio | URL / endpoint |
+| Service | URL / endpoint |
 | --- | --- |
 | Portal | [http://127.0.0.1:5000](http://127.0.0.1:5000) |
 | Auth (+ `/api/v1/auth`) | [http://127.0.0.1:5001](http://127.0.0.1:5001) |
@@ -170,13 +194,13 @@ Coloca `best.pt` en `apps/VisionWorker/weights/` (montaje de solo lectura).
 | MonitoringService | [http://127.0.0.1:5008/health/ready](http://127.0.0.1:5008/health/ready) |
 | IntegrationService | [http://127.0.0.1:5009/health/ready](http://127.0.0.1:5009/health/ready) |
 | API Gateway | [http://127.0.0.1:8080/health](http://127.0.0.1:8080/health) |
-| EvidenceWorker | contenedor → volumen `evidence_worker_clips` |
+| EvidenceWorker | container → volume `evidence_worker_clips` |
 | Garage S3 | [http://127.0.0.1:3900](http://127.0.0.1:3900) |
 | PostgreSQL | `localhost:5433` · db `InstruMed` |
 | Redis | `localhost:6379` |
 | MongoDB | `localhost:27017` |
 
-| Puerto | Uso |
+| Port | Use |
 | --- | --- |
 | 5433 | PostgreSQL |
 | 6379 | Redis |
@@ -187,22 +211,22 @@ Coloca `best.pt` en `apps/VisionWorker/weights/` (montaje de solo lectura).
 | 5000 | Web |
 | 5001 | Auth |
 | 5002 | VisionWorker |
-| 5003–5009 | Microservicios |
+| 5003–5009 | Microservices |
 | 8080 | Gateway |
 
 ---
 
-## Credenciales
+## Credentials
 
 ### Object storage (Garage / S3)
 
-| Campo | Valor |
+| Field | Value |
 | --- | --- |
 | Endpoint | `http://localhost:3900` |
 | Region | `garage` |
 | Access key | `MedAdmin3` |
 | Secret key | `StorageKeySecret027` |
-| Path style | sí (`S3_FORCE_PATH_STYLE=true`) |
+| Path style | yes (`S3_FORCE_PATH_STYLE=true`) |
 | Buckets | `evidence`, `privacy-notices`, `pef-admin` |
 
 ```powershell
@@ -212,23 +236,23 @@ $env:AWS_DEFAULT_REGION="garage"
 aws --endpoint-url http://127.0.0.1:3900 s3 ls
 ```
 
-### Usuarios demo (seed)
+### Demo users (seed)
 
-Roles RF: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (App). Hashes Werkzeug **3.1.8**.  
-Tabla completa (canónicos + Locust + `gen.*`): [`data/seeds/DEMO_CREDENTIALS.md`](data/seeds/DEMO_CREDENTIALS.md).
+RF roles: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (App). Werkzeug hashes **3.1.8**.  
+Full table (canonical + Locust + `gen.*`): [`data/seeds/DEMO_CREDENTIALS.md`](data/seeds/DEMO_CREDENTIALS.md).
 
-| Rol | Email | Password | Superficie |
+| Role | Email | Password | Surface |
 | --- | --- | --- | --- |
 | station_operator | `operator@instrumed.com` | `DemopwdOP78!` | Web OP |
 | station_operator | `operador2@instrumed.com` | `DemopwdOP278!` | Web OP |
 | spd_supervisor | `supervisor@instrumed.com` | `DemopwdSPD78!` | Web SPD |
 | spd_supervisor | `supervisor2@instrumed.com` | `DemopwdSPD278!` | Web SPD |
 | it_admin | `admin@instrumed.com` | `DemopwdADM78!` | Web Admin |
-| **or_charge (App)** | `floor@instrumed.com` | `DemopwdFLR78!` | **App móvil (cuenta estándar)** |
-| Locust OP | `ana.ruiz@` / `luis.pena@instrumed.com` | ver DEMO_CREDENTIALS | carga multi-usuario |
-| Locust SPD/Admin/Floor | `carla.soto@` / `ti.extra@` / `nora.diaz@` / `dual.admin.spd@` | ver DEMO_CREDENTIALS | carga / roles mixtos |
+| **or_charge (App)** | `floor@instrumed.com` | `DemopwdFLR78!` | **Mobile app (standard account)** |
+| Locust OP | `ana.ruiz@` / `luis.pena@instrumed.com` | see DEMO_CREDENTIALS | multi-user load |
+| Locust SPD/Admin/Floor | `carla.soto@` / `ti.extra@` / `nora.diaz@` / `dual.admin.spd@` | see DEMO_CREDENTIALS | load / mixed roles |
 
-`floor@` / `or_charge` es la cuenta demo canónica de la App. El one-shot `seed-demo-volume` añade ORs extra, sesiones cerradas/programadas, discrepancias, `access_audit`, notificaciones y `monitoring_check` (ajustable con `SEED_OR_COUNT`, `SEED_CLOSED_SESSIONS`, `SEED_RNG`, etc.).
+`floor@` / `or_charge` is the canonical App demo account. The one-shot `seed-demo-volume` adds extra ORs, closed/scheduled sessions, discrepancies, `access_audit`, notifications and `monitoring_check` (tunable with `SEED_OR_COUNT`, `SEED_CLOSED_SESSIONS`, `SEED_RNG`, etc.).
 
 ```powershell
 curl -i -X POST http://127.0.0.1:5001/login -H "Content-Type: application/json" -d "{\"email\":\"operator@instrumed.com\",\"password\":\"DemopwdOP78!\"}"
@@ -236,20 +260,20 @@ curl -i -X POST http://127.0.0.1:5001/login -H "Content-Type: application/json" 
 
 ---
 
-## Estructura del repositorio
+## Repository layout
 
 ```
 PEF-Instrumental-quirurgico/
-├── docker-compose.integral.yml     # Stack principal (Docker)
-├── docker-compose.vision-cpu.yml   # Opción B: Vision en contenedor (CPU)
+├── docker-compose.integral.yml     # Main stack (Docker)
+├── docker-compose.vision-cpu.yml   # Option B: Vision in container (CPU)
 ├── .env.example
 ├── apps/
 │   ├── BackendAuthService/
 │   ├── BackendWebFlask/            # Portal + admin_local
-│   ├── VisionWorker/weights/       # best.pt local (+ .venv solo aquí)
+│   ├── VisionWorker/weights/       # local best.pt (+ .venv only here)
 │   ├── EvidenceWorker/
 │   ├── CatalogService/ … IntegrationService/
-│   ├── AdminService/               # Legado
+│   ├── AdminService/               # Legacy
 │   └── PEF-Android/
 ├── data/
 │   ├── migrations/                 # 001 + 004…021
@@ -258,9 +282,11 @@ PEF-Instrumental-quirurgico/
 │   └── FunctionalRequirements/
 ├── infra/                          # Garage, gateway
 └── scripts/
-    ├── garage_init_buckets.py      # Servicio Compose garage-init
-    ├── seed_family_examples.py     # Servicio Compose seed-family-examples
-    ├── seed_demo_volume.py         # Locust ensure + volumen KPI/historial (Compose seed-demo-volume)
+    ├── garage_init_buckets.py      # Compose service garage-init
+    ├── seed_family_examples.py     # Compose service seed-family-examples
+    ├── seed_demo_volume.py         # Locust ensure + KPI/history volume (Compose seed-demo-volume)
+    ├── pef_up.ps1                  # Detect LAN IP + compose up (gateway) — preferred bring-up
+    ├── pef_lan_endpoint.ps1        # LAN IP + CORS + Vision WS + Android URL
     ├── smoke_module_health.ps1
     └── smoke_auth.ps1
 ```
@@ -269,112 +295,116 @@ PEF-Instrumental-quirurgico/
 
 ## Android
 
-Proyecto en `apps/PEF-Android`. Emulador → Auth `http://10.0.2.2:5001` o IP LAN del host. Con Gateway, entrada pública `:8080`. Detalle: `apps/PEF-Android/README.md`.
+Project under `apps/PEF-Android`. Emulator → Auth `http://10.0.2.2:5001` or host LAN IP. With Gateway, public entry `:8080`. Details: `apps/PEF-Android/README.md`.
 
 ---
 
-## Evidencia (ciclo OP)
+## Evidence (OP cycle)
 
-Flujo BD-first: encode → Garage S3 → `media_asset` (PG) → `checkpoint_frame` (Mongo). El portal OP-05/06 prioriza Mongo + URL firmada; lo local solo aplica si falló el upload (cola Redis `pef:evidence:upload_retry`). Con `EVIDENCE_PURGE_LOCAL_ON_UPLOAD=1` se puede borrar el MP4 tras upload OK.
+BD-first flow: encode → Garage S3 → `media_asset` (PG) → `checkpoint_frame` (Mongo). OP-05/06 portal prefers Mongo + signed URL; local files only if upload failed (Redis queue `pef:evidence:upload_retry`). With `EVIDENCE_PURGE_LOCAL_ON_UPLOAD=1` the MP4 can be deleted after a successful upload.
 
-Hourly: no dispara en idle; catch-up al reanudar; ratio vía VisionWorker `/state`.
+Hourly: does not fire while idle; catch-up on resume; ratio via VisionWorker `/state`.
 
 ---
 
-## Internacionalización (i18n)
+## Internationalization (i18n)
 
-Flask-Babel en `BackendWebFlask`: fuente **en**, catálogo **es-MX** (`translations/es_MX/`). Preferencia: usuario autenticado → `ui_preferences.locale`; invitado → cookie `pef_locale`.
+Flask-Babel in `BackendWebFlask`: source language **en**, catalog **es-MX** (`translations/es_MX/`). Preference: authenticated user → `ui_preferences.locale`; guest → cookie `pef_locale`.
 
-Cadenas nuevas (en un entorno con Babel instalado, p. ej. imagen/web o venv temporal):
+**UI strings** use English msgids in code/templates (`_()` / `N_()`).  
+**System DB labels** (catalog `code`s, known seed names) are mapped in `i18n.py` (`localize_db_label` / `localize_db_text`) to English msgids, then translated by Babel. Free-text entered by users is **not** translated.
+
+After adding portal screens (e.g. Hospital operations, capture traffic strip), re-run extract/update/compile and fill empty or fuzzy `msgstr` entries in `es_MX` — fuzzy auto-matches can attach the wrong Spanish string to a new msgid.
+
+New strings (environment with Babel installed, e.g. web image or a temporary venv):
 
 ```powershell
 cd apps\BackendWebFlask
 pybabel extract -F babel.cfg -k N_ --no-wrap --sort-by-file -o messages.pot .
 pybabel update -i messages.pot -d translations --no-wrap
-# editar translations/es_MX/LC_MESSAGES/messages.po
+# edit translations/es_MX/LC_MESSAGES/messages.po
 pybabel compile -d translations --statistics
 ```
 
-No se traducen datos de negocio capturados; sí etiquetas de sistema vía `i18n.py` (`localize_db_*`).
-
 ---
 
-## Problemas frecuentes
+## Common issues
 
-| Síntoma | Acción |
+| Symptom | Action |
 | --- | --- |
-| Garage no lista buckets | `docker compose -f docker-compose.integral.yml logs garage garage-init` |
-| Falta `privacy-notices` / `pef-admin` | Re-correr `garage-init` (`compose up`) o recrear volúmenes Garage |
-| Postgres sin seeds | Solo en volumen nuevo: `down -v` + `up -d --build` |
-| Fotos de familia vacías | `docker compose -f docker-compose.integral.yml logs seed-family-examples` |
-| Login 401 | Auth con seed actual; reiniciar tras `down -v` |
-| Vision `"weights_present": false` | Colocar `apps/VisionWorker/weights/best.pt` |
-| Puerto `5002` ocupado | No mezclar Vision host + opción B; liberar el puerto |
+| Garage does not list buckets | `docker compose -f docker-compose.integral.yml logs garage garage-init` |
+| Missing `privacy-notices` / `pef-admin` | Re-run `garage-init` (`compose up`) or recreate Garage volumes |
+| Postgres without seeds | Only on a new volume: `down -v` + `up -d --build` |
+| Empty family photos | `docker compose -f docker-compose.integral.yml logs seed-family-examples` |
+| Login 401 | Auth with current seed; restart after `down -v` |
+| Vision `"weights_present": false` | Place `apps/VisionWorker/weights/best.pt` |
+| Port `5002` in use | Do not mix host Vision + option B; free the port |
+| LAN capture WS fails | Re-run `pef_lan_endpoint.ps1`, recreate `web`, restart VisionWorker, add firewall rule for TCP `5002` |
 
-Re-subida manual de fotos (si hace falta fuera de Compose): `.\scripts\seed_family_examples.ps1`.
+Manual photo re-upload (if needed outside Compose): `.\scripts\seed_family_examples.ps1`.
 
 ---
 
-## Guía rápida de prueba manual
+## Quick manual test guide
 
-Credenciales: sección anterior. Semilla sucia → `down -v` + `up -d --build` + Vision en host.
+Credentials: previous section. Dirty seed → `down -v` + `up -d --build` + Vision on host.
 
 1. **Stack** — `compose ps`, `.\scripts\smoke_auth.ps1`.
-2. **Login** — cada rol en `/sign-in`.
-3. **Ciclo SPD → OP → SPD** — New session → OP Start / Continue → SPD resolve / Confirm close.
-4. **Visión** — VisionWorker + pesos; captura → Finish → validación; EvidenceWorker genera clips.
-5. **Admin familias** — fotos de referencia visibles; Replace/Delete quita el objeto del bucket.
+2. **Login** — each role at `/sign-in`.
+3. **SPD → OP → SPD cycle** — New session → OP Start / Continue → SPD resolve / Confirm close.
+4. **Vision** — VisionWorker + weights; capture → Finish → validation; EvidenceWorker produces clips.
+5. **Admin families** — reference photos visible; Replace/Delete removes the object from the bucket.
 
 ---
 
-## Ajuste fino VisionWorker
+## VisionWorker fine-tuning
 
-Pipeline demo `matrix_v1` (Hungarian por defecto; `VISION_ASSIGN_SOLVER=greedy` para A/B). Seed: modelo activo `yolo26l-demo` + 17 clases.
+Demo pipeline `matrix_v1` (Hungarian by default; `VISION_ASSIGN_SOLVER=greedy` for A/B). Seed: active model `yolo26l-demo` + 17 classes.
 
-| Variable | Default | Rol |
+| Variable | Default | Role |
 | --- | --- | --- |
-| `VISION_BOX_RECALL_CONF` | `0.12` | Piso de existencia de caja |
+| `VISION_BOX_RECALL_CONF` | `0.12` | Box existence floor |
 | `VISION_CONF_DISPLAY_THRESHOLD` | `0.70` | Overlay naming (kept_raw) |
-| `VISION_CONF_DISPLAY_REASSIGN` | `0.60` | Naming si reassigned (+ raw top-1 ≥ 0.70) |
-| `VISION_REASSIGN_MIN_SCORE` | `0.45` | Piso para reasignar familia |
-| `VISION_REASSIGN_MAX_GAP` | `0.35` | Cercanía al top-1 raw |
+| `VISION_CONF_DISPLAY_REASSIGN` | `0.60` | Naming when reassigned (+ raw top-1 ≥ 0.70) |
+| `VISION_REASSIGN_MIN_SCORE` | `0.45` | Floor to reassign family |
+| `VISION_REASSIGN_MAX_GAP` | `0.35` | Closeness to raw top-1 |
 | `VISION_ASSIGN_SOLVER` | `hungarian` | `hungarian` \| `greedy` |
-| `VISION_FRAME_STRIDE_CUDA` | `1` | Inferir cada N frames (CUDA) |
-| `VISION_FRAME_STRIDE_CPU` | `5` | Inferir cada N frames (CPU) |
-| `VISION_FRAME_STRIDE` | (unset) | Fija CUDA y CPU al mismo N |
-| `VISION_COUNT_SAMPLE_INTERVAL_S` | `1.0` | Tope de `count_event` video_window |
-| `VISION_WORKER_WS_URL` | `ws://127.0.0.1:5002/ws` | WS que usa el navegador |
+| `VISION_FRAME_STRIDE_CUDA` | `1` | Infer every N frames (CUDA) |
+| `VISION_FRAME_STRIDE_CPU` | `5` | Infer every N frames (CPU) |
+| `VISION_FRAME_STRIDE` | (unset) | Forces CUDA and CPU to the same N |
+| `VISION_COUNT_SAMPLE_INTERVAL_S` | `1.0` | Cap for `count_event` video_window |
+| `VISION_WORKER_WS_URL` | `ws://<LAN>:5002/ws` (script) / loopback | Browser WebSocket |
 | `VISION_WS_SECRET` | demo | HMAC Flask ↔ worker |
-| `VISION_WS_ORIGINS` | localhost:5000 | Orígenes handshake WS |
-| `VISION_HOLD_SECONDS` | `0.275` | Hold con caja / oclusión |
+| `VISION_WS_ORIGINS` | localhost + LAN portal | WS handshake origins |
+| `VISION_HOLD_SECONDS` | `0.275` | Hold with box / occlusion |
 | `VISION_NAME_HOLD_SECONDS` | `0.35` | Sticky naming |
 | `VISION_CONFUSION_HOLD_SECONDS` | `0.20` | Hold top2–N |
-| `VISION_HOLD_MIN_SCORE` | `0.50` | No entrar en hold si conf ≤ 0.49 |
-| `VISION_HOLD_DROP_SCORE` | `0.35` | Drop inmediato de hold si conf < 0.35 |
-| `VISION_HOLD_SEED_FRAMES` | `3` | Semilla en tiempo de cinta |
-| `VISION_HOLD_ABSENT_STREAK` | `1` | Gracia de ausencia |
-| `VISION_HOLD_ABSENT_SECONDS` | `0.09` | TTL corto sin overlap |
-| `VISION_HOLD_ZONE_IOU` | `0.22` | Overlap / oclusión |
-| `VISION_TRACK_MEMORY` | `1` | Pistas IoU + EMA (`0` = rollback) |
-| `VISION_TRACK_EMA_ALPHA` | `0.35` | Peso frame actual |
-| `VISION_TRACK_IOU` | `0.30` | IoU mínimo de asociación |
-| `VISION_TRACK_MISS_SECONDS` | `0.50` | Caducidad de pista |
-| `VISION_TRACK_PRIOR` | `0.20` | Bonus familia previa |
-| `VISION_TRACK_CONTENTION_MIN` | `0.25` | Apertura a siguiente cupo |
+| `VISION_HOLD_MIN_SCORE` | `0.50` | Do not enter hold if conf ≤ 0.49 |
+| `VISION_HOLD_DROP_SCORE` | `0.35` | Immediate hold drop if conf < 0.35 |
+| `VISION_HOLD_SEED_FRAMES` | `3` | Seed in tape time |
+| `VISION_HOLD_ABSENT_STREAK` | `1` | Absence grace |
+| `VISION_HOLD_ABSENT_SECONDS` | `0.09` | Short TTL without overlap |
+| `VISION_HOLD_ZONE_IOU` | `0.22` | Overlap / occlusion |
+| `VISION_TRACK_MEMORY` | `1` | IoU tracks + EMA (`0` = rollback) |
+| `VISION_TRACK_EMA_ALPHA` | `0.35` | Current-frame weight |
+| `VISION_TRACK_IOU` | `0.30` | Minimum association IoU |
+| `VISION_TRACK_MISS_SECONDS` | `0.50` | Track expiry |
+| `VISION_TRACK_PRIOR` | `0.20` | Prior-family bonus |
+| `VISION_TRACK_CONTENTION_MIN` | `0.25` | Open next quota |
 
 ---
 
-## Estado del desarrollo
+## Development status
 
-| Fase | Contenido | Estado |
+| Phase | Content | Status |
 | --- | --- | --- |
-| 0–1 | Empaque Docker (PG/Redis/Mongo/Garage) + seeds | Listo |
-| 2 | Auth JWT/Redis (DS01), cookies, locale | Listo |
-| 3.x | Contrato RF OP/SPD, privacy, cierre supervisor | Listo |
-| 4 | UI RF OP/SPD | Listo |
-| 5a | VisionWorker + YOLO + matrix_v1 + evidencia BD-first | Listo (demo) |
-| 6 | i18n `en` + `es-MX` | Listo |
-| 7 | Admin portal (`admin_local`) + CatalogService | Listo |
-| 8 | Microservicios Session/Evidence/Audit/… + Android | Integrado |
+| 0–1 | Docker packaging (PG/Redis/Mongo/Garage) + seeds | Done |
+| 2 | Auth JWT/Redis (DS01), cookies, locale | Done |
+| 3.x | OP/SPD RF contract, privacy, supervisor close | Done |
+| 4 | OP/SPD RF UI | Done |
+| 5a | VisionWorker + YOLO + matrix_v1 + BD-first evidence | Done (demo) |
+| 6 | i18n `en` + `es-MX` | Done |
+| 7 | Admin portal (`admin_local`) + CatalogService | Done |
+| 8 | Session/Evidence/Audit/… microservices + Android | Integrated |
 
-Idioma fuente: **inglés**; UI `es-MX` vía Babel. Rutas pre-RF del operador: `/legacy/...` (`apps/BackendWebFlask/legacy/README.md`). El árbol raíz `Legacy/` (plantillas V2 / zips de porting) se eliminó en `review-sandbox`; bitácora MS antigua: `docs/archive/PLAN_TRABAJO.md`.
+Source language: **English**; UI `es-MX` via Babel. Pre-RF operator routes: `/legacy/...` (`apps/BackendWebFlask/legacy/README.md`). The root `Legacy/` tree (V2 templates / porting zips) was removed on `review-sandbox`; older MS logbook: `docs/archive/PLAN_TRABAJO.md`.

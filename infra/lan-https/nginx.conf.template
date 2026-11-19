@@ -1,0 +1,60 @@
+# PEF lab LAN HTTPS front (camera / secure context). Rendered by scripts/pef_lan_cert.ps1
+# into infra/certs/lan/nginx.conf — do not envsubst nginx $variables.
+
+server {
+    listen 5443 ssl;
+    http2 on;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/certs/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:pef_lan:10m;
+    ssl_session_tickets off;
+
+    client_max_body_size 256m;
+    client_body_timeout 120s;
+    proxy_read_timeout 120s;
+    proxy_send_timeout 120s;
+
+    # OPTIONS required for CORS preflight when the portal page and /auth are treated as cross-origin
+    # (e.g. absolute AUTH_BROWSER_URL). Same-origin /auth needs no preflight but OPTIONS must not 403.
+    location ~ ^/auth/(login|logout|refresh|verify|preferences|password/change)$ {
+        limit_except GET POST OPTIONS { deny all; }
+        rewrite ^/auth/(.*)$ /$1 break;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_pass http://__AUTH_UPSTREAM__;
+    }
+    location /auth/ {
+        default_type application/json;
+        return 404 '{"error":"not_found"}';
+    }
+
+    location = /ws {
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+        proxy_pass http://__VISION_UPSTREAM__;
+    }
+
+    location / {
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_pass http://__PORTAL_UPSTREAM__;
+    }
+}
