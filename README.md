@@ -1,4 +1,4 @@
-# PEF — Surgical Instrument Traceability
+# PEF Surgical Instrument Traceability
 
 Vision-assisted counting and digital traceability of surgical instruments (PEF · UDEM).
 
@@ -9,13 +9,13 @@ Web portal (operator / SPD / administration), JWT authentication, YOLO vision, r
 | Layer | Components |
 | --- | --- |
 | Portal | `BackendWebFlask` (admin in-process via `admin_local`) |
-| Identity | `BackendAuthService` — portal cookies + `/api/v1/auth` (Android) |
+| Identity | `BackendAuthService` - portal cookies + `/api/v1/auth` (Android) |
 | Vision / OP evidence | `VisionWorker` (host, CUDA) · `EvidenceWorker` (Docker) |
 | Microservices | Catalog, Session, EvidenceService, Audit, Notifications, Monitoring, Integration |
 | Mobile client | `apps/PEF-Android` |
 | Infra | PostgreSQL, Redis, MongoDB, Garage (S3) |
 
-`apps/AdminService/` is **legacy**; the portal admin panel no longer requires it. Product catalog: `CatalogService` (`:5003`).
+Admin UI runs in-process via `admin_local` on the portal. Product catalog: `CatalogService` (`:5003`).
 
 ## Team
 
@@ -34,14 +34,14 @@ Advisor: Dr. Raul Morales Salcedo.
 ## Prerequisites
 
 - Docker Desktop running
-- Python 3.11+ on `PATH` (**only** for VisionWorker on the host)
+- Python 3.11+ on `PATH` (only for VisionWorker on the host)
 - Git
 - YOLO weights: `apps/VisionWorker/weights/best.pt` (not versioned; `*.pt` in `.gitignore`)
-- `ffmpeg` on PATH (or `.\tools\ensure-ffmpeg.ps1` on Windows) — used by EvidenceWorker in Docker and Vision on the host
+- `ffmpeg` on PATH (or `.\tools\ensure-ffmpeg.ps1` on Windows) - used by EvidenceWorker in Docker and Vision on the host
 
 ### Canonical Compose
 
-For the MS + portal + seeds stack use **`docker-compose.integral.yml`** (overlays: `docker-compose.vision-cpu.yml`, `gateway` profile).  
+For the MS + portal + seeds stack use `docker-compose.integral.yml` (overlays: `docker-compose.vision-cpu.yml`, `gateway` profile).  
 `docker-compose.yml` remains as legacy infra reference (older e2e/VM scripts); it is not the daily demo startup.
 
 Default ports (see `.env.example`):
@@ -64,9 +64,9 @@ python --version
 
 ## Startup (single flow)
 
-Everything from the **repository root** (`PEF-Instrumental-quirurgico`).
+Everything from the repository root (`PEF-Instrumental-quirurgico`).
 
-Stack in Docker (infra + Auth/MS/portal/`evidence-worker`) and **one terminal** with VisionWorker on the host (CUDA).
+Stack in Docker (infra + Auth/MS/portal/`evidence-worker`) and one terminal with VisionWorker on the host (CUDA).
 
 ### 1. Configure environment
 
@@ -89,12 +89,12 @@ docker compose -f docker-compose.integral.yml ps
 On first boot (empty Postgres volume) these run automatically:
 
 1. `data/migrations/001_init.sql` + migrations `004`…`021`
-2. `data/seeds/002_seed_catalogs.sql` and `003_seed_demo.sql` (canonical **+** merged Locust accounts/ORs)
-3. `garage-init` — buckets `privacy-notices` and `pef-admin`
-4. `seed-family-examples` — uploads `data/seeds/example_images/` to Garage and creates `media_asset` + `family_example`
-5. `seed-demo-volume` — re-applies `004_seed_demo_locust.sql` (idempotent) and generates history/KPIs/audit/monitoring with variable counts (`SEED_*` in `.env`)
+2. `data/seeds/002_seed_catalogs.sql` and `003_seed_demo.sql` (canonical + merged Locust accounts/ORs)
+3. `garage-init` - buckets `privacy-notices` and `pef-admin`
+4. `seed-family-examples` - uploads `data/seeds/example_images/` to Garage and creates `media_asset` + `family_example`
+5. `seed-demo-volume` - re-applies `004_seed_demo_locust.sql` (idempotent) and generates history/KPIs/audit/monitoring with variable counts (`SEED_*` in `.env`)
 
-Later restarts **do not** re-run the init SQL; photo and volume seeds do run again and are **idempotent**. Clean seed:
+Later restarts do not re-run the init SQL; photo and volume seeds do run again and are idempotent. Clean seed:
 
 ```powershell
 docker compose -f docker-compose.integral.yml --env-file .env down -v
@@ -109,23 +109,23 @@ docker compose -f docker-compose.integral.yml --env-file .env --profile gateway 
 
 ### Flexible LAN IP (portal / App / CORS / Vision WS)
 
-Do **not** hardcode IPs and do **not** rely on localhost for demos. On any Wi‑Fi:
+Do not hardcode IPs and do not rely on localhost for demos. On any Wi-Fi:
 
 ```powershell
 .\scripts\pef_up.ps1
 ```
 
-That detects the LAN IP, rewrites `.env` + Android `local.properties`, mints a lab TLS cert for that IP, and starts Gateway + **HTTPS portal** (`docker-compose.lan-https.yml` → port **5443**).
+That detects the LAN IP, rewrites `.env` + Android `local.properties`, mints a lab TLS cert for that IP, and starts Gateway + HTTPS portal (`docker-compose.lan-https.yml` → port `:5443`).
 
-Open the portal at **`https://<HOST_LAN_IP>:5443/`** (accept the lab certificate once). Browsers only allow the live camera in a secure context; plain `http://<LAN>:5000` can still upload videos, but **Start camera** needs HTTPS.
+Open the portal at `https://<HOST_LAN_IP>:5443/` (accept the lab certificate once). Browsers only allow the live camera in a secure context; plain `http://<LAN>:5000` can still upload videos, but Start camera needs HTTPS.
 
 What gets updated: `HOST_LAN_IP`, `AUTH_ALLOWED_ORIGINS`, `AUTH_BROWSER_URL=/auth` (same-origin via portal-lan), `VISION_WORKER_WS_URL=wss://<LAN>:5443/ws`, `PORTAL_COOKIE_SECURE`, `CSRF_TRUSTED_ORIGINS`, `S3_PUBLIC_ENDPOINT`, and `pef.apiBaseUrl.debug`. Services bind on `HOST_BIND=0.0.0.0`. Restart host VisionWorker after the script if you use live capture. The LAN nginx template always allows `OPTIONS` on `/auth/*` so CORS preflight cannot 403 after redeploy.
 
-**Android (debug):** the app discovers the Gateway at runtime on the current Wi‑Fi. Tap **Retry** after changing networks — no rebuild required for IP changes.
+Android (debug): the app discovers the Gateway at runtime on the current Wi-Fi. Tap Retry after changing networks - no rebuild required for IP changes.
 
 #### Windows firewall (Gateway + VisionWorker + portal HTTPS)
 
-Allow inbound TCP so phones/other PCs can reach the stack. Run **PowerShell as Administrator**:
+Allow inbound TCP so phones/other PCs can reach the stack. Run PowerShell as Administrator:
 
 ```powershell
 New-NetFirewallRule -DisplayName "PEF Portal HTTPS LAN 5443" -Direction Inbound -Protocol TCP -LocalPort 5443 -Action Allow
@@ -167,7 +167,7 @@ UI login: [http://127.0.0.1:5000/sign-in](http://127.0.0.1:5000/sign-in).
 
 ---
 
-## Option B — VisionWorker in Docker (CPU only)
+## Option B - VisionWorker in Docker (CPU only)
 
 No CUDA/GPU. Do not also run Vision on the host (port `:5002` conflict).
 
@@ -238,7 +238,7 @@ aws --endpoint-url http://127.0.0.1:3900 s3 ls
 
 ### Demo users (seed)
 
-RF roles: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (App). Werkzeug hashes **3.1.8**.  
+RF roles: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (App). Werkzeug hashes `3.1.8`.  
 Full table (canonical + Locust + `gen.*`): [`data/seeds/DEMO_CREDENTIALS.md`](data/seeds/DEMO_CREDENTIALS.md).
 
 | Role | Email | Password | Surface |
@@ -248,7 +248,7 @@ Full table (canonical + Locust + `gen.*`): [`data/seeds/DEMO_CREDENTIALS.md`](da
 | spd_supervisor | `supervisor@instrumed.com` | `DemopwdSPD78!` | Web SPD |
 | spd_supervisor | `supervisor2@instrumed.com` | `DemopwdSPD278!` | Web SPD |
 | it_admin | `admin@instrumed.com` | `DemopwdADM78!` | Web Admin |
-| **or_charge (App)** | `floor@instrumed.com` | `DemopwdFLR78!` | **Mobile app (standard account)** |
+| or_charge (App) | `floor@instrumed.com` | `DemopwdFLR78!` | Mobile app (standard account) |
 | Locust OP | `ana.ruiz@` / `luis.pena@instrumed.com` | see DEMO_CREDENTIALS | multi-user load |
 | Locust SPD/Admin/Floor | `carla.soto@` / `ti.extra@` / `nora.diaz@` / `dual.admin.spd@` | see DEMO_CREDENTIALS | load / mixed roles |
 
@@ -273,19 +273,19 @@ PEF-Instrumental-quirurgico/
 │   ├── VisionWorker/weights/       # local best.pt (+ .venv only here)
 │   ├── EvidenceWorker/
 │   ├── CatalogService/ … IntegrationService/
-│   ├── AdminService/               # Legacy
 │   └── PEF-Android/
 ├── data/
 │   ├── migrations/                 # 001 + 004…021
 │   ├── seeds/                      # 002, 003(+Locust), 004, DEMO_CREDENTIALS.md, example_images/
 │   ├── DataStandards/
 │   └── FunctionalRequirements/
+├── docs/                           # stub only; contracts live under data/
 ├── infra/                          # Garage, gateway
 └── scripts/
     ├── garage_init_buckets.py      # Compose service garage-init
     ├── seed_family_examples.py     # Compose service seed-family-examples
     ├── seed_demo_volume.py         # Locust ensure + KPI/history volume (Compose seed-demo-volume)
-    ├── pef_up.ps1                  # Detect LAN IP + compose up (gateway) — preferred bring-up
+    ├── pef_up.ps1                  # Detect LAN IP + compose up (gateway) - preferred bring-up
     ├── pef_lan_endpoint.ps1        # LAN IP + CORS + Vision WS + Android URL
     ├── smoke_module_health.ps1
     └── smoke_auth.ps1
@@ -309,12 +309,12 @@ Hourly: does not fire while idle; catch-up on resume; ratio via VisionWorker `/s
 
 ## Internationalization (i18n)
 
-Flask-Babel in `BackendWebFlask`: source language **en**, catalog **es-MX** (`translations/es_MX/`). Preference: authenticated user → `ui_preferences.locale`; guest → cookie `pef_locale`.
+Flask-Babel in `BackendWebFlask`: source language `en`, catalog `es-MX` (`translations/es_MX/`). Preference: authenticated user → `ui_preferences.locale`; guest → cookie `pef_locale`.
 
-**UI strings** use English msgids in code/templates (`_()` / `N_()`).  
-**System DB labels** (catalog `code`s, known seed names) are mapped in `i18n.py` (`localize_db_label` / `localize_db_text`) to English msgids, then translated by Babel. Free-text entered by users is **not** translated.
+UI strings use English msgids in code/templates (`_()` / `N_()`).  
+System DB labels (catalog `code`s, known seed names) are mapped in `i18n.py` (`localize_db_label` / `localize_db_text`) to English msgids, then translated by Babel. Free-text entered by users is not translated.
 
-After adding portal screens (e.g. Hospital operations, capture traffic strip), re-run extract/update/compile and fill empty or fuzzy `msgstr` entries in `es_MX` — fuzzy auto-matches can attach the wrong Spanish string to a new msgid.
+After adding portal screens (e.g. Hospital operations, capture traffic strip), re-run extract/update/compile and fill empty or fuzzy `msgstr` entries in `es_MX` - fuzzy auto-matches can attach the wrong Spanish string to a new msgid.
 
 New strings (environment with Babel installed, e.g. web image or a temporary venv):
 
@@ -349,11 +349,11 @@ Manual photo re-upload (if needed outside Compose): `.\scripts\seed_family_examp
 
 Credentials: previous section. Dirty seed → `down -v` + `up -d --build` + Vision on host.
 
-1. **Stack** — `compose ps`, `.\scripts\smoke_auth.ps1`.
-2. **Login** — each role at `/sign-in`.
-3. **SPD → OP → SPD cycle** — New session → OP Start / Continue → SPD resolve / Confirm close.
-4. **Vision** — VisionWorker + weights; capture → Finish → validation; EvidenceWorker produces clips.
-5. **Admin families** — reference photos visible; Replace/Delete removes the object from the bucket.
+1. Stack - `compose ps`, `.\scripts\smoke_auth.ps1`.
+2. Login - each role at `/sign-in`.
+3. SPD → OP → SPD cycle - New session → OP Start / Continue → SPD resolve / Confirm close.
+4. Vision - VisionWorker + weights; capture → Finish → validation; EvidenceWorker produces clips.
+5. Admin families - reference photos visible; Replace/Delete removes the object from the bucket.
 
 ---
 
@@ -407,4 +407,6 @@ Demo pipeline `matrix_v1` (Hungarian by default; `VISION_ASSIGN_SOLVER=greedy` f
 | 7 | Admin portal (`admin_local`) + CatalogService | Done |
 | 8 | Session/Evidence/Audit/… microservices + Android | Integrated |
 
-Source language: **English**; UI `es-MX` via Babel. Pre-RF operator routes: `/legacy/...` (`apps/BackendWebFlask/legacy/README.md`). The root `Legacy/` tree (V2 templates / porting zips) was removed on `review-sandbox`; older MS logbook: `docs/archive/PLAN_TRABAJO.md`.
+Code comments: English. UI copy: `en` + `es-MX` via Babel.
+Pre-RF operator redirects still under `/legacy/...` (see `apps/BackendWebFlask/legacy/README.md`).
+Data contracts: `data/DataStandards/`. Screen RFs: `data/FunctionalRequirements/`.

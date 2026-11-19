@@ -7,7 +7,7 @@ owner: PEF Core / Evidence / Worker
 applies_to: [BE, Worker, MS, WP]
 stores: [PostgreSQL, ObjectStorage]
 related: [PEF-DS03, PEF-DS04, PEF-DS06, PEF-DS07]
-last_updated: 2026-10-30
+last_updated: 2026-11-19
 ---
 
 # PEF-DS05 · Evidence and Object Storage
@@ -16,7 +16,7 @@ last_updated: 2026-10-30
 
 Este estándar define **dónde viven los bytes** (JPEG, clip de ráfaga MP4, pesos del modelo) y **cómo se registran en PostgreSQL** sin meter el archivo dentro de la base relacional.
 
-Tabla dueña: `media_asset`. El object storage (GCS en nube o MinIO on-prem con API S3-compatible) guarda el objeto; PG guarda metadata, URI y ciclo de purga.
+Tabla dueña: `media_asset`. El object storage (API S3-compatible) guarda el objeto; PG guarda metadata, URI y ciclo de purga. Lab y prod on-prem usan Garage (S3-compatible); `storage_provider` sigue admitiendo `gcs` / `minio` / `other` (Garage en lab suele etiquetarse `minio` como tag S3-compat, sin implicar producto MinIO).
 
 No define el documento Mongo del checkpoint (PEF-DS06): ese documento **apunta** a `media_asset.id`. No define familias ni YOLO registry (PEF-DS03): solo el puntero desde esas tablas. No define el flujo ARCO completo (PEF-DS07), aunque reutiliza `blocked_at` / `purge_*`.
 
@@ -30,20 +30,21 @@ No define el documento Mongo del checkpoint (PEF-DS06): ese documento **apunta**
 | :--- | :--- |
 | **media_asset** | Fila de metadata de un objeto en storage. |
 | **Object storage** | Bucket de objetos direccionables por clave (`bucket` + `object_key`). |
-| **URI canónica** | Cadena en `gcs_uri` (nombre histórico; también vale para MinIO/S3). |
+| **URI canónica** | Cadena en `gcs_uri` (nombre histórico; también vale para Garage/S3 u otros S3-compat). |
 | **Purga** | Borrar el objeto del bucket y marcar `purged_at` en PG. |
 | **Bloqueo** | `blocked_at` marcado (p. ej. ARCO); no se sirve el objeto aunque aún exista. |
 
 ### 1.2 Uso
 
-**Quién escribe:** Worker (JPEG o MP4 de evidencia), jobs MLOps (pesos), Backend/Evidence Service (altas autorizadas).  
-**Quién lee:** Portal (URL firmada), MS Evidence, panel de supervisión.
+**Quién escribe:** EvidenceWorker (clips MP4 desde el ring Redis `pef:evidence:frames:*` + triggers), VisionWorker (JPEG al ring; no dueño del bucket), jobs MLOps (pesos), Backend/Evidence Service (altas autorizadas).  
+**Quién lee:** Portal (URL firmada), MS Evidence, panel de supervisión / App.
 
 **Flujo típico**
 
-1. Subir bytes al bucket con `object_key` prefijado (`institution_id/session_id/...`).
-2. INSERT `media_asset` con URI, kind, hash, retención.
-3. Quien necesite el archivo (Mongo checkpoint, `family_example`, `yolo_model`) guarda solo el UUID.
+1. VisionWorker publica frames JPEG al ring Redis; EvidenceWorker ensambla clip off hot path.
+2. Subir bytes al bucket Garage (S3) con `object_key` prefijado (`institution_id/session_id/...`).
+3. INSERT `media_asset` con URI, kind, hash, retención.
+4. Quien necesite el archivo (Mongo checkpoint, `family_example`, `yolo_model`) guarda solo el UUID. Retry de upload: cola Redis `pef:evidence:upload_retry`.
 
 ---
 
@@ -99,7 +100,7 @@ Naming de clave sugerido: `{institution_id}/{session_id|models}/{yyyy}/{uuid}.{e
 2. Job idempotente: si `purge_requested_at` y aún no `purged_at` → borrar en storage → `purged_at = now()`.
 3. Si `blocked_at` no es nulo → no emitir URL firmada aunque el objeto siga en el bucket.
 4. Pesos (`kind = weights`) pueden tener retención distinta (política MLOps); no se purgan con el mismo TTL clínico sin revisión.
-5. **Clip de ráfaga v1:** el evidence-worker toma el ring buffer (unos 5–8 s de JPEG) y lo codifica a **MP4 H.264**, `yuv420p`, **sin audio**, un archivo / un checkpoint. Es más liviano que GIF y el navegador lo reproduce nativo. `kind = 'mp4'`, `content_type = 'video/mp4'`. `mkv` y `webm` están en el CHECK; la UI web prioriza MP4. Si falla el encode → un JPEG (`kind = 'jpeg'`). `gif` solo filas viejas.
+5. **Clip de ráfaga v1:** EvidenceWorker toma el ring (Redis → RAM, unos 5–8 s de JPEG) y lo codifica a **MP4 H.264**, `yuv420p`, **sin audio**, un archivo / un checkpoint. Es más liviano que GIF y el navegador lo reproduce nativo. `kind = 'mp4'`, `content_type = 'video/mp4'`. `mkv` y `webm` están en el CHECK; la UI web prioriza MP4. Si falla el encode → un JPEG (`kind = 'jpeg'`). `gif` solo filas viejas.
 
 **Ejemplo de fila completa (JPEG de checkpoint)**
 
@@ -128,8 +129,8 @@ Naming de clave sugerido: `{institution_id}/{session_id|models}/{yyyy}/{uuid}.{e
 ```json
 {
   "id": "m1000003-0000-4000-8000-000000000003",
-  "gcs_uri": "s3://pef-minio-evidence/11111111-1111-1111-1111-111111111111/cccccccc-cccc-cccc-cccc-cccccccccccc/2026/09/burst-disc.mp4",
-  "bucket": "pef-minio-evidence",
+  "gcs_uri": "s3://evidence/11111111-1111-1111-1111-111111111111/cccccccc-cccc-cccc-cccc-cccccccccccc/2026/09/burst-disc.mp4",
+  "bucket": "evidence",
   "object_key": "11111111-1111-1111-1111-111111111111/cccccccc-cccc-cccc-cccc-cccccccccccc/2026/09/burst-disc.mp4",
   "content_type": "video/mp4",
   "kind": "mp4",
@@ -173,7 +174,7 @@ Naming de clave sugerido: `{institution_id}/{session_id|models}/{yyyy}/{uuid}.{e
 
 | Aspecto | Responsable |
 | :--- | :--- |
-| Alta de evidencia clínica | Worker + Backend / Evidence Service |
+| Alta de evidencia clínica | EvidenceWorker + Backend / Evidence Service |
 | Publicación de pesos | Visión / MLOps |
 | Job de purga | Ops / Backend (idempotente) |
 | Bloqueo ARCO | Cumplimiento vía DS07 |
@@ -190,9 +191,9 @@ Los bytes no caben ni deben vivir en PostgreSQL ni en Mongo como BLOB masivo de 
 
 1. **Una tabla `media_asset`** con `kind` discriminador (JPEG, MP4 de ráfaga, pesos; `gif` legado).
 2. **Clip v1 = MP4 H.264 sin audio**, no GIF: menor peso, mejor fidelidad, `<video>` nativo.
-3. **`storage_provider`** para portar GCS ↔ MinIO sin cambiar el modelo.
+3. **`storage_provider`** para portar GCS ↔ Garage (S3) u otros S3-compat sin cambiar el modelo.
 4. **Campos de purga/bloqueo en la misma fila** para que el job ARCO/TTL sea único.
-5. **Nombre de columna `gcs_uri` conservado** aunque el provider sea MinIO (legado de diseño; el valor es la URI canónica del objeto).
+5. **Nombre de columna `gcs_uri` conservado** aunque el provider sea Garage (legado de diseño; el valor es la URI canónica del objeto).
 
 **Alternativas no elegidas**
 
@@ -215,6 +216,6 @@ Los bytes no caben ni deben vivir en PostgreSQL ni en Mongo como BLOB masivo de 
 | Título | Evidence and Object Storage |
 | Versión | 0.2.0 |
 | Estado | draft |
-| Almacenes | PostgreSQL (`media_asset`); Object storage (GCS/MinIO) |
+| Almacenes | PostgreSQL (`media_asset`); Object storage (Garage S3 on-prem hoy; otros S3-compat / GCS por contrato) |
 | Fuera de alcance | Documento Mongo; política legal ARCO (orquestación en DS07); contrato HTTP (DS09) |
 | DDL de referencia | `esquema_base_datos_v2.md` §5.5 |

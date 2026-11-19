@@ -42,7 +42,7 @@ required (403 + `DENIED_*` otherwise), "last active administrator" protection an
 every Redis session of a deactivated / moved / reset account (`auth:user_tokens:{user_id}`).
 Contract: `openapi.yaml` (served at `/api/v1/auth/openapi.yaml`, Swagger UI at `/api/v1/auth/docs`)
 and `schemas/identity.xsd` (`/api/v1/auth/schemas/identity.xsd`, every XML body is validated).
-Portal integration and Docker: `GUIA_AUTH.md`.
+Portal notes: this README. Run/deploy: `../../README.md`.
 
 ## Legacy routes (BackendWebFlask)
 

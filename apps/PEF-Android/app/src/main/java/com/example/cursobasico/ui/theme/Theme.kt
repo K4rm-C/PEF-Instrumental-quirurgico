@@ -36,10 +36,7 @@ private fun materialScheme(colors: PefColors) = if (colors.isDark) {
     )
 }
 
-/**
- * Tema del PEF: claro, oscuro o automático según el sistema (preferencia en DataStore).
- * Sin color dinámico de Android 12: la identidad visual del equipo se conserva.
- */
+/** PEF theme: light/dark/system from DataStore. no Material You dynamic colors; keep our palette */
 @Composable
 fun PefTheme(
     mode: ThemeMode = ThemeMode.SYSTEM,
@@ -60,6 +57,6 @@ fun PefTheme(
     }
 }
 
-/** Compatibilidad con el nombre generado por Android Studio. */
+/** compat with Android Studio generated name */
 @Composable
 fun CursoBasicoTheme(content: @Composable () -> Unit) = PefTheme(content = content)

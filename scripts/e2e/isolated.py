@@ -1,4 +1,4 @@
-"""Isolated, reproducible E2E environment of the PEF (see GUIA_PRUEBAS.md).
+"""Isolated, reproducible E2E environment of the PEF (see README.md).
 
 The E2E scripts change persistent state on purpose: they schedule and close sessions, mark pieces
 `lost` (stock), create users / institutions / families, upload evidence to Garage, write MongoDB

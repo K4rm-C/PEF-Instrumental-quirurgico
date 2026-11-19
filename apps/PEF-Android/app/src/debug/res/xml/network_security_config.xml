@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- SOLO compilaciones debug: HTTP en claro permitido para lab (LAN IP flexible + 10.0.2.2 + loopback).
-     La IP del host cambia al cambiar de red; por eso el base-config debug no lista dominios fijos.
-     Release sigue en src/main con cleartext deshabilitado y HTTPS obligatorio.
-     Configurar URL con scripts/pef_lan_endpoint.ps1 → pef.apiBaseUrl.debug. -->
+<!-- DEBUG builds ONLY: cleartext HTTP ok for lab (flexible LAN IP + 10.0.2.2 + loopback).
+     host IP moves when you change networks, so debug base-config doesnt hardcode domains.
+     release stays in src/main with cleartext off + HTTPS required.
+     set URL via scripts/pef_lan_endpoint.ps1 -> pef.apiBaseUrl.debug. -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>

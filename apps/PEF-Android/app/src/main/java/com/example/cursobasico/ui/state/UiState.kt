@@ -4,8 +4,8 @@ import com.example.cursobasico.data.remote.ApiResult
 import com.example.cursobasico.data.remote.AppError
 
 /**
- * Estado de una pantalla alimentada por el backend.
- * Unauthorized / Offline se derivan del [AppError] (ver [UiState.Error.kind]).
+ * screen state fed by the backend.
+ * Unauthorized / Offline come from [AppError] (see [UiState.Error.kind]).
  */
 sealed interface UiState<out T> {
     data object Loading : UiState<Nothing>
@@ -14,7 +14,7 @@ sealed interface UiState<out T> {
     data class Error(val error: AppError) : UiState<Nothing> {
         val kind: ErrorKind get() = error.kind()
     }
-    /** El rol del usuario no tiene acceso a este contenido (se decide antes de llamar al backend). */
+    /** user role cant see this (decided before hitting backend) */
     data object NotPermitted : UiState<Nothing>
 }
 
@@ -33,7 +33,7 @@ fun AppError.kind(): ErrorKind = when (this) {
     is AppError.Unexpected -> ErrorKind.UNKNOWN
 }
 
-/** Convierte un resultado remoto en estado; [isEmpty] decide el estado vacío. */
+/** remote result -> UiState; [isEmpty] picks Empty */
 fun <T> ApiResult<T>.toUiState(isEmpty: (T) -> Boolean = { false }): UiState<T> = when (this) {
     is ApiResult.Success -> if (isEmpty(data)) UiState.Empty else UiState.Success(data)
     is ApiResult.Failure -> UiState.Error(error)

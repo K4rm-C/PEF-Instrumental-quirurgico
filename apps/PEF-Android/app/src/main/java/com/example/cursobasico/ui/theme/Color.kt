@@ -5,18 +5,18 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
- * Paleta semántica del PEF. Los valores claros son EXACTAMENTE los colores fijos del diseño original
- * (MainActivity.kt y vistas); los oscuros conservan la misma jerarquía con contraste suficiente (WCAG AA en texto).
+ * PEF semantic palette. light values = exact original design colors (MainActivity / views).
+ * dark keeps same hierarchy with enough contrast (WCAG AA on text).
  */
 @Immutable
 data class PefColors(
     val isDark: Boolean,
-    /** Barras superior e inferior. */
+    /** top + bottom bars */
     val navy: Color,
     val onNavy: Color,
     val navIndicator: Color,
     val brandAccent: Color,
-    /** Botones primarios y pestañas seleccionadas (en claro coincide con navy). */
+    /** primary buttons + selected tabs (light mode matches navy) */
     val action: Color,
     val onAction: Color,
     val background: Color,
@@ -50,7 +50,7 @@ data class PefColors(
     val logoBorder: Color,
     val commentReceived: Color,
     val commentSent: Color,
-    /** Barras de gráficas por posición (1º, 2º…); "Other" usa [chartOther]. */
+    /** chart bars by rank (1st, 2nd...); "Other" uses [chartOther] */
     val chartPalette: List<Color>,
     val chartOther: Color,
     val chartTrack: Color,

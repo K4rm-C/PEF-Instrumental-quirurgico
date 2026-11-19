@@ -54,7 +54,7 @@ import com.example.cursobasico.ui.theme.PefColors
 val pef: PefColors
     @Composable @ReadOnlyComposable get() = LocalPefColors.current
 
-/** Acciones de la barra superior compartida (campana y avatar), provistas por AppNavigation. */
+/** shared top-bar actions (bell + avatar), from AppNavigation */
 data class TopBarState(
     val unreadCount: Int? = null,
     val showUnreadBadge: Boolean = true,
@@ -65,7 +65,7 @@ data class TopBarState(
 
 val LocalTopBarState = staticCompositionLocalOf { TopBarState() }
 
-/** Pinta el contenido según el estado: carga, vacío, error (con reintento), sin permiso o datos. */
+/** paint by state: loading, empty, error (w/ retry), no perm, or data */
 @Composable
 fun <T> StateContent(
     state: UiState<T>,
@@ -151,7 +151,7 @@ fun MessageCard(
     }
 }
 
-/** Aviso informativo (función sin endpoint publicado, datos derivados, etc.). */
+/** info banner (no published endpoint, derived data, etc) */
 @Composable
 fun InfoBanner(text: String, modifier: Modifier = Modifier) {
     Row(
@@ -197,7 +197,7 @@ fun PrimaryButton(
     }
 }
 
-/** Botón de actualización manual (sin polling permanente). */
+/** manual refresh button (no permanent polling) */
 @Composable
 fun RefreshButton(onClick: () -> Unit, refreshing: Boolean) {
     IconButton(onClick = onClick, enabled = !refreshing, modifier = Modifier.size(32.dp)) {
@@ -209,7 +209,7 @@ fun RefreshButton(onClick: () -> Unit, refreshing: Boolean) {
     }
 }
 
-/** Insignia de estado de sesión con los colores del diseño original. */
+/** session status badge, original design colors */
 @Composable
 fun SessionStatusPill(code: String, modifier: Modifier = Modifier) {
     val (bg, fg, dot) = when (code) {

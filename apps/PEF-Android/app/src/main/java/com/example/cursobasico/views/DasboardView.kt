@@ -85,7 +85,7 @@ fun SurgicalDashboard(onNavigate: (NavKey) -> Unit,onSessionClick: (NavKey) -> U
     val state by viewModel.state.collectAsStateWithLifecycle()
     val discrepancies by viewModel.discrepancies.collectAsStateWithLifecycle()
     val period by viewModel.period.collectAsStateWithLifecycle()
-    // 0 = Session (tarjetas), 1 = Discrepancies (gráficas). Las sesiones activas/en espera se muestran en ambas.
+    // 0 = Session (cards), 1 = Discrepancies (charts). active/on-hold sessions show on both.
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(Unit) { viewModel.load() }
     LaunchedEffect(selectedTab) { if (selectedTab == 1) viewModel.loadDiscrepancies() }
@@ -141,7 +141,7 @@ fun SurgicalDashboard(onNavigate: (NavKey) -> Unit,onSessionClick: (NavKey) -> U
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 if (selectedTab == 0) {
-                    // Con datos -> valores reales; sin datos (error, sin permiso) -> "—", nunca cifras inventadas.
+                    // have data -> real values; no data (error, no perm) -> "-", never invent numbers
                     StatisticsGrid((state as? UiState.Success)?.data)
                 } else {
                     DiscrepanciesSection(
@@ -195,8 +195,8 @@ fun SurgicalDashboard(onNavigate: (NavKey) -> Unit,onSessionClick: (NavKey) -> U
 private const val MAX_ATTENTION = 10
 
 /**
- * Pestaña Discrepancies: totales del reporte del supervisor (SessionService reports/summary) agrupados por
- * instrumento (familia del catálogo) y por familia de instrumentos (categoría del catálogo).
+ * Discrepancies tab: supervisor report totals (SessionService reports/summary)
+ * grouped by instrument family + by catalog category.
  */
 @Composable
 fun DiscrepanciesSection(
@@ -335,7 +335,7 @@ fun StatisticsGrid(data: DashboardData?) {
 }
 
 // -----------------------------------------
-// TARJETA INDIVIDUAL DE ESTADISTICA
+// SINGLE STAT CARD
 // -----------------------------------------
 
 @Composable
@@ -399,7 +399,7 @@ fun StatisticCard(
 }
 
 // -----------------------------------------
-// MODELO VISUAL DE UNA SESION
+// SESSION CARD VISUAL MODEL
 // -----------------------------------------
 
 @Composable

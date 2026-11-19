@@ -9,8 +9,7 @@
     backend (models.Discrepancy) only exposes a boolean `resolved` flag, with no "rejected"
     state to persist against. This modal is wired up visually and via the same '#' placeholder
     convention already used by Approve / Request Correction; persisting a rejection decision
-    (and whatever DB support it needs) is documented as pending in V2_IMPLEMENTATION_NOTES.md
-    rather than invented here.
+    (and whatever DB support it needs) is still pending rather than invented here.
 
     Expected context:
     - reject_review_url (string, defaults to "#")

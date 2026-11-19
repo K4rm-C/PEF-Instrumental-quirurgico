@@ -175,7 +175,7 @@ if (-not $SkipAndroid) {
 
 Write-Host ""
 Write-Host "pef_lan_endpoint: HOST_LAN_IP=$Ip"
-Write-Host "  Dirígete a (cámara): $portalHttps/"
+Write-Host "  Camera portal:       $portalHttps/"
 Write-Host "  portal HTTP          $portal"
 Write-Host "  auth browser         $authBrowser"
 Write-Host "  gateway              $gateway/"

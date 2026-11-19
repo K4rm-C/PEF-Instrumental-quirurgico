@@ -7,7 +7,7 @@
 > counting flow stays in the portal: `start`, `vision-counts` and `count-report` answer **410**
 > unless `SESSION_OPERATOR_WRITES_ENABLED=true`. Supervisor writes lock the work_session row the
 > portal's Operator transactions lock. Denied attempts are audited (`DENIED_*`). Contract:
-> `openapi.yaml` (`/api/v1/sessions/docs`), `schemas/session-requests.xsd`; integration: `GUIA_SESSION.md`.
+> `openapi.yaml` (`/api/v1/sessions/docs`), `schemas/session-requests.xsd`; notes: this README.
 > The rest of this README describes the v0.1.7 phases; where it says the portal does not call this
 > service or that resolve requires `instrument_id` / `correction_required`, the complement above wins.
 
@@ -51,7 +51,7 @@ service. It never calls VisionWorker either (no HTTP/WebSocket client at all).
 
 Reports are read-only aggregates in PostgreSQL READ ONLY transactions, scoped to the caller's institution
 in every query (`repositories/report_repository.py`, `services/session_reports.py`; XML: `schemas/session-reports.xsd`).
-Definitions and the AI–human rule: `../../GUIA_REPORTES.md`.
+Definitions and the AI-human rule: `repositories/report_repository.py` (data/DataStandards/PEF-DS09).
 
 **Session / Counting API v1: implemented** — every endpoint of the PEF-DS09 §1.3.4 (v0.1.7) table,
 including resolve with `resolved` / `lost` / `recovered`. Camera, WebSocket, Evidence, a real Audit

@@ -29,11 +29,11 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /*
- * Únicamente rutas PUBLICADAS por el API Gateway (infra/gateway/templates/pef/routes.conf.template).
- * Rutas relativas a la URL base (BuildConfig.API_BASE_URL), sin "/" inicial.
+ * only routes PUBLISHED by API Gateway (infra/gateway/templates/pef/routes.conf.template).
+ * relative to base URL (BuildConfig.API_BASE_URL), no leading "/".
  */
 
-/** Rutas de AuthService que NO llevan Bearer (cliente HTTP sin autenticador). */
+/** AuthService routes that do NOT take Bearer (HTTP client w/o authenticator) */
 interface AuthPublicApi {
     @POST("api/v1/auth/login")
     suspend fun login(@Body body: LoginRequest): LoginResponse
@@ -42,7 +42,7 @@ interface AuthPublicApi {
     suspend fun refresh(@Body body: RefreshRequest): TokenResponse
 }
 
-/** Rutas de AuthService con Bearer. */
+/** AuthService routes with Bearer */
 interface AuthApi {
     @GET("api/v1/auth/me")
     suspend fun me(): UserDto
@@ -54,7 +54,7 @@ interface AuthApi {
     suspend fun logout(@Body body: LogoutRequest): Response<Unit>
 }
 
-/** SessionService (lecturas + resolución de discrepancias para or_charge / SPD). */
+/** SessionService (reads + discrepancy resolve for or_charge / SPD) */
 interface SessionApi {
     @GET("api/v1/sessions")
     suspend fun listSessions(
@@ -68,11 +68,11 @@ interface SessionApi {
         @Query("expand") expand: String = "detail",
     ): SessionDetailDto
 
-    /** Reporte agregado del supervisor (solo lectura). [from] = fecha ISO (YYYY-MM-DD); null = últimos 30 días. */
+    /** supervisor aggregate report (read-only). [from] = ISO date (YYYY-MM-DD); null = last 30 days */
     @GET("api/v1/sessions/reports/summary")
     suspend fun reportSummary(@Query("from") from: String? = null): ReportSummaryDto
 
-    /** Resolve abierto (spd_supervisor u or_charge). Cierre administrativo seguro sigue en el portal SPD. */
+    /** open resolve (spd_supervisor or or_charge). admin safe-close still on SPD portal */
     @POST("api/v1/sessions/{id}/discrepancies/{discrepancyId}/resolve")
     suspend fun resolveDiscrepancy(
         @Path("id") sessionId: String,
@@ -81,7 +81,7 @@ interface SessionApi {
     ): ResolveDiscrepancyResult
 }
 
-/** CatalogService (lecturas del catálogo usadas para agrupar discrepancias por categoría). */
+/** CatalogService (catalog reads used to group discrepancies by category) */
 interface CatalogApi {
     @GET("api/v1/catalog/families")
     suspend fun families(): List<CatalogFamilyDto>
@@ -90,7 +90,7 @@ interface CatalogApi {
     suspend fun categories(): List<CatalogCategoryDto>
 }
 
-/** EvidenceService (metadatos y URL prefirmada; nunca rutas internas de Garage). */
+/** EvidenceService (metadata + pre-signed URL; never Garage internal paths) */
 interface EvidenceApi {
     @GET("api/v1/sessions/{id}/evidence")
     suspend fun listSessionEvidence(@Path("id") sessionId: String): List<EvidenceDto>
@@ -99,7 +99,7 @@ interface EvidenceApi {
     suspend fun getEvidence(@Path("id") evidenceId: String): EvidenceDto
 }
 
-/** NotificationsService (notificaciones internas del usuario autenticado). */
+/** NotificationsService (in-app notifs for the logged-in user) */
 interface NotificationsApi {
     @GET("api/v1/notifications")
     suspend fun list(

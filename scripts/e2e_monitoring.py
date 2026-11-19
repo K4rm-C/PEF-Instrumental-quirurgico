@@ -1,4 +1,4 @@
-"""MonitoringService end to end (live services; see GUIA_MONITORING.md).
+"""MonitoringService end to end (live services; see apps/MonitoringService/README.md).
 
 Needs:
 - BackendWebFlask (:5000), with MONITORING_SERVICE_URL, CATALOG_SERVICE_URL and SESSION_SERVICE_URL;

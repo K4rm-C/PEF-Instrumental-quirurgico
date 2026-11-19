@@ -57,8 +57,8 @@ import com.example.cursobasico.ui.components.MessageCard
 import com.example.cursobasico.ui.components.pef
 
 /**
- * Formulario de resolución de discrepancia (sustituye el stub de comentarios).
- * POST /sessions/{id}/discrepancies/{id}/resolve — or_charge / SPD.
+ * discrepancy resolve sheet (replaces old comments stub).
+ * POST /sessions/{id}/discrepancies/{id}/resolve for or_charge / SPD.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -271,7 +271,7 @@ private fun outcomeLabel(code: String): String = when (code) {
     else -> code
 }
 
-/** Compatibilidad: el FAB antiguo abría comentarios; ahora redirige al formulario de resolución. */
+/** compat: old FAB opened comments; now sends you to resolve form */
 @Deprecated("Use ResolveDiscrepancySheet", ReplaceWith("ResolveDiscrepancySheet(emptyList(), false, null, onDismiss) { _, _, _ -> }"))
 @Composable
 fun CommentsSheet(onDismiss: () -> Unit) {

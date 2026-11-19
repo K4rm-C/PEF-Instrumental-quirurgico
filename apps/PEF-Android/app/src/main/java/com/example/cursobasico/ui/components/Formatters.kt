@@ -15,7 +15,7 @@ import java.time.format.DateTimeParseException
 private val DATE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
 private val TIME = DateTimeFormatter.ofPattern("HH:mm")
 
-/** Las fechas del backend son ISO-8601 UTC ("...Z"); se muestran en la zona del dispositivo. */
+/** backend dates are ISO-8601 UTC ("...Z"); show in device zone */
 fun parseInstant(iso: String?): Instant? = try {
     iso?.let { Instant.parse(it) }
 } catch (_: DateTimeParseException) {

@@ -1,4 +1,4 @@
-"""NotificationsService end to end (live services; see GUIA_NOTIFICATIONS.md).
+"""NotificationsService end to end (live services; see apps/NotificationsService/README.md).
 
 Needs: BackendWebFlask (:5000) with NOTIFICATIONS_SERVICE_URL (and CATALOG_SERVICE_URL, SESSION_SERVICE_URL),
 AuthService (:5001), VisionWorker (:5002, weights/best.pt), compose postgres, redis, catalog, session,

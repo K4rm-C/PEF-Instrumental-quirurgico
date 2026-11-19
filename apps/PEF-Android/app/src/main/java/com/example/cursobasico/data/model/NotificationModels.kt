@@ -10,7 +10,7 @@ import kotlinx.serialization.json.JsonObject
  *   GET   /api/v1/notifications/unread-count                                   -> UnreadCountDto
  *   PATCH /api/v1/notifications/{id}/read                                      -> NotificationDto
  *   PATCH /api/v1/notifications/read-all  {type?, before?}                     -> ReadAllResultDto
- * Siempre limitadas al usuario del token y a su institución.
+ * always scoped to the token user + their institution
  */
 @Serializable
 data class NotificationDto(
@@ -47,7 +47,7 @@ data class ReadAllRequest(val type: String? = null, val before: String? = null)
 @Serializable
 data class ReadAllResultDto(val updated: Int, val unread: Int)
 
-/** Tipos válidos de NotificationsService (TYPES en notification_service.py). */
+/** valid NotificationsService types (TYPES in notification_service.py) */
 object NotificationTypes {
     val ALL = listOf(
         "session_scheduled", "discrepancy_pending", "correction_required", "discrepancy_resolved", "session_closed",

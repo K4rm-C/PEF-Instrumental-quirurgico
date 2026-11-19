@@ -134,7 +134,7 @@ def main():
     original_active = q1('SELECT id FROM yolo_model WHERE active')
     best = q('SELECT id, version_tag FROM yolo_model WHERE checksum = :c', c=BEST_SHA)[0]
     if not VIDEO.exists():
-        sys.exit(f'missing {VIDEO}: scripts/make_ms031_count_videos.py (GUIA_PRUEBAS.md §2.4)')
+        sys.exit(f'missing {VIDEO}: scripts/make_ms031_count_videos.py')
 
     smtp = socketserver.ThreadingTCPServer(('127.0.0.1', 0), _SMTPHandler)
     smtp.daemon_threads, smtp.messages = True, []

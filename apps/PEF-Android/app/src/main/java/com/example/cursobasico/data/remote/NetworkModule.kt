@@ -17,7 +17,7 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 object NetworkModule {
-    /** Tolerante a campos nuevos del backend; un tipo incompatible sigue siendo error (InvalidResponse). */
+    /** tolerant of new backend fields; wrong type still errors (InvalidResponse) */
     val json: Json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
@@ -40,9 +40,9 @@ object NetworkModule {
 }
 
 /**
- * Cabeceras comunes: JSON (DS09: Accept application/json), X-Correlation-ID propio por petición.
- * El registro de depuración solo incluye método, ruta, estado y correlation id: nunca cabeceras ni cuerpos
- * (los JWT y las contraseñas jamás llegan a Logcat).
+ * common headers: JSON (DS09: Accept application/json), own X-Correlation-ID per request.
+ * debug log only method, path, status, correlation id: never headers/bodies
+ * (JWTs and pwds never hit Logcat).
  */
 class DefaultHeadersInterceptor(private val debugLogging: Boolean) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
@@ -60,7 +60,7 @@ class DefaultHeadersInterceptor(private val debugLogging: Boolean) : Interceptor
                         "${request.method} ${request.url.encodedPath} -> ${response.code} cid=$correlationId",
                     )
                 } catch (_: RuntimeException) {
-                    // android.util.Log no existe en pruebas JVM.
+                    // android.util.Log missing on JVM unit tests
                 }
             }
             response
@@ -82,7 +82,7 @@ class DefaultHeadersInterceptor(private val debugLogging: Boolean) : Interceptor
     }
 }
 
-/** Añade el Bearer vigente a las rutas protegidas. */
+/** attach current Bearer on protected routes */
 class AuthInterceptor(private val sessionManager: SessionManager) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
@@ -93,13 +93,13 @@ class AuthInterceptor(private val sessionManager: SessionManager) : Interceptor 
 }
 
 /**
- * Ante un 401 renueva el access token UNA vez (con exclusión mutua en [SessionManager.refreshTokens]) y reintenta.
- * Si el refresh falla devuelve null: OkHttp entrega el 401 original y la app pasa a "sesión expirada".
+ * on 401 renew access ONCE (mutex in [SessionManager.refreshTokens]) and retry.
+ * refresh fail -> null: OkHttp returns original 401 and app goes "session expired".
  */
 class TokenAuthenticator(private val sessionManager: SessionManager) : Authenticator {
     override fun authenticate(route: Route?, response: Response): Request? {
         if (priorResponseCount(response) >= 2) return null
-        // El logout gestiona su propio 401 (SessionManager.logout): su cuerpo lleva el refresh token.
+        // logout handles its own 401 (SessionManager.logout): body carries refresh token
         if (response.request.url.encodedPath.endsWith("/auth/logout")) return null
         val failedToken = response.request.header("Authorization")?.removePrefix("Bearer ")?.trim() ?: return null
         val newToken = runBlocking { sessionManager.refreshTokens(failedToken) } ?: return null

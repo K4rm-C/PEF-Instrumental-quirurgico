@@ -75,7 +75,7 @@ import com.example.cursobasico.ui.state.dataOrNull
 import com.example.cursobasico.ui.viewmodel.SessionsViewModel
 import com.example.cursobasico.ui.viewmodel.pefViewModel
 
-/** Opción de filtro: [value] null = "todos". */
+/** filter option: [value] null = "all" */
 data class FilterOption(val value: String?, val label: String)
 
 @Composable
@@ -95,7 +95,7 @@ fun SessionsView(onNavigate: (NavKey) -> Unit,onSessionClick: (NavKey) -> Unit) 
         mutableStateOf<String?>(null)
     }
     val loaded = state.dataOrNull().orEmpty()
-    // Opciones de sala y procedimiento a partir de las sesiones reales (no listas fijas).
+    // room/procedure options from real sessions (no hardcoded lists)
     val rooms = loaded.mapNotNull { it.operation?.room?.code }.distinct().sorted()
     val procedures = loaded.mapNotNull { it.operation?.procedureType?.name }.distinct().sorted()
     Scaffold(
@@ -388,7 +388,7 @@ fun SessionFilterE(
     }
 }
 
-/** Desplegable de [FilterOption] reutilizando el diseño de SessionFilter. */
+/** [FilterOption] dropdown; reuses SessionFilter look */
 @Composable
 fun OptionFilter(
     selected: String?,

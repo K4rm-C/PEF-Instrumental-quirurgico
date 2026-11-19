@@ -1,4 +1,4 @@
-"""PEF-DS06 MongoDB operations from the console (see GUIA_MONGODB.md).
+"""PEF-DS06 MongoDB operations from the console (data/DataStandards/PEF-DS06).
 
   python scripts/mongo_ds06.py init                 create both collections, validators and indexes
   python scripts/mongo_ds06.py indexes              list indexes and validators

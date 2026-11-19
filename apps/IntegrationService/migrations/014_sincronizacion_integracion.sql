@@ -1,20 +1,18 @@
--- =============================================================================
--- 014 — MS-07: sincronización incremental, idempotencia de operaciones, clientes máquina e intercambio FHIR
+﻿-- =============================================================================
+-- 014 MS-07: incremental sync, op idempotency, machine clients, FHIR exchange
 --
--- Idempotente (se puede aplicar varias veces). No modifica ni borra datos existentes.
+-- Idempotent. Does not mutate/delete existing rows.
 --
--- 1. sync_change: registro de cambios (change log) llenado por triggers en la MISMA transacción que el cambio.
---    Cada fila lleva el xid8 de su transacción: el lector solo entrega filas de transacciones ya terminadas
---    (txid < pg_snapshot_xmin(pg_current_snapshot())) en orden (txid, seq). Así una transacción larga que
---    confirma tarde nunca queda "detrás" del cursor de un cliente: no hay omisiones ni duplicados por
---    paginación concurrente, sin depender de la fecha del cliente.
--- 2. sync_resource_version: versión monotónica por recurso (UPSERT ... RETURNING bajo bloqueo de fila).
--- 3. sync_operation: claves de idempotencia de las operaciones enviadas por clientes (por usuario o cliente).
--- 4. integration_client (DS08, ya existía): fecha de rotación del secreto y autor.
--- 5. integration_endpoint / integration_delivery: destinos FHIR autorizados por institución y registro de
---    entregas e intentos (nunca se escribe en la base de datos de un HIS).
+-- 1. sync_change: change log filled by triggers in the SAME txn as the write.
+--    Rows carry xid8; reader only delivers finished txns
+--    (txid < pg_snapshot_xmin(pg_current_snapshot())) ordered by (txid, seq).
+--    Long txns that commit late never sneak behind a client cursor.
+-- 2. sync_resource_version: monotonic per-resource version (UPSERT ... RETURNING).
+-- 3. sync_operation: idempotency keys for client-submitted ops.
+-- 4. integration_client (DS08): secret rotation date + author.
+-- 5. integration_endpoint / integration_delivery: FHIR destinations + delivery log
+--    (never writes into a HIS database).
 -- =============================================================================
-
 CREATE TABLE IF NOT EXISTS sync_change (
   seq            BIGSERIAL    NOT NULL,
   txid           XID8         NOT NULL DEFAULT pg_current_xact_id(),

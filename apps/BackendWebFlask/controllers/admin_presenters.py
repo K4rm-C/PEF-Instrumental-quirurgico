@@ -71,7 +71,7 @@ def cycle_variant(cycle):
 
 
 def format_dt(value, with_time=True):
-    """ISO-8601 UTC string from Administración local -> local 'YYYY-MM-DD HH:MM' (or date only)."""
+    """ISO-8601 UTC from admin_local -> local 'YYYY-MM-DD HH:MM' (or date only)."""
     if not value:
         return ''
     try:

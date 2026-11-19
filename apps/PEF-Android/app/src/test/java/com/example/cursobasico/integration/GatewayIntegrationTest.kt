@@ -25,15 +25,15 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * ANDROID-02 — contratos REALES a través del API Gateway con el mismo código de red de la app
- * (Retrofit + OkHttp + SessionManager). Se OMITE si no hay entorno configurado:
+ * ANDROID-02: REAL contracts through the API Gateway using the app's own net stack
+ * (Retrofit + OkHttp + SessionManager). SKIPPED if env isnt set:
  *
  *   PEF_IT_BASE_URL=http://127.0.0.1:27080/
- *   PEF_IT_SUPERVISOR_EMAIL / PEF_IT_SUPERVISOR_PASSWORD   (rol or_charge; p. ej. floor@instrumed.com)
- *   PEF_IT_ADMIN_EMAIL / PEF_IT_ADMIN_PASSWORD             (rol it_admin, opcional)
+ *   PEF_IT_SUPERVISOR_EMAIL / PEF_IT_SUPERVISOR_PASSWORD   (or_charge role; e.g. floor@instrumed.com)
+ *   PEF_IT_ADMIN_EMAIL / PEF_IT_ADMIN_PASSWORD             (it_admin role, optional)
  *
- * Las credenciales nunca se guardan en el repositorio. Solo lee datos y hace login/refresh/logout:
- * no modifica sesiones, evidencias ni notificaciones.
+ * creds never land in the repo. read-only data + login/refresh/logout only:
+ * no session / evidence / notification writes.
  */
 class GatewayIntegrationTest {
     private val env = System.getenv()
@@ -41,7 +41,7 @@ class GatewayIntegrationTest {
 
     @Before
     fun requireEnvironment() {
-        assumeTrue("PEF_IT_* no configurado: prueba contra backend real omitida", baseUrl != null &&
+        assumeTrue("PEF_IT_* not set: skip real-backend IT", baseUrl != null &&
             env["PEF_IT_SUPERVISOR_EMAIL"] != null && env["PEF_IT_SUPERVISOR_PASSWORD"] != null)
     }
 
@@ -52,23 +52,23 @@ class GatewayIntegrationTest {
         val network = network()
         val manager = network.sessionManager
 
-        // Login real
+        // real login
         val login = manager.login(env["PEF_IT_SUPERVISOR_EMAIL"]!!, env["PEF_IT_SUPERVISOR_PASSWORD"]!!)
         assertTrue("login: $login", login is ApiResult.Success)
         val user = (manager.state.value as AuthState.LoggedIn).user
         assertTrue(user.canReadSessions)
 
-        // Perfil
+        // profile
         assertTrue(manager.refreshProfile() is ApiResult.Success)
 
-        // Sesiones: la lista y TODOS los detalles deben cumplir el contrato de los DTO
+        // sessions: list + EVERY detail must match DTO contract
         val sessions = SessionRepository(network.sessionApi)
         val list = (sessions.listSessions() as ApiResult.Success).data
-        assertTrue("la pila de pruebas debe tener sesiones", list.isNotEmpty())
+        assertTrue("test stack should have sessions", list.isNotEmpty())
         computeDashboard(list)
         list.forEach { summary ->
             val detail = sessions.getSession(summary.id)
-            assertTrue("detalle ${summary.id}: $detail", detail is ApiResult.Success)
+            assertTrue("detail ${summary.id}: $detail", detail is ApiResult.Success)
             val d = (detail as ApiResult.Success).data
             assertEquals(summary.status.code, d.status.code)
             d.timelineRows(); d.liveCount()
@@ -78,7 +78,7 @@ class GatewayIntegrationTest {
         val missing = sessions.getSession("00000000-0000-4000-8000-000000000000")
         assertTrue((missing as ApiResult.Failure).error is AppError.NotFound)
 
-        // Evidencias: listado por sesión; si hay alguna, URL firmada + descarga sin JWT
+        // evidence: list by session; if any, signed URL + download without JWT
         val evidence = EvidenceRepository(network.evidenceApi, network.imageClient)
         val withEvidence = list.firstNotNullOfOrNull { s ->
             (evidence.listForSession(s.id) as? ApiResult.Success)?.data?.firstOrNull()
@@ -87,29 +87,29 @@ class GatewayIntegrationTest {
             val signed = (evidence.getSigned(withEvidence.id) as ApiResult.Success).data
             if (signed.signedUrl != null) {
                 val bytes = evidence.downloadImage(signed.signedUrl!!)
-                assertTrue("descarga firmada: $bytes", bytes is ApiResult.Success)
+                assertTrue("signed download: $bytes", bytes is ApiResult.Success)
                 assertTrue((bytes as ApiResult.Success).data.size.toLong() == (signed.sizeBytes ?: bytes.data.size.toLong()))
             }
         }
 
-        // Estadísticas de discrepancias del Dashboard (reporte del supervisor + catálogo)
+        // Dashboard discrepancy stats (supervisor report + catalog)
         val stats = com.example.cursobasico.data.repository.DiscrepancyStatsRepository(network.sessionApi, network.catalogApi)
             .load(java.time.LocalDate.now().minusDays(365).toString())
-        assertTrue("estadísticas: $stats", stats is ApiResult.Success)
+        assertTrue("stats: $stats", stats is ApiResult.Success)
         val charts = (stats as ApiResult.Success).data
         assertEquals(charts.total, charts.byFamily.sumOf { it.count })
 
-        // Notificaciones (solo lectura)
+        // notifications (read-only)
         val notifications = NotificationRepository(network.notificationsApi)
         assertTrue(notifications.list() is ApiResult.Success)
         assertTrue(notifications.refreshUnreadCount() is ApiResult.Success)
 
-        // Refresh con rotación
+        // rotating refresh
         val before = manager.currentAccessToken()
         val renewed = manager.refreshTokens(before)
         assertTrue(renewed != null && renewed != before)
 
-        // Logout: el servidor revoca y el token deja de servir
+        // logout: server revokes and token stops working
         assertEquals(LogoutOutcome.REVOKED, manager.logout())
         val code = OkHttpClient().newCall(
             Request.Builder().url(baseUrl + "api/v1/auth/me").header("Authorization", "Bearer $renewed").build()

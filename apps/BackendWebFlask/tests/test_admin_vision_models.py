@@ -2,7 +2,7 @@
 
 The checkpoints are synthetic: a PyTorch-style zip whose data.pkl references Ultralytics classes and
 tensor storages (persistent ids), like a real best.pt. A real best.pt was not available in this
-environment (see docs/ADMIN_MATRIZ_CUMPLIMIENTO.md).
+environment.
 """
 import hashlib
 import io

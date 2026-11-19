@@ -6,7 +6,7 @@ of its evidence frame. SessionService recomputes it from the stored rows (GET /s
 reports whether anything changed afterwards.
 
 It is an integrity check (tamper evidence), NOT an electronic signature: a re-authentication / signature policy for
-the validation is a pending institutional decision (docs/DECISIONES_PENDIENTES.md, D7).
+the validation is a pending institutional decision.
 
 KEEP IDENTICAL to apps/BackendWebFlask/services/validation_seal.py (same test vector in both suites).
 """

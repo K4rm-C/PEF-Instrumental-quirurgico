@@ -70,7 +70,7 @@ fun AppNavigation(container: AppContainer, preferences: UserPreferences) {
         }
     }
 
-    // Protección de rutas: sin sesión válida solo existe Login; con sesión, Login nunca queda en la pila.
+    // route guard: no valid session -> Login only; logged in -> Login never stays on stack
     LaunchedEffect(authState) {
         when (authState) {
             is AuthState.LoggedOut -> if (backStack.toList() != listOf(Login)) {
@@ -85,7 +85,7 @@ fun AppNavigation(container: AppContainer, preferences: UserPreferences) {
         }
     }
 
-    // Contador de no leídas: se consulta al cambiar de pantalla (sin polling permanente).
+    // unread count: refresh on screen change (no permanent polling)
     val unread by container.notificationRepository.unread.collectAsStateWithLifecycle()
     val current = backStack.lastOrNull()
     LaunchedEffect(current, preferences.inAppNotifications) {
@@ -176,7 +176,7 @@ fun AppNavigation(container: AppContainer, preferences: UserPreferences) {
     }
 }
 
-/** Iconos de la barra de estado legibles: oscuros sobre el Login claro, claros sobre la barra navy del resto. */
+/** readable status-bar icons: dark on light Login, light on navy bar elsewhere */
 @Composable
 private fun StatusBarIcons(darkIcons: Boolean) {
     val view = LocalView.current

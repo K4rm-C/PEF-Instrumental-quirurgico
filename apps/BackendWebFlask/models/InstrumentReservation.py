@@ -13,7 +13,7 @@ class InstrumentReservation(db.Model):
     
     # Timestamps
     reserved_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-    released_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=True) # Nullable porque aún no se ha liberado
+    released_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=True)  # null until released
     
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 

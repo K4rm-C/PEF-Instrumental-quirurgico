@@ -61,7 +61,7 @@ def main():
     engine = create_engine(env['DATABASE_URL'], future=True)
     for path in (ONE_REMOVED, MASKED):
         if not path.exists():
-            sys.exit(f'missing {path}: scripts/make_ms031_count_videos.py (GUIA_PRUEBAS.md §2.4)')
+            sys.exit(f'missing {path}: scripts/make_ms031_count_videos.py')
     jwt_secret, ws_secret = secrets.token_hex(32), secrets.token_hex(24)
 
     def q(sql, **params):

@@ -19,7 +19,7 @@ data object Sessions: NavKey
 @Serializable
 data object Personal: NavKey
 
-/** ANDROID-01: las pantallas de detalle reciben el id real de la sesión (UUID de SessionService). */
+/** ANDROID-01: detail screens get real session id (SessionService UUID) */
 @Serializable
 data class SessionInProgressDetail(val sessionId: String) : NavKey
 
@@ -29,17 +29,17 @@ data class OnHoldDetail(val sessionId: String) : NavKey
 @Serializable
 data class SessionScheduledDetail(val sessionId: String) : NavKey
 
-/** Operador derivado de las sesiones visibles para el usuario (no existe un directorio de personal publicado). */
+/** operator derived from sessions user can see (no published personnel directory) */
 @Serializable
 data class PersonalDetail(val operatorId: String, val operatorName: String) : NavKey
 
-/** ANDROID-01: preferencias (idioma, tema, notificaciones) y cierre de sesión. */
+/** ANDROID-01: prefs (lang, theme, notifs) + logout */
 @Serializable
 data object Settings : NavKey
 
 /**
- * Pantalla de detalle según el estado REAL devuelto por el backend:
- * en curso -> InProgress; programada -> Scheduled; revisión SPD / corrección / cerrada / abortada -> OnHold (reporte).
+ * detail screen from REAL backend status:
+ * in progress -> InProgress; scheduled -> Scheduled; SPD review / correction / closed / aborted -> OnHold (report).
  */
 fun sessionRouteFor(sessionId: String, statusCode: String): NavKey = when (statusCode) {
     SessionStatus.IN_PROGRESS -> SessionInProgressDetail(sessionId)

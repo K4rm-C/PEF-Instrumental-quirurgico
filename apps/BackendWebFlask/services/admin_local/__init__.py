@@ -1,1 +1,1 @@
-"""Administración RF integrada en BackendWebFlask, sin AdminService HTTP."""
+"""RF admin baked into BackendWebFlask. No separate AdminService HTTP hop."""

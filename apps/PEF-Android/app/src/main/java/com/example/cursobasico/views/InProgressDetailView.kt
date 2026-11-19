@@ -83,8 +83,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
 /**
- * Marco común de las pantallas de detalle: carga GET /api/v1/sessions/{id}?expand=detail y muestra
- * carga / error / sin permiso. Siempre refleja el estado que devuelve el servidor.
+ * shared detail shell: GET /api/v1/sessions/{id}?expand=detail then loading/error/forbidden.
+ * always mirrors whatever the server returned.
  */
 @Composable
 fun SessionDetailFrame(
@@ -560,7 +560,7 @@ fun LiveCountValue(
     )
 }
 
-/** Último conteo YOLO registrado por el backend (auto_count). La app no recalcula ni valida conteos. */
+/** latest YOLO count from backend (auto_count). app doesnt recount or validate counts */
 @Composable
 fun LiveCountContent(detail: SessionDetailDto) {
     val live = detail.liveCount()

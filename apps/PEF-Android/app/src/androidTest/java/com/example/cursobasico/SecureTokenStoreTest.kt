@@ -13,7 +13,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 
-/** Requiere emulador o dispositivo: Android Keystore no existe en la JVM local. */
+/** needs emulator/device: Android Keystore missing on local JVM */
 @RunWith(AndroidJUnit4::class)
 class SecureTokenStoreTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext

@@ -1,4 +1,4 @@
-"""SessionService integration end to end (live services; see GUIA_SESSION.md).
+"""SessionService integration end to end (live services; see apps/SessionService/README.md).
 
 Needs: BackendWebFlask (:5000) started with SESSION_SERVICE_URL (and CATALOG_SERVICE_URL), AuthService
 (:5001), VisionWorker (:5002, weights/best.pt), the compose services postgres, redis and session.

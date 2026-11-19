@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit
 
 private val Context.gatewayEndpointStore: DataStore<Preferences> by preferencesDataStore(name = "pef_gateway_endpoint")
 
-/** URL activa del API Gateway; OkHttp la aplica en cada petición (sin recrear Retrofit). */
+/** live API Gateway URL; OkHttp applies it per request (no Retrofit rebuild) */
 class BaseUrlHolder(initial: String) {
     private val ref = AtomicReference(normalizeGatewayBaseUrl(initial))
 
@@ -41,7 +41,7 @@ class BaseUrlHolder(initial: String) {
     }
 }
 
-/** Reescribe scheme/host/port de cada request al Gateway activo. */
+/** rewrite scheme/host/port on each request to the live Gateway */
 class BaseUrlInterceptor(private val holder: BaseUrlHolder) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val original = chain.request()
@@ -68,8 +68,8 @@ class GatewayEndpointStore(context: Context) {
 }
 
 /**
- * Localiza el API Gateway sin rebuild: última URL buena → BuildConfig → emulador → barrido /24.
- * Solo se usa en debug; release sigue en la URL HTTPS fija de BuildConfig.
+ * find API Gateway without rebuild: last good URL -> BuildConfig -> emulator -> /24 scan.
+ * debug only; release sticks to fixed HTTPS BuildConfig URL.
  */
 object GatewayLocator {
     private const val GATEWAY_MARK = "pef-gateway"
@@ -118,7 +118,7 @@ object GatewayLocator {
                 }
             }
         } catch (_: Exception) {
-            // Sin interfaces: solo quedan candidatos fijos.
+            // no interfaces: fixed candidates only
         }
         // Emulator host-side LAN is invisible as 10.0.2.2; keep empty ok.
         return prefixes.toList()

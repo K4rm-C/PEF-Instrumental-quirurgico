@@ -314,7 +314,7 @@ fun SessionFilter(
 }
 
 
-/** Filtros que aplica NotificationsService: status, type y from (rango de fechas). */
+/** filters NotificationsService accepts: status, type, from (date range) */
 @Composable
 fun SessionFilters(
     filters: AlertFilters,
@@ -358,7 +358,7 @@ fun SessionFilters(
     }
 }
 
-/** Tarjeta de notificación con la estructura visual de AlertSessionCard. */
+/** notif card; same visual structure as AlertSessionCard */
 @Composable
 fun NotificationCard(
     notification: NotificationDto,
@@ -418,7 +418,7 @@ fun NotificationCard(
             Column {
                 SessionLabel(stringResource(R.string.label_message))
                 Spacer(modifier = Modifier.height(3.dp))
-                // Texto del servidor tal cual (no se traducen mensajes clínicos sin una regla definida).
+                // server text as-is (dont translate clinical msgs without a defined rule)
                 SessionValue(notification.message ?: "—")
             }
             notification.dataText("operator_name")?.let { opName ->
@@ -520,7 +520,7 @@ fun AlertSessionCard(
                     bottom = 9.dp
                 )
         ) {
-            // FILA 1: SESSION Y STATUS
+            // ROW 1: SESSION + STATUS
             Row(
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -542,7 +542,7 @@ fun AlertSessionCard(
 
             Spacer(modifier = Modifier.height(13.dp))
 
-            // FILA 2: OPERATOR Y PROCEDURE
+            // ROW 2: OPERATOR + PROCEDURE
 
             Row(
                 modifier = Modifier.fillMaxWidth()
@@ -565,7 +565,7 @@ fun AlertSessionCard(
             }
             Spacer(modifier = Modifier.height(8.dp))
 
-            // FILA 3: DISCREPANCIAS ABIERTAS (dato real del backend)
+            // ROW 3: OPEN DISCREPANCIES (real backend field)
 
             Column {
                 SessionLabel(stringResource(R.string.label_open_discrepancies))

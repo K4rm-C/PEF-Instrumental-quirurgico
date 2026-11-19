@@ -1,4 +1,4 @@
-"""CatalogService integration end to end (live services; see GUIA_CATALOG.md).
+"""CatalogService integration end to end (live services; see apps/CatalogService/README.md).
 
 Needs: BackendWebFlask (:5000) started with CATALOG_SERVICE_URL, BackendAuthService (:5001), the compose
 services postgres, redis and catalog. Step 10 stops and starts the compose `catalog` service.

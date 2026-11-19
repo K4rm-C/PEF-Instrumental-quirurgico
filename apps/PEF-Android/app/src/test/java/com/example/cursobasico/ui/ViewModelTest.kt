@@ -72,7 +72,7 @@ class ViewModelTest {
         vm.onEmailChange("x@example.test")
         vm.onPasswordChange("wrong")
         vm.submit()
-        vm.submit() // pulsación repetida mientras carga: ignorada
+        vm.submit() // double tap while loading: ignored
 
         val state = vm.state.await { !it.loading }
         assertEquals(R.string.login_error_invalid_credentials, state.errorRes)

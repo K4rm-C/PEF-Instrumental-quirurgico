@@ -31,7 +31,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Idioma por aplicación en API < 33: AppCompat guarda y restaura la selección. -->
+        <!-- per-app language on API < 33: AppCompat saves/restores the pick -->
         <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
             android:enabled="false"

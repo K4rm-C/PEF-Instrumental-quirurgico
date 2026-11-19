@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 
-/** Crea un ViewModel con las dependencias del [AppContainer] (sin framework de inyección). */
+/** make a ViewModel from [AppContainer] deps (no di framework) */
 @Composable
 inline fun <reified VM : ViewModel> pefViewModel(key: String? = null, crossinline create: (AppContainer) -> VM): VM {
     val container = (LocalContext.current.applicationContext as PefApplication).container
@@ -79,10 +79,10 @@ class LoginViewModel(
     fun onEmailChange(value: String) = _state.update { it.copy(email = value, errorRes = null, errorDetail = null) }
     fun onPasswordChange(value: String) = _state.update { it.copy(password = value, errorRes = null, errorDetail = null) }
 
-    /** La navegación al Dashboard la hace AppNavigation SOLO cuando AuthState pasa a LoggedIn. */
+    /** nav to Dashboard is AppNavigation job, only when AuthState -> LoggedIn */
     fun submit() {
         val current = _state.value
-        if (current.loading) return // protección contra pulsaciones repetidas
+        if (current.loading) return // ignore double taps while loading
         if (current.email.isBlank() || current.password.isEmpty()) {
             _state.update { it.copy(errorRes = R.string.login_error_missing_fields) }
             return
@@ -91,8 +91,8 @@ class LoginViewModel(
         viewModelScope.launch {
             when (val result = sessionManager.login(current.email, current.password)) {
                 is ApiResult.Success -> {
-                    // ui_preferences del servidor las aplica AppContainer al pasar a LoggedIn.
-                    // La contraseña no se conserva en memoria más de lo necesario.
+                    // server ui_preferences applied by AppContainer on LoggedIn
+                    // dont keep pwd longer than needed
                     _state.update { LoginUiState(email = it.email) }
                 }
                 is ApiResult.Failure -> _state.update {
@@ -123,7 +123,7 @@ class LoginViewModel(
 
 /* --------------------------------------------------------------------------------------- Dashboard */
 
-/** Periodo de la pestaña Discrepancies (el reporte del backend admite hasta 366 días). */
+/** Discrepancies tab period (backend report allows up to 366 days) */
 enum class DiscrepancyPeriod(val days: Long) { LAST_7(7), LAST_30(30), LAST_90(90), LAST_365(365) }
 
 class DashboardViewModel(
@@ -145,7 +145,7 @@ class DashboardViewModel(
         loadDiscrepancies(force = true)
     }
 
-    /** Reporte del supervisor: otros roles no lo consultan (el backend respondería 403). */
+    /** supervisor report only; other roles skip (backend would 403) */
     fun loadDiscrepancies(force: Boolean = false) {
         val repository = discrepancyStats ?: return
         if (loadingDiscrepancies && !force) return
@@ -201,7 +201,7 @@ class SessionsViewModel(
     private val _state = MutableStateFlow<UiState<List<SessionSummaryDto>>>(UiState.Loading)
     val state: StateFlow<UiState<List<SessionSummaryDto>>> = _state.asStateFlow()
 
-    /** Filtro de estado aplicado por el backend (`?status=`); null = todos. */
+    /** status filter applied by backend (`?status=`); null = all */
     private val _statusFilter = MutableStateFlow<String?>(null)
     val statusFilter: StateFlow<String?> = _statusFilter.asStateFlow()
     private var loading = false
@@ -285,12 +285,12 @@ class SessionDetailViewModel(
 sealed interface EvidenceViewerState {
     data object Idle : EvidenceViewerState
     data class Loading(val evidence: EvidenceDto) : EvidenceViewerState
-    /** Bytes solo en memoria: nunca se guardan en almacenamiento del teléfono. */
+    /** bytes in memory only: never written to phone storage */
     data class Image(val evidence: EvidenceDto, val bytes: ByteArray) : EvidenceViewerState {
         override fun equals(other: Any?) = other is Image && other.evidence == evidence && other.bytes === bytes
         override fun hashCode() = evidence.hashCode()
     }
-    /** Bloqueada o purgada por retención: el backend no firma URL. */
+    /** blocked or retention-purged: backend wont sign a URL */
     data class Unavailable(val evidence: EvidenceDto) : EvidenceViewerState
     data class Failed(val evidence: EvidenceDto, val error: AppError) : EvidenceViewerState
 }
@@ -315,7 +315,7 @@ class EvidenceViewModel(
         }
     }
 
-    /** Pide la URL prefirmada (auditada por el backend) SOLO al abrir una evidencia, y descarga la imagen. */
+    /** ask for pre-signed URL (backend-audited) ONLY when opening evidence, then download image */
     fun open(item: EvidenceDto) {
         if (_viewer.value is EvidenceViewerState.Loading) return
         _viewer.value = EvidenceViewerState.Loading(item)
@@ -357,7 +357,7 @@ class AlertsViewModel(
     val onHoldState: StateFlow<UiState<List<SessionSummaryDto>>> = _onHold.asStateFlow()
     private val _filters = MutableStateFlow(AlertFilters())
     val filters: StateFlow<AlertFilters> = _filters.asStateFlow()
-    /** Ids con una operación en curso (marcar leída / abrir sesión): evita pulsaciones repetidas. */
+    /** ids mid-op (mark read / open session): stop double taps */
     private val _busy = MutableStateFlow<Set<String>>(emptySet())
     val busy: StateFlow<Set<String>> = _busy.asStateFlow()
     private val _actionError = MutableStateFlow<AppError?>(null)
@@ -446,7 +446,7 @@ class AlertsViewModel(
         }
     }
 
-    /** Consulta el estado real de la sesión antes de navegar (la notificación no lo incluye). */
+    /** fetch real session status before nav (notif doesnt include it) */
     fun openSession(sessionId: String, navigate: (NavKey) -> Unit) = guarded(sessionId) {
         when (val result = sessions.getSession(sessionId)) {
             is ApiResult.Success -> navigate(sessionRouteFor(sessionId, result.data.status.code))

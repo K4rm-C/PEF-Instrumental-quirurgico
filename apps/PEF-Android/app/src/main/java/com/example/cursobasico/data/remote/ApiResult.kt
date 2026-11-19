@@ -12,18 +12,18 @@ import java.net.NoRouteToHostException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 
-/** Resultado de una llamada remota: nunca lanza excepciones a la interfaz. */
+/** remote call result: never throws up into UI */
 sealed interface ApiResult<out T> {
     data class Success<T>(val data: T) : ApiResult<T>
     data class Failure(val error: AppError) : ApiResult<Nothing>
 }
 
 /**
- * Errores normalizados. `serverMessage` es el texto del sobre DS09 del backend (en inglés): se muestra solo
- * como detalle; el mensaje principal sale de los recursos de cadenas de la app (ui/state/ErrorMessages.kt).
+ * normalized errors. `serverMessage` = backend DS09 envelope text (english): detail only;
+ * main copy comes from app string resources (ui/state/ErrorMessages.kt).
  */
 sealed class AppError(open val serverMessage: String? = null, open val correlationId: String? = null) {
-    /** Sin conexión o Gateway inalcanzable. */
+    /** offline or Gateway unreachable */
     data object Network : AppError()
     data object Timeout : AppError()
     data class BadRequest(override val serverMessage: String?, override val correlationId: String?) :
@@ -38,7 +38,7 @@ sealed class AppError(open val serverMessage: String? = null, open val correlati
         AppError(serverMessage, correlationId)
     data class Server(val status: Int, override val serverMessage: String?, override val correlationId: String?) :
         AppError(serverMessage, correlationId)
-    /** Respuesta con un JSON que no cumple el contrato esperado. */
+    /** JSON response doesnt match expected contract */
     data object InvalidResponse : AppError()
     data class Unexpected(val status: Int?) : AppError()
 }
@@ -82,7 +82,7 @@ fun Throwable.toAppError(): AppError = when (this) {
     else -> AppError.Unexpected(null)
 }
 
-/** Ejecuta una llamada Retrofit y convierte cualquier fallo en [ApiResult.Failure]. */
+/** run Retrofit call; any failure becomes [ApiResult.Failure] */
 suspend fun <T> safeApiCall(block: suspend () -> T): ApiResult<T> = try {
     ApiResult.Success(block())
 } catch (e: CancellationException) {

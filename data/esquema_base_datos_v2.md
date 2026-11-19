@@ -1,6 +1,8 @@
 # Database schema v2 · PostgreSQL, FHIR R4, 4NF
 
-**Conventions:** PostgreSQL 15+, `TIMESTAMPTZ` in UTC, PK `UUID` with `gen_random_uuid()`, catalogs in `cat_`* tables, identifiers aligned to FHIR R4 **Identifier** datatype.
+> Snapshot histórico del DDL base (pre-migraciones `004`–`021`). No es el runbook ni el esquema desplegado completo; el despliegue integral aplica `data/migrations/` (001 + 004…021). Contratos de datos vivos: `data/DataStandards/`. Operación: README raíz. `docs/` solo stub; no hay `Legacy/` ni `porting_sources` en la raíz. Compose actual: PostgreSQL 16 + Garage (S3) + Redis/Mongo.
+
+**Conventions:** PostgreSQL 15+ (compose: 16), `TIMESTAMPTZ` in UTC, PK `UUID` with `gen_random_uuid()`, catalogs in `cat_`* tables, identifiers aligned to FHIR R4 **Identifier** datatype.
 
 **Internal system URI (Identifier.system):** `https://pef.udem/conteo-cenital` — local value = resource UUID in lowercase when applicable. (puede cambiar al final o ser otro, esto es de ejemplo)
 
@@ -577,7 +579,7 @@ CREATE TABLE operation_physician (
 );
 
 -- -----------------------------------------------------------------------------
--- 5.5 Media (object storage: GCS / MinIO S3-compatible)
+-- 5.5 Media (object storage: S3-compatible; lab/prod on-prem = Garage; other S3-compat / GCS also fit the contract)
 -- -----------------------------------------------------------------------------
 
 CREATE TABLE media_asset (
@@ -1206,7 +1208,7 @@ Resumen para validar el diagrama ER y migraciones. `UK` incluye índices únicos
 
 ### 5.11 Retention purge and FHIR client
 
-- **Retention worker** (cron / queue): same idempotent pipeline for TTL expiry and ARCO cancel — delete object in GCS/MinIO → delete or unlink Mongo `checkpoint_frame` → set `media_asset.purged_at` (or DELETE row). Re-run safe if a store is already clean.
+- **Retention worker** (cron / queue): same idempotent pipeline for TTL expiry and ARCO cancel — delete object in S3-compatible storage (Garage today; other S3-compat / GCS also fit) → delete or unlink Mongo `checkpoint_frame` → set `media_asset.purged_at` (or DELETE row). Re-run safe if a store is already clean.
 - **ARCO cancel**: set `blocked_at` / `purge_requested_at` on related `media_asset`, then enqueue the same worker; track lifecycle in `privacy_request`.
 - **FHIR export**: Backend Web (or thin Integration routes) maps PG rows to FHIR R4 JSON; authenticate machine callers with `integration_client` (client credentials / API key hash) + scopes; log reads in `access_audit` with `actor_type = 'client'`.
 - **Training export eligibility**: `session_processing_agreement.purpose_model_improvement = TRUE` and media not purged; UI/API lists URIs only — no in-system clip deconstruction.

@@ -1,4 +1,4 @@
-"""PEF-DS06 MongoDB end to end on live services (see GUIA_MONGODB.md, "Reproducir las pruebas").
+"""PEF-DS06 MongoDB end to end on live services (data/DataStandards/PEF-DS06).
 
 Needs running: BackendWebFlask (:5000, MONGO_URL + EVIDENCE_SERVICE_URL), BackendAuthService (:5001),
 VisionWorker (:5002, best.pt + MONGO_URL) and the compose services postgres, redis, mongo, garage,

@@ -44,13 +44,13 @@ class PreferencesRepositoryTest {
 
     private fun repository(): PreferencesRepository {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob()).also { scopes += it }
-        // OkioStorage: movimiento atómico que también funciona en la JVM de Windows (FileStorage usa renameTo,
-        // que en Windows falla si el destino existe; en Android/Linux no ocurre).
+        // OkioStorage: atomic move that also works on Windows JVM (FileStorage renameTo
+        // fails on Windows if dest exists; Android/Linux are fine).
         val storage = OkioStorage(FileSystem.SYSTEM, PreferencesSerializer, producePath = { file.toOkioPath() })
         return PreferencesRepository(PreferenceDataStoreFactory.create(storage = storage, scope = scope))
     }
 
-    /** Cierra el DataStore actual para poder abrir otro sobre el mismo archivo (simula reiniciar la app). */
+    /** close current DataStore so we can open another on same file (simulates app restart) */
     private fun restart(): PreferencesRepository {
         scopes.forEach { it.cancel() }
         scopes.clear()
@@ -103,8 +103,8 @@ class PreferencesRepositoryTest {
 
         repo.setLanguage(AppLanguage.ENGLISH)
         repo.applyServerDefaults(UiPreferencesDto(locale = "es-MX", theme = "light"))
-        assertEquals(AppLanguage.ENGLISH, repo.current().language) // elección local gana
-        assertEquals(ThemeMode.LIGHT, repo.current().theme)        // tema aún no elegido localmente
+        assertEquals(AppLanguage.ENGLISH, repo.current().language) // local pick wins
+        assertEquals(ThemeMode.LIGHT, repo.current().theme)        // theme not picked locally yet
     }
 
     @Test

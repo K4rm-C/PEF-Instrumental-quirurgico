@@ -1,6 +1,6 @@
 """ADMIN-09: start AuthService (127.0.0.1:15001) and BackendWebFlask (127.0.0.1:15000) against the ISOLATED
 test stack (docker-compose.test.yml / .env.test) so Administration can be checked in a real browser, either
-by hand (docs/ADMIN_GUIA_VALIDACION_MANUAL.md) or by scripts/browser_validate_admin.py.
+by hand or by scripts/browser_validate_admin.py.
 
     docker compose -f docker-compose.test.yml --env-file .env.test up -d --wait
     python scripts/run_admin_browser_env.py                    # local storage in .e2e/admin_storage

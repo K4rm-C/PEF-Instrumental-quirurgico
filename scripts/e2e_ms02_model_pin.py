@@ -156,7 +156,7 @@ def main():
     for path in (VIDEO, FRAME):
         if not path.exists():
             sys.exit(f'missing {path}: python scripts/make_test_tray_videos.py .e2e/videos and '
-                     f'scripts/make_ms031_count_videos.py .e2e/videos (see GUIA_PRUEBAS.md)')
+                     f'scripts/make_ms031_count_videos.py .e2e/videos')
     with engine.connect() as c:
         best = c.execute(text('SELECT id, version_tag FROM yolo_model WHERE checksum = :c'), {'c': BEST_SHA}).first()
         original_active = c.execute(text('SELECT id FROM yolo_model WHERE active')).scalar()

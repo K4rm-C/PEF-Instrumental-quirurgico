@@ -75,9 +75,9 @@ if (-not $httpsPort) { $httpsPort = "5443" }
 
 Write-Host ""
 Write-Host "pef_up: ready"
-Write-Host "  IP de esta red:     $lan"
-Write-Host "  Dirígete al portal: https://${lan}:${httpsPort}/"
+Write-Host "  LAN IP:             $lan"
+Write-Host "  Portal:             https://${lan}:${httpsPort}/"
 Write-Host "  Gateway (App):      http://${lan}:8080/"
-Write-Host "  Acepta el certificado de lab una vez en el navegador; luego Iniciar cámara."
-Write-Host "  Android debug descubre el Gateway en este Wi‑Fi (Reintentar en login si hace falta)."
+Write-Host "  Accept the lab cert once in the browser; then Start camera."
+Write-Host "  Android debug finds Gateway on this Wi-Fi (Retry on login if needed)."
 Write-Host ""

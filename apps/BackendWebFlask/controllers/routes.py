@@ -906,8 +906,7 @@ def legacy_operator_session_new():
 # fields" constraint. Every route below renders its template with only the session_id it was
 # given; the template itself supplies the approved WS-026 reference-case data as its
 # |default(...) fallback (same convention already used by every other page in this app), so
-# the full click-through workflow is reviewable today and swappable for real queries later
-# without any template changes. See V2_IMPLEMENTATION_NOTES.md for what remains pending.
+# full click-through works today; swap defaults for real queries later when ready
 # ----------------------------------------------------------------------------------------
 
 @web_bp.route('/operator/sessions/<session_id>/capture')
@@ -2345,8 +2344,7 @@ def supervisor_discrepancy_review(session_id):
 @web_bp.route('/supervisor/audit-log')
 @require_role('spd_supervisor')
 def supervisor_audit_log():
-    # AccessAudit has no query in the V3 shape yet: both modes render rows built from the
-    # centralized WS-026 timeline. See V2_IMPLEMENTATION_NOTES.md.
+    # AccessAudit not wired to V3 shape yet; both modes use WS-026 timeline rows
     return _v3_supervisor_page(
         'supervisor/audit_log.html', demo=use_v3_fixture(),
         audit_rows=supervisor_v3_audit_log(),

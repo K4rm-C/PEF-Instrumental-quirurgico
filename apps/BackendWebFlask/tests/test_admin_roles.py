@@ -129,7 +129,7 @@ def test_migration_009_adds_the_missing_product_roles_without_touching_existing_
 
 
 def test_existing_seed_institution_has_the_four_product_roles(pg):
-    """009 was applied to the test database (an existing one): see PLAN_TRABAJO.md, ADMIN-01.1."""
+    """009 was applied to the test database (an existing one); ADMIN-01.1 seed roles."""
     codes = pg.execute(text('SELECT code FROM role WHERE institution_id = :i'), {'i': SEED_INSTITUTION}).scalars().all()
     assert sorted(codes) == sorted(PRODUCT_ROLES)
 

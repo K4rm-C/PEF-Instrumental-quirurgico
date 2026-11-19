@@ -28,13 +28,13 @@ EVIDENCE_FRAME_LIST_PREFIX = os.getenv("EVIDENCE_FRAME_LIST_PREFIX", "pef:eviden
 # ~6 s @ 30 fps camera; LTRIM drop-oldest.
 EVIDENCE_FRAME_MAX = max(30, int(os.getenv("EVIDENCE_FRAME_MAX", "180")))
 
-# Recall (caja existe) — permisivo para demo externos
+# Recall (box exists) - loose for external demos
 BOX_RECALL_CONF = float(os.getenv("VISION_BOX_RECALL_CONF", "0.12"))
-# Overlay: familia vs Type (kept_raw / naming principal)
+# Overlay: family vs Type (kept_raw / main naming)
 CONF_DISPLAY_THRESHOLD = float(os.getenv("VISION_CONF_DISPLAY_THRESHOLD", "0.70"))
 # Overlay naming for reassigned: raw top-1 >= display AND assigned visual >= this
 CONF_DISPLAY_REASSIGN = float(os.getenv("VISION_CONF_DISPLAY_REASSIGN", "0.60"))
-# Reassign: piso absoluto + cercanía al raw top-1 (scores sigmoid independientes)
+# Reassign: abs floor + closeness to raw top-1 (independent sigmoid scores)
 REASSIGN_MIN_SCORE = float(os.getenv("VISION_REASSIGN_MIN_SCORE", "0.55"))
 REASSIGN_MAX_GAP = float(os.getenv("VISION_REASSIGN_MAX_GAP", "0.20"))
 TOPK = max(1, int(os.getenv("VISION_TOPK", "5")))
@@ -60,8 +60,8 @@ def _env_int(name: str) -> int | None:
     return max(1, int(raw))
 
 
-# CUDA ~60 ms/infer → stride 1 (cada frame). CPU ~750 ms → stride 5 (~6 fps @ 30 fps).
-# VISION_FRAME_STRIDE pinea ambos si esta set; VISION_FRAME_STRIDE_CUDA / _CPU ganan si existen.
+# CUDA ~60 ms/infer -> stride 1 (every frame). CPU ~750 ms -> stride 5 (~6 fps @ 30 fps).
+# VISION_FRAME_STRIDE pins both if set; VISION_FRAME_STRIDE_CUDA / _CPU win when present.
 _stride_pin = _env_int("VISION_FRAME_STRIDE")
 FRAME_STRIDE_CUDA = _env_int("VISION_FRAME_STRIDE_CUDA") or _stride_pin or 1
 FRAME_STRIDE_CPU = _env_int("VISION_FRAME_STRIDE_CPU") or _stride_pin or 5

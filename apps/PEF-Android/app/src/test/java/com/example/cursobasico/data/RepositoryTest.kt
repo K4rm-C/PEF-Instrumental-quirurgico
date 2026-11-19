@@ -49,7 +49,7 @@ class RepositoryTest {
         server.shutdown()
     }
 
-    /** Red con la sesión restaurada (como al abrir la app): GET /me válido y luego se limpia el registro. */
+    /** network with restored session (like app open): valid GET /me then clear request log */
     private fun repo(readTimeoutMillis: Long = 30_000): SessionRepository {
         routes.on("GET", "/api/v1/auth/me") { json(Fixtures.userJson()) }
         val network = server.network(InMemoryTokenStore(Fixtures.storedSession()), readTimeoutMillis)
@@ -58,7 +58,7 @@ class RepositoryTest {
         return SessionRepository(network.sessionApi)
     }
 
-    // ------------------------------------------------------------------ respuestas correctas y filtros
+    // ------------------------------------------------------------------ happy-path responses + filters
 
     @Test
     fun `listado usa expand=detail, envia Bearer y parsea el contrato`() = runBlocking {
@@ -102,7 +102,7 @@ class RepositoryTest {
         assertTrue(repo().listSessions() is ApiResult.Success)
     }
 
-    // ------------------------------------------------------------------ errores
+    // ------------------------------------------------------------------ errors
 
     private fun assertError(code: Int, expected: Class<out AppError>) = runBlocking {
         routes.on("GET", sessionsPath) { json(Fixtures.error("x", "server says $code", "corr-$code"), code) }
@@ -167,7 +167,7 @@ class RepositoryTest {
         assertEquals(AppError.InvalidResponse, (repo().listSessions() as ApiResult.Failure).error)
     }
 
-    // ------------------------------------------------------------------ evidencias
+    // ------------------------------------------------------------------ evidence
 
     @Test
     fun `evidencias se listan y la imagen se descarga sin enviar el JWT a Garage`() = runBlocking {
@@ -214,7 +214,7 @@ class RepositoryTest {
         assertTrue((repository.downloadImage(server.url("/garage/big.jpg").toString()) as ApiResult.Failure).error is AppError.BadRequest)
     }
 
-    // ------------------------------------------------------------------ notificaciones
+    // ------------------------------------------------------------------ notifications
 
     @Test
     fun `notificaciones paginadas, marcar leida y contador de no leidas`() = runBlocking {
@@ -247,7 +247,7 @@ class RepositoryTest {
         assertEquals(0, repository.unread.value)
     }
 
-    // ------------------------------------------------------------------ estadísticas de discrepancias (Dashboard)
+    // ------------------------------------------------------------------ discrepancy stats (Dashboard)
 
     @Test
     fun `discrepancias del dashboard combinan reporte y catalogo`() = runBlocking {
@@ -272,7 +272,7 @@ class RepositoryTest {
         assertEquals(listOf("Farabeuf retractor", null), charts.byInstrument.map { it.label })
         assertEquals(listOf("Retraction", null), charts.byFamily.map { it.label })
 
-        repository.load("2026-08-13")   // el catálogo se reutiliza de memoria
+        repository.load("2026-08-13")   // catalog reused from memory
         assertEquals(1, routes.count("GET", "/api/v1/catalog/families"))
         assertEquals(2, routes.count("GET", "/api/v1/sessions/reports/summary"))
     }

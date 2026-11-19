@@ -17,9 +17,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 
 /*
- * ANDROID-01: modelos de presentación derivados EXCLUSIVAMENTE de respuestas reales del backend.
- * Los datos de demostración que vivían aquí (WS-026, "Operator Demo", etc.) se eliminaron.
- * Ninguna función altera reglas de conteo: solo leen lo que SessionService ya calculó y registró.
+ * ANDROID-01: presentation models from REAL backend responses only.
+ * demo junk that lived here (WS-026, "Operator Demo", etc) is gone.
+ * no fn messes with count rules: just read what SessionService already computed.
  */
 
 data class DashboardData(
@@ -29,7 +29,7 @@ data class DashboardData(
     val correctionRequired: Int,
     val scheduled: Int,
     val openDiscrepancies: Int,
-    /** En curso o en espera de revisión/corrección, más recientes primero. */
+    /** in progress or waiting review/correction, newest first */
     val attention: List<SessionSummaryDto>,
 )
 
@@ -51,7 +51,7 @@ fun computeDashboard(
         .sortedByDescending { parseInstant(it.updatedAt ?: it.startedAt ?: it.operation?.scheduledAt) },
 )
 
-/** Texto de procedimiento y quirófano como en el diseño original ("Appendectomy - OR-3"). */
+/** procedure + OR text like original design ("Appendectomy - OR-3") */
 fun SessionSummaryDto.procedureRoomText(): String = listOfNotNull(
     operation?.procedureType?.name ?: operation?.procedureType?.code,
     operation?.room?.code ?: operation?.room?.name,
@@ -62,7 +62,7 @@ fun SessionDetailDto.procedureRoomText(): String = listOfNotNull(
     operation?.room?.code ?: operation?.room?.name,
 ).joinToString(" - ").ifBlank { "—" }
 
-/** Búsqueda y filtros locales de la lista de sesiones (el filtro de estado lo aplica el backend). */
+/** local search/filters on session list (status filter is backend's job) */
 fun filterSessions(
     sessions: List<SessionSummaryDto>,
     query: String,
@@ -81,7 +81,7 @@ fun filterSessions(
 
 data class OperatorSummary(val id: String, val name: String, val sessions: List<SessionSummaryDto>)
 
-/** Personal derivado: operadores asignados a las sesiones que el usuario YA puede ver. */
+/** derived personnel: operators on sessions the user can ALREADY see */
 fun groupOperators(sessions: List<SessionSummaryDto>): List<OperatorSummary> = sessions
     .filter { it.operator != null }
     .groupBy { it.operator!!.id }
@@ -98,8 +98,8 @@ data class LiveCountRow(val name: String, val expected: Int, val detected: Int?)
 data class LiveCount(val rows: List<LiveCountRow>, val updatedAt: String?, val trigger: String?)
 
 /**
- * Último conteo YOLO registrado (evento auto_count). Usa el tablero (payload.board.families) del evento más reciente
- * que lo tenga; si no existe, el último evento auto_count por familia. Detected = null si no hay registro.
+ * latest YOLO count on record (auto_count event). prefers board (payload.board.families) from newest
+ * event that has it; else last auto_count per family. Detected = null if nothing recorded.
  */
 fun SessionDetailDto.liveCount(): LiveCount {
     val autoCounts = events.filter { it.eventCode == "auto_count" }.sortedBy { parseInstant(it.occurredAt) }
@@ -145,7 +145,7 @@ data class DiscrepancyRow(
     val reason: String?,
     val resolved: Boolean,
 ) {
-    /** Diferencia informativa detectado - esperado tal como la registró el backend (no es un recálculo de conteo). */
+    /** informative detected - expected as backend stored it (not a recount) */
     val difference: Int? get() = if (expected != null && detected != null) detected - expected else null
 }
 
@@ -160,8 +160,8 @@ fun SessionDetailDto.discrepancyRows(): List<DiscrepancyRow> = discrepancies.map
 }
 
 /**
- * Reporte escrito del Operador (A1): preferimos `discrepancies[].description` (nota libre),
- * filtrando plantillas automáticas Shortfall/Extra. Escalación / contingencia son fallback.
+ * Operator written report (A1): prefer `discrepancies[].description` (free note),
+ * skip auto Shortfall/Extra templates. escalation / contingency as fallback.
  */
 fun SessionDetailDto.resolutionNote(): String? {
     fun JsonObject.text(key: String) = (this[key] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
@@ -179,9 +179,9 @@ fun SessionDetailDto.resolutionNote(): String? {
     return null
 }
 
-/* ------------------------------------------------------------------ Discrepancias (Dashboard, pestaña Discrepancies) */
+/* ------------------------------------------------------------------ Discrepancies (Dashboard tab) */
 
-/** Fila de gráfica de barras. [label] null = sin instrumento/categoría asociada; [isOther] = resto agrupado. */
+/** bar chart row. [label] null = no instrument/category; [isOther] = leftover bucket */
 data class ChartRow(val label: String?, val count: Int, val isOther: Boolean = false)
 
 data class DiscrepancyCharts(
@@ -194,11 +194,11 @@ data class DiscrepancyCharts(
 )
 
 /**
- * Agrupa los totales que YA calculó SessionService (reports/summary -> discrepancies.by_family):
- * - "por instrumento": cada familia de instrumento del catálogo (p. ej. "Mayo-Hegar needle holder");
- * - "por familia": la categoría de esa familia en CatalogService (p. ej. "Grasping").
- * Solo suma y ordena; no recalcula ni reinterpreta discrepancias. Si hay más de [maxRows] grupos, muestra los
- * primeros (maxRows - 1) y suma el resto en "Other".
+ * group totals SessionService ALREADY computed (reports/summary -> discrepancies.by_family):
+ * - "by instrument": each catalog instrument family (eg "Mayo-Hegar needle holder")
+ * - "by family": that family's category in CatalogService (eg "Grasping")
+ * just sum+sort; no recount / reinterpret. if more than [maxRows] groups, show top
+ * (maxRows - 1) and dump the rest into "Other".
  */
 fun buildDiscrepancyCharts(
     summary: ReportSummaryDto,

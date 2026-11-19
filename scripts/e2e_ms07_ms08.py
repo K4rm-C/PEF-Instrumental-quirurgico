@@ -96,7 +96,7 @@ def main():
     original_active = q1('SELECT id FROM yolo_model WHERE active')
     best = q('SELECT id, version_tag FROM yolo_model WHERE checksum = :c', c=BEST_SHA)[0]
     if not VIDEO.exists():
-        sys.exit(f'missing {VIDEO}: scripts/make_ms031_count_videos.py (GUIA_PRUEBAS.md §2.4)')
+        sys.exit(f'missing {VIDEO}: scripts/make_ms031_count_videos.py')
     for name in (CONTAINER, GW_CONTAINER, HAPI_CONTAINER):
         docker('rm', '-f', name, check_rc=False)
     docker('run', '-d', '--name', HAPI_CONTAINER, '--network', NETWORK, '-p', '127.0.0.1:18090:8080', HAPI_IMAGE)

@@ -178,10 +178,10 @@ def register_live_ws(sock, *, get_state: GetState) -> None:
                 try:
                     msg = json.loads(raw)
                 except json.JSONDecodeError:
-                    _error(ws, code="invalid_frame", message="JSON inválido")
+                    _error(ws, code="invalid_frame", message="invalid JSON")
                     continue
                 if not isinstance(msg, dict):
-                    _error(ws, code="invalid_frame", message="Mensaje no es objeto")
+                    _error(ws, code="invalid_frame", message="message is not an object")
                     continue
                 mtype = msg.get("type")
 
@@ -189,7 +189,7 @@ def register_live_ws(sock, *, get_state: GetState) -> None:
                     sid = str(msg.get("session_id") or "")
                     token = str(msg.get("auth_token") or "")
                     if not sid or not verify_ticket(token, session_id=sid, secret=WS_SECRET):
-                        _error(ws, code="unauthorized", message="Ticket inválido o expirado")
+                        _error(ws, code="unauthorized", message="invalid or expired ticket")
                         return
                     state = get_state(sid)
                     if state is None:
@@ -225,7 +225,7 @@ def register_live_ws(sock, *, get_state: GetState) -> None:
                 jpeg_b64 = str(msg.get("image_base64") or "")
                 frame = decode_jpeg_b64(jpeg_b64)
                 if frame is None:
-                    _error(ws, code="invalid_frame", message="JPEG vacío o corrupto", frame_id=frame_id)
+                    _error(ws, code="invalid_frame", message="empty or corrupt JPEG", frame_id=frame_id)
                     continue
                 # Evidence ring feed: camera JPEG only; must not wait on YOLO or encode.
                 push_camera_jpeg(bound.session_id, jpeg_b64, captured_at=time.time())

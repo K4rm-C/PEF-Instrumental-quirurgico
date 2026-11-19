@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- API < 31. Los tokens cifrados nunca se respaldan (su clave vive en Android Keystore y no viaja). -->
+<!-- API < 31. encrypted tokens never backed up (key lives in Android Keystore, doesnt travel). -->
 <full-backup-content>
     <exclude domain="file" path="datastore/pef_secure_session.preferences_pb" />
 </full-backup-content>

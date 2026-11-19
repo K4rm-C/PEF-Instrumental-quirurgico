@@ -1,4 +1,4 @@
-"""Integral Docker deployment, end to end (GUIA_DOCKER_INTEGRAL.md, "Pruebas del despliegue").
+"""Integral Docker deployment, end to end (see README.md).
 
 Runs against the deployment started from the repository root with `docker compose up -d --build`
 (root .env, default compose project): every component in a container, the portal and VisionWorker

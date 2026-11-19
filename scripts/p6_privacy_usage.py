@@ -1,7 +1,7 @@
 """P6 (decision pending): read-only report of how the privacy notices are used today, per institution.
 
 It changes NOTHING. It answers what the team needs to decide between (a) global notices (current schema) and
-(b) notices per institution with `institution_id NULL = global` (see docs/MS_DIAGNOSTICO_Y_PLAN.md §19.4):
+(b) notices per institution with `institution_id NULL = global` (data/DataStandards/PEF-DS07):
 
 - every privacy_notice_version (version, active, effective date) and, for each one, how many sessions of each
   institution were agreed with it (session_processing_agreement), who agreed them (count) and the first / last date;

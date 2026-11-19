@@ -1554,11 +1554,9 @@ def dashboard_data(role):
 
 def admin_dashboard_overview():
     """
-    Secondary KPI cards, Catalog/System Overview panels, and Operational Metrics for the
-    Administrator Dashboard. Counts backed by real models are computed here; AI-Human
-    Agreement and Average Resolution Time have no backing analytics query on any existing
-    model (see V2_IMPLEMENTATION_NOTES.md) and are left for the template's presentation
-    fallback.
+    Admin dashboard secondary KPIs / catalog overview / op metrics.
+    Real model counts here; AI-Human Agreement + avg resolution time still have no query,
+    so templates keep their presentation fallback.
     """
     def query():
         procedures_count = db.session.scalar(select(func.count(CatProcedureType.id)))

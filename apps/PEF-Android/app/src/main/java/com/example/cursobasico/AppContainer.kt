@@ -44,11 +44,11 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Grafo de red independiente de Android (se usa tal cual en las pruebas con MockWebServer).
- * - Cliente público: login y refresh (sin Bearer, sin autenticador).
- * - Cliente autenticado: Bearer + renovación automática ante 401.
- * - Cliente de imágenes: sin Bearer y sin caché en disco, solo para URLs prefirmadas de evidencias.
- * - [BaseUrlInterceptor] permite cambiar de Wi‑Fi / IP sin reinstalar (debug).
+ * network graph, Android-free (same thing in MockWebServer tests).
+ * - public client: login + refresh (no Bearer, no authenticator)
+ * - authed client: Bearer + auto-renew on 401
+ * - image client: no Bearer, no disk cache, only for evidence pre-signed URLs
+ * - [BaseUrlInterceptor] lets you switch WiFi/IP without reinstall (debug)
  */
 class PefNetwork(
     initialBaseUrl: String,
@@ -64,9 +64,9 @@ class PefNetwork(
 
     val sessionManager = SessionManager(tokenStore, publicRetrofit.create(AuthPublicApi::class.java))
 
-    // Dispatcher PROPIO para el cliente autenticado: el autenticador bloquea su hilo mientras espera el refresh;
-    // si compartiera Dispatcher con el cliente público, 5 peticiones con 401 ocuparían los 5 cupos por host y la
-    // llamada de refresh nunca se ejecutaría (interbloqueo detectado en SessionManagerTest).
+    // OWN Dispatcher for authed client: authenticator blocks its thread waiting on refresh;
+    // if it shared Dispatcher with public client, 5x 401 would fill all 5 slots/host and
+    // refresh would never run (deadlock caught in SessionManagerTest).
     private val authedClient = baseClient.newBuilder()
         .dispatcher(Dispatcher())
         .addInterceptor(AuthInterceptor(sessionManager))
@@ -115,7 +115,7 @@ class PefNetwork(
 
 private val Context.uiPreferencesStore: DataStore<Preferences> by preferencesDataStore(name = "pef_ui_preferences")
 
-/** Contenedor manual de dependencias (sin framework de inyección: la app es pequeña). */
+/** manual deps container (no di framework; app is small) */
 class AppContainer(application: Application) {
     private val appContext = application.applicationContext
     private val endpointStore = GatewayEndpointStore(appContext)
@@ -134,7 +134,7 @@ class AppContainer(application: Application) {
     val notificationRepository = NotificationRepository(network.notificationsApi)
     val preferencesRepository = PreferencesRepository(application.uiPreferencesStore)
 
-    /** Ámbito de aplicación: sobrevive a la recreación de la Activity (cambio de idioma o tema). */
+    /** app scope: survives Activity recreate (lang/theme change) */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val restoreStarted = AtomicBoolean(false)
     private val _gatewayReachable = MutableStateFlow<Boolean?>(null)
@@ -142,7 +142,7 @@ class AppContainer(application: Application) {
     val gatewayReachable: StateFlow<Boolean?> = _gatewayReachable.asStateFlow()
 
     private val _activeGatewayUrl = MutableStateFlow(baseUrlHolder.get())
-    /** URL efectiva del Gateway (tras descubrimiento o BuildConfig). */
+    /** effective Gateway URL (after discovery or BuildConfig) */
     val activeGatewayUrl: StateFlow<String> = _activeGatewayUrl.asStateFlow()
 
     init {

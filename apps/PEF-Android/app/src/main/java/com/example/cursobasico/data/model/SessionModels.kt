@@ -5,13 +5,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
 /*
- * Representación `expand=detail` de SessionService (apps/SessionService/services/session_snapshot.py):
+ * SessionService `expand=detail` shape (apps/SessionService/services/session_snapshot.py):
  *   GET /api/v1/sessions?expand=detail[&status=a,b]   -> List<SessionSummaryDto>
  *   GET /api/v1/sessions/{id}?expand=detail            -> SessionDetailDto
- * Un supervisor de piso (or_charge) ve las sesiones de su institución; un operador solo las suyas.
+ * floor supervisor (or_charge) sees institution sessions; operator only their own.
  */
 
-/** Códigos de estado definidos por el backend (STATUS_CODES). La app nunca crea transiciones. */
+/** status codes from backend (STATUS_CODES). app never invents transitions */
 object SessionStatus {
     const val SCHEDULED = "scheduled"
     const val IN_PROGRESS = "in_progress"
@@ -21,7 +21,7 @@ object SessionStatus {
     const val ABORTED = "aborted"
     val ALL = listOf(SCHEDULED, IN_PROGRESS, AWAITING_SPD_REVIEW, CORRECTION_REQUIRED, CLOSED, ABORTED)
 
-    /** Sesiones que requieren atención del Supervisor (revisión SPD o corrección). */
+    /** sessions that need Supervisor eyes (SPD review or correction) */
     val ON_HOLD = setOf(AWAITING_SPD_REVIEW, CORRECTION_REQUIRED)
 }
 
@@ -165,8 +165,8 @@ data class ResolveDiscrepancyResult(
 )
 
 /**
- * Etiqueta visible de una sesión. Es la MISMA regla que usa NotificationsService
- * (apps/NotificationsService/services/dispatcher.py -> session_label): "WS-" + 8 primeros hex del UUID.
+ * visible session label. SAME rule as NotificationsService
+ * (apps/NotificationsService/services/dispatcher.py -> session_label): "WS-" + first 8 hex of UUID.
  */
 fun sessionLabel(sessionId: String): String =
     "WS-" + sessionId.replace("-", "").take(8).uppercase()

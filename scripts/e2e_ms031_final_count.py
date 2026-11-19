@@ -103,7 +103,7 @@ def main():
     engine = create_engine(env['DATABASE_URL'], future=True)
     for path in (MASKED, FULL, ONE_REMOVED, FRAME):
         if not path.exists():
-            sys.exit(f'missing {path}: build it with scripts/make_ms031_count_videos.py (see GUIA_PRUEBAS.md)')
+            sys.exit(f'missing {path}: build it with scripts/make_ms031_count_videos.py')
     jwt_secret, ws_secret = secrets.token_hex(32), secrets.token_hex(24)
 
     def q(sql, **params):

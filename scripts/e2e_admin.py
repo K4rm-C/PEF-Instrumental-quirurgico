@@ -6,7 +6,7 @@ que el contrato RF-AD ya no permite (alta de kits/piezas por it_admin, vínculos
 Administración, modelos de visión registrados por referencia sin subir pesos). La verificación vigente
 de Administración es: apps/BackendWebFlask/tests/test_admin_*.py (PostgreSQL real),
 scripts/smoke_admin_test_env.py (AuthService + portal + Redis reales) y scripts/smoke_admin_monolith_sqlite.py.
-Se conserva como referencia histórica; ver docs/ADMIN_MATRIZ_CUMPLIMIENTO.md.
+Se conserva como referencia histórica.
 """
 import os
 import re

@@ -40,7 +40,7 @@ def _handle_read_error(exc):
 
 
 def _fetch(path, default=None, **params):
-    """GET from Administración local; on a service error flash it and return `default`."""
+    """GET from admin_local; on service error flash it and return `default`."""
     try:
         return api.get(path, **params), None
     except AdminDomainError as exc:
@@ -575,7 +575,7 @@ def _int_list(name):
 
 
 def _submitted_procedure():
-    """(payload for Administración local, values to re-render the form).
+    """(payload for admin_local, values to re-render the form).
 
     Kit links are SPD-owned; Admin may only submit default_kit_id among existing links.
     """

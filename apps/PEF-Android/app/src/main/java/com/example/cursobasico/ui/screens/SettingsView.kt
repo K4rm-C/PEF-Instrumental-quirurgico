@@ -60,7 +60,7 @@ import com.example.cursobasico.views.DetailField
 import com.example.cursobasico.views.DetailSectionCard
 import com.example.cursobasico.views.SessionDetailHeader
 
-/** ANDROID-01: preferencias del usuario (DataStore) y cuenta. Mismo lenguaje visual que los detalles. */
+/** ANDROID-01: user prefs (DataStore) + account. same visual language as detail screens */
 @Composable
 fun SettingsView(onBack: () -> Unit, onNavigate: (NavKey) -> Unit) {
     val viewModel = pefViewModel { SettingsViewModel(it.preferencesRepository, it.sessionManager) }
@@ -186,7 +186,7 @@ fun SettingsView(onBack: () -> Unit, onNavigate: (NavKey) -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     confirmLogout = false
-                    // Al terminar, AuthState pasa a LoggedOut y AppNavigation vuelve a Login.
+                    // when done, AuthState -> LoggedOut and AppNavigation pops back to Login.
                     viewModel.logout { }
                 }) { Text(stringResource(R.string.settings_logout)) }
             },

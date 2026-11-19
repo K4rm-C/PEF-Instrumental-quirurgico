@@ -4,9 +4,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /*
- * Reporte de supervisor de SessionService (apps/SessionService/services/session_reports.py -> summary), solo los
- * campos que usa la app. Ruta publicada: GET /api/v1/sessions/reports/summary?from=YYYY-MM-DD (or_charge /
- * spd_supervisor; el resto de roles recibe 403). Agregados de solo lectura calculados por el backend.
+ * SessionService supervisor report (apps/SessionService/services/session_reports.py -> summary),
+ * only fields the app uses. published: GET /api/v1/sessions/reports/summary?from=YYYY-MM-DD
+ * (or_charge / spd_supervisor; other roles get 403). read-only aggregates from backend.
  */
 @Serializable
 data class ReportSummaryDto(
@@ -25,7 +25,7 @@ data class DiscrepancyStatsDto(
     @SerialName("by_family") val byFamily: List<FamilyDiscrepancyDto> = emptyList(),
 )
 
-/** Discrepancias por familia de instrumento; family_id/name null = discrepancia sin familia asociada. */
+/** discrepancies by instrument family; family_id/name null = no family attached */
 @Serializable
 data class FamilyDiscrepancyDto(
     @SerialName("family_id") val familyId: String? = null,
@@ -36,8 +36,8 @@ data class FamilyDiscrepancyDto(
 )
 
 /*
- * CatalogService (apps/CatalogService): GET /api/v1/catalog/families y GET /api/v1/catalog/categories
- * (cualquier usuario autenticado). Se usan para agrupar las familias por su categoría.
+ * CatalogService: GET /api/v1/catalog/families + /categories (any authed user).
+ * used to group families by category on the charts.
  */
 @Serializable
 data class CatalogFamilyDto(

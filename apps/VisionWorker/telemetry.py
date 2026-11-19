@@ -31,7 +31,7 @@ MONGO_URL = os.getenv("MONGO_URL", "").strip()
 MONGO_DB = os.getenv("MONGO_DB", "pef").strip() or "pef"
 MONGO_TIMEOUT_MS = int(os.getenv("MONGO_TIMEOUT_MS", "1500"))
 COLLECTION = "session_telemetry"
-TTL_SECONDS = 7 * 24 * 3600            # DS06: "TTL 7 días"
+TTL_SECONDS = 7 * 24 * 3600            # DS06: "TTL 7 days"
 SPOOL_MAX = int(os.getenv("TELEMETRY_SPOOL_MAX", "5000"))
 UUID_PATTERN = "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 

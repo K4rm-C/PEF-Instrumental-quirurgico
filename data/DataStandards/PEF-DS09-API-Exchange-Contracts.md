@@ -7,16 +7,16 @@ owner: Integraciones / Backend Web
 applies_to: [MS, AP, BE]
 stores: [PostgreSQL, Redis, MongoDB, ObjectStorage]
 related: [PEF-DS01, PEF-DS03, PEF-DS04, PEF-DS05, PEF-DS07, PEF-DS08]
-last_updated: 2026-09-06
+last_updated: 2026-11-19
 ---
 
 # PEF-DS09 · API Exchange Contracts
 
 ## INTRODUCCION
 
-Este estándar es el **dueño canónico de los contratos HTTP REST** hacia clientes externos (Android JSON, Desktop XML) y de las convenciones compartidas (`/api/v1/`, JWT, correlation id, errores).
+Este estándar es el **dueño canónico de los contratos HTTP REST** hacia clientes externos (Android JSON; Desktop XML residual) y de las convenciones compartidas (`/api/v1/`, JWT, correlation id, errores).
 
-No redefine tablas: referencia PEF-DS01…DS08 para el significado de los campos. El portal/estación **no** están obligados a pasar por estos microservicios (van al Backend Web). Vision frame-a-frame es PEF-DS10 (WSS).
+No redefine tablas: referencia PEF-DS01…DS08 para el significado de los campos. El portal/estación en loopback hablan Backend Web directo; en lab LAN el portal entra por portal-lan HTTPS :5443 y Android por Gateway :8080 (discovery runtime). Vision frame-a-frame es PEF-DS10 (WSS).
 
 ---
 
@@ -32,7 +32,7 @@ No redefine tablas: referencia PEF-DS01…DS08 para el significado de los campos
 
 ### 1.2 Uso
 
-Android → HTTPS + JSON. Desktop → HTTPS + XML. Gateway aplica correlación y rate limit; cada MS valida JWT.
+Android → HTTPS + JSON vía Gateway :8080 (descubrimiento LAN de `pef-gateway` / `/healthz`). Desktop XML es contrato residual. Gateway aplica correlación y rate limit; cada MS valida JWT.
 
 ---
 
@@ -74,7 +74,9 @@ Códigos HTTP: 400, 401, 403, 404, 409, 422, 429, 500/503.
 
 #### 1.3.2 Auth / Identity Service
 
-Base: `/api/v1/auth`
+Base máquina/Android: `/api/v1/auth` (allow-list en Gateway).
+
+Portal/browser: rutas de cookie en AuthService; detrás de portal-lan, `AUTH_BROWSER_URL=/auth` (path relativo same-origin) es válido. No se exige URL absoluta de auth para el lab LAN.
 
 | Método | Endpoint | Propósito | Acceso |
 | :--- | :--- | :--- | :--- |
@@ -126,10 +128,12 @@ Base: `/api/v1/auth`
     "email": "ana.perez@demo.local",
     "institution_id": "11111111-1111-1111-1111-111111111111",
     "ui_preferences": { "locale": "es", "theme": "dark" },
-    "roles": ["scrub_nurse"]
+    "roles": ["station_operator"]
   }
 }
 ```
+
+Roles de producto v1 en `user.roles`: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge`.
 
 ---
 
@@ -233,7 +237,7 @@ Base: `/api/v1/sessions`
 | Campo | Tipo | Significado |
 | :--- | :--- | :--- |
 | `id` | uuid | |
-| `status_code` | string | |
+| `status_code` | string | Código de `cat_session_status` (`scheduled`, `in_progress`, `or_hold`, `awaiting_spd_review`, `correction_required`, `closed`, `aborted`). No usar `open`. |
 | `started_at` | string ISO | |
 | `ended_at` | string ISO\|null | |
 | `user_id` | uuid | |
@@ -247,7 +251,7 @@ Base: `/api/v1/sessions`
 ```json
 {
   "id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
-  "status_code": "open",
+  "status_code": "in_progress",
   "started_at": "2026-09-05T16:15:00Z",
   "ended_at": null,
   "user_id": "22222222-2222-2222-2222-222222222222",
@@ -372,8 +376,8 @@ Base: `/api/v1/sessions`
 **Decisiones tomadas**
 
 1. **Un DS dueño de endpoints** para no redefinir HTTP en cada DS de tablas.
-2. **JSON Android / XML Desktop** con semántica igual.
-3. **Portal fuera del gateway** (Backend Web directo).
+2. **JSON Android** como cliente externo vivo; XML Desktop residual con semántica igual.
+3. **Entradas por entorno:** loopback portal → Backend Web directo; lab LAN → portal-lan :5443 (+ `/auth` same-origin); Android → Gateway :8080. No asumir “portal siempre fuera del gateway”.
 4. **409** para conflictos de estado de sesión.
 
 **Alternativas no elegidas**
@@ -394,5 +398,5 @@ Base: `/api/v1/sessions`
 | Título | API Exchange Contracts |
 | Versión | 0.1.0 |
 | Estado | draft |
-| Fuentes | `Definicion APIs Modulos Microservicios.docx.md`, `arquitectura_servicios_y_cobertura.md` |
+| Fuentes | OpenAPI por MS bajo `apps/*/openapi.yaml`; runbook raíz `README.md`; este DS |
 | Fuera de alcance | WSS visión (DS10); DDL de tablas |
