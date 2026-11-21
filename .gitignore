@@ -282,3 +282,6 @@ Desktop.ini
 *.log
 *.sqlite3
 dump.rdb
+
+# --- PEF: Locust reports ---
+tests/load/reports/
