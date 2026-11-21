@@ -1,4 +1,4 @@
-﻿-- =============================================================================
+-- =============================================================================
 -- 014 MS-07: incremental sync, op idempotency, machine clients, FHIR exchange
 --
 -- Idempotent. Does not mutate/delete existing rows.
