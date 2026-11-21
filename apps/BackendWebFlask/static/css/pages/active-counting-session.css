@@ -3,7 +3,7 @@
   Suggested Count, Correction Requested): the camera-assisted capture area placeholder and
   the rectangular "evidence image" placeholder used wherever a reference shows a captured
   photograph. Both are visual placeholders only — no camera/video/YOLO integration and no
-  real photography assets exist in this repository (see V2_IMPLEMENTATION_NOTES.md).
+  real photography assets exist in this repository.
 */
 
 .capture-area {

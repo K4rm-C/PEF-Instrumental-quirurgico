@@ -63,11 +63,11 @@ No se añadió ninguna biblioteca de imágenes ni de inyección de dependencias.
 ## 3. Configuración del Gateway, emulador y teléfono
 
 ### 3.1 URL base (Retrofit)
-La URL base es un `BuildConfig.API_BASE_URL` por tipo de compilación, configurable sin tocar código:
+La URL base de **debug** se descubre en runtime (última URL buena → `BuildConfig` → `10.0.2.2` → barrido LAN `/24` de `/healthz`). Tras cambiar de Wi‑Fi basta con **Reintentar** en el login; no hace falta editar IP a mano ni reinstalar. El seed de compilación sigue siendo un `BuildConfig.API_BASE_URL` configurable:
 
 | Propiedad Gradle | Valor por defecto | Uso |
 |---|---|---|
-| `pef.apiBaseUrl.debug` | `http://10.0.2.2:8080/` | Emulador estándar → Gateway de desarrollo de `docker-compose.yml` |
+| `pef.apiBaseUrl.debug` | `http://10.0.2.2:8080/` (Gradle) o IP LAN vía `.\scripts\pef_lan_endpoint.ps1` | Preferir script LAN + Gateway `HOST_BIND=0.0.0.0` en `docker-compose.integral.yml` |
 | `pef.apiBaseUrl.release` | `https://api.pef.invalid/` (marcador) | **Debe** ser HTTPS; la compilación release falla si no lo es |
 
 ```bash

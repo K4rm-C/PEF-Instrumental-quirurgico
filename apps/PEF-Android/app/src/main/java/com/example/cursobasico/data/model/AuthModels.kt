@@ -4,10 +4,10 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /*
- * Contratos de AuthService publicados por el Gateway (apps/BackendAuthService/api_v1.py):
+ * AuthService contracts via Gateway (apps/BackendAuthService/api_v1.py):
  *   POST /api/v1/auth/login       {email, password}         -> LoginResponse
- *   POST /api/v1/auth/refresh     {refresh_token}           -> TokenResponse (rotación: el refresh anterior queda revocado)
- *   POST /api/v1/auth/logout      Bearer + {refresh_token}  -> 204 (revoca access y refresh)
+ *   POST /api/v1/auth/refresh     {refresh_token}           -> TokenResponse (rotation: old refresh revoked)
+ *   POST /api/v1/auth/logout      Bearer + {refresh_token}  -> 204 (revokes access + refresh)
  *   GET  /api/v1/auth/me          Bearer                    -> UserDto
  *   GET  /api/v1/auth/permissions Bearer                    -> PermissionsDto
  */
@@ -61,7 +61,7 @@ data class PermissionsDto(
     val roles: List<String> = emptyList(),
 )
 
-/** Sobre de error DS09 común a todos los servicios: {"error","message","correlation_id","details"}. */
+/** shared DS09 error envelope: {"error","message","correlation_id","details"} */
 @Serializable
 data class ApiErrorBody(
     val error: String? = null,
@@ -69,11 +69,11 @@ data class ApiErrorBody(
     @SerialName("correlation_id") val correlationId: String? = null,
 )
 
-/** Roles reales del PEF (role.code). */
+/** real PEF roles (role.code) */
 object Roles {
     const val STATION_OPERATOR = "station_operator"
     const val SPD_SUPERVISOR = "spd_supervisor"
     const val IT_ADMIN = "it_admin"
-    /** Floor / OR charge — cuenta canónica de la App (alertas de quirófano; sin home web). */
+    /** Floor / OR charge - canonical App account (OR alerts; no web home) */
     const val OR_CHARGE = "or_charge"
 }

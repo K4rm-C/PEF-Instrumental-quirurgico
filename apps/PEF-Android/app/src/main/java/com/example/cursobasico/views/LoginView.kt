@@ -21,18 +21,24 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,6 +57,8 @@ import com.example.cursobasico.ActionColor
 import com.example.cursobasico.BorderColor
 import com.example.cursobasico.FieldBackground
 import com.example.cursobasico.OnActionColor
+import com.example.cursobasico.Orange
+import com.example.cursobasico.PefApplication
 import com.example.cursobasico.R
 import com.example.cursobasico.SurfaceColor
 import com.example.cursobasico.TextPrimary
@@ -61,7 +69,9 @@ import com.example.cursobasico.ui.viewmodel.LoginViewModel
 import com.example.cursobasico.ui.viewmodel.pefViewModel
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -76,6 +86,10 @@ fun LoginScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
+    val app = LocalContext.current.applicationContext as PefApplication
+    val gatewayReachable by app.container.gatewayReachable.collectAsStateWithLifecycle()
+    val activeGatewayUrl by app.container.activeGatewayUrl.collectAsStateWithLifecycle()
+    val canSubmit = gatewayReachable == true && !state.loading
     val reasonMessage = when (logoutReason) {
         is LogoutReason.SessionExpired -> stringResource(R.string.login_session_expired)
         is LogoutReason.UserInitiated -> if (logoutReason.serverConfirmed) {
@@ -148,6 +162,40 @@ fun LoginScreen(
                             color = BorderColor
                         )
                         Spacer(modifier = Modifier.height(23.dp))
+                        when (gatewayReachable) {
+                            false -> {
+                                Text(
+                                    text = stringResource(
+                                        R.string.login_gateway_unreachable,
+                                        activeGatewayUrl
+                                    ),
+                                    fontSize = 11.sp,
+                                    color = Orange,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .semantics { liveRegion = LiveRegionMode.Polite }
+                                )
+                                TextButton(
+                                    onClick = { app.container.retryGatewayProbe() },
+                                    enabled = !state.loading
+                                ) {
+                                    Text(stringResource(R.string.login_gateway_retry))
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
+                            null -> {
+                                Text(
+                                    text = stringResource(R.string.login_gateway_checking),
+                                    fontSize = 11.sp,
+                                    color = TextSecondary,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
+                            true -> Unit
+                        }
                         if (reasonMessage != null && state.errorRes == null) {
                             Text(
                                 text = reasonMessage,
@@ -209,7 +257,7 @@ fun LoginScreen(
                                 focusManager.clearFocus()
                                 viewModel.submit()
                             },
-                            enabled = !state.loading,
+                            enabled = canSubmit,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(44.dp),
@@ -287,6 +335,7 @@ fun LoginTextField(
     enabled: Boolean = true,
     onDone: () -> Unit = {}
 ) {
+    var passwordVisible by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -325,12 +374,36 @@ fun LoginTextField(
                     tint = TextSecondary
                 )
             },
-            visualTransformation = if (isPassword) {
+            trailingIcon = if (isPassword) {
+                {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            imageVector = if (passwordVisible) {
+                                Icons.Default.VisibilityOff
+                            } else {
+                                Icons.Default.Visibility
+                            },
+                            contentDescription = stringResource(
+                                if (passwordVisible) {
+                                    R.string.login_hide_password
+                                } else {
+                                    R.string.login_show_password
+                                }
+                            ),
+                            tint = TextSecondary
+                        )
+                    }
+                }
+            } else {
+                null
+            },
+            visualTransformation = if (isPassword && !passwordVisible) {
                 PasswordVisualTransformation()
             } else {
                 VisualTransformation.None
             },
             keyboardOptions = KeyboardOptions(
+                autoCorrectEnabled = false,
                 keyboardType = if (isPassword) {
                     KeyboardType.Password
                 } else {

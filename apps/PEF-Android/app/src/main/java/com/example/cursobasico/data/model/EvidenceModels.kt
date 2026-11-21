@@ -4,11 +4,11 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /*
- * EvidenceService (apps/EvidenceService/services/evidence_service.py -> evidence_item):
- *   GET /api/v1/sessions/{id}/evidence -> List<EvidenceDto> (signed_url siempre null en el listado)
- *   GET /api/v1/evidence/{id}          -> EvidenceDto con signed_url prefirmada (TTL corto, auditada);
- *                                         null si la evidencia está bloqueada o purgada.
- * La app nunca construye URLs de Garage: solo usa la URL que el backend firma.
+ * EvidenceService (evidence_item):
+ *   GET /api/v1/sessions/{id}/evidence -> list (signed_url always null here)
+ *   GET /api/v1/evidence/{id}          -> dto with short TTL signed_url (audited);
+ *                                         null if locked/purged.
+ * app never builds Garage URLs; only uses what backend signed.
  */
 @Serializable
 data class EvidenceDto(

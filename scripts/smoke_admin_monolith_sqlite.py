@@ -1,7 +1,7 @@
-"""Test de humo de Admin en SQLite TEMPORAL (no sustituye PostgreSQL).
+"""Admin smoke on TEMP SQLite (does not replace PostgreSQL).
 
-Requiere instalar apps/BackendWebFlask/requirements.txt. No crea datos en
-la base real; usa un archivo temporal para verificar formularios y reglas.
+Needs apps/BackendWebFlask/requirements.txt installed. Does not touch the
+real DB; uses a temp file to check forms and rules.
 """
 import io,os,pickle,sys,uuid,datetime,tempfile,zipfile
 from pathlib import Path
@@ -120,8 +120,8 @@ test('GET','/admin/users',200)
 test('GET','/admin/roles',200)
 test('GET','/admin/configuration',200)
 test('GET','/admin/vision-models',200)
-# Las consultas de la bitácora y del dashboard contienen SQL propio de PostgreSQL.
-# Se probarán contra PostgreSQL real: SQLite no acepta AT TIME ZONE/host/string_agg.
+# Audit-log + dashboard queries use PostgreSQL-only SQL.
+# Hit those against real PG: SQLite chokes on AT TIME ZONE / host / string_agg.
 print('PASS smoke')
 # Stronger business checks (these operations use local SQLAlchemy, no API calls).
 test('POST','/admin/instrument-families/new',400,data={'code':'BAD','name':'Bad family','category':'not-a-uuid'})

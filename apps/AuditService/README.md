@@ -3,7 +3,7 @@
 Read API over the existing PEF audit and event trail (PEF-DS09 §1.3.6 complement v0.1.0):
 `access_audit` (PEF-DS07, written by Auth, Catalog, Session, Evidence and the portal) and
 `count_event` (PEF-DS04, the counting facts). No second log, no insert endpoint; queries run in
-PostgreSQL READ ONLY transactions. Integration guide: `../../GUIA_AUDIT.md`.
+PostgreSQL READ ONLY transactions. Service notes: this README. Run/deploy: `../../README.md`.
 
 | Method | Path | Notes |
 | :--- | :--- | :--- |

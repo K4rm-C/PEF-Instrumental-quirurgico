@@ -3,11 +3,11 @@ id: PEF-DS01
 title: Identity and Credentials
 version: "0.2.2"
 status: draft
-owner: PEF Core / Backend Web
+owner: PEF Core / BackendAuthService
 applies_to: [WP, BE, CS]
 stores: [PostgreSQL, Redis]
 related: [PEF-DS02, PEF-DS07, PEF-DS08]
-last_updated: 2026-10-29
+last_updated: 2026-11-19
 ---
 
 # PEF-DS01 · Identity and Credentials
@@ -54,9 +54,11 @@ Para cada tabla de este estándar se documentan **todos** los campos, hacia dón
 **Flujo típico**
 
 1. La persona escribe correo y contraseña.
-2. El backend busca el usuario, verifica el hash, revisa `active`.
-3. Emite JWT y registra en Redis lo necesario (TTL, blacklist, fallos de login).
+2. BackendAuthService busca el usuario, verifica el hash, revisa `active`.
+3. Emite JWT (y/o cookies HttpOnly en rutas de portal) y registra en Redis lo necesario (TTL, blacklist, fallos de login).
 4. Las peticiones siguientes llevan el token; el backend resuelve `user_id` e institución.
+
+Superficies: portal/browser usa rutas legacy de cookie (`/login`, …) y, detrás de portal-lan (lab HTTPS :5443), `AUTH_BROWSER_URL=/auth` same-origin es válido (path relativo; no exige URL absoluta). Android y MS usan `/api/v1/auth` vía Gateway :8080.
 
 **Qué no hace:** no define conteo, paciente clínico ni consentimiento de tratamiento de datos.
 
@@ -66,9 +68,9 @@ Para cada tabla de este estándar se documentan **todos** los campos, hacia dón
 
 Convenciones globales de este DS:
 
-- Códigos de rol en inglés snake_case (`scrub_nurse`). La UI puede mostrar español.
+- Códigos de rol en inglés snake_case. Producto v1 fijo: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (floor app). La UI puede mostrar español.
 - Email de login único en todo el sistema.
-- Contraseña: solo algoritmos de hash lentos (bcrypt/argon2). Prohibido texto plano en BD, logs, mocks reales o tickets.
+- Contraseña: hash lento (runtime actual: Werkzeug `pbkdf2:sha256`). Prohibido texto plano en BD, logs, mocks reales o tickets.
 - Timestamps en UTC (`TIMESTAMPTZ`).
 - Un usuario pertenece a **una** institución. Los roles se definen **por** institución.
 - En “Hacia dónde apunta”, la columna **Relación** se lee desde esta tabla hacia el destino: `N:1` = muchas filas aquí a una allá; `N:0..1` = el destino es opcional (FK nullable); `1:1` = a lo sumo un par; `N:N` se logra con tabla puente (cada FK del puente sigue siendo `N:1`).
@@ -169,7 +171,7 @@ Ejemplo hijo (misma tabla, otra fila):
 | `name`                | VARCHAR(160) | NO   | —                                            | Nombre para mostrar.                             |
 | `active`              | BOOLEAN      | NO   | `TRUE`                                       | Si es `false`, el login debe rechazarse.         |
 | `email`               | VARCHAR(255) | NO   | —                                            | Correo de login; único global.                   |
-| `password_hash`       | TEXT         | NO   | —                                            | Hash de la contraseña (nunca el texto en claro). |
+| `password_hash`       | TEXT         | NO   | —                                            | Hash de la contraseña (nunca el texto en claro). Runtime: Werkzeug `pbkdf2:sha256`. |
 | `password_updated_at` | TIMESTAMPTZ  | SÍ   | NULL                                         | Última vez que se cambió la contraseña.          |
 | `last_login_at`       | TIMESTAMPTZ  | SÍ   | NULL                                         | Último login exitoso.                            |
 | `ui_preferences`      | JSONB        | NO   | `{"locale":"en","theme":"light"}`            | Preferencias de interfaz (varias en un solo campo). |
@@ -207,7 +209,7 @@ Otras claves de UI (densidad, etc.) pueden añadirse después en el mismo JSONB;
   "name": "Ana Pérez",
   "active": true,
   "email": "ana.perez@demo.local",
-  "password_hash": "$argon2id$v=19$m=65536,t=3,p=4$[REDACTED]",
+  "password_hash": "pbkdf2:sha256:600000$[REDACTED]",
   "password_updated_at": "2026-08-01T15:00:00Z",
   "last_login_at": "2026-09-05T17:40:00Z",
   "ui_preferences": {
@@ -347,7 +349,7 @@ Redis guarda estado **temporal** de login. No sustituye `user`.
 
 | Aspecto             | Responsable                                                 |
 | ------------------- | ----------------------------------------------------------- |
-| Dueño del estándar  | Backend Web / PEF Core                                      |
+| Dueño del estándar  | BackendAuthService / PEF Core                               |
 | Alta de usuarios    | Administración institucional (portal) o bootstrap           |
 | Asignación de roles | Administración con permiso IAM                              |
 | Cambios a este DS   | Revisar con seguridad si toca hash, JWT o unicidad de email |
@@ -366,7 +368,7 @@ Sin un estándar de identidad, cada pantalla inventa “quién es el usuario”.
 **Decisiones de diseño que sí se tomaron**
 
 1. **Un usuario → una institución.** Simplifica permisos y reportes multi-tenant. Si alguien trabaja en dos hospitales, se modelan dos cuentas (o más adelante un puente explícito; hoy no).
-2. **Roles por institución, no globales.** Cada sede puede tener `scrub_nurse` con matices distintos sin contaminar a otras.
+2. **Roles por institución, no globales.** Cada sede instancia los códigos de producto (`station_operator`, …) con su propio UUID sin contaminar a otras.
 3. **Email único global institucional.** Un solo login string en todo el despliegue; menos ambigüedad en soporte.
 4. **Solo hash en PostgreSQL; sesión en Redis.** La fuente de verdad de la persona es PG. Redis se puede vaciar sin perder usuarios.
 5. **Tabla puente `user_role`.** Permite varios roles sin arrays frágiles ni columnas booleanas por permiso.

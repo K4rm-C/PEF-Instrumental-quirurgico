@@ -10,7 +10,7 @@ import okhttp3.mockwebserver.RecordedRequest
 import java.util.concurrent.CopyOnWriteArrayList
 
 /*
- * Fixtures SINTÉTICOS con la forma exacta de los contratos del backend (no son datos hospitalarios reales).
+ * synthetic fixtures shaped exactly like backend contracts (not real hospital data).
  */
 object Fixtures {
     const val SESSION_ID = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
@@ -97,7 +97,7 @@ object Fixtures {
     """.trimIndent()
 }
 
-/** Despachador por ruta que registra cada petición; las respuestas se configuran por "MÉTODO ruta". */
+/** route dispatcher that records each request; responses keyed by "METHOD path" */
 class RoutingDispatcher : Dispatcher() {
     val handlers = mutableMapOf<String, (RecordedRequest) -> MockResponse>()
     val requests = CopyOnWriteArrayList<RecordedRequest>()

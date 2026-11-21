@@ -1,5 +1,5 @@
 # PEF API Gateway (MS-04) — http-level settings. Rendered by the nginx image (envsubst of ${PEF_GW_*} only;
-# nginx's own $variables are left as they are). See GUIA_API_GATEWAY.md.
+# nginx's own $variables are left as they are). See README.md.
 
 server_tokens off;
 

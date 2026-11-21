@@ -1,4 +1,4 @@
-"""AuditService end to end (live services; see GUIA_AUDIT.md).
+"""AuditService end to end (live services; see apps/AuditService/README.md).
 
 Needs: BackendWebFlask (:5000) with AUDIT_SERVICE_URL (and CATALOG_SERVICE_URL, SESSION_SERVICE_URL),
 AuthService (:5001), VisionWorker (:5002, weights/best.pt), compose postgres, redis, catalog, session,

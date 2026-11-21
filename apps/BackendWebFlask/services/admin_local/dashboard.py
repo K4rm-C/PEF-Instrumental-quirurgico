@@ -62,7 +62,8 @@ AI_HUMAN_AGREEMENT_SQL = """
 # Operational data (sessions, counts, discrepancies) belongs to an institution through its operation;
 # the administrator sees only their own, as in AuditService. Sessions without an operation have no
 # tenant and are not counted. Users, roles, institutions, families, procedures and vision models stay
-# global on purpose: the administrator manages them for every institution (GUIA_AUTH.md, GUIA_CATALOG.md).
+# global on purpose: the administrator manages them for every institution
+# (apps/BackendAuthService/README.md, apps/CatalogService/README.md).
 TENANT_SESSIONS_SQL = (
     "SELECT ws.id FROM work_session ws JOIN operation op ON op.id = ws.operation_id "
     "WHERE op.institution_id = :inst"

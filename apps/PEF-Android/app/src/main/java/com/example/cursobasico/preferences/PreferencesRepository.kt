@@ -14,14 +14,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
-/** Idioma de la interfaz. SYSTEM = idioma del dispositivo (valor inicial). */
+/** UI language. SYSTEM = device lang (default) */
 enum class AppLanguage(val tag: String?) {
     SYSTEM(null), SPANISH("es"), ENGLISH("en");
 
     companion object {
         fun fromStored(value: String?): AppLanguage = entries.firstOrNull { it.name == value } ?: SYSTEM
 
-        /** ui_preferences.locale de AuthService: "en" | "es-MX". */
+        /** AuthService ui_preferences.locale: "en" | "es-MX" */
         fun fromServerLocale(locale: String?): AppLanguage? = when {
             locale == null -> null
             locale.startsWith("es") -> SPANISH
@@ -37,7 +37,7 @@ enum class ThemeMode {
     companion object {
         fun fromStored(value: String?): ThemeMode = entries.firstOrNull { it.name == value } ?: SYSTEM
 
-        /** ui_preferences.theme de AuthService: "light" | "dark" | "system". */
+        /** AuthService ui_preferences.theme: "light" | "dark" | "system" */
         fun fromServer(theme: String?): ThemeMode? = when (theme) {
             "light" -> LIGHT
             "dark" -> DARK
@@ -48,19 +48,19 @@ enum class ThemeMode {
 }
 
 /**
- * Preferencias NO sensibles del usuario (nunca tokens: esos van en SecureTokenStore).
+ * NON-sensitive user prefs (never tokens: those live in SecureTokenStore).
  *
- * [inAppNotifications] es una preferencia de interfaz (mostrar la insignia de no leídas y consultar el contador al
- * abrir pantallas). No es un permiso de notificaciones push: la app no tiene push (ver README).
+ * [inAppNotifications] is a UI pref (show unread badge + refresh count on screen open).
+ * not a push permission: app has no push (see README).
  */
 data class UserPreferences(
     val language: AppLanguage = AppLanguage.SYSTEM,
     val theme: ThemeMode = ThemeMode.SYSTEM,
     val inAppNotifications: Boolean = true,
-    /** El usuario eligió idioma/tema en esta app; entonces ui_preferences del servidor ya no lo sobrescribe. */
+    /** user picked lang/theme in this app; then server ui_preferences wont overwrite */
     val languageChosen: Boolean = false,
     val themeChosen: Boolean = false,
-    /** Versión del esquema de preferencias, para migraciones futuras. */
+    /** prefs schema version, for future migrations */
     val schemaVersion: Int = PreferencesRepository.SCHEMA_VERSION,
 )
 
@@ -91,8 +91,8 @@ class PreferencesRepository(private val dataStore: DataStore<Preferences>) {
     }
 
     /**
-     * Sincronización de solo lectura con ui_preferences de GET /me (o del login): se aplica únicamente a lo que el
-     * usuario aún no eligió en el teléfono. La escritura al servidor no está publicada por el Gateway (README).
+     * read-only sync from GET /me (or login) ui_preferences: only fills what user
+     * hasnt picked on phone yet. write-back to server not published on Gateway (README).
      */
     suspend fun applyServerDefaults(server: UiPreferencesDto?) {
         if (server == null) return

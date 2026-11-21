@@ -1,3 +1,7 @@
+import csv
+import io
+import json
+
 from flask import Response, abort, flash, make_response, redirect, request, url_for
 from flask_babel import gettext
 
@@ -36,7 +40,7 @@ def _handle_read_error(exc):
 
 
 def _fetch(path, default=None, **params):
-    """GET from Administración local; on a service error flash it and return `default`."""
+    """GET from admin_local; on service error flash it and return `default`."""
     try:
         return api.get(path, **params), None
     except AdminDomainError as exc:
@@ -93,7 +97,8 @@ def admin_dashboard():
         return response
     context = present.dashboard(data) if data else {
         'dashboard_stats': {}, 'secondary_stats': {}, 'catalog_overview': [], 'system_overview': [],
-        'operational_metrics': [], 'session_stats': [], 'health_rows': [], 'section_errors': [],
+        'operational_metrics': [], 'session_stats': [], 'operation_stat_cards': [],
+        'health_rows': [], 'section_errors': [],
     }
     return _page('admin/dashboard.html', **context)
 
@@ -570,7 +575,7 @@ def _int_list(name):
 
 
 def _submitted_procedure():
-    """(payload for Administración local, values to re-render the form).
+    """(payload for admin_local, values to re-render the form).
 
     Kit links are SPD-owned; Admin may only submit default_kit_id among existing links.
     """
@@ -1706,3 +1711,378 @@ def admin_camera_calibration(camera_id):
                  save_url=url_for('web.admin_camera_calibration', camera_id=camera_id),
                  cancel_url=url_for('web.admin_configuration')), status
 
+
+# --- Hospital operations (admin sidemenu) -----------------------------------------------------
+
+_FHIR_SCOPE_PREFIXES = ('fhir.', 'sync.', 'export.')
+_EXPORT_CATALOGS = ('families', 'procedures')
+
+
+def _setting_bool(parameters, key):
+    for item in (parameters or {}).get('items', []):
+        if item.get('key') == key:
+            return bool(item.get('value'))
+    return False
+
+
+def _save_setting_flag(key, enabled):
+    try:
+        api.put('/settings', {key: bool(enabled)})
+    except AdminDomainError as exc:
+        message, response = _form_error(exc)
+        if response is not None:
+            return response
+        flash(message or gettext('The setting could not be saved.'), 'danger')
+        return None
+    return True
+
+
+@web_bp.route('/admin/hospital-ops/integration-arc')
+@require_role(ADMIN)
+def admin_hospital_integration_arc():
+    clients_data, response = _fetch('/integration-clients', {})
+    if response is not None:
+        return response
+    parameters, _ = _fetch('/settings', {})
+    items = (clients_data or {}).get('items', [])
+    active = [c for c in items if c.get('active')]
+    last_activity = None
+    for client in items:
+        stamp = client.get('last_used_at')
+        if stamp and (last_activity is None or stamp > last_activity):
+            last_activity = stamp
+    fhir_scope_count = len({
+        scope for client in items for scope in (client.get('scopes') or [])
+        if any(scope.startswith(prefix) for prefix in _FHIR_SCOPE_PREFIXES)
+    })
+    enabled = _setting_bool(parameters, 'his_channel_enabled')
+    status_label, status_variant = present.status(enabled)
+    clients = []
+    for client in items:
+        label, variant = present.status(client.get('active'))
+        clients.append({
+            **client,
+            'scopes_text': ', '.join(client.get('scopes') or []),
+            'status_label': label,
+            'status_variant': variant,
+            'edit_url': url_for('web.admin_integration_client_edit', client_id=client['id']),
+            'toggle_url': url_for('web.admin_hospital_client_toggle', client_id=client['id']),
+        })
+    return _page(
+        'admin/hospital_ops/integration_arc.html',
+        clients=clients,
+        channel={
+            'enabled': enabled,
+            'status_label': status_label,
+            'status_variant': status_variant,
+            'last_activity': last_activity,
+            'active_clients': len(active),
+            'total_clients': len(items),
+            'fhir_scope_count': fhir_scope_count,
+        },
+        toggle_url=url_for('web.admin_hospital_integration_toggle'),
+        manage_clients_url=url_for('web.admin_configuration'),
+        new_client_url=url_for('web.admin_integration_client_new'),
+    )
+
+
+@web_bp.post('/admin/hospital-ops/integration-arc/toggle')
+@require_role(ADMIN)
+def admin_hospital_integration_toggle():
+    enabled = request.form.get('enabled', '0') in {'1', 'true', 'on', 'yes'}
+    saved = _save_setting_flag('his_channel_enabled', enabled)
+    if saved is not True and saved is not None:
+        return saved
+    if saved is True:
+        flash(gettext('HIS channel updated.'), 'success')
+    return redirect(url_for('web.admin_hospital_integration_arc'))
+
+
+@web_bp.post('/admin/hospital-ops/integration-clients/<client_id>/toggle')
+@require_role(ADMIN)
+def admin_hospital_client_toggle(client_id):
+    client, response = _fetch(f'/integration-clients/{client_id}')
+    if response is not None:
+        return response
+    if client is None:
+        flash(gettext('Integration client not found.'), 'warning')
+        return redirect(url_for('web.admin_hospital_integration_arc'))
+    status = _status_value()
+    payload = {
+        'name': client.get('name', ''),
+        'scopes': list(client.get('scopes') or []),
+        'status': status,
+    }
+    try:
+        api.put(f'/integration-clients/{client_id}', payload)
+    except AdminDomainError as exc:
+        message, nav = _form_error(exc)
+        if nav is not None:
+            return nav
+        flash(message or gettext('The client could not be updated.'), 'danger')
+        return redirect(url_for('web.admin_hospital_integration_arc'))
+    flash(gettext('Integration client updated.'), 'success')
+    return redirect(url_for('web.admin_hospital_integration_arc'))
+
+
+def _catalog_count(path):
+    data, _ = _fetch(path, {}, status='all', page=1, per_page=1)
+    if not data:
+        return 0
+    return int(data.get('total') or data.get('total_count') or len(data.get('items') or []))
+
+
+def _catalog_items(path):
+    data, response = _fetch(path, {}, status='all', page=1, per_page=5000)
+    if response is not None:
+        return None, response
+    return list((data or {}).get('items') or []), None
+
+
+def _export_rows(catalog, items):
+    rows = []
+    if catalog == 'families':
+        for item in items:
+            category = item.get('category') or {}
+            rows.append({
+                'id': item.get('id'),
+                'code': item.get('code'),
+                'name': item.get('name'),
+                'category': category.get('code') or '',
+                'how_to_identify': item.get('identify_text') or '',
+                'classification_characteristics': item.get('classify_text') or '',
+                'function': item.get('function_text') or '',
+                'status': 'active' if item.get('active') else 'inactive',
+            })
+        return rows
+    for item in items:
+        rows.append({
+            'id': item.get('id'),
+            'code': item.get('code'),
+            'name': item.get('name'),
+            'kit_count': item.get('kit_count'),
+        })
+    return rows
+
+
+@web_bp.get('/admin/hospital-ops/import-export')
+@require_role(ADMIN)
+def admin_hospital_import_export():
+    return _page(
+        'admin/hospital_ops/import_export.html',
+        catalog_counts={
+            'families': _catalog_count('/families'),
+            'procedures': _catalog_count('/procedures'),
+        },
+        export_url=url_for('web.admin_hospital_catalog_export'),
+        import_url=url_for('web.admin_hospital_catalog_import'),
+        import_result=None,
+    )
+
+
+@web_bp.get('/admin/hospital-ops/import-export/download')
+@require_role(ADMIN)
+def admin_hospital_catalog_export():
+    catalog = (request.args.get('catalog') or 'families').strip().lower()
+    fmt = (request.args.get('format') or 'json').strip().lower()
+    if catalog not in _EXPORT_CATALOGS:
+        abort(404)
+    path = f'/{catalog}'
+    items, response = _catalog_items(path)
+    if response is not None:
+        return response
+    rows = _export_rows(catalog, items or [])
+    filename = f'pef-{catalog}.{fmt if fmt in {"csv", "json"} else "json"}'
+    if fmt == 'csv':
+        buffer = io.StringIO()
+        fieldnames = list(rows[0].keys()) if rows else ['id']
+        writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+        payload = buffer.getvalue().encode('utf-8-sig')
+        return Response(
+            payload,
+            mimetype='text/csv; charset=utf-8',
+            headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+        )
+    payload = json.dumps({'catalog': catalog, 'count': len(rows), 'items': rows}, ensure_ascii=False, indent=2)
+    return Response(
+        payload.encode('utf-8'),
+        mimetype='application/json; charset=utf-8',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'},
+    )
+
+
+def _parse_family_import(file_storage):
+    filename = (file_storage.filename or '').lower()
+    raw = file_storage.read()
+    if not raw:
+        raise ValueError(gettext('The uploaded file is empty.'))
+    text = raw.decode('utf-8-sig')
+    rows = []
+    if filename.endswith('.json') or text.lstrip().startswith(('[', '{')):
+        data = json.loads(text)
+        if isinstance(data, dict):
+            data = data.get('items') or data.get('families') or []
+        if not isinstance(data, list):
+            raise ValueError(gettext('JSON import must be a list or an object with an items array.'))
+        for entry in data:
+            if not isinstance(entry, dict):
+                continue
+            rows.append({
+                'code': str(entry.get('code') or '').strip(),
+                'name': str(entry.get('name') or '').strip(),
+                'category': str(entry.get('category') or entry.get('category_code') or '').strip(),
+                'how_to_identify': str(entry.get('how_to_identify') or entry.get('identify_text') or '').strip(),
+                'classification_characteristics': str(
+                    entry.get('classification_characteristics') or entry.get('classify_text') or '').strip(),
+                'function': str(entry.get('function') or entry.get('function_text') or '').strip(),
+                'status': str(entry.get('status') or ('active' if entry.get('active', True) else 'inactive')).strip(),
+            })
+    else:
+        reader = csv.DictReader(io.StringIO(text))
+        for entry in reader:
+            rows.append({
+                'code': str(entry.get('code') or '').strip(),
+                'name': str(entry.get('name') or '').strip(),
+                'category': str(entry.get('category') or entry.get('category_code') or '').strip(),
+                'how_to_identify': str(entry.get('how_to_identify') or entry.get('identify_text') or '').strip(),
+                'classification_characteristics': str(
+                    entry.get('classification_characteristics') or entry.get('classify_text') or '').strip(),
+                'function': str(entry.get('function') or entry.get('function_text') or '').strip(),
+                'status': str(entry.get('status') or 'active').strip() or 'active',
+            })
+    return rows
+
+
+@web_bp.post('/admin/hospital-ops/import-export/import')
+@require_role(ADMIN)
+def admin_hospital_catalog_import():
+    upload = request.files.get('file')
+    if upload is None or not upload.filename:
+        flash(gettext('Choose a CSV or JSON file to import.'), 'warning')
+        return redirect(url_for('web.admin_hospital_import_export'))
+    try:
+        rows = _parse_family_import(upload)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError, csv.Error) as exc:
+        flash(gettext('Import could not be parsed: %(detail)s', detail=str(exc)), 'danger')
+        return redirect(url_for('web.admin_hospital_import_export'))
+
+    categories = {item['code']: item['id'] for item in _catalogs('categories')['categories']}
+    created = skipped = 0
+    errors = []
+    for index, row in enumerate(rows, start=1):
+        if not row['code'] or not row['name'] or not row['category']:
+            skipped += 1
+            errors.append(gettext('Row %(n)s: code, name and category are required.', n=index))
+            continue
+        category_id = categories.get(row['category'])
+        if not category_id:
+            skipped += 1
+            errors.append(gettext('Row %(n)s: unknown category code %(code)s.', n=index, code=row['category']))
+            continue
+        status = row['status'] if row['status'] in {'active', 'inactive'} else 'active'
+        payload = {
+            'code': row['code'],
+            'name': row['name'],
+            'category_id': category_id,
+            'identify_text': row['how_to_identify'],
+            'classify_text': row['classification_characteristics'],
+            'function_text': row['function'],
+            'status': status,
+            'confirm_active_model': '',
+        }
+        try:
+            api.post('/families', payload)
+            created += 1
+        except AdminDomainError as exc:
+            skipped += 1
+            errors.append(gettext('Row %(n)s (%(code)s): %(detail)s', n=index, code=row['code'],
+                                  detail=exc.user_message))
+    import_result = {
+        'received': len(rows),
+        'created': created,
+        'skipped': skipped,
+        'errors': errors,
+    }
+    if created:
+        flash(gettext('Import finished: %(created)s families created.', created=created), 'success')
+    elif rows:
+        flash(gettext('Import finished with no new families.'), 'warning')
+    return _page(
+        'admin/hospital_ops/import_export.html',
+        catalog_counts={
+            'families': _catalog_count('/families'),
+            'procedures': _catalog_count('/procedures'),
+        },
+        export_url=url_for('web.admin_hospital_catalog_export'),
+        import_url=url_for('web.admin_hospital_catalog_import'),
+        import_result=import_result,
+    )
+
+
+@web_bp.route('/admin/hospital-ops/or-schedule')
+@require_role(ADMIN)
+def admin_hospital_or_schedule():
+    rooms_data, response = _fetch('/operating-rooms', {})
+    if response is not None:
+        return response
+    stations_data, _ = _fetch('/capture-stations', {})
+    parameters, _ = _fetch('/settings', {})
+    stations = (stations_data or {}).get('items', [])
+    stations_by_room = {}
+    for station in stations:
+        room = station.get('room') or {}
+        room_id = room.get('id') or station.get('room_id')
+        if not room_id:
+            continue
+        stations_by_room.setdefault(room_id, []).append(station)
+    enabled = _setting_bool(parameters, 'or_schedule_bridge_enabled')
+    status_label, status_variant = present.status(enabled)
+    rows = []
+    linked = 0
+    for room in (rooms_data or {}).get('items', []):
+        room_stations = stations_by_room.get(room['id'], [])
+        active_stations = [s for s in room_stations if s.get('active')]
+        is_linked = bool(active_stations)
+        if is_linked:
+            linked += 1
+        label, variant = present.status(room.get('active'))
+        link_label, link_variant = (
+            (N_('Linked'), 'success') if is_linked else (N_('Not linked'), 'warning')
+        )
+        rows.append({
+            'code': room.get('code'),
+            'name': present.room_label(room),
+            'status_label': label,
+            'status_variant': variant,
+            'station_count': len(room_stations),
+            'link_label': link_label,
+            'link_variant': link_variant,
+            'edit_url': url_for('web.admin_operating_room_edit', room_id=room['id']),
+        })
+    return _page(
+        'admin/hospital_ops/or_schedule.html',
+        rooms=rows,
+        bridge={
+            'enabled': enabled,
+            'status_label': status_label,
+            'status_variant': status_variant,
+            'linked_rooms': linked,
+            'total_rooms': len(rows),
+        },
+        toggle_url=url_for('web.admin_hospital_or_schedule_toggle'),
+        configuration_url=url_for('web.admin_configuration'),
+    )
+
+
+@web_bp.post('/admin/hospital-ops/or-schedule/toggle')
+@require_role(ADMIN)
+def admin_hospital_or_schedule_toggle():
+    enabled = request.form.get('enabled', '0') in {'1', 'true', 'on', 'yes'}
+    saved = _save_setting_flag('or_schedule_bridge_enabled', enabled)
+    if saved is not True and saved is not None:
+        return saved
+    if saved is True:
+        flash(gettext('OR schedule bridge updated.'), 'success')
+    return redirect(url_for('web.admin_hospital_or_schedule'))

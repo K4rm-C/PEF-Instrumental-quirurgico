@@ -47,7 +47,8 @@ class Database:
 def migration_sql(name: str = MIGRATIONS[0]) -> str:
     for candidate in _candidates(name):
         if candidate.exists():
-            return candidate.read_text(encoding="utf-8")
+            # utf-8-sig strips a Windows BOM if someone saved the SQL with one
+            return candidate.read_text(encoding="utf-8-sig")
     raise FileNotFoundError(f"{name} not found")
 
 

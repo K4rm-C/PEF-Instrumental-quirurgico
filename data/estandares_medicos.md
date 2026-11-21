@@ -1,9 +1,9 @@
 # Estándares médicos y privacidad · Investigación y decisiones de BD
 
 **Parte investigación:** qué aspectos de cada estándar suelen impactar el diseño de datos.  
-**Parte REDACTADO:** qué se adoptó ya en el esquema PEF (`esquema_base_datos_v2.md`), el ER y los [Data Standards](DataStandards/README.md).
+**Parte REDACTADO:** qué se adoptó ya en el esquema PEF (`esquema_base_datos_v2.md` = snapshot base), el ER y los [Data Standards](DataStandards/README.md). Runbook operativo: README raíz. `docs/` solo stub; sin `Legacy/` / `porting_sources`.
 
-**Fecha de elaboración:** septiembre 2026 · **Última actualización REDACTADO:** septiembre 2026  
+**Fecha de elaboración:** septiembre 2026 · **Última actualización REDACTADO:** noviembre 2026  
 **Alcance:** HL7 FHIR, DICOM, GDPR (UE) y LFPDPPP (México)  
 **Aviso:** este documento es técnico-informativo; no constituye asesoría legal.
 
@@ -157,7 +157,7 @@ Sección: [PS3.15 § Attribute Confidentiality Profiles / Annex E](https://dicom
 
 | Necesidad                       | Decisión PEF                                                                        | Dónde                                                                 |
 | ------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Guardar imagen de evidencia     | `media_asset.kind` ∈ (`jpeg`, `mp4`, `mkv`, `webm`, `gif`, `weights`, `other`) + object storage GCS/MinIO | DS05                                                                  |
+| Guardar imagen de evidencia     | `media_asset.kind` ∈ (`jpeg`, `mp4`, `mkv`, `webm`, `gif`, `weights`, `other`) + object storage S3-compatible (Garage on-prem) | DS05                                                                  |
 | Metadatos tipo Attachment       | `gcs_uri`, `content_type`, `sha256`, `size_bytes`, `storage_provider`               | DS05                                                                  |
 | Detalle de detecciones / ráfaga | Mongo `checkpoint_frame` (no Study/Series/Instance)                                 | [PEF-DS06](DataStandards/PEF-DS06-Mongo-Checkpoints-and-Telemetry.md) |
 | Visión en vivo                  | WSS estación↔worker; sin C-STORE                                                    | [PEF-DS10](DataStandards/PEF-DS10-Vision-Realtime-Contracts.md)       |

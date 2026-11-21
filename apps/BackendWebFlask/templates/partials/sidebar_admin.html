@@ -7,11 +7,12 @@
     partials/sidebar_supervisor.html. When not provided, every link safely falls back to "#"
     via the |default('#') filter below.
     Recognized keys: dashboard, instrument_families, instruments, kits, procedures, users,
-    roles, vision_models, audit_log, configuration, profile, sign_out.
-    Intended production endpoints (documented in FRONTEND_INTEGRATION.md):
+    roles, hospital_integration_arc, hospital_import_export, hospital_or_schedule,
+    vision_models, audit_log, configuration, profile, sign_out.
+    Intended production endpoints:
     admin.dashboard, admin.instrument_families, admin.instruments, admin.kits,
-    admin.procedures, admin.users, admin.roles, admin.vision_models, admin.audit_log,
-    admin.configuration, admin.profile, auth.sign_out
+    admin.procedures, admin.users, admin.roles, admin.hospital_*, admin.vision_models,
+    admin.audit_log, admin.configuration, admin.profile, auth.sign_out
 #}
 {% set nav_urls = nav_urls|default({}) %}
 
@@ -75,6 +76,36 @@
                    {% if active_nav_item == 'roles' %}aria-current="page"{% endif %}>
                     {{ macros.icon_key() }}
                     <span>{{ _("Roles") }}</span>
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <div class="sidebar__section">
+        <p class="sidebar__section-label">{{ _("Hospital operations") }}</p>
+        <ul class="sidebar__nav-list">
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'hospital_integration_arc' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.hospital_integration_arc|default('#') }}"
+                   {% if active_nav_item == 'hospital_integration_arc' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_database() }}
+                    <span>{{ _("Integration arc") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'hospital_import_export' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.hospital_import_export|default('#') }}"
+                   {% if active_nav_item == 'hospital_import_export' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_document() }}
+                    <span>{{ _("Import / Export") }}</span>
+                </a>
+            </li>
+            <li>
+                <a class="sidebar__nav-link{% if active_nav_item == 'hospital_or_schedule' %} sidebar__nav-link--active{% endif %}"
+                   href="{{ nav_urls.hospital_or_schedule|default('#') }}"
+                   {% if active_nav_item == 'hospital_or_schedule' %}aria-current="page"{% endif %}>
+                    {{ macros.icon_clipboard() }}
+                    <span>{{ _("OR / schedule bridge") }}</span>
                 </a>
             </li>
         </ul>

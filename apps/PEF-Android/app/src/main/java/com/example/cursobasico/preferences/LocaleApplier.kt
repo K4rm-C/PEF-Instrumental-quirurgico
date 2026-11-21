@@ -4,10 +4,10 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 
 /**
- * Aplica el idioma con el mecanismo de idioma por aplicación de Android:
- * - API 33+: LocaleManager del sistema (también visible en Ajustes > Idioma de la app; res/xml/locales_config.xml).
- * - API < 33: AppCompat recrea la Activity y guarda la selección (autoStoreLocales en el manifiesto).
- * DataStore sigue siendo la fuente de verdad de la app; esto solo sincroniza el framework con ella.
+ * push app language into Android's per-app locale APIs.
+ * API 33+: system LocaleManager (settings + locales_config.xml).
+ * older: AppCompat recreates Activity (autoStoreLocales in manifest).
+ * DataStore stays source of truth; this just syncs the framework.
  */
 object LocaleApplier {
     fun apply(language: AppLanguage) {

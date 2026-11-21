@@ -93,8 +93,8 @@ app = Flask(
 # ---------------------------------------------------------------------------
 # The real templates call {{ _("...") }} — including gettext-style parameterized strings
 # such as {{ _("Showing %(shown)s of %(total)s sessions", shown=3, total=8) }} — in
-# preparation for Flask-Babel, which is not installed or configured yet (see
-# FRONTEND_INTEGRATION.md). For preview rendering only, `_` is mapped to a function that
+# preparation for Flask-Babel, which is not installed or configured yet. For preview
+# rendering only, `_` is mapped to a function that
 # returns the original English string, interpolating any %(name)s placeholders exactly like
 # real gettext would. This stand-in must never be used in the production application.
 

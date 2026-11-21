@@ -1,12 +1,14 @@
 # Briefing · Esquema de base de datos (PEF)
 
+> Snapshot histórico / narrativa introductoria. Para contratos canónicos usar `data/DataStandards/`; para correr el stack, el README raíz. `docs/` es solo un stub. No existe `Legacy/` ni `porting_sources` en la raíz. El conteo “51 tablas” describe el snapshot base; el esquema desplegado es `data/migrations/` (001 + 004…021). Object store on-prem actual: Garage (S3-compatible).
+
 ---
 
 ## 1. Resumen
 
-El esquema modela **quién cuenta, en qué acto quirúrgico, con qué kit e instrumental, qué detectó el sistema y qué decidió el humano**, sin pretender ser un HIS/EHR completo. PostgreSQL es la fuente de verdad de negocio y auditoría; MongoDB guarda evidencia visual ocasional; Google Cloud Storage guarda archivos; Redis solo tokens efímeros.
+El esquema modela quién cuenta, en qué acto quirúrgico, con qué kit e instrumental, qué detectó el sistema y qué decidió el humano, sin pretender ser un HIS/EHR completo. PostgreSQL es la fuente de verdad de negocio y auditoría; MongoDB guarda evidencia visual ocasional; object storage S3-compatible (Garage on-prem hoy) guarda archivos; Redis tokens efímeros y el ring de evidencia (`pef:evidence:*`).
 
-**Total:** 51 tablas en PostgreSQL + 2 colecciones Mongo. Incluye `user_operating_room`, pin `work_session.yolo_model_id` y estado `or_hold` (faltante humano antes de SPD).
+**Total (snapshot base):** 51 tablas en PostgreSQL + 2 colecciones Mongo. Incluye `user_operating_room`, pin `work_session.yolo_model_id` y estado `or_hold` (faltante humano antes de SPD).
 
 ---
 
@@ -49,8 +51,8 @@ El esquema modela **quién cuenta, en qué acto quirúrgico, con qué kit e inst
 | -------------- | ------------------------------------------------------- | -------------------------- |
 | **PostgreSQL** | Negocio, auditoría, metadatos, URI canónica de archivos | Bytes del modelo ni JPEG   |
 | **MongoDB**    | Checkpoints de frame, telemetría de sesión              | Reglas de cierre, usuarios |
-| **GCP**        | Pesos YOLO, JPEG de evidencia y ejemplos                | Lógica de negocio          |
-| **Redis**      | Tokens, contadores efímeros                             | Auditoría permanente       |
+| **Object storage (Garage/S3)** | Pesos YOLO, JPEG/MP4 de evidencia y ejemplos | Lógica de negocio |
+| **Redis**      | Tokens, contadores efímeros, ring evidencia             | Auditoría permanente       |
 
 
 ---
@@ -81,7 +83,7 @@ El esquema modela **quién cuenta, en qué acto quirúrgico, con qué kit e inst
 - `kit` **/** `kit_item` — plantilla; al abrir sesión se copia a `expected_inventory`
 - `instrument_reservation` — pieza concreta amarrada a una operación
 - `yolo_model` **/** `model_class` — qué pesos están activos y qué `class_id` es qué familia
-- `media_asset` — ancla GCS (pesos, ejemplos, frames)
+- `media_asset` — ancla object storage (pesos, ejemplos, frames/clips)
 
 ### Sesión de conteo (núcleo operativo)
 
@@ -102,8 +104,8 @@ El esquema modela **quién cuenta, en qué acto quirúrgico, con qué kit e inst
 1. **4FN / catálogos** `cat_`* — estados y listas cerradas en tablas propias; evita texto libre y columnas repetidas.
 2. **Stock por pieza, no por familia** — reservas reales; asignar kit falla si no hay unidades libres.
 3. **Kit vs inventario esperado** — plantilla mutable; la sesión conserva snapshot histórico.
-4. **Modelo fuera del navegador** — PostgreSQL solo metadatos; el archivo de pesos vive en GCS y se carga en el servidor de inferencia.
-5. **Fan-out post-inferencia** — mismo resultado filtrado → WebSocket (UI) + evento en PostgreSQL + checkpoint en Mongo solo si la política lo pide.
+4. **Modelo fuera del navegador** — PostgreSQL solo metadatos; el archivo de pesos vive en object storage y se carga en VisionWorker (host GPU preferido).
+5. **Fan-out post-inferencia** — mismo resultado filtrado → WebSocket (UI); `count_event` en PostgreSQL vía Backend/portal; checkpoint/clip vía EvidenceWorker + Garage/Mongo si la política lo pide.
 6. **FHIR Identifier centralizado** — preparado para HIS; el conteo usa UUID locales, no MRN en cada consulta.
 
 ---
@@ -137,7 +139,7 @@ El esquema modela **quién cuenta, en qué acto quirúrgico, con qué kit e inst
 ```text
 UI ──WS──► Inferencia ──► Reglas ──► PostgreSQL (eventos)
                 │              │
-                │              └──► (opcional) Mongo checkpoint + GCS
+                │              └──► (opcional) EvidenceWorker → Garage + Mongo
                 └── lee: ROI, yolo_model, model_class, familias
 
 Integraciones HIS ──► resource_identifier ──► patient / physician / operation
@@ -163,5 +165,5 @@ Integraciones HIS ──► resource_identifier ──► patient / physician / 
 - Identificadores FHIR: `system` (URI) + `value` (string).
 - URI interna PEF: `https://pef.udem/conteo-cenital` + UUID del registro.
 - Nombres de tablas en inglés en el DDL (`work_session`, `instrument_family`, etc.). (por el hecho que el pef es junto a Linnaeus)
-- Total: 51 tablas en PostgreSQL + 2 colecciones Mongo en el manejo de datos.
+- Total (snapshot base): 51 tablas en PostgreSQL + 2 colecciones Mongo; despliegue vivo vía migraciones 001 + 004…021.
 

@@ -86,7 +86,7 @@ def _call_local(method, path, *, params=None, json=None):
         raise AdminDomainError(exc.status, exc.code, exc.message, exc.field) from exc
     except SQLAlchemyError as exc:
         db.rollback()
-        current_app.logger.exception('Error en Administración (PostgreSQL)')
+        current_app.logger.exception('Administration error (PostgreSQL)')
         raise AdminDomainError(503, 'database_unavailable') from exc
     finally:
         g.admin_local_active = False

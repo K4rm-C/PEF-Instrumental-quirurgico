@@ -6,7 +6,7 @@ from the same image:
 - `main.py` (gunicorn, port 5007): the read/mark API below;
 - `worker.py`: the outbox consumer that turns business events into notifications.
 
-Integration guide: `../../GUIA_NOTIFICATIONS.md`.
+Service notes: this README. Run/deploy: `../../README.md`.
 
 | Method | Path | Notes |
 | :--- | :--- | :--- |

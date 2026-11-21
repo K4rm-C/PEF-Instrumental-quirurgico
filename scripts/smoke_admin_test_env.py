@@ -1,15 +1,15 @@
-"""Smoke REAL de autenticación compartida + pantallas Admin contra el entorno aislado (ADMIN-01.0).
+"""Real smoke: shared auth + Admin screens against the isolated env (ADMIN-01.0).
 
-Arranca BackendAuthService (127.0.0.1:15001) y BackendWebFlask (127.0.0.1:15000) como procesos locales
-apuntando a la BD/Redis de docker-compose.test.yml (.env.test). Comprueba, para los tres roles:
-login en AuthService -> página del portal -> refresh transparente -> logout -> token revocado.
-Para it_admin además recorre en modo LECTURA todas las pantallas /admin/*.
+Boots BackendAuthService (127.0.0.1:15001) and BackendWebFlask (127.0.0.1:15000) as local
+procs pointed at docker-compose.test.yml DB/Redis (.env.test). For all three roles checks:
+AuthService login -> portal page -> transparent refresh -> logout -> token revoked.
+it_admin also READ-walks every /admin/* screen.
 
-Escrituras: las del login/logout (tokens Redis, user.last_login_at, filas LOGIN/LOGOUT) y el ciclo de
-identidad (un usuario smoke.<tag>@test.invalid por ejecución: alta, desactivación, reactivación, reset),
-únicamente en la BD de prueba. Usa las cuentas demo de data/seeds/003_seed_demo.sql.
-CATALOG/AUDIT/MONITORING/SESSION_SERVICE_URL se dejan vacíos: Admin usa sus módulos locales, salvo
-usuarios/roles, que hoy siguen yendo a AuthService por HTTP (ver docs/ADMIN_MATRIZ_CUMPLIMIENTO.md).
+Writes: login/logout only (Redis tokens, user.last_login_at, LOGIN/LOGOUT rows) plus the
+identity cycle (one smoke.<tag>@test.invalid user per run: create, deactivate, reactivate, reset),
+test DB only. Uses demo accounts from data/seeds/003_seed_demo.sql.
+CATALOG/AUDIT/MONITORING/SESSION_SERVICE_URL left empty: Admin uses local modules, except
+users/roles which still hit AuthService over HTTP.
 
     python scripts/smoke_admin_test_env.py
 """
@@ -58,14 +58,14 @@ def check(name, ok, detail=''):
 def wait_ready(url, process, label):
     for _ in range(60):
         if process.poll() is not None:
-            sys.exit(f'{label} terminó al arrancar (código {process.returncode})')
+            sys.exit(f'{label} died on start (code {process.returncode})')
         try:
             if requests.get(url, timeout=1).status_code < 500:
                 return
         except requests.RequestException:
             pass
         time.sleep(0.5)
-    sys.exit(f'{label} no respondió en {url}')
+    sys.exit(f'{label} did not answer at {url}')
 
 
 def portal_get(path, cookies):
@@ -128,7 +128,7 @@ def main():
         wait_ready(AUTH + '/health', auth, 'AuthService')
         wait_ready(WEB + '/health/live', web, 'BackendWebFlask')
         check('AuthService /health', requests.get(AUTH + '/health', timeout=5).ok)
-        check('BackendWebFlask /health/ready (PostgreSQL de prueba)', requests.get(WEB + '/health/ready', timeout=5).ok)
+        check('BackendWebFlask /health/ready (test PostgreSQL)', requests.get(WEB + '/health/ready', timeout=5).ok)
         for role, (email, password, home) in ACCOUNTS.items():
             login = requests.post(AUTH + '/login', json={'email': email, 'password': password}, timeout=10)
             codes = {r['code'] for r in (login.json().get('user', {}).get('roles') or [])} if login.ok else set()
@@ -137,9 +137,9 @@ def main():
                 continue
             access, refresh = login.cookies.get('access_token'), login.cookies.get('refresh_token')
             page = portal_get(home, {'access_token': access, 'refresh_token': refresh})
-            check(f'[{role}] {home} con sesión', page.status_code == 200, f'HTTP {page.status_code}')
+            check(f'[{role}] {home} with session', page.status_code == 200, f'HTTP {page.status_code}')
             renewed = portal_get(home, {'refresh_token': refresh})
-            check(f'[{role}] refresh transparente (solo refresh_token)',
+            check(f'[{role}] transparent refresh (refresh_token only)',
                   renewed.status_code == 200 and 'access_token=' in renewed.headers.get('Set-Cookie', ''),
                   f'HTTP {renewed.status_code}')
             new_access = renewed.cookies.get('access_token') or access
@@ -152,24 +152,24 @@ def main():
                     check(f'[it_admin] GET {path} -> 403 (SPD only)', response.status_code == 403, f'HTTP {response.status_code}')
                 identity_lifecycle(new_access)
                 roles_page = portal_get('/admin/roles', {'access_token': new_access}).text
-                check('[it_admin] /admin/roles: 4 códigos fijos, sin crear/borrar (RF-AD-06)',
+                check('[it_admin] /admin/roles: 4 fixed codes, no create/delete (RF-AD-06)',
                       all(f'>{code}</th>' in roles_page for code in FIXED_ROLES)
                       and 'New Role' not in roles_page and '/delete' not in roles_page)
                 created = requests.post(WEB + '/admin/roles/new', cookies={'access_token': new_access},
                                         data={'code': 'nurse_reviewer', 'description': 'x'}, allow_redirects=False, timeout=10)
-                check('[it_admin] POST /admin/roles/new no existe', created.status_code == 404, f'HTTP {created.status_code}')
+                check('[it_admin] POST /admin/roles/new missing', created.status_code == 404, f'HTTP {created.status_code}')
             else:
                 forbidden = portal_get('/admin/users', {'access_token': new_access})
-                check(f'[{role}] /admin/users denegado', forbidden.status_code == 403, f'HTTP {forbidden.status_code}')
+                check(f'[{role}] /admin/users denied', forbidden.status_code == 403, f'HTTP {forbidden.status_code}')
             out = requests.get(WEB + '/sign-out', cookies={'access_token': new_access}, allow_redirects=False, timeout=10)
             check(f'[{role}] logout', out.status_code == 302, f'HTTP {out.status_code}')
             verify = requests.get(AUTH + '/verify', headers={'Authorization': f'Bearer {new_access}'}, timeout=5)
-            check(f'[{role}] token revocado tras logout (Redis)', verify.status_code == 401, f'HTTP {verify.status_code}')
+            check(f'[{role}] token revoked after logout (Redis)', verify.status_code == 401, f'HTTP {verify.status_code}')
             after = portal_get(home, {'access_token': new_access})
-            check(f'[{role}] portal redirige a sign-in tras logout', after.status_code == 302 and '/sign-in' in after.headers.get('Location', ''),
+            check(f'[{role}] portal redirects to sign-in after logout', after.status_code == 302 and '/sign-in' in after.headers.get('Location', ''),
                   f'HTTP {after.status_code}')
         anonymous = portal_get('/admin/dashboard', {})
-        check('[anónimo] /admin/dashboard redirige a sign-in', anonymous.status_code == 302, f'HTTP {anonymous.status_code}')
+        check('[anon] /admin/dashboard redirects to sign-in', anonymous.status_code == 302, f'HTTP {anonymous.status_code}')
     finally:
         for process in (web, auth):
             process.terminate()
@@ -180,7 +180,7 @@ def main():
         auth_log.close()
         web_log.close()
     failed = results.count(False)
-    print(f'\n{len(results) - failed} PASS, {failed} FAIL (logs en {log_dir})')
+    print(f'\n{len(results) - failed} PASS, {failed} FAIL (logs in {log_dir})')
     sys.exit(1 if failed else 0)
 
 

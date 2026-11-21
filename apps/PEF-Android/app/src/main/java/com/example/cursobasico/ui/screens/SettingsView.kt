@@ -30,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
@@ -41,6 +42,7 @@ import com.example.cursobasico.Background
 import com.example.cursobasico.BuildConfig
 import com.example.cursobasico.DashboardBottomBarE
 import com.example.cursobasico.DashboardTopBar
+import com.example.cursobasico.PefApplication
 import com.example.cursobasico.R
 import com.example.cursobasico.TextPrimary
 import com.example.cursobasico.TextSecondary
@@ -58,7 +60,7 @@ import com.example.cursobasico.views.DetailField
 import com.example.cursobasico.views.DetailSectionCard
 import com.example.cursobasico.views.SessionDetailHeader
 
-/** ANDROID-01: preferencias del usuario (DataStore) y cuenta. Mismo lenguaje visual que los detalles. */
+/** ANDROID-01: user prefs (DataStore) + account. same visual language as detail screens */
 @Composable
 fun SettingsView(onBack: () -> Unit, onNavigate: (NavKey) -> Unit) {
     val viewModel = pefViewModel { SettingsViewModel(it.preferencesRepository, it.sessionManager) }
@@ -167,7 +169,9 @@ fun SettingsView(onBack: () -> Unit, onNavigate: (NavKey) -> Unit) {
             InfoBanner(stringResource(R.string.settings_sync_note))
 
             DetailSectionCard(title = stringResource(R.string.settings_about)) {
-                DetailField(stringResource(R.string.settings_gateway), BuildConfig.API_BASE_URL)
+                val app = LocalContext.current.applicationContext as PefApplication
+                val gatewayUrl by app.container.activeGatewayUrl.collectAsStateWithLifecycle()
+                DetailField(stringResource(R.string.settings_gateway), gatewayUrl)
                 DetailField(stringResource(R.string.settings_version), BuildConfig.VERSION_NAME)
             }
             Spacer(modifier = Modifier.height(24.dp))
@@ -182,7 +186,7 @@ fun SettingsView(onBack: () -> Unit, onNavigate: (NavKey) -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     confirmLogout = false
-                    // Al terminar, AuthState pasa a LoggedOut y AppNavigation vuelve a Login.
+                    // when done, AuthState -> LoggedOut and AppNavigation pops back to Login.
                     viewModel.logout { }
                 }) { Text(stringResource(R.string.settings_logout)) }
             },

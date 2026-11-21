@@ -1,18 +1,18 @@
-"""Ejecuta las suites contra el entorno AISLADO de docker-compose.test.yml (ADMIN-01.0).
+"""Run suites against the ISOLATED docker-compose.test.yml env (ADMIN-01.0).
 
-Uso (desde la raíz, con el intérprete que tenga instalados los requirements de Web y Auth + pytest):
+Usage (from repo root; interpreter with Web + Auth requirements + pytest):
 
     python scripts/run_test_env.py prepare  # once: writes .e2e/garage.test.toml (generated secrets)
     docker compose -f docker-compose.test.yml --env-file .env.test up -d --wait
     python scripts/run_test_env.py web      # apps/BackendWebFlask/tests
-    python scripts/run_test_env.py admin    # solo pruebas administrativas de BackendWebFlask
+    python scripts/run_test_env.py admin    # BackendWebFlask admin tests only
     python scripts/run_test_env.py auth     # apps/BackendAuthService/tests
-    python scripts/run_test_env.py smoke    # scripts/smoke_admin_monolith_sqlite.py (SQLite temporal)
+    python scripts/run_test_env.py smoke    # scripts/smoke_admin_monolith_sqlite.py (temp SQLite)
     python scripts/run_test_env.py all
 
-Lee .env.test y apunta DATABASE_URL / AUTH_TEST_* / PEF_TEST_MONGO_URL a los puertos de prueba
-(127.0.0.1:55432/56379/47017). Nunca usa la BD de desarrollo ni el .env principal: si .env.test
-no existe, se detiene. Argumentos extra se pasan a pytest (p. ej. `-k roles -x`).
+Reads .env.test and points DATABASE_URL / AUTH_TEST_* / PEF_TEST_MONGO_URL at test ports
+(127.0.0.1:55432/56379/47017). Never touches the dev DB or main .env: bails if .env.test
+is missing. Extra args go to pytest (e.g. `-k roles -x`).
 """
 import os
 import subprocess
@@ -29,7 +29,7 @@ ADMIN_TESTS = sorted(
 def load_test_env():
     path = ROOT / '.env.test'
     if not path.exists():
-        sys.exit('Falta .env.test: copie .env.test.example y defina contraseñas (ver PLAN_TRABAJO.md, ADMIN-01.0).')
+        sys.exit('Missing .env.test: copy .env.test.example and set passwords (see README.md).')
     values = {}
     for line in path.read_text(encoding='utf-8').splitlines():
         line = line.strip()
@@ -92,9 +92,9 @@ def main():
     }
     selected = ['web', 'auth', 'smoke'] if target == 'all' else [target]
     if any(name not in jobs for name in selected):
-        sys.exit(f'Objetivo desconocido: {target} (use web, admin, auth, smoke o all)')
+        sys.exit(f'Unknown target: {target} (use web, admin, auth, smoke, or all)')
     results = {name: run(*jobs[name], env) for name in selected}
-    print('\n===== Resumen (código de salida): ' + ', '.join(f'{k}={v}' for k, v in results.items()))
+    print('\n===== Summary (exit codes): ' + ', '.join(f'{k}={v}' for k, v in results.items()))
     sys.exit(max(results.values()))
 
 

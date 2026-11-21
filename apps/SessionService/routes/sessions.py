@@ -1,6 +1,6 @@
 """Session API v1 endpoints of PEF-DS09 §1.3.4 (v0.1.7 + complement v0.2.0 for the Supervisor).
 
-Responsibilities (see GUIA_SESSION.md):
+Responsibilities (apps/SessionService/README.md):
 - Supervisor (spd_supervisor), through this service: schedule, full edit while scheduled, privacy
   agreement, expected inventory (and confirmed instruments_added), discrepancy queue and resolution,
   safe SPD close, and the session reads with `expand=detail` the RF screens are built from.

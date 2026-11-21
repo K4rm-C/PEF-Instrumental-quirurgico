@@ -172,7 +172,27 @@ def main():
         'images': '3', 'map50': '0.5', 'evaluated_at': '2026-11-01', 'notes': 'Declared test value (not a real evaluation)'})
     check(1, 'Admin records a model evaluation (R17; declared value, never computed)', ev.status_code in (302, 303)
           and q1('SELECT count(*) FROM yolo_model_evaluation WHERE model_id = %s', model_id) >= 1, ev.status_code)
-    report = ROOT / 'docs' / 'evidencias' / 'MS-12' / 'model_regression_best_vs_best.json'
+    # fixture report (docs/evidencias gone); same SHA for baseline+candidate => all identical
+    checksum = q1('SELECT lower(checksum) FROM yolo_model WHERE id = %s', model_id)
+    video_sha = hashlib.sha256(b'pef-ms12-e2e-regression-fixture').hexdigest()
+    frame = {'total': 1, 'counts': {'Tool': 1}}
+    report_payload = {
+        'format': 'pef-model-regression/1',
+        'reference_set': 'ms12-e2e-fixture',
+        'baseline_sha256': checksum,
+        'candidate_sha256': checksum,
+        'runner': 'scripts/e2e_ms11_compose.py (fixture)',
+        'executed_at': datetime.now(timezone.utc).isoformat(),
+        'items': [{
+            'video': 'fixture.mp4',
+            'video_sha256': video_sha,
+            'baseline': {'first': frame, 'last': frame},
+            'candidate': {'first': dict(frame), 'last': dict(frame)},
+        }],
+    }
+    report = WORK / 'model_regression_fixture.json'
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(json.dumps(report_payload), encoding='utf-8')
     with open(report, 'rb') as fh:
         regression = admin.post(f'{PORTAL}/admin/vision-models/{model_id}/evaluations', allow_redirects=False, timeout=60,
                                 data={'kind': 'regression', 'notes': 'MS-12 E2E'},

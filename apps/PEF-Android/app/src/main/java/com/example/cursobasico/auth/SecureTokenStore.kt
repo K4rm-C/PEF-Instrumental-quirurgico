@@ -18,8 +18,8 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Cifrado AES-256-GCM con una clave que vive en Android Keystore (no exportable, no se respalda).
- * Sustituye a EncryptedSharedPreferences (obsoleta) sin añadir dependencias.
+ * AES-256-GCM with a key that lives in Android Keystore (non-exportable, not backed up).
+ * replaces EncryptedSharedPreferences (deprecated) without extra deps.
  */
 internal class KeystoreCipher(private val alias: String = "pef_session_key") {
     private fun key(): SecretKey {
@@ -59,7 +59,7 @@ internal class KeystoreCipher(private val alias: String = "pef_session_key") {
     }
 }
 
-/** Archivo propio, separado de las preferencias de interfaz y excluido de los respaldos (res/xml). */
+/** own file, separate from UI prefs, excluded from backups (res/xml) */
 private val Context.secureSessionStore: DataStore<Preferences> by preferencesDataStore(name = "pef_secure_session")
 
 class SecureTokenStore(context: Context) : TokenStore {
@@ -73,7 +73,7 @@ class SecureTokenStore(context: Context) : TokenStore {
         return try {
             json.decodeFromString(StoredSession.serializer(), cipher.decrypt(encoded).decodeToString())
         } catch (_: Exception) {
-            // Clave perdida (reinstalación, restauración de respaldo) o datos corruptos: se descarta la sesión.
+            // key lost (reinstall, backup restore) or corrupt blob: drop session
             clear()
             null
         }

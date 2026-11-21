@@ -119,7 +119,7 @@ fun EvidenceCard(
                 )
             }
             Spacer(modifier = Modifier.width(9.dp))
-            // Sin miniatura automática: la URL prefirmada se pide (y se audita) solo al abrir la evidencia.
+            // no auto thumbnail: pre-signed URL fetched (and audited) only when opening evidence
             Box(
                 modifier = Modifier
                     .width(105.dp)
@@ -194,7 +194,7 @@ fun EvidenceDetailSheet(
                 .fillMaxHeight(0.85f)
                 .verticalScroll(rememberScrollState())
         ) {
-            // ENCABEZADO
+            // HEADER
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -223,7 +223,7 @@ fun EvidenceDetailSheet(
                 color = BorderColor
             )
             Spacer(modifier = Modifier.height(18.dp))
-            // DATOS DE LA EVIDENCIA (metadatos de EvidenceService)
+            // EVIDENCE DATA (EvidenceService metadata)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -259,7 +259,7 @@ fun EvidenceDetailSheet(
                 )
             }
             Spacer(modifier = Modifier.height(20.dp))
-            // IMAGEN DE LA EVIDENCIA (URL prefirmada, solo memoria)
+            // EVIDENCE IMAGE (pre-signed URL, memory only)
             Box(modifier = Modifier.padding(horizontal = 15.dp)) {
                 when (state) {
                     is EvidenceViewerState.Loading -> LoadingBox()
@@ -307,7 +307,7 @@ fun EvidenceDetailSheet(
     }
 }
 
-/** Evidencias de la sesión desde EvidenceService (GET /api/v1/sessions/{id}/evidence). */
+/** session evidence from EvidenceService (GET /api/v1/sessions/{id}/evidence) */
 @Composable
 fun EvidenceContent(sessionId: String) {
     val viewModel = pefViewModel(key = "evidence-$sessionId") { EvidenceViewModel(sessionId, it.evidenceRepository) }

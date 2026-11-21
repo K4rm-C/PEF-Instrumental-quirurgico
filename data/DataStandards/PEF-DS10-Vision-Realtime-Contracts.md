@@ -7,16 +7,18 @@ owner: PEF Core / Visión / Estación
 applies_to: [CS, Worker]
 stores: []
 related: [PEF-DS03, PEF-DS04, PEF-DS06]
-last_updated: 2026-09-06
+last_updated: 2026-11-19
 ---
 
 # PEF-DS10 · Vision Realtime Contracts
 
 ## INTRODUCCION
 
-Este estándar define los **mensajes WebSocket seguro (WSS)** entre la **Estación de Conteo** y el **Worker YOLO**.
+Este estándar define los **mensajes WebSocket seguro (WSS)** entre la **Estación de Conteo** y el **VisionWorker** (YOLO).
 
-Es el canal de percepción en tiempo real: la estación envía cuadros (o metadatos de frame) y recibe detecciones sugeridas. **No** es la fuente de verdad del negocio: abrir/cerrar sesión, discrepancias y `count_event` pasan por Backend Web (DS04/DS09). Los checkpoints viven en Mongo (DS06).
+Es el canal de percepción en tiempo real: la estación envía cuadros (o metadatos de frame) y recibe detecciones sugeridas. **No** es la fuente de verdad del negocio: abrir/cerrar sesión, discrepancias y `count_event` pasan por Backend Web (DS04/DS09). Los checkpoints viven en Mongo (DS06) vía EvidenceWorker.
+
+Runtime lab: pipeline `matrix_v1` (assign), holds sticky, soft-name dwell, live WS. Proceso host suele usarse por GPU; Docker Vision es CPU-only. Path típico `/ws`; en LAN el browser usa `wss://<LAN>:5443/ws` (portal-lan) hacia el worker en host. Auth de portal en ese mismo origen puede ser `/auth` relativo (ver DS01/DS09); no exige URL absoluta de auth.
 
 ---
 
@@ -33,12 +35,13 @@ Es el canal de percepción en tiempo real: la estación envía cuadros (o metada
 
 ### 1.2 Uso
 
-1. Estación autentica (JWT de usuario) y abre WSS con `session_id`.
+1. Estación autentica el bind WSS (lab: ticket HMAC `VISION_WS_SECRET`; el campo `auth_token` del mensaje sigue siendo el vehículo del secreto de bind, no el JWT de login de portal) y abre WSS con `session_id`.
 2. Envía frames muestreados (o chunks según implementación).
-3. Worker responde `detections` / `count_suggestion`.
-4. Si hay que persistir: Backend crea `count_event` (+ checkpoint si política).
+3. Worker responde `detections.result` (hot path vivo; el payload público de sesión puede incluir holds / soft_named). `count.suggestion` no está implementado en el runtime actual.
+4. La estación puede enviar `session.cancel` para detener captura live.
+5. Si hay que persistir hechos: Backend crea `count_event`. Checkpoints/clips: EvidenceWorker (DS05/DS06).
 
-**Qué no hace el worker:** crear/cerrar sesión, aceptar discrepancias, escribir PostgreSQL como dueño.
+**Qué no hace el worker:** crear/cerrar sesión, aceptar discrepancias, escribir PostgreSQL como dueño, ni ser dueño de Garage/Mongo evidencia.
 
 ---
 
@@ -58,7 +61,7 @@ Relación lógica: 1 estación ↔ 1 conexión worker por sesión activa típica
 | `session_id` | uuid | NO | Sesión de conteo (DS04). |
 | `station_id` | uuid | SÍ | Estación (DS02). |
 | `model_version_pin` | string | SÍ | Tag del modelo **pineado** en `work_session.yolo_model_id` (`yolo_model.version_tag`). El worker no sustituye por el `active` global en sesiones ya abiertas. Mongo `checkpoint_frame.model_version` debe coincidir con ese tag. |
-| `auth_token` | string | NO | JWT (o ya validado en handshake). |
+| `auth_token` | string | NO | Secreto de bind (lab: ticket HMAC; no confundir con JWT de AuthService). Puede venir ya validado en handshake. |
 | `correlation_id` | string | SÍ | Trazas. |
 
 ```json
@@ -156,39 +159,33 @@ Relación lógica: 1 estación ↔ 1 conexión worker por sesión activa típica
 
 ---
 
-#### 1.3.4 Mensaje `count.suggestion` (worker → estación / backend hook)
+#### 1.3.4 Mensaje `count.suggestion` (no implementado)
 
-Sugerencia de hecho de conteo (la persistencia la hace el Backend).
-
-| Campo | Tipo | Nulo | Significado |
-| :--- | :--- | :--- | :--- |
-| `type` | string | NO | `count.suggestion` |
-| `session_id` | uuid | NO | |
-| `client_event_id` | uuid | NO | Idempotencia hacia `count_event`. |
-| `family_code` | string | SÍ | |
-| `expected_quantity` | int | SÍ | Si el worker la conoce. |
-| `detected_quantity` | int | NO | |
-| `occurred_at` | string ISO | NO | |
-| `trigger` | string | NO | `auto` \| `stable_window` \| … |
-| `correlation_id` | string | SÍ | |
-
-```json
-{
-  "type": "count.suggestion",
-  "session_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
-  "client_event_id": "dddddddd-dddd-dddd-dddd-dddddddddddd",
-  "family_code": "mayo_hegar_needle_holder",
-  "expected_quantity": 2,
-  "detected_quantity": 1,
-  "occurred_at": "2026-09-05T18:20:00Z",
-  "trigger": "stable_window",
-  "correlation_id": "corr-ws-001"
-}
-```
+Tipo histórico del contrato. No emitido en el runtime actual (`matrix_v1`): el hot path vive en `detections.result` (+ holds / soft_named en el estado público de sesión). No usar como camino de persistencia; los hechos los escribe Backend/SessionService (DS04).
 
 ---
 
-#### 1.3.5 Mensaje `worker.status` / `error`
+#### 1.3.5 Mensaje `session.cancel` (estación → worker)
+
+Detiene la captura live de la sesión ya bindeada. Presente en `VisionWorker` (`live_ws`).
+
+| Campo | Tipo | Nulo | Significado |
+| :--- | :--- | :--- | :--- |
+| `type` | string | NO | `session.cancel` |
+| `session_id` | uuid | SÍ | Debe coincidir con la sesión bindeada si se envía. |
+
+```json
+{
+  "type": "session.cancel",
+  "session_id": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+}
+```
+
+Tras cancel, el worker responde `worker.status` con `state: stopping` y cierra el flujo live.
+
+---
+
+#### 1.3.6 Mensaje `worker.status` / `error`
 
 **`worker.status`**
 
@@ -234,12 +231,13 @@ Sugerencia de hecho de conteo (la persistencia la hace el Backend).
 
 ---
 
-#### 1.3.6 Reglas de frontera
+#### 1.3.7 Reglas de frontera
 
 1. Si el modelo cae, la estación sigue en modo manual vía Backend.
-2. Clip/checkpoint: off hot path (DS06); el WSS no espera el MP4.
+2. Clip/checkpoint: off hot path (EvidenceWorker → DS05/DS06); el WSS no espera el MP4.
 3. No enviar PII de paciente en el bus de frames.
 4. Rate: muestreo de frames; no flood sin límite.
+5. Demo `matrix_v1`: assign + hold sticky + soft_named dwell viven en el estado de sesión del worker; no redefinir tablas aquí.
 
 ---
 
@@ -259,8 +257,9 @@ Sugerencia de hecho de conteo (la persistencia la hace el Backend).
 
 1. **WSS solo percepción**; negocio por HTTPS/Backend.
 2. **Mensajes tipados por `type`** con campos explícitos.
-3. **`client_event_id`** para idempotencia al materializar conteo.
+3. **`client_event_id`** para idempotencia al materializar conteo (cuando aplique).
 4. **Sugerencia ≠ hecho** hasta que Backend escribe `count_event`. Al materializar `auto_count`, copia `detections[].confidence` (o el score asignado de esa caja) a `payload.confidences` / `board.families[].confidences`. No avg/best/worst.
+5. **Bind WSS con ticket HMAC** en lab (no JWT de usuario); GPU preferida en proceso host.
 
 **Alternativas no elegidas**
 
@@ -283,4 +282,4 @@ Sugerencia de hecho de conteo (la persistencia la hace el Backend).
 | Estado | draft |
 | Almacén | Ninguno propio (transporte WSS); efectos en DS04/DS06 |
 | Fuera de alcance | REST (DS09); bytes en bucket (DS05) |
-| Referencias | `arquitectura_servicios_y_cobertura.md`, notas worker |
+| Referencias | `apps/VisionWorker/`; DS05/DS06 (EvidenceWorker); runbook raíz `README.md` |

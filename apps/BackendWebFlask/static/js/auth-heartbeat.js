@@ -7,6 +7,9 @@
 (function () {
     const authUrl = document.body && document.body.dataset.authServiceUrl;
     if (!authUrl) return;
+    // Guest/sign-in/landing: no session yet — skip renew (avoids noisy 401s).
+    const bodyClass = (document.body && document.body.className) || '';
+    if (/\bguest-page\b|\bpublic-page\b/.test(bodyClass)) return;
 
     const INTERVAL_MS = 8 * 60 * 1000;
     let dirty = true; // treat load as activity
@@ -23,10 +26,12 @@
         const touch = dirty ? '1' : '0';
         dirty = false;
         try {
-            await fetch(`${authUrl}/refresh?touch=${touch}`, {
+            const response = await fetch(`${authUrl}/refresh?touch=${touch}`, {
                 method: 'POST',
                 credentials: 'include',
             });
+            // 401 without a session is expected only if cookies were cleared; ignore body noise.
+            if (response.status === 401) return;
         } catch (_) {
             /* ignore transient network errors */
         }

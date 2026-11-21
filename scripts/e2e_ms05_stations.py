@@ -84,7 +84,7 @@ def main():
     best = q('SELECT id, version_tag FROM yolo_model WHERE checksum = :c', c=BEST_SHA)[0]
     original_active = q1('SELECT id FROM yolo_model WHERE active')
     if not VIDEO.exists():
-        sys.exit(f'missing {VIDEO}: scripts/make_ms031_count_videos.py (GUIA_PRUEBAS.md §2.4)')
+        sys.exit(f'missing {VIDEO}: scripts/make_ms031_count_videos.py')
 
     docker('rm', '-f', CONTAINER, check_rc=False)
     docker('run', '-d', '--name', CONTAINER, '--network', NETWORK, '-p', '127.0.0.1:15002:5002',

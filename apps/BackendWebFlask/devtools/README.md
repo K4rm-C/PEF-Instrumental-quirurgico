@@ -158,15 +158,14 @@ template, so the production app can later pass real `url_for(...)` results throu
 
 ## Demo data
 
-`frontend_preview.py` passes plain Python dicts/lists as Jinja context — the same shapes
-documented in `../FRONTEND_INTEGRATION.md` (`current_user`, `dashboard_stats`,
-`sessions_by_day`, `session_status_breakdown`, `recent_sessions`, `sessions`,
-`session_history`, `operations`, `available_kits`, `available_capture_stations`,
-`expected_inventory`, `instrument_readiness`, `session`, `instrument_counts`,
-`session_summary`, `current_alerts`, `has_discrepancy`, `pre_post_comparison`,
-`count_comparison`, `discrepancy_reasons`, `discrepancy_summary`, `pre_procedure_status`,
-`post_procedure_status`, `closure_summary`, `validated_count`, `activity_log`). No backend
-models are imported and no database is queried.
+`frontend_preview.py` passes plain Python dicts/lists as Jinja context. Typical keys:
+`current_user`, `dashboard_stats`, `sessions_by_day`, `session_status_breakdown`,
+`recent_sessions`, `sessions`, `session_history`, `operations`, `available_kits`,
+`available_capture_stations`, `expected_inventory`, `instrument_readiness`, `session`,
+`instrument_counts`, `session_summary`, `current_alerts`, `has_discrepancy`,
+`pre_post_comparison`, `count_comparison`, `discrepancy_reasons`, `discrepancy_summary`,
+`pre_procedure_status`, `post_procedure_status`, `closure_summary`, `validated_count`,
+`activity_log`. No backend models are imported and no database is queried.
 
 ## Endpoint/URL notes
 

@@ -4,7 +4,7 @@
 -- 1. kit_item_equivalence (ms-kits-charolas): an instrument family AUTHORIZED as equivalent to a family of a kit
 --    (owner: SPD Supervisor, CatalogService). It is catalog information shown to the Operator and the Supervisor; it
 --    does NOT change the expected quantities, the reference count or the final-count rule. Whether a validated
---    equivalent must also close a classification discrepancy is a functional decision (docs/DECISIONES_PENDIENTES.md).
+--    equivalent must also close a classification discrepancy is a functional decision.
 -- 2. capture_camera_calibration (ms-camaras): calibrations MEASURED by a technician (reference object of known length
 --    in the image). PEF only derives mm/pixel from the two measured values; it never invents a physical parameter.
 --    Immutable history (the latest row is the current calibration).

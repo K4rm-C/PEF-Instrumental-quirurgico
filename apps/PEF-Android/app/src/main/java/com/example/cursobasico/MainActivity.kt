@@ -41,10 +41,10 @@ import com.example.cursobasico.ui.theme.PefTheme
 import kotlinx.coroutines.runBlocking
 
 // -----------------------------------------
-// COLORES
+// COLORS
 // -----------------------------------------
-// ANDROID-01: los nombres originales se conservan, pero ahora leen la paleta semántica del tema activo
-// (ui/theme/Color.kt) para que claro/oscuro/automático afecte a todas las pantallas.
+// ANDROID-01: keep original names, but they now read active theme semantic palette
+// (ui/theme/Color.kt) so light/dark/auto hits every screen.
 
 val Navy: Color @Composable @ReadOnlyComposable get() = LocalPefColors.current.navy
 val Background: Color @Composable @ReadOnlyComposable get() = LocalPefColors.current.background
@@ -57,11 +57,11 @@ val LightRed: Color @Composable @ReadOnlyComposable get() = LocalPefColors.curre
 val TextPrimary: Color @Composable @ReadOnlyComposable get() = LocalPefColors.current.textPrimary
 val TextSecondary: Color @Composable @ReadOnlyComposable get() = LocalPefColors.current.textSecondary
 val BorderColor: Color @Composable @ReadOnlyComposable get() = LocalPefColors.current.border
-/** Superficie de tarjetas (antes Color.White fijo). */
+/** card surface (was fixed Color.White) */
 val SurfaceColor: Color @Composable @ReadOnlyComposable get() = LocalPefColors.current.surface
-/** Fondo de campos y tablas (antes Color(0xFFF7F9FC) fijo). */
+/** field/table bg (was fixed Color(0xFFF7F9FC)) */
 val FieldBackground: Color @Composable @ReadOnlyComposable get() = LocalPefColors.current.fieldBackground
-/** Botones primarios / pestaña activa (antes Navy). */
+/** primary buttons / active tab (was Navy) */
 val ActionColor: Color @Composable @ReadOnlyComposable get() = LocalPefColors.current.action
 val OnActionColor: Color @Composable @ReadOnlyComposable get() = LocalPefColors.current.onAction
 
@@ -74,7 +74,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         val container = (application as PefApplication).container
         container.restoreSessionOnce()
-        // Primera lectura síncrona (archivo local pequeño) para no parpadear con el tema equivocado.
+        // sync first read (tiny local file) so we dont flash wrong theme
         val initialPreferences = runBlocking { container.preferencesRepository.current() }
         setContent {
             val preferences by container.preferencesRepository.preferences
@@ -89,7 +89,7 @@ class MainActivity : AppCompatActivity() {
 
 
 // -----------------------------------------
-// ENCABEZADO SUPERIOR
+// TOP BAR
 // -----------------------------------------
 @Composable
 fun DashboardTopBar() {
@@ -127,7 +127,7 @@ fun DashboardTopBar() {
                     color = LocalPefColors.current.onNavy
                 )
             }
-            // Botón de notificaciones (NotificationsService: contador real de no leídas)
+            // notif bell (NotificationsService: real unread count)
             val bellDescription = if (unread != null) {
                 pluralStringResource(R.plurals.cd_notifications_unread, unread, unread)
             } else stringResource(R.string.cd_notifications)
@@ -159,7 +159,7 @@ fun DashboardTopBar() {
             Spacer(
                 modifier = Modifier.width(9.dp)
             )
-            // Avatar del usuario autenticado (iniciales reales) -> Ajustes
+            // logged-in user avatar (real initials) -> Settings
             val settingsDescription = stringResource(R.string.cd_open_settings)
             Box(
                 modifier = Modifier
@@ -195,7 +195,7 @@ fun DashboardTopBar() {
 }
 
 // -----------------------------------------
-// BARRA INFERIOR
+// BOTTOM BAR
 // -----------------------------------------
 @Composable
 fun DashboardBottomBarE(

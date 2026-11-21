@@ -1,0 +1,96 @@
+{% extends "layouts/authenticated.html" %}
+{% import "components/macros.html" as macros %}
+
+{% block title %}{{ _("OR / schedule bridge") }} · {{ _("Surgical Instrument Traceability System") }}{% endblock %}
+
+{% block sidebar %}
+{% set active_nav_item = 'hospital_or_schedule' %}
+{% include "partials/sidebar_admin.html" %}
+{% endblock %}
+
+{% block breadcrumb %}
+<ol class="breadcrumb-list">
+    <li class="breadcrumb-item">{{ _("Hospital operations") }}</li>
+    <li class="breadcrumb-separator" aria-hidden="true">/</li>
+    <li class="breadcrumb-item breadcrumb-item--current" aria-current="page">{{ _("OR / schedule bridge") }}</li>
+</ol>
+{% endblock %}
+
+{% block page_content %}
+{% set rooms = rooms|default([], true) %}
+{% set bridge = bridge|default({}, true) %}
+
+<div class="page-heading">
+    <div>
+        <h1 class="page-heading__title">{{ _("OR / schedule bridge") }}</h1>
+        <p class="page-heading__subtitle">{{ _("Operating rooms registered in PEF and whether each one is ready for a schedule link via an active capture station.") }}</p>
+    </div>
+    <a class="btn btn--secondary" href="{{ configuration_url|default('#') }}">{{ _("Open configuration") }}</a>
+</div>
+
+<section class="card">
+    <div class="card__title-bar">
+        <h2 class="card__title">{{ _("Bridge module") }}</h2>
+    </div>
+    <div class="info-grid info-grid--three">
+        <div class="info-grid__item">
+            {{ _("Module") }}<br>
+            <strong>{{ _("Available in PEF") }}</strong>
+        </div>
+        <div class="info-grid__item">
+            {{ _("Bridge") }}<br>
+            {{ macros.status_badge(bridge.status_label, bridge.status_variant) }}
+        </div>
+        <div class="info-grid__item">
+            {{ _("Rooms with station link") }}<br>
+            <strong>{{ bridge.linked_rooms }} / {{ bridge.total_rooms }}</strong>
+        </div>
+    </div>
+    <form method="post" action="{{ toggle_url }}" class="v3-op-capture__toolbar" style="margin-top: var(--space-4);">
+        {{ csrf_field() }}
+        <input type="hidden" name="enabled" value="{{ '0' if bridge.enabled else '1' }}">
+        <button type="submit" class="btn {% if bridge.enabled %}btn--secondary{% else %}btn--primary{% endif %}">
+            {% if bridge.enabled %}{{ _("Disable schedule bridge") }}{% else %}{{ _("Enable schedule bridge") }}{% endif %}
+        </button>
+        <p class="form-field__helper">{{ _("When enabled, PEF treats rooms with an active capture station as schedule-bridge ready. External OR scheduler feeds can attach later without changing this screen.") }}</p>
+    </form>
+</section>
+
+<section class="card">
+    <div class="card__title-bar">
+        <h2 class="card__title">{{ _("Operating rooms") }}</h2>
+    </div>
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th scope="col">{{ _("Room Code") }}</th>
+                    <th scope="col">{{ _("Room Name") }}</th>
+                    <th scope="col">{{ _("Status") }}</th>
+                    <th scope="col">{{ _("Capture stations") }}</th>
+                    <th scope="col">{{ _("Schedule link") }}</th>
+                    <th scope="col" class="data-table__action-column">{{ _("Action") }}</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for room in rooms %}
+                <tr>
+                    <th scope="row">{{ room.code }}</th>
+                    <td>{{ room.name }}</td>
+                    <td>{{ macros.status_badge(room.status_label, room.status_variant) }}</td>
+                    <td>{{ room.station_count }}</td>
+                    <td>{{ macros.status_badge(room.link_label, room.link_variant) }}</td>
+                    <td class="data-table__action-column">
+                        <a class="btn btn--secondary btn--small" href="{{ room.edit_url }}">{{ _("Edit") }}</a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="data-table__empty-state">{{ _("No operating rooms registered yet.") }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

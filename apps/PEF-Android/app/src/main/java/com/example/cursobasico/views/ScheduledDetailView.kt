@@ -67,7 +67,7 @@ fun SessionSubmenuS(
     }
 }
 
-/** Misma información que una sesión en curso (los campos aún no ocurridos se muestran como "—"). */
+/** same info as in-progress session (fields that havent happened yet show as "-") */
 @Composable
 fun SessionInfoContentS(detail: SessionDetailDto) = SessionInfoContent(detail)
 

@@ -10,7 +10,7 @@
 #   GATEWAY_PORTAL_WS_URL  e.g. wss://pef.hospital.example/ws
 #
 # Effect: only the gateway is published (443 TLS + 80 redirect). AuthService and the portal stop publishing
-# their own ports; every other service was already on 127.0.0.1 only. See GUIA_API_GATEWAY.md.
+# their own ports; every other service was already on 127.0.0.1 only. See README.md.
 services:
   gateway:
     environment:

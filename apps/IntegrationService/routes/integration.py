@@ -1,6 +1,7 @@
 """/api/v1/integration — FHIR delivery destinations and deliveries (it_admin of the institution only).
 
-Not published on the API Gateway: it is an administration console API (see GUIA_INTEGRACION_FHIR.md).
+Not published on the API Gateway: it is an administration console API
+(apps/IntegrationService/README.md; data/DataStandards/PEF-DS08).
 """
 
 from __future__ import annotations

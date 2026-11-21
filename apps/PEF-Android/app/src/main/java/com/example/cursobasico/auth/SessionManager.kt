@@ -17,46 +17,46 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 sealed interface AuthState {
-    /** Leyendo la sesión cifrada y validándola contra GET /me. */
+    /** reading encrypted session + validating via GET /me */
     data object Restoring : AuthState
     data class LoggedOut(val reason: LogoutReason? = null) : AuthState
-    /** [offline] = sesión local restaurada, pero el Gateway no respondió al validarla. */
+    /** [offline] = local session restored but Gateway didnt answer /me */
     data class LoggedIn(val user: UserDto, val offline: Boolean = false) : AuthState
 }
 
 sealed interface LogoutReason {
-    /** [serverConfirmed] = false si AuthService no confirmó la revocación (p. ej. sin conexión). */
+    /** [serverConfirmed] = false if AuthService never confirmed revoke (eg offline) */
     data class UserInitiated(val serverConfirmed: Boolean) : LogoutReason
-    /** El backend rechazó el refresh (caducado, inactividad, duración máxima, revocado o usuario inactivo). */
+    /** backend rejected refresh (expired, idle, max life, revoked, or inactive user) */
     data class SessionExpired(val serverMessage: String?) : LogoutReason
 }
 
 enum class LogoutOutcome {
-    /** AuthService revocó access y refresh (204). */
+    /** AuthService revoked access+refresh (204) */
     REVOKED,
-    /** No se pudo confirmar la revocación en el servidor; las credenciales locales se borraron igualmente. */
+    /** couldnt confirm revoke on server; local creds cleared anyway */
     LOCAL_ONLY,
 }
 
-/** Permisos de interfaz derivados de los roles reales (el backend vuelve a validar cada petición). */
-/** Lectura clínica en App: operador (solo sus sesiones) o supervisor de piso (institución). SPD es portal web, no App. */
+/** UI perms from real roles (backend rechecks every request) */
+/** clinical read in App: operator (own sessions) or floor supervisor (institution). SPD = web portal, not App */
 val UserDto.canReadSessions: Boolean
     get() = Roles.STATION_OPERATOR in roles || Roles.OR_CHARGE in roles
-/** Supervisor de piso (App): listados institucionales, reportes de discrepancias y alertas. */
+/** floor supervisor (App): institutional lists, discrepancy reports, alerts */
 val UserDto.isSupervisor: Boolean get() = Roles.OR_CHARGE in roles
 val UserDto.isFloorSupervisor: Boolean get() = Roles.OR_CHARGE in roles
-/** Home de la App: operador o supervisor de piso. */
+/** App home: operator or floor supervisor */
 val UserDto.canUseAppHome: Boolean
     get() = canReadSessions
 
 /**
- * Administrador de sesión JWT del cliente Android.
+ * JWT session mgr for Android client.
  *
- * - Login real contra AuthService; nunca guarda la contraseña.
- * - Tokens solo en [TokenStore] (cifrado) y en memoria para el interceptor.
- * - Refresh con ROTACIÓN (el backend revoca el refresh presentado y entrega un par nuevo): un único refresh a la
- *   vez ([refreshMutex]); quien llega tarde reutiliza el token ya renovado en lugar de presentar uno revocado.
- * - Un 401 en /refresh = sesión terminada por el backend -> credenciales locales borradas y estado LoggedOut.
+ * - real login vs AuthService; never stores pwd
+ * - tokens only in [TokenStore] (encrypted) + memory for interceptor
+ * - ROTATING refresh (backend revokes presented refresh, issues new pair): one refresh at a time
+ *   ([refreshMutex]); late callers reuse renewed token instead of presenting a revoked one
+ * - 401 on /refresh = session dead from backend -> wipe local creds + LoggedOut
  */
 class SessionManager(
     private val store: TokenStore,
@@ -65,7 +65,7 @@ class SessionManager(
 ) {
     private lateinit var authApi: AuthApi
 
-    /** Se conecta después de construir el cliente autenticado (que a su vez depende de este objeto). */
+    /** wire after authed client is built (that client depends on this) */
     fun attach(api: AuthApi) {
         authApi = api
     }
@@ -79,7 +79,7 @@ class SessionManager(
 
     fun currentAccessToken(): String? = session?.accessToken
 
-    /** Restaura la sesión al abrir la app: solo si el backend la sigue aceptando (o si no hay conexión). */
+    /** restore on app open: only if backend still accepts it (or offline) */
     suspend fun restore() {
         val stored = store.read()
         if (stored == null) {
@@ -93,11 +93,11 @@ class SessionManager(
                 updateUser(result.data)
             }
             is ApiResult.Failure -> when (result.error) {
-                // El autenticador ya intentó el refresh; si llegó un 401 la sesión no es válida. Si el refresh
-                // ya la expiró (session == null), se conserva su motivo.
+                // authenticator already tried refresh; 401 here = session dead. if refresh
+                // already expired it (session == null), keep that reason
                 is AppError.Unauthorized, is AppError.Forbidden ->
                     if (session != null) expire(result.error.serverMessage)
-                // Sin conexión / Gateway caído: se conserva la sesión local; cada pantalla mostrará el error.
+                // offline / Gateway down: keep local session; screens show their own errors
                 else -> if (session != null) _state.value = AuthState.LoggedIn(stored.user, offline = true)
             }
         }
@@ -124,8 +124,8 @@ class SessionManager(
     }
 
     /**
-     * Renueva el access token tras un 401. Devuelve el token a usar o null si la sesión no puede continuar.
-     * [failedAccessToken] es el token con el que falló la petición: si ya no es el actual, otro hilo lo renovó.
+     * renew access after 401. returns token to use, or null if session cant continue.
+     * [failedAccessToken] = token that failed the call; if its not current, another thread already renewed.
      */
     suspend fun refreshTokens(failedAccessToken: String?): String? = refreshMutex.withLock {
         val current = session ?: return@withLock null
@@ -150,7 +150,7 @@ class SessionManager(
         }
     }
 
-    /** Vuelve a consultar GET /me (p. ej. cambio de rol). */
+    /** re-hit GET /me (eg role change) */
     suspend fun refreshProfile(): ApiResult<UserDto> {
         val result = safeApiCall { authApi.me() }
         if (result is ApiResult.Success) updateUser(result.data)
@@ -158,9 +158,9 @@ class SessionManager(
     }
 
     /**
-     * Logout real: POST /logout con Bearer + refresh_token (el backend revoca ambos). El autenticador no actúa
-     * sobre esta ruta (ver [TokenAuthenticator]); si el access caducó (401) se renueva el par una vez y se repite
-     * con el refresh NUEVO, porque la rotación revoca el anterior. Pase lo que pase, las credenciales locales se borran.
+     * real logout: POST /logout with Bearer + refresh_token (backend revokes both). authenticator skips
+     * this path (see [TokenAuthenticator]); if access expired (401) renew once and retry with the NEW
+     * refresh, cos rotation kills the old one. either way local creds get wiped.
      */
     suspend fun logout(): LogoutOutcome {
         var outcome = LogoutOutcome.LOCAL_ONLY

@@ -1,4 +1,4 @@
-"""Auth / Identity integration end to end (live services; see GUIA_AUTH.md).
+"""Auth / Identity integration end to end (live services; see apps/BackendAuthService/README.md).
 
 Needs: BackendWebFlask (:5000), BackendAuthService (:5001, local or `docker compose up -d auth`), the
 compose services postgres and redis (and catalog when the web runs with CATALOG_SERVICE_URL).

@@ -23,7 +23,7 @@ Cada requisito funcional (RF) sigue la misma plantilla:
 | **Backend Web**            | Hechos de negocio en PostgreSQL                                                                    | SQL parametrizado vía repositorio/ORM de la aplicación. **No** hay stored procedures obligatorias en v1; si el equipo añade SP después, el RF no cambia de significado. |
 | **Vision-worker**          | Solo mensajes WSS de percepción; **no** es dueño de PostgreSQL                                     | Inferencia + JSON DS10 hacia la estación                                                                                                                                |
 | **Evidence-worker**        | Object storage + fila `media_asset` (vía Backend o adaptador) + documento Mongo `checkpoint_frame` | Cola asíncrona; no bloquea la cámara                                                                                                                                    |
-| **Cliente (Electron/web)** | Nunca abre conexión JDBC/SQL ni credenciales de Mongo/MinIO                                        | Solo HTTPS al Backend y WSS al vision-worker                                                                                                                            |
+| **Cliente (portal web)**   | Nunca abre conexión JDBC/SQL ni credenciales de Mongo/Garage                                       | Solo HTTPS al Backend y WSS al vision-worker                                                                                                                            |
 
 
 **Fuera de este contrato:** administración de usuarios/roles/contraseñas, ARCO, clientes FHIR, importaciones masivas, catálogos maestro y App de piso (eso vive en [rf_admin_app.md](rf_admin_app.md)).
@@ -45,7 +45,7 @@ Cada requisito funcional (RF) sigue la misma plantilla:
 | Precaución / marca temporal | Ausencia prolongada que luego se recupera sola                  | `discrepancy` con resolución automática + evidencia                                                        |
 | Fase / Counting phase       | Etapa clínica del conteo (pre, intra, cierre, …)                | `work_session.current_phase_id` → `cat_operation_phase`                                                    |
 | Estación / Capture station  | Puesto de cámara                                                | `capture_station`                                                                                          |
-| Clip de evidencia           | Ráfaga visual del momento (MP4)                                 | Archivo en MinIO/GCS + `media_asset` + Mongo `checkpoint_frame`                                            |
+| Clip de evidencia           | Ráfaga visual del momento (MP4)                                 | Archivo en Garage (S3) + `media_asset` + Mongo `checkpoint_frame`                                          |
 | Aviso de privacidad         | Texto legal versionado que el hospital usa para el tratamiento  | Tabla `privacy_notice_version` (`document_uri`, `content_sha256`, `version`, `active`)                     |
 | Acuerdo de tratamiento      | Confirmación de que **esta** sesión tiene aviso aceptado        | Tabla `session_processing_agreement` (1 fila máx. por `session_id`)                                        |
 | Modo de captura             | Con visión (cámara + IA) o solo conteo manual                   | Se **congela al Start Session**: `vision` si hay acuerdo; `manual_no_privacy` si no                        |
@@ -68,7 +68,7 @@ Cada requisito funcional (RF) sigue la misma plantilla:
 
 | Código de rol      | Nombre                    | Cliente                                        | Puede                                                                                                                             |
 | ------------------ | ------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `station_operator` | Operador de estación      | App estación (web o Electron) en el PC de sala | Solo sesiones asignadas; begin/continue; live **o** progreso manual sin cámara; validación/cierre; documentar hold y liberar a SPD |
+| `station_operator` | Operador de estación      | Portal web / estación en el PC de sala         | Solo sesiones asignadas; begin/continue; live o progreso manual sin cámara; validación/cierre; documentar hold y liberar a SPD     |
 | `spd_supervisor`   | Supervisor SPD            | Portal web                                     | Programar sesiones **incluyendo aviso de privacidad**; ver todas; dashboard; review **post-liberación**; extras; kits; métricas   |
 | `or_charge`        | Supervisor de piso (SdP)  | App de piso                                    | Cola de `or_hold`, comentarios y lectura de evidencias. **No** cierra ciclo SPD. Contrato: [rf_admin_app.md](rf_admin_app.md)     |
 | `it_admin`         | Administrador TI          | Portal Admin                                   | Catálogos, IAM, modelos. Contrato: [rf_admin_app.md](rf_admin_app.md)                                                              |
@@ -321,9 +321,9 @@ Todo en una **transacción PostgreSQL** del Backend, excepto los pasos de eviden
 2. Evidence-worker (proceso aparte):
   - Congela N frames del buffer o captura de arranque  
   - Codifica MP4 H.264 (sin audio); si falla, un JPEG  
-  - Sube a MinIO/GCS  
-  - **INSERT** `media_asset` (`kind = 'mp4'` o `'jpeg'`; SQL vía Backend/adaptador)  
-  - **INSERT** documento Mongo `checkpoint_frame` (`session_id`, `reason`, `phase_id`/`phase_code`, `media_asset_id`, detecciones si hay, timestamp)
+  - Sube a Garage (S3-compatible)  
+  - INSERT `media_asset` (`kind = 'mp4'` o `'jpeg'`; SQL vía Backend/adaptador)  
+  - INSERT documento Mongo `checkpoint_frame` (`session_id`, `reason`, `phase_id`/`phase_code`, `media_asset_id`, detecciones si hay, timestamp)
 3. Estación abre **WSS** `session.bind` al vision-worker con `session_id`, `station_id` y el `yolo_model_id` **pineado** en `work_session` (no el activo global).
 
 **Si** `capture_mode = manual_no_privacy`**:**
@@ -932,7 +932,7 @@ Esta sección aparece en la misma pantalla de programar/editar sesión `schedule
 
 1. Control **Upload** (PDF o HTML; MIME permitidos configurables).
 2. Campo `version` (etiqueta única, p. ej. `2026.09.2`) y `effective_at`.
-3. Al subir: el Backend guarda el archivo en object storage (MinIO/GCS), calcula SHA-256, y deja listo un **INSERT** `privacy_notice_version` (`document_uri`, `content_sha256`, `version`, `effective_at`, `active = true`).
+3. Al subir: el Backend guarda el archivo en object storage Garage (S3-compatible), calcula SHA-256, y deja listo un INSERT `privacy_notice_version` (`document_uri`, `content_sha256`, `version`, `effective_at`, `active = true`).
 4. Tras el alta, la UI selecciona automáticamente esa versión y pide el mismo checkbox de confirmación + toggle de model improvement (igual que Vía A).
 
 **Estados visuales de la sección**
@@ -1162,7 +1162,7 @@ Igual espíritu que validación del operador, **más**:
 ### Cómo se leen los clips
 
 1. Backend **SELECT**/query Mongo `checkpoint_frame` por `session_id`.
-2. Resuelve `media_asset` → genera **URL firmada** temporal a MinIO/GCS.
+2. Resuelve `media_asset` → genera URL firmada temporal a Garage (S3).
 3. El browser solo usa esa URL; sin credenciales de bucket.
 
 ### Salida

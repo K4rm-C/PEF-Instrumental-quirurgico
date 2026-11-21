@@ -181,4 +181,4 @@ Family detail/update, instrument detail/create/update (cycle history, change rea
 (versioned, procedure links moved), reference catalogs and `expand=detail`. Writes are audited in
 `access_audit` in the same transaction; denied management attempts are recorded as `DENIED_*`. Contract:
 `openapi.yaml` (served at `/api/v1/catalog/openapi.yaml`, Swagger UI at `/api/v1/catalog/docs`) and
-`schemas/catalog.xsd` (`/api/v1/catalog/schemas/catalog.xsd`). Portal integration: `GUIA_CATALOG.md`.
+`schemas/catalog.xsd` (`/api/v1/catalog/schemas/catalog.xsd`). Portal notes: this README.

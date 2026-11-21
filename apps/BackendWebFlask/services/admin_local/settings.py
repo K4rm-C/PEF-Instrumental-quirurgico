@@ -60,6 +60,11 @@ SETTINGS = {
         'text', 'These active instrument families are not detected by this model. Sessions that expect them will '
                 'need manual counting for them.', 'uploads', N_('Vision model: missing families warning text'),
         max_length=500),
+    # Hospital operations (admin sidemenu): local channel / bridge flags — no external HIS required.
+    'his_channel_enabled': Setting(
+        'bool', False, 'integration', N_('HIS / FHIR integration channel enabled')),
+    'or_schedule_bridge_enabled': Setting(
+        'bool', False, 'integration', N_('OR schedule bridge enabled')),
 }
 
 

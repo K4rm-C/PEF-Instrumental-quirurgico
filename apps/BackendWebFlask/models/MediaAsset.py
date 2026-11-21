@@ -17,5 +17,5 @@ class MediaAsset(db.Model):
     size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)    
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
-    # Relación con YoloModel
+    # Relationship to YoloModel
     yolo_models: Mapped[list["YoloModel"]] = relationship("YoloModel", back_populates="media_asset")

@@ -72,6 +72,7 @@
         <table class="data-table">
             <thead>
                 <tr>
+                    <th scope="col" class="data-table__thumb-column"><span class="visually-hidden">{{ _("Reference") }}</span></th>
                     <th scope="col">{{ _("Code") }}</th>
                     <th scope="col">{{ _("Name") }}</th>
                     <th scope="col">{{ _("Category") }}</th>
@@ -83,6 +84,15 @@
             <tbody>
                 {% for family in instrument_families %}
                 <tr>
+                    <td class="data-table__thumb-column">
+                        {% if family.thumb_url %}
+                        <a class="family-list-thumb" href="#{{ family.overlay_id }}" title="{{ _('View reference') }}">
+                            <img src="{{ family.thumb_url }}" alt="" loading="lazy" width="48" height="36">
+                        </a>
+                        {% else %}
+                        <span class="family-list-thumb family-list-thumb--empty" aria-hidden="true"></span>
+                        {% endif %}
+                    </td>
                     <th scope="row">{{ family.code }}</th>
                     <td>{{ family.name }}</td>
                     <td>{{ _(family.category) }}</td>
@@ -94,7 +104,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="6" class="data-table__empty-state">{{ _("No instrument families match the current filters.") }}</td>
+                    <td colspan="7" class="data-table__empty-state">{{ _("No instrument families match the current filters.") }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -104,4 +114,29 @@
     {% set pagination_info = _("Showing %(shown)s of %(total)s families", shown=families_shown_count, total=families_total_count) %}
     {% include "components/pagination.html" %}
 </section>
+
+{% for family in instrument_families %}
+{% if family.thumb_url %}
+<div class="family-examples__overlay" id="{{ family.overlay_id }}" role="dialog" aria-modal="true"
+     aria-label="{{ _('Reference: %(name)s', name=family.name) }}">
+    <div class="family-examples__overlay-panel family-examples__overlay-panel--ref">
+        <img src="{{ family.thumb_url }}" alt="{{ family.name }}">
+        <div class="family-examples__overlay-ref">
+            <h2 class="family-examples__overlay-ref-title">{{ family.name }}</h2>
+            <p class="family-examples__overlay-ref-code">{{ family.code }} · {{ _(family.category) }}</p>
+            {% if family.how_to_identify %}
+            <p class="family-examples__overlay-ref-block"><strong>{{ _("How to identify") }}</strong><br>{{ family.how_to_identify }}</p>
+            {% endif %}
+            {% if family.classification_characteristics %}
+            <p class="family-examples__overlay-ref-block"><strong>{{ _("Classification") }}</strong><br>{{ family.classification_characteristics }}</p>
+            {% endif %}
+            {% if family.function %}
+            <p class="family-examples__overlay-ref-block"><strong>{{ _("Function / use") }}</strong><br>{{ family.function }}</p>
+            {% endif %}
+        </div>
+        <a class="btn btn--secondary" href="#">{{ _("Close") }}</a>
+    </div>
+</div>
+{% endif %}
+{% endfor %}
 {% endblock %}

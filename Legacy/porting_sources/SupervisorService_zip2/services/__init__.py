@@ -1,1 +1,0 @@
-"""SupervisorService domain operations."""

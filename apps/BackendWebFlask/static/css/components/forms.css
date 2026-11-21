@@ -80,6 +80,14 @@
     font-size: var(--font-size-sm);
 }
 
+.form-field__helper--tip {
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid var(--color-info, #2563eb);
+    background: var(--color-surface-secondary, rgba(37, 99, 235, 0.06));
+    color: var(--color-text-primary);
+}
+
 /* Inline validation message variant (IT Administrator New User's "Passwords do not match."). */
 .form-field__helper--error {
     color: var(--color-danger);

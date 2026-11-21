@@ -96,7 +96,7 @@ class SessionManagerTest {
 
         assertTrue(network.sessionManager.state.value is AuthState.LoggedIn)
         assertEquals("access-2", store.read()?.accessToken)
-        assertEquals("refresh-2", store.read()?.refreshToken) // el refresh anterior quedó revocado por rotación
+        assertEquals("refresh-2", store.read()?.refreshToken) // old refresh revoked by rotation
         assertEquals(1, routes.count("POST", "/api/v1/auth/refresh"))
     }
 
@@ -225,7 +225,7 @@ class SessionManagerTest {
 
     @Test
     fun `token no valido tras logout no permite continuar`() = runBlocking {
-        // Tras el logout el servidor rechaza el access y el refresh revocados.
+        // after logout server rejects revoked access + refresh
         routes.on("GET", "/api/v1/auth/me") { json(Fixtures.error("unauthorized", "Token is revoked"), 401) }
         routes.on("POST", "/api/v1/auth/refresh") { json(Fixtures.error("unauthorized", "Token is revoked"), 401) }
         val manager = server.network(InMemoryTokenStore(Fixtures.storedSession())).sessionManager

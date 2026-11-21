@@ -7,12 +7,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
-// URL base del API Gateway del PEF (nginx). Se puede cambiar sin tocar el código:
+// PEF API Gateway base URL (nginx). change without touching code:
 //   ./gradlew assembleDebug -Ppef.apiBaseUrl.debug=http://127.0.0.1:8080/
-// o en ~/.gradle/gradle.properties, o en local.properties (por máquina, no versionado).
-// Ver README.md, sección "Configuración del Gateway".
-// - Emulador estándar → la máquina anfitriona es 10.0.2.2 y el Gateway de desarrollo escucha en 8080.
-// - Release → siempre HTTPS con un certificado válido (docker-compose.gateway-tls.yml).
+// or ~/.gradle/gradle.properties, or local.properties (per machine, not versioned).
+// see README.md Gateway config section.
+// - stock emulator -> host machine is 10.0.2.2 and dev Gateway listens on 8080.
+// - release -> always HTTPS with a valid cert (docker-compose.gateway-tls.yml).
 val localProperties: Properties = Properties().apply {
     providers.fileContents(rootProject.layout.projectDirectory.file("local.properties")).asText.orNull
         ?.let { load(it.reader()) }
@@ -65,7 +65,7 @@ android {
         buildConfig = true
     }
     androidResources {
-        // Idiomas de la interfaz (per-app language, res/xml/locales_config.xml).
+        // UI languages (per-app language, res/xml/locales_config.xml).
         generateLocaleConfig = false
     }
     testOptions {
@@ -74,9 +74,9 @@ android {
 }
 
 // ----------------------------------------------------------------------------------------------------------------
-// Opcional y por máquina: `pef.adbReverse=27080` (o `27080,27900`) en local.properties ejecuta
-// `adb reverse tcp:<p> tcp:<p>` en cada dispositivo conectado antes de cada build debug (incluido Run en Android Studio).
-// Así la app alcanza el Gateway local en 127.0.0.1 aunque se haya reiniciado el emulador. Nunca falla el build.
+// optional, per machine: `pef.adbReverse=27080` (or `27080,27900`) in local.properties runs
+// `adb reverse tcp:<p> tcp:<p>` on each connected device before every debug build (incl Android Studio Run).
+// so app can hit local Gateway at 127.0.0.1 even after emulator restart. never fails the build.
 // ----------------------------------------------------------------------------------------------------------------
 abstract class PefAdbReverseTask : DefaultTask() {
     @get:Input abstract val adbPath: Property<String>
@@ -155,7 +155,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.material3)
 
-    // ANDROID-01: integración con los microservicios del PEF a través del API Gateway.
+    // ANDROID-01: talk to PEF microservices via API Gateway
     implementation(libs.retrofit)
     implementation(libs.retrofit.kotlinx.serialization)
     implementation(libs.okhttp)
@@ -164,7 +164,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.datastore.preferences)
-    // Idioma por aplicación (AppCompatDelegate.setApplicationLocales) con respaldo para API < 33.
+    // per-app language (AppCompatDelegate.setApplicationLocales) with API < 33 fallback
     implementation(libs.androidx.appcompat)
 
     testImplementation(libs.junit)

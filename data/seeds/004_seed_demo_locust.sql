@@ -1,12 +1,14 @@
 -- =============================================================================
 -- PEF · 004_seed_demo_locust.sql
--- Extra demo rows for Locust / multi-user load (additive, idempotent ON CONFLICT).
--- REQUISITES: 001–003 applied. DEV/DEMO only.
+-- Contenido FUSIONADO en 003_seed_demo.sql (sección 14).
+-- Este archivo se conserva como re-aplicación IDEMPOTENTE (ON CONFLICT) para:
+--   - volúmenes Postgres antiguos que solo tenían 003 pre-fusión
+--   - scripts/seed_demo_volume.py (lo ejecuta antes de generar volumen)
+-- DEV/DEMO only. REQUISITOS: 001–003 + migraciones aplicadas.
 -- =============================================================================
 
 BEGIN;
 
--- Extra OR for non-overlapping physician scheduling
 INSERT INTO operating_room (id, code, name, active, institution_id) VALUES
   ('12121212-0000-4000-8000-000000000002', 'OR-02', 'Operating Room 2', TRUE,
    '11111111-1111-1111-1111-111111111111')
@@ -18,7 +20,6 @@ INSERT INTO capture_station (id, name, roi, active, room_id) VALUES
    TRUE, '12121212-0000-4000-8000-000000000002')
 ON CONFLICT (id) DO NOTHING;
 
--- Extra users (simulated @instrumed.com emails). Passwords: see DEMO_CREDENTIALS.local.md
 INSERT INTO "user" (id, name, email, password_hash, active, ui_preferences, institution_id) VALUES
   ('22222222-2222-2222-2222-222222222231', 'Operador Ana Ruiz', 'ana.ruiz@instrumed.com',
    'pbkdf2:sha256:600000$pBt90bMOFJshdYWs$4a2d7fe6185d1787ebfeaf2202863fbed1a0a8cfa19848a907327fdb9baf25d4', TRUE,
@@ -35,7 +36,6 @@ INSERT INTO "user" (id, name, email, password_hash, active, ui_preferences, inst
   ('22222222-2222-2222-2222-222222222235', 'Piso Nora Diaz', 'nora.diaz@instrumed.com',
    'pbkdf2:sha256:600000$M0mNEmXKC6clH5og$bcd831c54266d09d194cd97bd9e943832cfeffec524c148de279a6d8cdbdd226', TRUE,
    '{"theme": "light", "locale": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  -- Multi-role Admin + SPD (web primary = it_admin)
   ('22222222-2222-2222-2222-222222222236', 'Admin y SPD Dual', 'dual.admin.spd@instrumed.com',
    'pbkdf2:sha256:600000$P7YSsITcxlOhTEOm$2f30c96acf5bebe8f92a536ff83708abb25f26465fc10146fcc6dbc98a7b4418', TRUE,
    '{"theme": "system", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111')
@@ -48,11 +48,7 @@ INSERT INTO user_role (user_id, role_id) VALUES
   ('22222222-2222-2222-2222-222222222234', '14141414-0000-4000-8000-000000000003'),
   ('22222222-2222-2222-2222-222222222235', '14141414-0000-4000-8000-000000000004'),
   ('22222222-2222-2222-2222-222222222236', '14141414-0000-4000-8000-000000000003'),
-  ('22222222-2222-2222-2222-222222222236', '14141414-0000-4000-8000-000000000002')
-ON CONFLICT DO NOTHING;
-
--- OP + App (allowed): operator keeps OP; also or_charge for App push tests
-INSERT INTO user_role (user_id, role_id) VALUES
+  ('22222222-2222-2222-2222-222222222236', '14141414-0000-4000-8000-000000000002'),
   ('22222222-2222-2222-2222-222222222221', '14141414-0000-4000-8000-000000000004')
 ON CONFLICT DO NOTHING;
 
@@ -63,13 +59,11 @@ INSERT INTO user_operating_room (id, user_id, room_id) VALUES
   ('15151515-0000-4000-8000-000000000003',
    '22222222-2222-2222-2222-222222222221',
    '12121212-0000-4000-8000-000000000001'),
-  -- floor@ (or_charge App) also covers OR-02 so App alerts cover both demo rooms
   ('15151515-0000-4000-8000-000000000004',
    '22222222-2222-2222-2222-222222222226',
    '12121212-0000-4000-8000-000000000002')
 ON CONFLICT (id) DO NOTHING;
 
--- Extra physicians (no overlap on concurrent ops below)
 INSERT INTO physician (id, name, active, institution_id) VALUES
   ('32323232-0000-4000-8000-000000000006', 'Dr. Sofia Navarro', TRUE,
    '11111111-1111-1111-1111-111111111111'),
@@ -89,7 +83,6 @@ FROM (VALUES
 JOIN cat_specialty s ON s.code = v.specialty_code
 ON CONFLICT DO NOTHING;
 
--- Extra instruments in varied cycle statuses (families from 003)
 INSERT INTO instrument (id, internal_code, active, family_id, cycle_status_id, institution_id)
 SELECT v.id::uuid, v.internal_code, TRUE, f.id, cs.id, '11111111-1111-1111-1111-111111111111'
 FROM (VALUES
@@ -104,7 +97,6 @@ JOIN instrument_family f ON f.name = v.family_name
 JOIN cat_instrument_cycle_status cs ON cs.code = v.status_code
 ON CONFLICT (id) DO NOTHING;
 
--- Closed session for ana.ruiz (history load)
 INSERT INTO operation (id, scheduled_at, started_at, ended_at, status_id, procedure_type_id, room_id, institution_id)
 SELECT '61616161-0000-4000-8000-000000000011',
        '2026-10-10T08:00:00Z', '2026-10-10T08:20:00Z', '2026-10-10T09:40:00Z',
@@ -137,7 +129,6 @@ FROM cat_session_status ss, cat_operation_phase ph
 WHERE ss.code = 'closed' AND ph.code = 'final_count'
 ON CONFLICT (id) DO NOTHING;
 
--- in_progress for luis.pena only (one active per OP); distinct physician
 INSERT INTO operation (id, scheduled_at, started_at, ended_at, status_id, procedure_type_id, room_id, institution_id)
 SELECT '61616161-0000-4000-8000-000000000012',
        (date_trunc('day', now() AT TIME ZONE 'UTC') + interval '10 hours'),
@@ -177,7 +168,6 @@ FROM kit_item ki
 WHERE ki.kit_id = '51515151-0000-4000-8000-000000000001'
 ON CONFLICT DO NOTHING;
 
--- Ensure Demo procedure has Video Demo Kit 1 as default (Admin / schedule UI)
 INSERT INTO procedure_kit (procedure_type_id, kit_id, is_default, active)
 SELECT pt.id, '51515151-0000-4000-8000-000000000001', TRUE, TRUE
 FROM cat_procedure_type pt

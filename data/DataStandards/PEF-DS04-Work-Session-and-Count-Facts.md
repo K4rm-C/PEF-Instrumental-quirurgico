@@ -7,7 +7,7 @@ owner: PEF Core / Estación / Worker
 applies_to: [CS, BE, Worker, WP]
 stores: [PostgreSQL]
 related: [PEF-DS01, PEF-DS02, PEF-DS03, PEF-DS06, PEF-DS07]
-last_updated: 2026-10-29
+last_updated: 2026-11-19
 ---
 
 # PEF-DS04 · Work Session and Count Facts
@@ -42,7 +42,7 @@ Abajo: **todos** los campos, FKs con motivo, y **fila completa** por tabla.
 
 ### 1.2 Uso
 
-Estación abre/cierra sesión y muestra esperado vs detectado. Worker/backend **persisten** `count_event` además del push WSS a UI. Portal consulta historial y discrepancias.
+Estación abre/cierra sesión y muestra esperado vs detectado. Backend/portal (SessionService) **persisten** `count_event`. VisionWorker empuja UI por WSS y alimenta el ring de evidencia en Redis; no es dueño de hechos SQL. Portal consulta historial y discrepancias.
 
 | Pregunta | Dónde |
 | :--- | :--- |
@@ -361,7 +361,7 @@ UNIQUE `count_event_id`.
 | Aspecto | Responsable |
 | :--- | :--- |
 | Apertura/cierre de sesión | Estación + Backend |
-| Persistencia de `count_event` | Backend / contrato con Worker (no solo UI efímera) |
+| Persistencia de `count_event` | Backend / SessionService (portal); VisionWorker no escribe PG |
 | Resolución de discrepancias | Personal clínico autorizado |
 | Retención extendida | Coordinar con PEF-DS07 / política de privacidad |
 

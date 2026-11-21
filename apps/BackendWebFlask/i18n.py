@@ -122,10 +122,14 @@ DB_CODE_LABELS = {
     'procedure': {
         'appendectomy': N_('Appendectomy'),
         'cesarean': N_('Cesarean section'),
+        'demo': N_('Demo'),
         'hernia_repair': N_('Inguinal hernia repair'),
         'hip_replace': N_('Hip arthroplasty'),
         'lap_chole': N_('Laparoscopic cholecystectomy'),
         'open_chole': N_('Open cholecystectomy'),
+        'soft_tissue_excision': N_('Superficial lesion excision / soft-tissue minor surgery'),
+        'vaginal_delivery': N_('Vaginal delivery'),
+        'wound_debridement': N_('Surgical wound debridement and closure'),
     },
     'surgical_role': {
         'anesthesiologist': N_('Anesthesiologist'),
@@ -242,7 +246,14 @@ DB_RECORD_TEXTS = {
         },
     },
     'operating_room': {
-        'OR-01': {'Quirofano 1': N_('Operating Room 1')},
+        'OR-01': {
+            'Quirofano 1': N_('Operating Room 1'),
+            'Operating Room 1': N_('Operating Room 1'),
+        },
+        'OR-02': {
+            'Operating Room 2': N_('Operating Room 2'),
+            'Quirofano 2': N_('Operating Room 2'),
+        },
     },
     'capture_station': {
         '13131313-0000-4000-8000-000000000001': {

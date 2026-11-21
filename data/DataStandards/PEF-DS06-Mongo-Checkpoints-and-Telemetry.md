@@ -7,7 +7,7 @@ owner: PEF Core / Visión / Worker
 applies_to: [Worker, BE, WP]
 stores: [MongoDB]
 related: [PEF-DS04, PEF-DS05, PEF-DS03]
-last_updated: 2026-10-30
+last_updated: 2026-11-19
 ---
 
 # PEF-DS06 · Mongo Checkpoints and Telemetry
@@ -16,7 +16,7 @@ last_updated: 2026-10-30
 
 Este estándar define **documentos MongoDB** de evidencia visual ocasional y telemetría ligera del worker.
 
-Colecciones dueñas: `checkpoint_frame`, `session_telemetry`.
+Colecciones dueñas: `checkpoint_frame`, `session_telemetry`. Runtime de evidencia: DB típica `pef_evidence` (env `EVIDENCE_MONGO_DB`).
 
 Vocabulario de motivo: códigos alineados a `cat_checkpoint_reason` en PostgreSQL (este DS documenta el uso en Mongo; la fila catálogo vive en PG sin FK hacia Mongo).
 
@@ -32,13 +32,13 @@ No define hechos de conteo SQL (`count_event`, PEF-DS04). No define bytes del ar
 | :--- | :--- |
 | **Checkpoint** | Documento que congela un momento visual/detecciones de una sesión. |
 | **Razón (`reason`)** | Motivo tipado (`start`, `close`, `hourly`, `state_change`, `discrepancy`, `manual_pin`). |
-| **Ráfaga / clip** | Varios frames del ring buffer → un MP4 (H.264) → **un** checkpoint (no N documentos). |
+| **Ráfaga / clip** | Varios frames del ring Redis/RAM → un MP4 (H.264) vía EvidenceWorker → **un** checkpoint (no N documentos). |
 | **Telemetría** | Métricas de runtime (FPS, latencia); no es evidencia legal. |
 | **Tope por sesión** | Máximo 30–50 `checkpoint_frame` por `session_id`. |
 
 ### 1.2 Uso
 
-Worker escribe checkpoints fuera del hot path cuando la política lo pide. Backend/portal listan por `session_id`. Fan-out: detección → WSS UI + `count_event` (DS04) + checkpoint Mongo **si** aplica.
+EvidenceWorker escribe checkpoints y telemetría en Mongo (`pef_evidence`) fuera del hot path (encode + Garage + `media_asset` + Mongo) cuando la política lo pide. VisionWorker alimenta el ring Redis y el WSS en vivo; no escribe checkpoints ni es dueño de Mongo evidencia. Backend/portal listan por `session_id`. Fan-out: detección → WSS UI; `count_event` (DS04) lo materializa Backend/portal; checkpoint Mongo si aplica.
 
 ---
 
@@ -127,7 +127,7 @@ Códigos esperados: `start`, `close`, `hourly`, `state_change`, `discrepancy`, `
   "session_id": "cccccccc-cccc-cccc-cccc-cccccccccccc",
   "operation_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   "media_asset_id": "m1000003-0000-4000-8000-000000000003",
-  "gcs_uri": "s3://pef-minio-evidence/11111111-1111-1111-1111-111111111111/cccccccc-cccc-cccc-cccc-cccccccccccc/2026/09/burst-disc.mp4",
+  "gcs_uri": "s3://evidence/11111111-1111-1111-1111-111111111111/cccccccc-cccc-cccc-cccc-cccccccccccc/2026/09/burst-disc.mp4",
   "model_version": "yolo11n-pef-2026-03",
   "reason": "discrepancy",
   "phase_id": "b1000004-0000-4000-8000-000000000004",
@@ -196,7 +196,7 @@ No cuenta dentro del tope de checkpoints.
 
 | Aspecto | Responsable |
 | :--- | :--- |
-| Escritura checkpoint/telemetría | Worker (+ adaptador) |
+| Escritura checkpoint/telemetría | EvidenceWorker (Mongo `pef_evidence`); VisionWorker no escribe |
 | Política de tope/TTL | PEF Core / Ops |
 | Lectura panel | Backend Web |
 
@@ -212,7 +212,7 @@ Los checkpoints son documentos variables (detections array, burst metadata) de a
 
 1. **PG = hechos de negocio; Mongo = detalle visual/telemetría.**
 2. **Tope 30–50** y prioridad de borrado por `reason`.
-3. **Encode MP4 off hot path**; ring buffer en RAM.
+3. **Encode MP4 off hot path** (EvidenceWorker); ring Redis `pef:evidence:frames:*` + buffer RAM.
 4. **`reason` string** alineado a catálogo PG sin FK cruzada de motores.
 5. **URI redundante** en el doc para no forzar join PG en cada thumbnail.
 
@@ -238,4 +238,4 @@ Los checkpoints son documentos variables (detections array, burst metadata) de a
 | Estado | draft |
 | Almacén | MongoDB (`checkpoint_frame`, `session_telemetry`); vocab `cat_checkpoint_reason` en PG |
 | Fuera de alcance | `count_event`; bytes storage; mensajes WSS frame-a-frame (DS10) |
-| Referencia | `notas_mongo_checkpoints_gcs.txt`, `diagrama_er_completo.md` §Mongo |
+| Referencia | DS05 (`media_asset` / Garage); ER [`../ER PostgreSQL-MongoDB-v3.jpg`](../ER%20PostgreSQL-MongoDB-v3.jpg); runbook raíz `README.md` |

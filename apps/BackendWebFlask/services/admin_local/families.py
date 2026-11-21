@@ -35,14 +35,14 @@ def _serialize(row, category, *, detail=False):
         'name': row.name,
         'active': row.active,
         'function_text': row.function_text or '',
+        'identify_text': row.identify_text or '',
+        'classify_text': row.classify_text or '',
         'category': {'id': str(category.id), 'code': category.code, 'name': category.name,
                      'rank': category_rank(category.code)} if category else None,
     }
     if detail:
-        data.update({
-            'identify_text': row.identify_text or '',
-            'classify_text': row.classify_text or '',
-        })
+        # Fields already included for list + detail; keep flag for callers.
+        pass
     return data
 
 
@@ -55,6 +55,20 @@ def _example_counts():
                            .group_by(FamilyExample.family_id)).all())
 
 
+def _first_example_ids():
+    """First example with media per family (lowest sort_order, then id)."""
+    first = {}
+    rows = db.execute(
+        select(FamilyExample)
+        .where(FamilyExample.media_asset_id.is_not(None))
+        .order_by(FamilyExample.family_id, FamilyExample.sort_order, FamilyExample.id)
+    ).scalars()
+    for ex in rows:
+        if ex.family_id not in first:
+            first[ex.family_id] = str(ex.id)
+    return first
+
+
 def _active_model_families():
     return set(db.execute(select(ModelClass.family_id).join(YoloModel, YoloModel.id == ModelClass.model_id)
                           .where(YoloModel.active.is_(True))).scalars())
@@ -63,6 +77,7 @@ def _active_model_families():
 def list_families(*, search='', category='', status='active', page=1, per_page=20, matches=()):
     categories = _categories()
     examples = _example_counts()
+    first_examples = _first_example_ids()
     wanted_status = status_filter(status)
     rows = []
     for row in db.execute(select(InstrumentFamily).order_by(InstrumentFamily.code)).scalars():
@@ -74,7 +89,11 @@ def list_families(*, search='', category='', status='active', page=1, per_page=2
         if not matches_search(search, row.code, row.name, row.function_text, cat.name if cat else '',
                               matches=matches, keys=(row.code, row.name, cat.code if cat else None)):
             continue
-        rows.append({**_serialize(row, cat), 'example_count': examples.get(row.id, 0)})
+        rows.append({
+            **_serialize(row, cat),
+            'example_count': examples.get(row.id, 0),
+            'first_example_id': first_examples.get(row.id),
+        })
     result = paginate(rows, page, per_page)
     result['filters'] = {'search': search or '', 'category': category or '', 'status': wanted_status}
     return result

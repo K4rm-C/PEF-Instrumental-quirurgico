@@ -1,10 +1,12 @@
 # Data Standards PEF · Índice
 
-Documentos que explican **qué datos maneja el sistema**, para qué sirven, cómo se escriben y leen, y con qué reglas. No sustituyen los diagramas de arquitectura ni el DDL: los hacen usables para alguien del equipo (o un heredero) que necesite entender el significado de cada cosa sin adivinar.
+Documentos que explican qué datos maneja el sistema, para qué sirven, cómo se escriben y leen, y con qué reglas. No sustituyen los diagramas de arquitectura ni el DDL: los hacen usables para alguien del equipo (o un heredero) que necesite entender el significado de cada cosa sin adivinar.
 
-**Idioma:** nombres de archivo e IDs en inglés. Texto en español. Versión en inglés de estos mismos estándares: al cierre del proyecto.
+Idioma: nombres de archivo e IDs en inglés. Texto en español. Versión en inglés de estos mismos estándares: al cierre del proyecto.
 
-**Fuente técnica de tablas:** [`../esquema_base_datos_v2.md`](../esquema_base_datos_v2.md). Export ER: [`../ER PostgreSQL-MongoDB-v3.jpg`](../ER%20PostgreSQL-MongoDB-v3.jpg). PostgreSQL: **51 tablas** (incluye `user_operating_room`).
+Fuente técnica de tablas: [`../esquema_base_datos_v2.md`](../esquema_base_datos_v2.md) (snapshot DDL base histórico; el conteo “51 tablas” describe ese snapshot, no el inventario vivo). El esquema desplegado en el stack integral es `data/migrations/` (001 + 004…021) vía `docker-compose.integral.yml`. Export ER: [`../ER PostgreSQL-MongoDB-v3.jpg`](../ER%20PostgreSQL-MongoDB-v3.jpg).
+
+Runbook operativo (compose, LAN HTTPS :5443, Gateway :8080, Vision/Evidence, object store Garage S3-compatible): README en la raíz del repo. `docs/` solo tiene un stub que apunta aquí y a ese README; ya no hay packs MS/admin ni `Legacy/` / `porting_sources` en la raíz.
 
 Los contratos de pantalla (RF) no viven aquí; están en [`../FunctionalRequirements/`](../FunctionalRequirements/).
 
@@ -34,16 +36,16 @@ Tags útiles en el front matter de cada archivo:
 
 ## Reglas anti-solape
 
-1. Una tabla o colección tiene **un solo dueño** (un DS). Los demás solo dicen “ver PEF-DSxx”.
-2. Un endpoint se define en detalle en **DS09** (REST) o **DS10** (WSS). Los DS de tablas pueden nombrar el endpoint que las usa, sin redescribir el contrato HTTP.
-3. Bytes de imagen/MP4/pesos: **DS05**. Detecciones en Mongo: **DS06**. Hechos de conteo en PostgreSQL: **DS04**.
-4. Contraseña y secretos: solo hashes en **DS01** / **DS08**. Nunca el valor en claro en un estándar ni en mocks.
+1. Una tabla o colección tiene un solo dueño (un DS). Los demás solo dicen “ver PEF-DSxx”.
+2. Un endpoint se define en detalle en DS09 (REST) o DS10 (WSS). Los DS de tablas pueden nombrar el endpoint que las usa, sin redescribir el contrato HTTP.
+3. Bytes de imagen/MP4/pesos: DS05. Detecciones en Mongo: DS06. Hechos de conteo en PostgreSQL: DS04.
+4. Contraseña y secretos: solo hashes en DS01 / DS08. Nunca el valor en claro en un estándar ni en mocks.
 
 ### Matriz anti-solape (verificación)
 
 | Artefacto | Dueño canónico | No redefinir en |
 | :--- | :--- | :--- |
-| `institution`, `user`, `role`, `user_role`, `user_operating_room`, Redis auth | DS01 | DS08–10 |
+| `institution`, `user`, `role`, `user_role`, `user_operating_room`, Redis auth | DS01 | DS08-10 |
 | `patient`…`operation*`, `resource_identifier`, cats clínicos | DS02 | DS03–04 (solo FK) |
 | Familias, kits, YOLO, `cat_operation_phase` | DS03 | DS04 (fase solo referencia) |
 | `work_session`, `count_event`, discrepancy | DS04 | DS06 (no hechos SQL) |
@@ -64,22 +66,22 @@ Igual que el ejemplo de gobierno de datos del proyecto:
 1. Explicación del estándar  
    - 1.1 Definiciones  
    - 1.2 Uso  
-   - 1.3 Convenciones: **todas** las tablas dueñas, **todos** los campos (tipo/nulo/default/significado), FKs (a dónde, **relación/cardinalidad**, por qué / ON DELETE), y **ejemplo de fila completa** por tabla  
+   - 1.3 Convenciones: todas las tablas dueñas, todos los campos (tipo/nulo/default/significado), FKs (a dónde, relación/cardinalidad, por qué / ON DELETE), y ejemplo de fila completa por tabla  
    - 1.4 Governance and Ownership  
-   - 1.5 Justificación: decisiones de diseño **y** alternativas descartadas con motivo  
+   - 1.5 Justificación: decisiones de diseño y alternativas descartadas con motivo  
 2. Anexo A – Información general  
 
 ---
 
 ## Convenciones de datos (todos los DS)
 
-- Códigos de catálogo y nombres de tabla/columna en **inglés** en la base (`code`, `work_session`, etc.).
+- Códigos de catálogo y nombres de tabla/columna en inglés en la base (`code`, `work_session`, etc.).
 - Textos de UI pueden ir en español; el valor guardado sigue el `code` del catálogo.
 - Identificadores internos: UUID.
 - Timestamps: UTC (`TIMESTAMPTZ`).
 - Mocks de demo: inventados, sin datos reales de pacientes.
-- **Relación / cardinalidad** en FKs (desde la tabla actual → destino):
-  - `N:1` — muchas filas aquí apuntan a una allá (FK típica obligatoria)
-  - `N:0..1` — el destino es opcional (FK nullable)
-  - `1:1` — a lo sumo un par (suele ir con UNIQUE)
-  - `N:N` — conceptual entre dos entidades; en SQL se implementa con tabla puente (cada FK del puente es `N:1`)
+- Relación / cardinalidad en FKs (desde la tabla actual → destino):
+  - `N:1`: muchas filas aquí apuntan a una allá (FK típica obligatoria)
+  - `N:0..1`: el destino es opcional (FK nullable)
+  - `1:1`: a lo sumo un par (suele ir con UNIQUE)
+  - `N:N`: conceptual entre dos entidades; en SQL se implementa con tabla puente (cada FK del puente es `N:1`)

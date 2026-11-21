@@ -6,6 +6,7 @@
 # Optional API Gateway: --profile gateway
 # db-migrate applies additive migrations 004..021; garage-init creates privacy-notices + pef-admin;
 # seed-family-examples uploads data/seeds/example_images → Garage and links family_example.
+# seed-demo-volume re-applies Locust accounts (004) + generates variable KPI/history volume.
 services:
   postgres:
     image: postgres:16
@@ -209,6 +210,51 @@ services:
       db-migrate:
         condition: service_completed_successfully
       garage-init:
+        condition: service_completed_successfully
+    networks:
+    - pef-network
+    restart: 'no'
+  seed-demo-volume:
+    # One-shot: ensure Locust accounts (004) + variable volume (sessions/KPIs/audit/monitoring).
+    # Idempotent. Runs on every compose up; safe on existing volumes (ON CONFLICT / UUID5).
+    image: python:3.12-slim
+    working_dir: /repo
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: '5432'
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      SEED_VOLUME_ENABLED: ${SEED_VOLUME_ENABLED:-1}
+      SEED_RNG: ${SEED_RNG:-2026}
+      SEED_OR_COUNT: ${SEED_OR_COUNT:-4}
+      SEED_CLOSED_SESSIONS: ${SEED_CLOSED_SESSIONS:-48}
+      SEED_SCHEDULED: ${SEED_SCHEDULED:-8}
+      SEED_IN_PROGRESS: ${SEED_IN_PROGRESS:-2}
+      SEED_DAYS_BACK: ${SEED_DAYS_BACK:-30}
+      SEED_DISCREPANCY_RATE: ${SEED_DISCREPANCY_RATE:-0.28}
+      SEED_AUDIT_PER_SESSION: ${SEED_AUDIT_PER_SESSION:-3}
+      SEED_MONITORING_HOURS: ${SEED_MONITORING_HOURS:-48}
+      SEED_EXTRA_OP_USERS: ${SEED_EXTRA_OP_USERS:-4}
+      SEED_EXTRA_SPD_USERS: ${SEED_EXTRA_SPD_USERS:-2}
+      SEED_EXTRA_FLOOR_USERS: ${SEED_EXTRA_FLOOR_USERS:-1}
+      SEED_SKIP_LOCUST_SQL: '1'
+    volumes:
+    - ./scripts/seed_demo_volume.py:/repo/scripts/seed_demo_volume.py:ro
+    - ./data/seeds/004_seed_demo_locust.sql:/repo/data/seeds/004_seed_demo_locust.sql:ro
+    command:
+    - sh
+    - -ec
+    - |
+      apt-get update -qq && apt-get install -y -qq --no-install-recommends postgresql-client >/dev/null
+      pip install -q --root-user-action=ignore 'psycopg[binary]' werkzeug
+      export PGPASSWORD="$$POSTGRES_PASSWORD"
+      psql -h postgres -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -v ON_ERROR_STOP=1 -f data/seeds/004_seed_demo_locust.sql
+      python scripts/seed_demo_volume.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-migrate:
         condition: service_completed_successfully
     networks:
     - pef-network
@@ -651,8 +697,9 @@ services:
       MONGO_URL: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
       MONGO_DB: ${MONGO_DB:-pef}
     ports:
-    # Not needed by the browser (the portal calls it on pef-network): published on loopback only.
-    - 127.0.0.1:${VISION_PORT:-5002}:5002
+    # Lab/LAN: browser WS uses VISION_WORKER_WS_URL (host LAN IP). Server-side portal still
+    # reaches vision on pef-network / host.docker.internal. Lock with HOST_BIND=127.0.0.1 if needed.
+    - ${HOST_BIND:-0.0.0.0}:${VISION_PORT:-5002}:5002
     volumes:
     - ./apps/VisionWorker/weights:/models:ro
     - web_admin_storage:/admin_storage:ro
@@ -680,7 +727,7 @@ services:
       JWT_SECRET_KEY: ${JWT_SECRET_KEY}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
       S3_INTERNAL_ENDPOINT: http://garage:3900
-      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:3900}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://127.0.0.1:3900}
       S3_REGION: ${S3_REGION:-garage}
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_KEY}
@@ -756,7 +803,7 @@ services:
     #   docker compose --profile gateway up -d gateway
     # Development: plain HTTP on 127.0.0.1 only. Production (TLS, portal host, internal ports closed):
     #   docker compose -f docker-compose.yml -f docker-compose.gateway-tls.yml --profile gateway up -d
-    # See GUIA_API_GATEWAY.md.
+    # API Gateway profile — see README (Flexible LAN / Gateway).
     image: nginx:1.27.4-alpine
     profiles:
     - gateway
@@ -789,7 +836,9 @@ services:
       PEF_GW_API_HOST: ${GATEWAY_API_HOST:-api.localhost}
       PEF_GW_PORTAL_HOST: ${GATEWAY_PORTAL_HOST:-portal.localhost}
     ports:
-    - 127.0.0.1:${GATEWAY_HTTP_PORT:-8080}:8080
+    # Lab/LAN: HOST_BIND=0.0.0.0 (default) so phones/emulators reach the Gateway by host LAN IP.
+    # Lock to loopback with HOST_BIND=127.0.0.1 if you only use adb reverse.
+    - ${HOST_BIND:-0.0.0.0}:${GATEWAY_HTTP_PORT:-8080}:8080
     volumes:
     - ./infra/gateway/templates/00-pef-http.conf.template:/etc/nginx/templates/00-pef-http.conf.template:ro
     - ./infra/gateway/templates/pef:/etc/nginx/templates/pef:ro

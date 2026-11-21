@@ -4,7 +4,7 @@ Technical health of the PEF components (PEF-DS09 §1.3.6 complement v0.1.0). One
 - `main.py` (gunicorn, port 5008): the read API below;
 - `collector.py`: checks every component once per interval and stores the results in PostgreSQL.
 
-Integration guide: `../../GUIA_MONITORING.md`.
+Service notes: this README. Run/deploy: `../../README.md`.
 
 | Method | Path | Access |
 | :--- | :--- | :--- |

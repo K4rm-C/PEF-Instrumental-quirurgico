@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- API 31+. Las preferencias de interfaz pueden respaldarse; la sesión cifrada (JWT) no. -->
+<!-- API 31+. UI prefs may back up; encrypted session (JWT) must not. -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="file" path="datastore/pef_secure_session.preferences_pb" />

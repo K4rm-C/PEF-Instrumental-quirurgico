@@ -70,12 +70,21 @@
         camDenied: script.getAttribute("data-i18n-cam-denied") || "",
         camMissing: script.getAttribute("data-i18n-cam-missing") || "",
         camBusy: script.getAttribute("data-i18n-cam-busy") || "",
+        camInsecure: script.getAttribute("data-i18n-cam-insecure") ||
+            "Live camera needs the HTTPS portal on this Wi‑Fi (https://<LAN>:5443). Browsers block the camera on plain HTTP.",
         camStart: script.getAttribute("data-i18n-cam-start") || "Start camera",
         camStop: script.getAttribute("data-i18n-cam-stop") || "Stop camera",
         camDefault: script.getAttribute("data-i18n-cam-default") || "Default camera",
         camN: script.getAttribute("data-i18n-cam-n") || "Camera %(n)s",
-        live: script.getAttribute("data-i18n-live") || "Live"
+        live: script.getAttribute("data-i18n-live") || "Live",
+        missingItem: script.getAttribute("data-i18n-missing-item") || "%(name)s (−%(n)s)",
+        noMissing: script.getAttribute("data-i18n-no-missing") || "No missing families yet."
     };
+
+    var trafficEl = document.getElementById("capture-traffic");
+    var trafficMissingEl = document.getElementById("capture-traffic-missing");
+    var trafficGridEl = document.getElementById("capture-traffic-grid");
+    var trafficGridEmptyEl = document.getElementById("capture-traffic-grid-empty");
 
     function fill(template, values) {
         return template.replace(/%\((\w+)\)s/g, function (match, name) {
@@ -240,25 +249,96 @@
         }
     }
 
+    function trafficLevel(missingTotal, expectedTotal) {
+        if (!expectedTotal || missingTotal <= 0) return "ok";
+        var ratio = missingTotal / expectedTotal;
+        if (ratio >= 0.4) return "danger";
+        return "warn";
+    }
+
+    function updateTrafficStrip(seen, expectedTotal, missingTotal, missingFamilies) {
+        if (!trafficEl) return;
+        if (!seen) {
+            trafficEl.setAttribute("data-level", "pending");
+            if (trafficMissingEl) trafficMissingEl.textContent = "—";
+            if (trafficGridEl) {
+                trafficGridEl.querySelectorAll("[data-traffic-item]").forEach(function (node) {
+                    node.remove();
+                });
+            }
+            if (trafficGridEmptyEl) {
+                trafficGridEmptyEl.hidden = false;
+                trafficGridEmptyEl.textContent = i18n.noMissing;
+            }
+            return;
+        }
+        var level = trafficLevel(missingTotal, expectedTotal);
+        trafficEl.setAttribute("data-level", level);
+        if (trafficMissingEl) trafficMissingEl.textContent = String(missingTotal);
+        if (!trafficGridEl) return;
+        trafficGridEl.querySelectorAll("[data-traffic-item]").forEach(function (node) {
+            node.remove();
+        });
+        if (!missingFamilies.length) {
+            if (trafficGridEmptyEl) {
+                trafficGridEmptyEl.hidden = false;
+                trafficGridEmptyEl.textContent = i18n.noMissing;
+            }
+            return;
+        }
+        if (trafficGridEmptyEl) trafficGridEmptyEl.hidden = true;
+        missingFamilies.forEach(function (item) {
+            var chip = document.createElement("span");
+            chip.className = "v3-op-capture__traffic-chip";
+            chip.setAttribute("data-traffic-item", "1");
+            chip.textContent = fill(i18n.missingItem, {name: item.name, n: item.missing});
+            trafficGridEl.appendChild(chip);
+        });
+    }
+
     function updateTotals() {
         var totalRow = table.querySelector("[data-total-row]");
-        if (!totalRow) return;
+        var expected = totalRow
+            ? Number(totalRow.getAttribute("data-total-expected")) || 0
+            : 0;
         var detected = 0;
         var seen = false;
-        table.querySelectorAll("tr[data-family-code][data-detected-value]").forEach(function (row) {
-            var value = Number(row.getAttribute("data-detected-value"));
-            if (!isNaN(value)) {
-                detected += value;
-                seen = true;
+        var missingTotal = 0;
+        var missingFamilies = [];
+        table.querySelectorAll("tr[data-family-code]").forEach(function (row) {
+            var exp = Number(row.getAttribute("data-expected-value"));
+            if (isNaN(exp)) exp = 0;
+            var detAttr = row.getAttribute("data-detected-value");
+            if (detAttr == null || detAttr === "") return;
+            var value = Number(detAttr);
+            if (isNaN(value)) return;
+            detected += value;
+            seen = true;
+            var missing = Math.max(0, exp - value);
+            if (missing > 0) {
+                missingTotal += missing;
+                var nameEl = row.querySelector("td");
+                missingFamilies.push({
+                    name: nameEl ? nameEl.textContent.trim() : (row.getAttribute("data-family-code") || ""),
+                    missing: missing
+                });
             }
         });
-        var expected = Number(totalRow.getAttribute("data-total-expected")) || 0;
-        var detEl = totalRow.querySelector("[data-total-detected]");
-        var diffEl = totalRow.querySelector("[data-total-diff]");
-        detEl.textContent = seen ? detected : "—";
-        diffEl.textContent = seen ? detected - expected : "—";
-        detEl.classList.toggle("is-waiting", !seen);
-        diffEl.classList.toggle("is-waiting", !seen);
+        if (totalRow) {
+            var detEl = totalRow.querySelector("[data-total-detected]");
+            var diffEl = totalRow.querySelector("[data-total-diff]");
+            if (!expected) expected = Number(totalRow.getAttribute("data-total-expected")) || 0;
+            if (detEl) {
+                detEl.textContent = seen ? detected : "—";
+                detEl.classList.toggle("is-waiting", !seen);
+            }
+            if (diffEl) {
+                diffEl.textContent = seen ? detected - expected : "—";
+                diffEl.classList.toggle("is-waiting", !seen);
+            }
+        }
+        missingFamilies.sort(function (a, b) { return b.missing - a.missing; });
+        updateTrafficStrip(seen, expected, missingTotal, missingFamilies);
     }
 
     function pollDelayMs(session) {
@@ -437,11 +517,26 @@
             });
     }
 
+    function cameraSecureOk() {
+        /* Live camera requires a secure context. Lab path is LAN HTTPS (:5443), not localhost. */
+        return !!window.isSecureContext;
+    }
+
+    function baseVideoConstraints(deviceId) {
+        var video = {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30, max: 30 }
+        };
+        if (deviceId) video.deviceId = { ideal: deviceId };
+        return { video: video, audio: false };
+    }
+
     function listCameras() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-        navigator.mediaDevices.enumerateDevices().then(function (devs) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return Promise.resolve([]);
+        return navigator.mediaDevices.enumerateDevices().then(function (devs) {
             var cams = devs.filter(function (d) { return d.kind === "videoinput"; });
-            if (!cameraSelect) return;
+            if (!cameraSelect) return cams;
             var current = cameraSelect.value;
             cameraSelect.innerHTML = "";
             var def = document.createElement("option");
@@ -450,13 +545,27 @@
             cameraSelect.appendChild(def);
             cams.forEach(function (cam, i) {
                 var opt = document.createElement("option");
-                opt.value = cam.deviceId;
+                opt.value = cam.deviceId || "";
                 opt.textContent = cam.label || fill(i18n.camN, { n: i + 1 });
                 cameraSelect.appendChild(opt);
             });
             if (current) cameraSelect.value = current;
-            cameraSelect.hidden = cams.length < 2;
-        }).catch(function () { /* ignore */ });
+            /* Show the picker whenever at least one device is known (incl. single USB webcam). */
+            cameraSelect.hidden = cams.length < 1;
+            return cams;
+        }).catch(function () { return []; });
+    }
+
+    function openUserMedia(constraints) {
+        return navigator.mediaDevices.getUserMedia(constraints).catch(function (err) {
+            /* Retry without device pin / ideals if the first constraint set is rejected. */
+            var pinned = constraints && constraints.video && typeof constraints.video === "object" &&
+                constraints.video.deviceId;
+            if (pinned || (constraints && constraints.video && constraints.video !== true)) {
+                return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            }
+            throw err;
+        });
     }
 
     function startCamera() {
@@ -464,14 +573,16 @@
             setCameraError(i18n.camMissing);
             return Promise.reject(new Error("getUserMedia"));
         }
-        var constraints = { video: true, audio: false };
-        if (cameraSelect && cameraSelect.value) {
-            constraints.video = { deviceId: { exact: cameraSelect.value } };
+        if (!cameraSecureOk()) {
+            setCameraError(i18n.camInsecure);
+            return Promise.reject(new Error("insecure-context"));
         }
+        var deviceId = cameraSelect && cameraSelect.value ? cameraSelect.value : "";
+        var constraints = baseVideoConstraints(deviceId || null);
         setStageLoading(true, i18n.connecting);
         setCameraError("");
         return postCancel().then(function () {
-            return navigator.mediaDevices.getUserMedia(constraints);
+            return openUserMedia(constraints);
         }).then(function (stream) {
             stopTracks();
             mediaStream = stream;
@@ -481,7 +592,8 @@
             if (img) img.hidden = true;
             return liveVideo.play().catch(function () { /* autoplay policies */ });
         }).then(function () {
-            listCameras();
+            return listCameras();
+        }).then(function () {
             setCameraError("");
             return fetchTicket();
         }).then(function (issued) {
@@ -489,10 +601,11 @@
         }).catch(function (err) {
             setStageLoading(false);
             var name = err && err.name;
-            if (name === "NotAllowedError") setCameraError(i18n.camDenied);
-            else if (name === "NotFoundError") setCameraError(i18n.camMissing);
-            else if (name === "NotReadableError") setCameraError(i18n.camBusy);
-            else setCameraError(String(err.message || err));
+            if (err && err.message === "insecure-context") { /* already set */ }
+            else if (name === "NotAllowedError" || name === "SecurityError") setCameraError(i18n.camDenied);
+            else if (name === "NotFoundError" || name === "OverconstrainedError") setCameraError(i18n.camMissing);
+            else if (name === "NotReadableError" || name === "AbortError") setCameraError(i18n.camBusy);
+            else setCameraError(String((err && err.message) || err));
             throw err;
         });
     }
@@ -643,6 +756,11 @@
     }
 
     poll();
+    if (!cameraSecureOk()) {
+        setCameraError(i18n.camInsecure);
+    } else {
+        listCameras();
+    }
     window.addEventListener("pagehide", shutdown);
     window.addEventListener("beforeunload", shutdown);
 })();

@@ -12,7 +12,7 @@ Neither MongoDB nor EvidenceService can block or fail an Operator request: they 
 from the outbox thread, with short timeouts and retries. PostgreSQL stays the source of truth;
 MongoDB holds visual detail only (no video, no base64 image: the JPEG lives in object storage).
 
-Outbox limits (documented in GUIA_MONGODB.md): one JSON file per checkpoint (+ its JPEG) under
+Outbox limits (data/DataStandards/PEF-DS06): one JSON file per checkpoint (+ its JPEG) under
 PEF_OUTBOX_DIR; at most OUTBOX_MAX_JOBS pending (new checkpoints are refused and logged beyond
 that); a restart keeps every pending checkpoint, but tokens are not persisted, so a JPEG whose
 upload had not finished before the restart is discarded (the checkpoint keeps no media).

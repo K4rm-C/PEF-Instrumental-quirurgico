@@ -1,10 +1,10 @@
-"""MS-11 (Phase 2): compares the READ-ONLY inventory of the VM (scripts/vm/inspect_vm.sh output) with what this
-repository needs, and prints the table: installed / missing / to update / keep / conflict / needs a service stop.
+"""MS-11 (Phase 2): compares the READ-ONLY VM inventory (scripts/vm/inspect_vm.sh output) with what this
+repo needs, then prints the table: installed / missing / to update / keep / conflict / needs a service stop.
 
     python scripts/vm/compare_inventory.py pef_inventory_<host>_<date>.txt [--md out.md]
 
-It only reads the inventory file and the repository. It NEVER guesses: a component whose section is absent or failed
-in the inventory is reported as "no inspeccionado" (not as missing, not as installed).
+Reads inventory file + repo only. NEVER guesses: a component whose section is absent or failed
+in the inventory is reported as "no inspeccionado" (not missing, not installed).
 """
 import argparse
 import re

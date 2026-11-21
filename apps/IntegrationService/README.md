@@ -1,7 +1,7 @@
 # PEF Integration Service (MS-07)
 
 Sync API for desktop / Android / machine clients, idempotent operations forwarded to the owner services, read-only
-FHIR R4 projection (PEF-DS08) and FHIR deliveries. Guides: `GUIA_SINCRONIZACION.md`, `GUIA_INTEGRACION_FHIR.md`.
+FHIR R4 projection (PEF-DS08) and FHIR deliveries. Contract: `../../data/DataStandards/PEF-DS08-Machine-Clients-and-FHIR-Export.md`. Notes: this README.
 
     python main.py      # API (INTEGRATION_PORT, default 5009); applies migration 014 (idempotent)
     python worker.py    # FHIR deliveries with retries + compaction of the change log

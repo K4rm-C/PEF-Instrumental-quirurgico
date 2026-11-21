@@ -42,7 +42,10 @@
         {% endif %}
         <div class="form-field">
             <label class="form-field__label" for="vision-model-weights">{{ _("Weights File (.pt)") }} *</label>
-            <input class="form-field__input form-field__input--plain" type="file" id="vision-model-weights" name="weights" accept=".pt" required>
+            <input class="form-field__input form-field__input--plain" type="file" id="vision-model-weights" name="weights" accept=".pt,application/octet-stream" required>
+            <p class="form-field__helper form-field__helper--tip" role="note">
+                {{ _("Upload a PyTorch / Ultralytics weights file with the .pt extension only. Do not upload ONNX, TorchScript, ZIP archives, or executable files. Class names are read from the file without executing it.") }}
+            </p>
             <p class="form-field__helper">{{ _("Maximum %(size)s MB. The checksum (SHA-256) is computed by the server.", size=max_mb) }}</p>
         </div>
         <div class="form-field">

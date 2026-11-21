@@ -110,7 +110,7 @@ fun TimelineField(
     }
 }
 
-/** Historial de eventos de conteo de la sesión (count_event registrado por el backend), en orden cronológico. */
+/** session count-event history (backend-recorded count_event), chronological */
 @Composable
 fun TimelineContent(detail: SessionDetailDto) {
     val events = detail.timelineRows()

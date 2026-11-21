@@ -52,7 +52,7 @@ Alta del cliente por admin → el HIS pide token con client credentials → lee 
 | `id` | UUID | NO | `gen_random_uuid()` | PK interno. |
 | `client_id` | VARCHAR(128) | NO | — | Identificador público del cliente (login máquina). |
 | `name` | VARCHAR(160) | NO | — | Nombre legible. |
-| `secret_hash` | TEXT | NO | — | Hash del secreto (nunca el secreto en claro). |
+| `secret_hash` | TEXT | NO | — | Hash del secreto (nunca en claro). Runtime: Werkzeug `pbkdf2:sha256`. |
 | `scopes` | JSONB | NO | `[]` | Lista de scopes concedidos. |
 | `active` | BOOLEAN | NO | `TRUE` | Si puede autenticarse. |
 | `last_used_at` | TIMESTAMPTZ | SÍ | NULL | Último uso exitoso. |
@@ -85,7 +85,7 @@ Alta del cliente por admin → el HIS pide token con client credentials → lee 
   "id": "ic000001-0000-4000-8000-000000000001",
   "client_id": "his-demo-norte",
   "name": "HIS Demo Norte",
-  "secret_hash": "$argon2id$v=19$m=65536,t=3,p=4$[REDACTED]",
+  "secret_hash": "pbkdf2:sha256:600000$[REDACTED]",
   "scopes": [
     "fhir.patient.read",
     "fhir.encounter.read",

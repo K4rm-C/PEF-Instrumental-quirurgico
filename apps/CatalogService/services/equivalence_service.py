@@ -8,7 +8,7 @@ Rules (only what is technically defined; the clinical use is a pending functiona
 - One active authorization per (kit, family, equivalent). Revoking keeps the row (who / when): history, never deleted.
 - An equivalence NEVER changes expected quantities, the reference count or the final-count rule (MS-03.1). It is
   information shown to the Operator (validation) and the Supervisor. Whether a validated equivalent must close a
-  classification discrepancy is a functional decision (docs/DECISIONES_PENDIENTES.md, D6).
+  classification discrepancy is a functional decision.
 - Audit: AUTHORIZE_KIT_EQUIVALENCE / REVOKE_KIT_EQUIVALENCE (resource kit_equivalence).
 """
 

@@ -120,6 +120,19 @@
                 </div>
             </div>
 
+            <aside class="v3-op-capture__traffic" id="capture-traffic" data-level="pending" aria-live="polite">
+                <div class="v3-op-capture__traffic-light" aria-hidden="true">
+                    <span class="v3-op-capture__traffic-lamp" id="capture-traffic-lamp"></span>
+                </div>
+                <div class="v3-op-capture__traffic-missing">
+                    <p class="v3-op-capture__traffic-missing-label">{{ _("Missing pieces") }}</p>
+                    <p class="v3-op-capture__traffic-missing-value" id="capture-traffic-missing">—</p>
+                </div>
+                <div class="v3-op-capture__traffic-grid" id="capture-traffic-grid" aria-label="{{ _("Missing families") }}">
+                    <p class="v3-op-capture__traffic-grid-empty" id="capture-traffic-grid-empty">{{ _("No missing families yet.") }}</p>
+                </div>
+            </aside>
+
             <div class="v3-op-capture__controls">
                 <div class="v3-op-capture__controls-main">
                     <div class="v3-op-capture__toolbar">
@@ -266,11 +279,14 @@
     data-i18n-cam-denied="{{ _('Camera permission denied. Allow the camera or use a demo video.') }}"
     data-i18n-cam-missing="{{ _('No camera found. Plug one in or use a demo video.') }}"
     data-i18n-cam-busy="{{ _('Camera is in use by another app.') }}"
+    data-i18n-cam-insecure="{{ _('Live camera needs the HTTPS portal on this Wi‑Fi (https://<LAN-IP>:5443 after pef_up). Browsers block the camera on plain HTTP. Accept the lab certificate once, or use a demo video.') }}"
     data-i18n-cam-start="{{ _('Start camera') }}"
     data-i18n-cam-stop="{{ _('Stop camera') }}"
     data-i18n-cam-default="{{ _('Default camera') }}"
     data-i18n-cam-n="{{ _('Camera %(n)s') }}"
     data-i18n-live="{{ _('Live') }}"
+    data-i18n-missing-item="{{ _('%(name)s (−%(n)s)') }}"
+    data-i18n-no-missing="{{ _('No missing families yet.') }}"
     defer
 ></script>
 {% endblock %}

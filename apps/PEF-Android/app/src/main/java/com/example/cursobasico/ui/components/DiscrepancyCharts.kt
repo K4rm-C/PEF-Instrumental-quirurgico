@@ -30,8 +30,8 @@ import com.example.cursobasico.R
 import com.example.cursobasico.core.ChartRow
 
 /**
- * Tarjeta de barras horizontales (diseño "Discrepancies by …"): nombre, total a la derecha y barra proporcional al
- * valor mayor de la tarjeta. Los colores siguen el orden de la paleta; "Other" usa su propio color.
+ * horizontal bar card ("Discrepancies by …"): name, total on the right, bar vs max in the card.
+ * colors follow palette order; "Other" gets its own color.
  */
 @Composable
 fun BarChartCard(title: String, rows: List<ChartRow>, modifier: Modifier = Modifier) {

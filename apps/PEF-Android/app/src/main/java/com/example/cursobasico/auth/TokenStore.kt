@@ -5,22 +5,22 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 /**
- * Sesión persistida. NUNCA incluye la contraseña. Solo se guarda cifrada ([SecureTokenStore]) y
- * fuera de las preferencias no sensibles (DataStore de preferencias de interfaz).
+ * persisted session. NEVER includes pwd. only stored encrypted ([SecureTokenStore]) and
+ * outside non-sensitive prefs (UI DataStore).
  */
 @Serializable
 data class StoredSession(
     @SerialName("access_token") val accessToken: String,
     @SerialName("refresh_token") val refreshToken: String,
-    /** Instante (epoch ms) en que caduca el access token, calculado con expires_in. */
+    /** epoch ms when access expires, from expires_in */
     @SerialName("access_expires_at") val accessExpiresAtMillis: Long,
     val user: UserDto,
 ) {
-    /** Evita imprimir los JWT por accidente (toString de data class). */
+    /** dont accidentally dump JWTs (data class toString) */
     override fun toString(): String = "StoredSession(user=${user.id}, accessExpiresAt=$accessExpiresAtMillis)"
 }
 
-/** Almacenamiento de credenciales sensibles (implementación cifrada en producción, en memoria en pruebas). */
+/** sensitive creds store (encrypted in prod, in-memory in tests) */
 interface TokenStore {
     suspend fun read(): StoredSession?
     suspend fun save(session: StoredSession)

@@ -5,7 +5,7 @@ belongs to the caller's institution AND is scheduled inside the period, optional
 kit, an operator and a status. Tenant isolation is therefore part of the WHERE clause of every
 query, never a post-filter.
 
-Definitions (also in GUIA_REPORTES.md):
+Definitions:
 - period: operation.scheduled_at in [from, to) — sessions without a scheduled operation are not
   reported (they have no date in the agenda);
 - duration: ended_at - started_at, the Operator's counting (start -> report), over sessions that

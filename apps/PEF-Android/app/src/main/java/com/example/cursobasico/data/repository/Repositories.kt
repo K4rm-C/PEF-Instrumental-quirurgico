@@ -32,9 +32,9 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-/** SessionService: lecturas + resolve de discrepancias (or_charge / SPD). El cierre seguro queda en el portal. */
+/** SessionService: reads + discrepancy resolve (or_charge / SPD). safe close stays on portal. */
 class SessionRepository(private val api: SessionApi) {
-    /** [statuses] vacío = todas; se envía como `status=a,b` (filtro del backend). */
+    /** [statuses] empty = all; sent as `status=a,b` (backend filter) */
     suspend fun listSessions(statuses: Collection<String> = emptyList()): ApiResult<List<SessionSummaryDto>> =
         safeApiCall { api.listSessions(status = statuses.takeIf { it.isNotEmpty() }?.joinToString(",")) }
 
@@ -57,8 +57,8 @@ class SessionRepository(private val api: SessionApi) {
 }
 
 /**
- * EvidenceService. La imagen se descarga SOLO con la URL prefirmada que entrega el backend, con un cliente sin
- * Bearer (el JWT nunca viaja a Garage), sin caché en disco y con límite de tamaño; vive solo en memoria.
+ * EvidenceService. download image ONLY via backend pre-signed URL, with a client that has
+ * no Bearer (JWT never goes to Garage), no disk cache, size-capped; stays in memory only.
  */
 class EvidenceRepository(
     private val api: EvidenceApi,
@@ -68,7 +68,7 @@ class EvidenceRepository(
     suspend fun listForSession(sessionId: String): ApiResult<List<EvidenceDto>> =
         safeApiCall { api.listSessionEvidence(sessionId) }
 
-    /** Metadatos + URL prefirmada (cada emisión queda auditada por el backend). */
+    /** metadata + pre-signed URL (each issue is backend-audited) */
     suspend fun getSigned(evidenceId: String): ApiResult<EvidenceDto> = safeApiCall { api.getEvidence(evidenceId) }
 
     suspend fun downloadImage(signedUrl: String): ApiResult<ByteArray> = withContext(Dispatchers.IO) {
@@ -108,7 +108,7 @@ private fun java.io.InputStream.readNBytesCompat(limit: Long): ByteArray {
     return out.toByteArray()
 }
 
-/** NotificationsService. Mantiene el contador de no leídas que muestra la campana superior. */
+/** NotificationsService. keeps unread count for the top bell */
 class NotificationRepository(private val api: NotificationsApi) {
     private val _unread = MutableStateFlow<Int?>(null)
     val unread: StateFlow<Int?> = _unread.asStateFlow()
@@ -144,8 +144,8 @@ class NotificationRepository(private val api: NotificationsApi) {
 }
 
 /**
- * Estadísticas de discrepancias del Dashboard: reporte del supervisor + catálogo (familias y categorías) en paralelo.
- * El catálogo cambia poco: se conserva en memoria tras la primera lectura correcta.
+ * Dashboard discrepancy stats: supervisor report + catalog (families/categories) in parallel.
+ * catalog barely changes: keep in memory after first good read.
  */
 class DiscrepancyStatsRepository(
     private val sessions: SessionApi,
@@ -155,7 +155,7 @@ class DiscrepancyStatsRepository(
     private var cachedCatalog: Pair<List<CatalogFamilyDto>,
         List<CatalogCategoryDto>>? = null
 
-    /** [from] = fecha ISO de inicio (YYYY-MM-DD), interpretada por el backend como día completo. */
+    /** [from] = ISO start date (YYYY-MM-DD); backend treats as full day */
     suspend fun load(from: String?): ApiResult<DiscrepancyCharts> = safeApiCall {
         coroutineScope {
             val summary = async { sessions.reportSummary(from) }
