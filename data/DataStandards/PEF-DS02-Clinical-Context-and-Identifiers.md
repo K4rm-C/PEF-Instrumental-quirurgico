@@ -3,7 +3,7 @@ id: PEF-DS02
 title: Clinical Context and Identifiers
 version: "0.2.0"
 status: draft
-owner: PEF Core / Integraciones
+owner: PEF Core / Integrations
 applies_to: [WP, BE, MS, AP]
 stores: [PostgreSQL]
 related: [PEF-DS01, PEF-DS03, PEF-DS04, PEF-DS08]
@@ -12,85 +12,85 @@ last_updated: 2026-09-06
 
 # PEF-DS02 · Clinical Context and Identifiers
 
-## INTRODUCCION
+## INTRODUCTION
 
-Este estándar define el **contexto clínico-operativo** alrededor del conteo: paciente, médico, quirófano, estación de captura, operación, y los **identificadores externos** estilo FHIR Identifier (`resource_identifier`).
+This standard defines the **clinical-operational context** surrounding counting: patient, physician, operating room, capture station, operation, and **external FHIR Identifier-style mappings** (`resource_identifier`).
 
-También es dueño de estos catálogos: `cat_gender`, `cat_specialty`, `cat_procedure_type`, `cat_surgical_role`, `cat_operation_status`.
+It also owns these catalogs: `cat_gender`, `cat_specialty`, `cat_procedure_type`, `cat_surgical_role`, `cat_operation_status`.
 
-No define kits ni piezas (PEF-DS03), ni la sesión/eventos de conteo (PEF-DS04), ni el Bundle de export FHIR (PEF-DS08).
+It does not define kits or pieces (PEF-DS03), counting sessions/events (PEF-DS04), or the FHIR export Bundle (PEF-DS08).
 
-Abajo: **todos** los campos de cada tabla dueña, FKs con motivo, y una **fila completa** de ejemplo por tabla.
-
----
-
-
-
-## 1. Explicación del estándar
-
-
-
-### 1.1 Definiciones
-
-
-| Término                      | Significado en PEF                                                                                                                      |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **Paciente**                 | Persona asociada a la operación. PEF guarda datos mínimos; el expediente “oficial” suele vivir en el HIS y se enlaza por identificador. |
-| **Médico**                   | Profesional de la institución. En una operación lleva un **rol quirúrgico** (cirujano, ayudante, …), distinto del rol de login (DS01).  |
-| **Quirófano**                | Sala física (`operating_room`) dentro de la institución.                                                                                |
-| **Estación de captura**      | Cámara/ROI sobre charola, anclada a un quirófano.                                                                                       |
-| **Operación**                | Caso clínico-operativo (programado o en curso) con estado, fechas y vínculos.                                                           |
-| **Identificador de recurso** | Par `system` + `value` que apunta a un UUID PEF (`resource_type` + `resource_id`).                                                      |
-
-
-
-
-### 1.2 Uso
-
-**Quién:** portal; apps Android/Desktop vía MS; estación al elegir operación/estación.
-
-**Para qué**
-
-1. Saber en qué caso y sala se cuenta.
-2. Relacionar conteo con pacientes/equipo sin meter el expediente completo en tablas de visión.
-3. Traducir IDs del hospital (MRN, código de quirófano) al UUID interno.
-
-**Flujo típico:** crear/obtener operación → asociar pacientes y médicos → asignar sala → estación ya registrada en esa sala → si llega ID externo, resolver vía `resource_identifier`.
+Below: **all** fields of each owned table, FKs with rationales, and one **complete example row** per table.
 
 ---
 
 
 
-### 1.3 Convenciones
+## 1. Standard Explanation
 
-- Catálogos: `code` estable en inglés; `name` legible (puede ir en español en datos).
-- Identificadores externos activos: únicos por (`system`, `value`).
-- No hay FK polimórfica física de `resource_identifier.resource_id` a seis tablas; la app garantiza coherencia.
-- En “Hacia dónde apunta”, **Relación**: `N:1` = muchas filas aquí a una allá; `N:0..1` = destino opcional; `N:N` vía tabla puente (cada FK del puente es `N:1`).
+
+
+### 1.1 Definitions
+
+
+| Term | Meaning in PEF |
+| --- | --- |
+| **Patient** | Person associated with the operation. PEF stores minimal data; the "official" medical record typically lives in the HIS and is linked via identifier. |
+| **Physician** | Institution clinical professional. In an operation they hold a **surgical role** (surgeon, assistant, …), distinct from login roles (DS01). |
+| **Operating room** | Physical room (`operating_room`) within the institution. |
+| **Capture station** | Camera/ROI over a tray, anchored to an operating room. |
+| **Operation** | Clinical-operational case (scheduled or in progress) with status, timestamps, and links. |
+| **Resource identifier** | Pair `system` + `value` pointing to a PEF UUID (`resource_type` + `resource_id`). |
+
+
+
+
+### 1.2 Usage
+
+**Who:** web portal; Android/Desktop apps via MS; capture station when selecting an operation/station.
+
+**Purpose**
+
+1. Know which case and room the count takes place in.
+2. Link counting to patients/surgical team without placing the full EHR inside vision tables.
+3. Translate hospital IDs (MRN, operating room code) to internal UUIDs.
+
+**Typical flow:** create/fetch operation → link patients and physicians → assign room → station already registered in that room → if an external ID arrives, resolve via `resource_identifier`.
 
 ---
 
 
 
-#### 1.3.1 Catálogo `cat_gender`
+### 1.3 Conventions
 
-**Para qué:** valor controlado de sexo/género administrativo del paciente.
+- Catalogs: stable English `code`; human-readable `name` (may be localized in data).
+- Active external identifiers: unique by (`system`, `value`).
+- No physical polymorphic FK from `resource_identifier.resource_id` to six tables; the application enforces integrity.
+- Under "References", **Relationship**: `N:1` = many rows here to one there; `N:0..1` = optional target; `N:N` via junction table (each junction FK is `N:1`).
 
-
-| Campo  | Tipo        | Nulo | Default             | Significado                                            |
-| ------ | ----------- | ---- | ------------------- | ------------------------------------------------------ |
-| `id`   | UUID        | NO   | `gen_random_uuid()` | PK del catálogo.                                       |
-| `code` | VARCHAR(32) | NO   | —                   | Código estable (`female`, `male`, `other`, `unknown`). |
-| `name` | VARCHAR(80) | NO   | —                   | Etiqueta legible.                                      |
+---
 
 
-**FKs:** ninguna (tabla raíz de catálogo). UNIQUE `code`.
+
+#### 1.3.1 Catalog `cat_gender`
+
+**Purpose:** controlled administrative sex/gender value for a patient.
+
+
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | Catalog PK. |
+| `code` | VARCHAR(32) | NO | — | Stable code (`female`, `male`, `other`, `unknown`). |
+| `name` | VARCHAR(80) | NO | — | Human-readable label. |
+
+
+**FKs:** none (root catalog table). UNIQUE `code`.
 
 ```json
 {
   "id": "a1000001-0000-4000-8000-000000000001",
   "code": "female",
-  "name": "Femenino"
+  "name": "Female"
 }
 ```
 
@@ -98,25 +98,25 @@ Abajo: **todos** los campos de cada tabla dueña, FKs con motivo, y una **fila c
 
 
 
-#### 1.3.2 Catálogo `cat_specialty`
+#### 1.3.2 Catalog `cat_specialty`
 
-**Para qué:** especialidad médica del profesional.
-
-
-| Campo  | Tipo         | Nulo | Default             | Significado                            |
-| ------ | ------------ | ---- | ------------------- | -------------------------------------- |
-| `id`   | UUID         | NO   | `gen_random_uuid()` | PK.                                    |
-| `code` | VARCHAR(64)  | NO   | —                   | Código estable (`general_surgery`, …). |
-| `name` | VARCHAR(160) | NO   | —                   | Nombre legible.                        |
+**Purpose:** medical specialty of the practitioner.
 
 
-**FKs:** ninguna. UNIQUE `code`.
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(64) | NO | — | Stable code (`general_surgery`, …). |
+| `name` | VARCHAR(160) | NO | — | Human-readable name. |
+
+
+**FKs:** none. UNIQUE `code`.
 
 ```json
 {
   "id": "a1000002-0000-4000-8000-000000000002",
   "code": "general_surgery",
-  "name": "Cirugía general"
+  "name": "General Surgery"
 }
 ```
 
@@ -124,25 +124,25 @@ Abajo: **todos** los campos de cada tabla dueña, FKs con motivo, y una **fila c
 
 
 
-#### 1.3.3 Catálogo `cat_procedure_type`
+#### 1.3.3 Catalog `cat_procedure_type`
 
-**Para qué:** tipo de procedimiento clínico. Lo usan operación (este DS) y kits/fases/usos (DS03). **Definición canónica aquí.**
-
-
-| Campo  | Tipo         | Nulo | Default             | Significado     |
-| ------ | ------------ | ---- | ------------------- | --------------- |
-| `id`   | UUID         | NO   | `gen_random_uuid()` | PK.             |
-| `code` | VARCHAR(64)  | NO   | —                   | Código estable. |
-| `name` | VARCHAR(200) | NO   | —                   | Nombre legible. |
+**Purpose:** clinical procedure type. Used by `operation` (this DS) and kits/phases/usages (DS03). **Canonical definition here.**
 
 
-**FKs:** ninguna. UNIQUE `code`.
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(64) | NO | — | Stable code. |
+| `name` | VARCHAR(200) | NO | — | Human-readable name. |
+
+
+**FKs:** none. UNIQUE `code`.
 
 ```json
 {
   "id": "a1000003-0000-4000-8000-000000000003",
   "code": "inguinal_hernia_open",
-  "name": "Hernioplastia inguinal abierta"
+  "name": "Open inguinal hernia repair"
 }
 ```
 
@@ -150,25 +150,25 @@ Abajo: **todos** los campos de cada tabla dueña, FKs con motivo, y una **fila c
 
 
 
-#### 1.3.4 Catálogo `cat_surgical_role`
+#### 1.3.4 Catalog `cat_surgical_role`
 
-**Para qué:** rol del médico **dentro de una operación** (no es rol de login).
-
-
-| Campo  | Tipo         | Nulo | Default             | Significado                         |
-| ------ | ------------ | ---- | ------------------- | ----------------------------------- |
-| `id`   | UUID         | NO   | `gen_random_uuid()` | PK.                                 |
-| `code` | VARCHAR(64)  | NO   | —                   | Ej. `primary_surgeon`, `assistant`. |
-| `name` | VARCHAR(120) | NO   | —                   | Etiqueta.                           |
+**Purpose:** physician role **within an operation** (not a login role).
 
 
-**FKs:** ninguna. UNIQUE `code`.
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(64) | NO | — | E.g. `primary_surgeon`, `assistant`. |
+| `name` | VARCHAR(120) | NO | — | Label. |
+
+
+**FKs:** none. UNIQUE `code`.
 
 ```json
 {
   "id": "a1000004-0000-4000-8000-000000000004",
   "code": "primary_surgeon",
-  "name": "Cirujano principal"
+  "name": "Primary surgeon"
 }
 ```
 
@@ -176,25 +176,25 @@ Abajo: **todos** los campos de cada tabla dueña, FKs con motivo, y una **fila c
 
 
 
-#### 1.3.5 Catálogo `cat_operation_status`
+#### 1.3.5 Catalog `cat_operation_status`
 
-**Para qué:** estado del caso operativo.
-
-
-| Campo  | Tipo        | Nulo | Default             | Significado                                               |
-| ------ | ----------- | ---- | ------------------- | --------------------------------------------------------- |
-| `id`   | UUID        | NO   | `gen_random_uuid()` | PK.                                                       |
-| `code` | VARCHAR(32) | NO   | —                   | Ej. `scheduled`, `in_progress`, `completed`, `cancelled`. |
-| `name` | VARCHAR(80) | NO   | —                   | Etiqueta.                                                 |
+**Purpose:** operational case status.
 
 
-**FKs:** ninguna. UNIQUE `code`.
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(32) | NO | — | E.g. `scheduled`, `in_progress`, `completed`, `cancelled`. |
+| `name` | VARCHAR(80) | NO | — | Label. |
+
+
+**FKs:** none. UNIQUE `code`.
 
 ```json
 {
   "id": "a1000005-0000-4000-8000-000000000005",
   "code": "in_progress",
-  "name": "En curso"
+  "name": "In progress"
 }
 ```
 
@@ -202,34 +202,34 @@ Abajo: **todos** los campos de cada tabla dueña, FKs con motivo, y una **fila c
 
 
 
-#### 1.3.6 Tabla `patient`
+#### 1.3.6 Table `patient`
 
-**Para qué:** registro mínimo de paciente en PEF.
-
-
-| Campo            | Tipo         | Nulo | Default             | Significado                                                     |
-| ---------------- | ------------ | ---- | ------------------- | --------------------------------------------------------------- |
-| `id`             | UUID         | NO   | `gen_random_uuid()` | PK interno.                                                     |
-| `display_name`   | VARCHAR(160) | NO   | —                   | Nombre para pantallas (puede ser seudonimizado según política). |
-| `birth_date`     | DATE         | SÍ   | NULL                | Fecha de nacimiento si se captura.                              |
-| `active`         | BOOLEAN      | NO   | `TRUE`              | Paciente usable en nuevas operaciones.                          |
-| `gender_id`      | UUID         | SÍ   | NULL                | Sexo/género administrativo.                                     |
-| `institution_id` | UUID         | NO   | —                   | Tenant dueño del registro.                                      |
+**Purpose:** minimal patient record in PEF.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | Internal PK. |
+| `display_name` | VARCHAR(160) | NO | — | Name for screens (may be pseudonymized per policy). |
+| `birth_date` | DATE | YES | NULL | Birth date if captured. |
+| `active` | BOOLEAN | NO | `TRUE` | Patient usable in new operations. |
+| `gender_id` | UUID | YES | NULL | Administrative sex/gender. |
+| `institution_id` | UUID | NO | — | Owning tenant. |
 
 
-| Campo            | Apunta a                | Relación | Por qué                     | ON DELETE  |
-| ---------------- | ----------------------- | -------- | --------------------------- | ---------- |
-| `gender_id`      | `cat_gender.id`         | N:0..1   | Valor controlado; opcional. | `SET NULL` |
-| `institution_id` | `institution.id` (DS01) | N:1      | Aislamiento multi-tenant.   | `RESTRICT` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `gender_id` | `cat_gender.id` | N:0..1 | Controlled value; optional. | `SET NULL` |
+| `institution_id` | `institution.id` (DS01) | N:1 | Multi-tenant isolation. | `RESTRICT` |
 
 
 ```json
 {
   "id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-  "display_name": "Paciente Demo",
+  "display_name": "Demo Patient",
   "birth_date": "1988-04-12",
   "active": true,
   "gender_id": "a1000001-0000-4000-8000-000000000001",
@@ -241,25 +241,25 @@ Abajo: **todos** los campos de cada tabla dueña, FKs con motivo, y una **fila c
 
 
 
-#### 1.3.7 Tabla `physician`
+#### 1.3.7 Table `physician`
 
-**Para qué:** profesional clínico de la institución.
-
-
-| Campo            | Tipo         | Nulo | Default             | Significado                              |
-| ---------------- | ------------ | ---- | ------------------- | ---------------------------------------- |
-| `id`             | UUID         | NO   | `gen_random_uuid()` | PK.                                      |
-| `name`           | VARCHAR(160) | NO   | —                   | Nombre del médico.                       |
-| `active`         | BOOLEAN      | NO   | `TRUE`              | Si puede asignarse a operaciones nuevas. |
-| `institution_id` | UUID         | NO   | —                   | Institución.                             |
+**Purpose:** clinical professional belonging to the institution.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `name` | VARCHAR(160) | NO | — | Physician name. |
+| `active` | BOOLEAN | NO | `TRUE` | Whether assignable to new operations. |
+| `institution_id` | UUID | NO | — | Institution. |
 
 
-| Campo            | Apunta a         | Relación | Por qué | ON DELETE  |
-| ---------------- | ---------------- | -------- | ------- | ---------- |
-| `institution_id` | `institution.id` | N:1      | Tenant. | `RESTRICT` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `institution_id` | `institution.id` | N:1 | Tenant. | `RESTRICT` |
 
 
 ```json
@@ -275,25 +275,25 @@ Abajo: **todos** los campos de cada tabla dueña, FKs con motivo, y una **fila c
 
 
 
-#### 1.3.8 Tabla `physician_specialty`
+#### 1.3.8 Table `physician_specialty`
 
-**Para qué:** N:M médico ↔ especialidad.
-
-
-| Campo          | Tipo | Nulo | Default             | Significado        |
-| -------------- | ---- | ---- | ------------------- | ------------------ |
-| `id`           | UUID | NO   | `gen_random_uuid()` | PK de la relación. |
-| `physician_id` | UUID | NO   | —                   | Médico.            |
-| `specialty_id` | UUID | NO   | —                   | Especialidad.      |
+**Purpose:** N:M physician ↔ specialty.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | Relationship PK. |
+| `physician_id` | UUID | NO | — | Physician. |
+| `specialty_id` | UUID | NO | — | Specialty. |
 
 
-| Campo          | Apunta a           | Relación                                        | Por qué                            | ON DELETE                                   |
-| -------------- | ------------------ | ----------------------------------------------- | ---------------------------------- | ------------------------------------------- |
-| `physician_id` | `physician.id`     | N:1 (physician↔specialty es N:N vía esta tabla) | Dueño de la especialidad asignada. | `CASCADE`                                   |
-| `specialty_id` | `cat_specialty.id` | N:1 (physician↔specialty es N:N vía esta tabla) | Catálogo.                          | `RESTRICT` — no borrar especialidad en uso. |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `physician_id` | `physician.id` | N:1 (physician↔specialty is N:N via this table) | Owner of the assigned specialty. | `CASCADE` |
+| `specialty_id` | `cat_specialty.id` | N:1 (physician↔specialty is N:N via this table) | Catalog. | `RESTRICT` — do not delete a specialty in use. |
 
 
 UNIQUE (`physician_id`, `specialty_id`).
@@ -310,26 +310,26 @@ UNIQUE (`physician_id`, `specialty_id`).
 
 
 
-#### 1.3.9 Tabla `operating_room`
+#### 1.3.9 Table `operating_room`
 
-**Para qué:** sala física.
-
-
-| Campo            | Tipo         | Nulo | Default             | Significado                                  |
-| ---------------- | ------------ | ---- | ------------------- | -------------------------------------------- |
-| `id`             | UUID         | NO   | `gen_random_uuid()` | PK.                                          |
-| `code`           | VARCHAR(32)  | NO   | —                   | Código corto único por institución (`OR-3`). |
-| `name`           | VARCHAR(120) | NO   | —                   | Nombre legible.                              |
-| `active`         | BOOLEAN      | NO   | `TRUE`              | Sala usable.                                 |
-| `institution_id` | UUID         | NO   | —                   | Institución.                                 |
+**Purpose:** physical room.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(32) | NO | — | Short code unique per institution (`OR-3`). |
+| `name` | VARCHAR(120) | NO | — | Human-readable name. |
+| `active` | BOOLEAN | NO | `TRUE` | Usable room. |
+| `institution_id` | UUID | NO | — | Institution. |
 
 
-| Campo            | Apunta a         | Relación | Por qué | ON DELETE |
-| ---------------- | ---------------- | -------- | ------- | --------- |
-| `institution_id` | `institution.id` | N:1      | Tenant. | `CASCADE` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `institution_id` | `institution.id` | N:1 | Tenant. | `CASCADE` |
 
 
 UNIQUE (`institution_id`, `code`).
@@ -338,7 +338,7 @@ UNIQUE (`institution_id`, `code`).
 {
   "id": "e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0",
   "code": "OR-3",
-  "name": "Quirófano 3",
+  "name": "Operating Room 3",
   "active": true,
   "institution_id": "11111111-1111-1111-1111-111111111111"
 }
@@ -348,32 +348,32 @@ UNIQUE (`institution_id`, `code`).
 
 
 
-#### 1.3.10 Tabla `capture_station`
+#### 1.3.10 Table `capture_station`
 
-**Para qué:** punto de captura (cámara) sobre charola.
-
-
-| Campo     | Tipo         | Nulo | Default             | Significado                                                   |
-| --------- | ------------ | ---- | ------------------- | ------------------------------------------------------------- |
-| `id`      | UUID         | NO   | `gen_random_uuid()` | PK.                                                           |
-| `name`    | VARCHAR(120) | NO   | —                   | Nombre de la estación.                                        |
-| `roi`     | JSONB        | SÍ   | NULL                | Región de interés normalizada o en píxeles (contrato de app). |
-| `active`  | BOOLEAN      | NO   | `TRUE`              | Estación usable.                                              |
-| `room_id` | UUID         | NO   | —                   | Quirófano donde está instalada.                               |
+**Purpose:** capture point (camera) positioned over a tray.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `name` | VARCHAR(120) | NO | — | Station name. |
+| `roi` | JSONB | YES | NULL | Normalized or pixel region of interest (app contract). |
+| `active` | BOOLEAN | NO | `TRUE` | Usable station. |
+| `room_id` | UUID | NO | — | Operating room where it is installed. |
 
 
-| Campo     | Apunta a            | Relación | Por qué                                     | ON DELETE |
-| --------- | ------------------- | -------- | ------------------------------------------- | --------- |
-| `room_id` | `operating_room.id` | N:1      | La estación no flota: pertenece a una sala. | `CASCADE` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `room_id` | `operating_room.id` | N:1 | A station does not float: it belongs to a room. | `CASCADE` |
 
 
 ```json
 {
   "id": "f0f0f0f0-f0f0-f0f0-f0f0-f0f0f0f0f0f0",
-  "name": "Charola OR-3 A",
+  "name": "OR-3 Tray A",
   "roi": { "x": 0.1, "y": 0.1, "w": 0.8, "h": 0.7, "coord_space": "normalized" },
   "active": true,
   "room_id": "e0e0e0e0-e0e0-e0e0-e0e0-e0e0e0e0e0e0"
@@ -384,35 +384,35 @@ UNIQUE (`institution_id`, `code`).
 
 
 
-#### 1.3.11 Tabla `operation`
+#### 1.3.11 Table `operation`
 
-**Para qué:** caso clínico-operativo al que se cuelga el conteo.
-
-
-| Campo               | Tipo        | Nulo | Default             | Significado            |
-| ------------------- | ----------- | ---- | ------------------- | ---------------------- |
-| `id`                | UUID        | NO   | `gen_random_uuid()` | PK.                    |
-| `scheduled_at`      | TIMESTAMPTZ | SÍ   | NULL                | Hora programada.       |
-| `started_at`        | TIMESTAMPTZ | SÍ   | NULL                | Inicio real.           |
-| `ended_at`          | TIMESTAMPTZ | SÍ   | NULL                | Fin real.              |
-| `status_id`         | UUID        | NO   | —                   | Estado actual.         |
-| `procedure_type_id` | UUID        | SÍ   | NULL                | Tipo de procedimiento. |
-| `room_id`           | UUID        | SÍ   | NULL                | Sala asignada.         |
-| `institution_id`    | UUID        | NO   | —                   | Tenant.                |
+**Purpose:** clinical-operational case to which counting attaches.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `scheduled_at` | TIMESTAMPTZ | YES | NULL | Scheduled time. |
+| `started_at` | TIMESTAMPTZ | YES | NULL | Actual start time. |
+| `ended_at` | TIMESTAMPTZ | YES | NULL | Actual end time. |
+| `status_id` | UUID | NO | — | Current status. |
+| `procedure_type_id` | UUID | YES | NULL | Procedure type. |
+| `room_id` | UUID | YES | NULL | Assigned room. |
+| `institution_id` | UUID | NO | — | Tenant. |
 
 
-| Campo               | Apunta a                  | Relación | Por qué                               | ON DELETE  |
-| ------------------- | ------------------------- | -------- | ------------------------------------- | ---------- |
-| `status_id`         | `cat_operation_status.id` | N:1      | Estado controlado.                    | `RESTRICT` |
-| `procedure_type_id` | `cat_procedure_type.id`   | N:0..1   | Clasifica el caso; opcional al crear. | `SET NULL` |
-| `room_id`           | `operating_room.id`       | N:0..1   | Dónde ocurre.                         | `SET NULL` |
-| `institution_id`    | `institution.id`          | N:1      | Tenant.                               | `RESTRICT` |
+**References**
 
 
-**Check:** `ended_at` ≥ `started_at` cuando ambas existen.
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `status_id` | `cat_operation_status.id` | N:1 | Controlled status. | `RESTRICT` |
+| `procedure_type_id` | `cat_procedure_type.id` | N:0..1 | Classifies the case; optional on creation. | `SET NULL` |
+| `room_id` | `operating_room.id` | N:0..1 | Where it takes place. | `SET NULL` |
+| `institution_id` | `institution.id` | N:1 | Tenant. | `RESTRICT` |
+
+
+**Check:** `ended_at` ≥ `started_at` when both are present.
 
 ```json
 {
@@ -431,25 +431,25 @@ UNIQUE (`institution_id`, `code`).
 
 
 
-#### 1.3.12 Tabla `operation_patient`
+#### 1.3.12 Table `operation_patient`
 
-**Para qué:** N:M operación ↔ paciente (una operación puede involucrar más de un paciente en escenarios especiales; lo habitual es uno).
-
-
-| Campo          | Tipo | Nulo | Default             | Significado |
-| -------------- | ---- | ---- | ------------------- | ----------- |
-| `id`           | UUID | NO   | `gen_random_uuid()` | PK.         |
-| `operation_id` | UUID | NO   | —                   | Operación.  |
-| `patient_id`   | UUID | NO   | —                   | Paciente.   |
+**Purpose:** N:M operation ↔ patient (an operation may involve more than one patient in special scenarios; typically one).
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `operation_id` | UUID | NO | — | Operation. |
+| `patient_id` | UUID | NO | — | Patient. |
 
 
-| Campo          | Apunta a       | Relación                                      | Por qué  | ON DELETE                                   |
-| -------------- | -------------- | --------------------------------------------- | -------- | ------------------------------------------- |
-| `operation_id` | `operation.id` | N:1 (operation↔patient es N:N vía esta tabla) | Caso.    | `CASCADE`                                   |
-| `patient_id`   | `patient.id`   | N:1 (operation↔patient es N:N vía esta tabla) | Persona. | `RESTRICT` — no borrar paciente aún ligado. |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `operation_id` | `operation.id` | N:1 (operation↔patient is N:N via this table) | Case. | `CASCADE` |
+| `patient_id` | `patient.id` | N:1 (operation↔patient is N:N via this table) | Person. | `RESTRICT` — do not delete a still-linked patient. |
 
 
 UNIQUE (`operation_id`, `patient_id`).
@@ -466,30 +466,30 @@ UNIQUE (`operation_id`, `patient_id`).
 
 
 
-#### 1.3.13 Tabla `operation_physician`
+#### 1.3.13 Table `operation_physician`
 
-**Para qué:** médicos en la operación **con** rol quirúrgico.
-
-
-| Campo              | Tipo | Nulo | Default             | Significado      |
-| ------------------ | ---- | ---- | ------------------- | ---------------- |
-| `id`               | UUID | NO   | `gen_random_uuid()` | PK.              |
-| `operation_id`     | UUID | NO   | —                   | Operación.       |
-| `physician_id`     | UUID | NO   | —                   | Médico.          |
-| `surgical_role_id` | UUID | NO   | —                   | Rol en ese caso. |
+**Purpose:** physicians participating in an operation **with** a surgical role.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `operation_id` | UUID | NO | — | Operation. |
+| `physician_id` | UUID | NO | — | Physician. |
+| `surgical_role_id` | UUID | NO | — | Role in that case. |
 
 
-| Campo              | Apunta a               | Relación                                        | Por qué         | ON DELETE  |
-| ------------------ | ---------------------- | ----------------------------------------------- | --------------- | ---------- |
-| `operation_id`     | `operation.id`         | N:1 (operation↔physician es N:N vía esta tabla) | Caso.           | `CASCADE`  |
-| `physician_id`     | `physician.id`         | N:1 (operation↔physician es N:N vía esta tabla) | Profesional.    | `RESTRICT` |
-| `surgical_role_id` | `cat_surgical_role.id` | N:1                                             | Rol quirúrgico. | `RESTRICT` |
+**References**
 
 
-UNIQUE (`operation_id`, `physician_id`, `surgical_role_id`) — la misma persona puede aparecer con roles distintos si el proceso lo permite.
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `operation_id` | `operation.id` | N:1 (operation↔physician is N:N via this table) | Case. | `CASCADE` |
+| `physician_id` | `physician.id` | N:1 (operation↔physician is N:N via this table) | Practitioner. | `RESTRICT` |
+| `surgical_role_id` | `cat_surgical_role.id` | N:1 | Surgical role. | `RESTRICT` |
+
+
+UNIQUE (`operation_id`, `physician_id`, `surgical_role_id`) — the same person may appear under different roles if the workflow permits.
 
 ```json
 {
@@ -504,35 +504,35 @@ UNIQUE (`operation_id`, `physician_id`, `surgical_role_id`) — la misma persona
 
 
 
-#### 1.3.14 Tabla `resource_identifier`
+#### 1.3.14 Table `resource_identifier`
 
-**Para qué:** mapa Identifier FHIR (`system`|`value`) → recurso PEF UUID. Sirve para HIS, códigos de sala, instrumentos serializados externos, etc.
-
-
-| Campo           | Tipo         | Nulo | Default             | Significado                                                                                   |
-| --------------- | ------------ | ---- | ------------------- | --------------------------------------------------------------------------------------------- |
-| `id`            | UUID         | NO   | `gen_random_uuid()` | PK de la fila identificador.                                                                  |
-| `resource_type` | VARCHAR(32)  | NO   | —                   | Tipo PEF: `institution`, `patient`, `physician`, `operation`, `operating_room`, `instrument`. |
-| `resource_id`   | UUID         | NO   | —                   | UUID de la fila PEF (sin FK física polimórfica).                                              |
-| `system`        | URI          | NO   | —                   | Namespace del emisor (URI).                                                                   |
-| `value`         | VARCHAR(255) | NO   | —                   | Valor en ese sistema.                                                                         |
-| `use_code`      | VARCHAR(16)  | NO   | `'official'`        | `usual`, `official`, `temp`, `secondary`, `old`.                                              |
-| `period_start`  | TIMESTAMPTZ  | SÍ   | NULL                | Inicio de vigencia.                                                                           |
-| `period_end`    | TIMESTAMPTZ  | SÍ   | NULL                | Fin de vigencia.                                                                              |
-| `active`        | BOOLEAN      | NO   | `TRUE`              | Solo activos entran al índice único.                                                          |
-| `first_seen_at` | TIMESTAMPTZ  | NO   | `now()`             | Primera vez que PEF vio este identificador.                                                   |
+**Purpose:** FHIR Identifier map (`system`|`value`) → PEF resource UUID. Used for HIS IDs, room codes, externally serialized instruments, etc.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | Identifier row PK. |
+| `resource_type` | VARCHAR(32) | NO | — | PEF type: `institution`, `patient`, `physician`, `operation`, `operating_room`, `instrument`. |
+| `resource_id` | UUID | NO | — | UUID of the PEF row (no physical polymorphic FK). |
+| `system` | URI | NO | — | Issuer namespace (URI). |
+| `value` | VARCHAR(255) | NO | — | Value in that system. |
+| `use_code` | VARCHAR(16) | NO | `'official'` | `usual`, `official`, `temp`, `secondary`, `old`. |
+| `period_start` | TIMESTAMPTZ | YES | NULL | Validity start. |
+| `period_end` | TIMESTAMPTZ | YES | NULL | Validity end. |
+| `active` | BOOLEAN | NO | `TRUE` | Only active rows enter the unique index. |
+| `first_seen_at` | TIMESTAMPTZ | NO | `now()` | First time PEF observed this identifier. |
 
 
-| Campo         | Apunta a                            | Relación                                                                                      | Por qué                                      | ON DELETE           |
-| ------------- | ----------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------- |
-| `resource_id` | Lógico: tabla según `resource_type` | N:1 lógico (muchos identificadores → un recurso; un recurso puede tener 0..N identificadores) | Evita FK polimórfica ilegal en SQL estricto. | N/A (sin FK física) |
+**References**
 
 
-**Checks:** `resource_type` ∈ lista; `use_code` ∈ lista; `period_end` ≥ `period_start` si ambos existen.  
-**Índice único parcial:** (`system`, `value`) WHERE `active = TRUE`.
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `resource_id` | Logical: table matching `resource_type` | Logical N:1 (many identifiers → one resource; a resource may have 0..N identifiers) | Avoids illegal polymorphic FK in strict SQL. | N/A (no physical FK) |
+
+
+**Checks:** `resource_type` ∈ allowed list; `use_code` ∈ allowed list; `period_end` ≥ `period_start` when both are present.  
+**Partial unique index:** (`system`, `value`) WHERE `active = TRUE`.
 
 ```json
 {
@@ -556,62 +556,60 @@ UNIQUE (`operation_id`, `physician_id`, `surgical_role_id`) — la misma persona
 ### 1.4 Governance and Ownership
 
 
-| Aspecto                      | Responsable                             |
-| ---------------------------- | --------------------------------------- |
-| Dueño                        | PEF Core + Integraciones (IDs externos) |
-| Alta pacientes/médicos/salas | Portal / MS según canal                 |
-| Catálogos clínicos           | Gobierno de datos PEF                   |
+| Aspect | Owner |
+| --- | --- |
+| Owner | PEF Core + Integrations (external IDs) |
+| Patient/physician/room provisioning | Portal / MS depending on channel |
+| Clinical catalogs | PEF Data Governance |
 
 
-**Límites:** `instrument` puede tener Identifier aquí, pero la pieza es dueña de DS03. La sesión de conteo referencia `operation_id`/`station_id` pero es DS04.
-
----
-
-
-
-### 1.5 Justificación del estándar
-
-**Por qué este bloque**
-
-El conteo solo tiene sentido clínico si se sabe **en qué operación y sala** ocurrió. Separarlo del instrumental y de los eventos evita que el HIS o el catálogo de kits reescriban el modelo del otro.
-
-**Decisiones tomadas**
-
-1. **Paciente mínimo en PEF** (`display_name`, no expediente completo): PEF no reemplaza al HIS; reduce PII local.
-2. **N:M operación–paciente y operación–médico:** soporta casos reales sin asumir “siempre uno”.
-3. **Rol quirúrgico en la relación, no en** `physician`**:** la misma persona puede ser cirujano en un caso y ayudante en otro.
-4. **Estación cuelga de sala, no de institución directo:** el ROI es físico; el tenant se hereda por la sala.
-5. `resource_identifier` **estilo FHIR sin FK polimórfica:** UUID interno estable; IDs externos versionables con `active`/`period_`*.
-6. `cat_procedure_type` **canónico en este DS:** el procedimiento es concepto clínico primero; kits (DS03) lo reutilizan.
-
-**Alternativas no elegidas**
-
-
-| Alternativa                                         | Por qué no                                                                                       |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Meter MRN como columna en `patient`                 | Un paciente puede tener varios sistemas emisores; Identifier es más fiel a FHIR y a la realidad. |
-| FK polimórfica o tabla por tipo de ID               | Explota el número de tablas; el patrón Identifier unifica consulta por `system`+`value`.         |
-| Unificar `user` y `physician`                       | Quien opera la estación no es necesariamente el cirujano listado.                                |
-| Guardar ROI solo en config de archivo en el edge    | Pierde trazabilidad central; la estación es entidad de negocio (mantenimiento, sesión).          |
-| Operación embebida solo como JSON en la sesión      | Impide listar/programar operaciones sin abrir sesión de conteo.                                  |
-| Copiar especialidad como texto libre en `physician` | Rompe reportes; el catálogo mantiene códigos estables.                                           |
-
+**Boundaries:** `instrument` may hold an Identifier here, but the piece itself is owned by DS03. The counting session references `operation_id`/`station_id` but is owned by DS04.
 
 ---
 
 
 
-## 2. Anexo A – Información general
+### 1.5 Standard Rationale
+
+**Why this block exists**
+
+Counting only has clinical meaning if we know **which operation and room** it occurred in. Separating it from instruments and events prevents the HIS or the kit catalog from rewriting the other's model.
+
+**Design decisions taken**
+
+1. **Minimal patient in PEF** (`display_name`, not a full medical record): PEF does not replace the HIS; reduces local PII.
+2. **N:M operation–patient and operation–physician:** supports real cases without assuming "always one."
+3. **Surgical role on the relationship, not on** `physician`**:** the same person can be primary surgeon in one case and assistant in another.
+4. **Station hangs from room, not directly from institution:** the ROI is physical; the tenant is inherited through the room.
+5. **FHIR-style** `resource_identifier` **without polymorphic FK:** stable internal UUID; versionable external IDs via `active`/`period_*`.
+6. **Canonical** `cat_procedure_type` **in this DS:** procedure is a clinical concept first; kits (DS03) reuse it.
+
+**Rejected alternatives**
 
 
-| Campo             | Valor                                                          |
-| ----------------- | -------------------------------------------------------------- |
-| Código            | PEF-DS02                                                       |
-| Título            | Clinical Context and Identifiers                               |
-| Versión           | 0.2.0                                                          |
-| Estado            | draft                                                          |
-| Almacén           | PostgreSQL (catálogos clínicos + §5.4 + `resource_identifier`) |
-| Fuera de alcance  | Kits, YOLO, `work_session`, `count_event`, Bundle FHIR export  |
-| DDL de referencia | `esquema_base_datos_v2.md`                                     |
+| Alternative | Why not |
+| --- | --- |
+| Put MRN as a column on `patient` | A patient can have multiple issuing systems; Identifier is truer to FHIR and reality. |
+| Polymorphic FK or one table per ID type | Causes table proliferation; the Identifier pattern unifies lookup by `system`+`value`. |
+| Unify `user` and `physician` | The person operating the station is not necessarily the listed surgeon. |
+| Store ROI only in an edge config file | Loses central traceability; the station is a business entity (maintenance, sessions). |
+| Embed operation only as JSON inside the session | Prevents listing/scheduling operations before opening a counting session. |
+| Store specialty as free text on `physician` | Breaks reporting; the catalog preserves stable codes. |
 
 
+---
+
+
+
+## 2. Annex A – General Information
+
+
+| Field | Value |
+| --- | --- |
+| Code | PEF-DS02 |
+| Title | Clinical Context and Identifiers |
+| Version | 0.2.0 |
+| Status | draft |
+| Store | PostgreSQL (clinical catalogs + §5.4 + `resource_identifier`) |
+| Out of scope | Kits, YOLO, `work_session`, `count_event`, FHIR export Bundle |
+| Reference DDL | `esquema_base_datos_v2.md` |

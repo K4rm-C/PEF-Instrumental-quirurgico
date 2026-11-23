@@ -20,6 +20,7 @@ from assign import assign_boxes
 from category_colors import overlay_bgr
 from config import (
     ASSIGN_SOLVER,
+    BOARD_CLAIM_HISTORY,
     CONFUSION_HOLD_SECONDS,
     CONF_DISPLAY_THRESHOLD,
     COUNT_SAMPLE_INTERVAL_S,
@@ -30,13 +31,16 @@ from config import (
     HOLD_DROP_SCORE,
     HOLD_DROP_STREAK,
     HOLD_MIN_SCORE,
+    HOLD_REENTER_FRAMES,
     HOLD_SECONDS,
     HOLD_SEED_FRAMES,
     HOLD_ZONE_IOU,
     METRICS_DIR,
     NAME_HOLD_SECONDS,
+    REASSIGN_MIN_SCORE,
     SOFT_NAME_MIN_SCORE,
     SOFT_NAME_SECONDS,
+    TOPK,
     TRACK_MEMORY,
     WORKER_PIPELINE,
     WEIGHTS_PATH,
@@ -155,9 +159,12 @@ class SessionState:
     hold_absent_seconds: float = HOLD_ABSENT_SECONDS
     hold_absent_streak: int = HOLD_ABSENT_STREAK
     hold_seed_frames: int = HOLD_SEED_FRAMES
+    hold_reenter_frames: int = HOLD_REENTER_FRAMES
     hold_zone_iou: float = HOLD_ZONE_IOU
     soft_name_seconds: float = SOFT_NAME_SECONDS
     soft_name_min_score: float = SOFT_NAME_MIN_SCORE
+    board_claim_history: int = BOARD_CLAIM_HISTORY
+    conf_display_threshold: float = CONF_DISPLAY_THRESHOLD
     video_fps: float = 30.0
     frame_stride: int = FRAME_STRIDE_CPU
     count_sample_interval_s: float = COUNT_SAMPLE_INTERVAL_S
@@ -185,8 +192,10 @@ class SessionState:
     _last_good_live_t: dict[str, float] = field(default_factory=dict)
     # family_code -> consecutive live frames below hold_drop_score
     _hold_drop_weak_streak: dict[str, int] = field(default_factory=dict)
-    # soft-name dwell key -> video_t when dwell started
+    # board-resolve dwell key -> video_t when dwell started
     _soft_name_dwell: dict[str, float] = field(default_factory=dict)
+    # family_code -> recent [(box_key, score), ...] winners / claimants
+    _board_claim_hist: dict[str, list[tuple[str, float]]] = field(default_factory=dict)
     # IoU tracks for EMA / assignment prior (VISION_TRACK_MEMORY)
     _tracks: list[dict[str, Any]] = field(default_factory=list)
 
@@ -220,10 +229,13 @@ class SessionState:
             "hold_absent_seconds": self.hold_absent_seconds,
             "hold_absent_streak": self.hold_absent_streak,
             "hold_seed_frames": self.hold_seed_frames,
+            "hold_reenter_frames": self.hold_reenter_frames,
             "hold_seed_s": _hold_gate_s(self, self.hold_seed_frames),
+            "hold_reenter_s": _hold_gate_s(self, self.hold_reenter_frames),
             "hold_absent_grace_s": _hold_gate_s(self, self.hold_absent_streak),
             "soft_name_seconds": self.soft_name_seconds,
             "soft_name_min_score": self.soft_name_min_score,
+            "board_claim_history": self.board_claim_history,
             "video_fps": self.video_fps,
             "frame_stride": self.frame_stride,
             "count_sample_interval_s": self.count_sample_interval_s,
@@ -352,6 +364,7 @@ def _public_box(box: dict[str, Any], *, held: bool = False, sticky_name: bool = 
         "audit": box.get("audit"),
         "track_id": box.get("track_id"),
         "soft_named": bool(box.get("soft_named")),
+        "board_resolved": bool(box.get("board_resolved")),
         "held": held,
         "sticky_name": sticky_name or bool(box.get("sticky_name")),
     }
@@ -695,25 +708,163 @@ def _soft_name_key(box: dict[str, Any], family_code: str) -> str:
     return f"s:{family_code}:{int(x0 // 24)}:{int(y0 // 24)}"
 
 
-def _promote_soft_named_box(box: dict[str, Any], *, code: str, exp: dict[str, Any]) -> None:
+def _box_family_score(box: dict[str, Any], code: str) -> float:
+    """Best known score linking this box to family (topk / assigned conf)."""
+    if box.get("family_code") == code:
+        return float(box.get("confidence") or 0.0)
+    best = 0.0
+    for src in (
+        (box.get("raw") or {}).get("topk") if isinstance(box.get("raw"), dict) else None,
+        (box.get("audit") or {}).get("topk") if isinstance(box.get("audit"), dict) else None,
+    ):
+        if not isinstance(src, list):
+            continue
+        for row in src:
+            if not isinstance(row, dict):
+                continue
+            if row.get("family_code") != code:
+                continue
+            best = max(best, float(row.get("score") or 0.0))
+    return best
+
+
+def _box_topn_codes(box: dict[str, Any], *, n: int) -> set[str]:
+    """Family codes in the solver-style top-N for this box (ranked topk + assigned)."""
+    need = max(2, min(int(n or TOPK), 4))
+    ranked: list[tuple[str, float]] = []
+    seen: set[str] = set()
+    code = box.get("family_code")
+    if code:
+        ranked.append((str(code), float(box.get("confidence") or 0.0)))
+        seen.add(str(code))
+    for src in (
+        (box.get("raw") or {}).get("topk") if isinstance(box.get("raw"), dict) else None,
+        (box.get("audit") or {}).get("topk") if isinstance(box.get("audit"), dict) else None,
+    ):
+        if not isinstance(src, list):
+            continue
+        for row in src:
+            if not isinstance(row, dict):
+                continue
+            fc = row.get("family_code")
+            if not fc or fc in seen:
+                continue
+            seen.add(str(fc))
+            ranked.append((str(fc), float(row.get("score") or 0.0)))
+    ranked.sort(key=lambda t: t[1], reverse=True)
+    return {c for c, _ in ranked[:need]}
+
+
+def _box_fills_board_slot(box: dict[str, Any]) -> bool:
+    """Already counted toward family quota on the board (named or board-resolved)."""
+    return bool(
+        box.get("high_confidence") or box.get("board_resolved") or box.get("soft_named")
+    )
+
+
+def _record_board_claims(
+    state: SessionState,
+    boxes: list[dict[str, Any]],
+) -> None:
+    """Remember who looked strongest among *open-seat* claimants (short history).
+
+    Boxes that already fill a board slot are skipped so a strong named Adson does
+    not permanently block a second mid-conf box from claiming the remaining quota.
+    """
+    hist_n = max(1, int(getattr(state, "board_claim_history", BOARD_CLAIM_HISTORY) or 1))
+    best: dict[str, tuple[str, float]] = {}
+    for box in boxes:
+        if _box_fills_board_slot(box):
+            continue
+        codes = set(_box_topn_codes(box, n=TOPK))
+        if box.get("family_code"):
+            codes.add(str(box["family_code"]))
+        for code in codes:
+            if code not in state.expected:
+                continue
+            sc = _box_family_score(box, code)
+            if sc <= 0:
+                continue
+            bk = _soft_name_key(box, code)
+            prev = best.get(code)
+            if prev is None or sc > prev[1]:
+                best[code] = (bk, sc)
+    for code, (bk, sc) in best.items():
+        ring = state._board_claim_hist.setdefault(code, [])
+        ring.append((bk, sc))
+        if len(ring) > hist_n:
+            del ring[:-hist_n]
+
+
+def _claim_beats_history(
+    state: SessionState,
+    *,
+    code: str,
+    box_key: str,
+    score: float,
+    boxes: list[dict[str, Any]],
+) -> bool:
+    """True if this box owns an open seat vs other *unresolved* claimants + history."""
+    # current frame: another open-seat box stronger for same family → no
+    for other in boxes:
+        if _box_fills_board_slot(other):
+            continue
+        ok = _soft_name_key(other, code)
+        if ok == box_key:
+            continue
+        osc = _box_family_score(other, code)
+        if osc > score + 0.02:
+            return False
+    ring = state._board_claim_hist.get(code) or []
+    if not ring:
+        return True
+    # recent frames: another open-seat key wins more often / higher avg
+    wins: dict[str, list[float]] = {}
+    for k, sc in ring:
+        wins.setdefault(k, []).append(float(sc))
+    my = wins.get(box_key) or []
+    my_avg = (sum(my) / len(my)) if my else score
+    for k, scores in wins.items():
+        if k == box_key:
+            continue
+        if len(scores) > len(my) and (sum(scores) / len(scores)) > my_avg + 0.02:
+            return False
+        if max(scores) > score + 0.05 and len(scores) >= len(ring) // 2 + 1:
+            return False
+    return True
+
+
+def _promote_board_resolved_box(
+    box: dict[str, Any],
+    *,
+    code: str,
+    exp: dict[str, Any],
+    conf: float,
+    display_threshold: float,
+) -> None:
+    """Board gets the family; overlay shows name only if conf clears display threshold."""
     family_name = exp.get("family_name") or box.get("family_name") or code
+    cat = exp.get("category_name") or box.get("category_name") or "Type"
     box["family_code"] = code
     box["family_id"] = exp.get("family_id") or box.get("family_id")
     box["family_name"] = family_name
-    box["category_name"] = exp.get("category_name") or box.get("category_name")
-    box["label"] = family_name
-    box["high_confidence"] = True
+    box["category_name"] = cat
+    box["board_resolved"] = True
     box["soft_named"] = True
+    show_name = conf >= float(display_threshold)
+    box["high_confidence"] = show_name
+    box["label"] = family_name if show_name else cat
     refined = box.get("refined")
     if isinstance(refined, dict):
         refined = dict(refined)
         refined["family_code"] = code
         refined["family_id"] = box.get("family_id")
         refined["family_name"] = family_name
-        refined["category_name"] = box.get("category_name")
-        refined["label"] = family_name
-        refined["high_confidence"] = True
+        refined["category_name"] = cat
+        refined["label"] = box["label"]
+        refined["high_confidence"] = show_name
         refined["soft_named"] = True
+        refined["board_resolved"] = True
         box["refined"] = refined
 
 
@@ -725,69 +876,109 @@ def _apply_soft_names(
     video_t: float,
 ) -> int:
     """
-    Promote Type → family name when a box dwells on an open quota below display 0.70.
-
-    Does not lower the global naming threshold: only sustained mid-conf boxes with
-    remaining expected slots get a soft name (Adson twin / similar).
+    Dual channel: after dwell, resolve family onto the board/semaphore when the family
+    is in this box's top-N, quota is open, and recent claim history does not prefer
+    another box. Overlay keeps Type until conf >= display threshold.
     """
     dwell_s = max(0.0, float(getattr(state, "soft_name_seconds", SOFT_NAME_SECONDS) or 0.0))
     min_score = float(
         getattr(state, "soft_name_min_score", SOFT_NAME_MIN_SCORE) or SOFT_NAME_MIN_SCORE
     )
+    display = float(
+        getattr(state, "conf_display_threshold", CONF_DISPLAY_THRESHOLD)
+        or CONF_DISPLAY_THRESHOLD
+    )
+    top_n = max(2, min(TOPK, 4))
     if dwell_s <= 0 or min_score <= 0:
         state._soft_name_dwell.clear()
         return 0
 
-    named_n: dict[str, int] = {code: 0 for code in state.expected}
+    _record_board_claims(state, boxes)
+
+    board_n: dict[str, int] = {code: 0 for code in state.expected}
+    for box in boxes:
+        code = box.get("family_code")
+        if code and (
+            box.get("high_confidence")
+            or box.get("board_resolved")
+            or box.get("soft_named")
+        ):
+            board_n[code] = board_n.get(code, 0) + 1
     det_n: dict[str, int] = {
         code: int((counts.get(code) or {}).get("detected_quantity") or 0)
         for code in state.expected
     }
-    for box in boxes:
-        code = box.get("family_code")
-        if code and box.get("high_confidence"):
-            named_n[code] = named_n.get(code, 0) + 1
 
     candidates: list[tuple[float, int, str, bool]] = []
     for idx, box in enumerate(boxes):
-        if box.get("high_confidence"):
+        if box.get("high_confidence") or box.get("board_resolved"):
             continue
         conf = float(box.get("confidence") or 0.0)
         if conf < min_score:
             continue
+        top_codes = _box_topn_codes(box, n=top_n)
         code = box.get("family_code")
         type_promote = False
-        if not code:
+        if code:
+            if code not in top_codes and conf < REASSIGN_MIN_SCORE:
+                continue
+        else:
             raw = box.get("raw") if isinstance(box.get("raw"), dict) else {}
             raw_code = raw.get("family_code")
-            if raw_code in state.expected:
-                code = str(raw_code)
-                type_promote = True
-            else:
+            # pick best open top-N family for type-only boxes
+            pick = None
+            pick_sc = -1.0
+            for fc in top_codes:
+                if fc not in state.expected:
+                    continue
+                sc = _box_family_score(box, fc)
+                if sc < min_score:
+                    continue
+                exp_q = int((state.expected.get(fc) or {}).get("expected_quantity") or 0)
+                if exp_q <= 0 or int(board_n.get(fc, 0)) >= exp_q:
+                    continue
+                if int(det_n.get(fc, 0)) >= exp_q:
+                    continue
+                if sc > pick_sc:
+                    pick, pick_sc = fc, sc
+            if pick is None and raw_code in state.expected and raw_code in top_codes:
+                pick = str(raw_code)
+                pick_sc = _box_family_score(box, pick) or conf
+            if pick is None:
                 continue
-        if code not in state.expected:
+            code = pick
+            conf = max(conf, pick_sc)
+            type_promote = True
+        if code not in state.expected or code not in top_codes:
             continue
         exp_q = int((state.expected.get(code) or {}).get("expected_quantity") or 0)
         if exp_q <= 0:
             continue
-        open_names = exp_q - int(named_n.get(code, 0))
-        if open_names <= 0:
+        if int(board_n.get(code, 0)) >= exp_q:
             continue
         if type_promote and int(det_n.get(code, 0)) >= exp_q:
             continue
-        candidates.append((conf, idx, code, type_promote))
+        fam_sc = max(conf, _box_family_score(box, code))
+        if fam_sc < min_score:
+            continue
+        candidates.append((fam_sc, idx, str(code), type_promote))
 
     candidates.sort(key=lambda row: row[0], reverse=True)
     active_keys: set[str] = set()
     promoted = 0
     for conf, idx, code, type_promote in candidates:
         exp_q = int((state.expected.get(code) or {}).get("expected_quantity") or 0)
-        if int(named_n.get(code, 0)) >= exp_q:
+        if int(board_n.get(code, 0)) >= exp_q:
             continue
         if type_promote and int(det_n.get(code, 0)) >= exp_q:
             continue
         box = boxes[idx]
         key = _soft_name_key(box, code)
+        if not _claim_beats_history(
+            state, code=code, box_key=key, score=conf, boxes=boxes
+        ):
+            state._soft_name_dwell.pop(key, None)
+            continue
         active_keys.add(key)
         started = state._soft_name_dwell.get(key)
         if started is None:
@@ -796,21 +987,28 @@ def _apply_soft_names(
         if (video_t - float(started)) < dwell_s:
             continue
         exp = state.expected[code]
-        _promote_soft_named_box(box, code=code, exp=exp)
-        named_n[code] = int(named_n.get(code, 0)) + 1
-        if type_promote:
-            meta = counts.get(code)
-            if meta is not None:
-                meta["detected_quantity"] = int(meta.get("detected_quantity") or 0) + 1
-                meta["difference"] = int(meta["detected_quantity"]) - int(
-                    meta.get("expected_quantity") or 0
-                )
-                confs = list(meta.get("box_confidences") or [])
-                confs.append(round(conf, 4))
-                meta["box_confidences"] = confs
-                meta["best_confidence"] = max(confs) if confs else conf
-                meta["weakest_confidence"] = min(confs) if confs else conf
-            det_n[code] = int(det_n.get(code, 0)) + 1
+        _promote_board_resolved_box(
+            box, code=code, exp=exp, conf=conf, display_threshold=display
+        )
+        board_n[code] = int(board_n.get(code, 0)) + 1
+        if type_promote or int(det_n.get(code, 0)) < exp_q:
+            # ensure board count reflects resolve (assigned mid-conf already counted)
+            if type_promote:
+                meta = counts.get(code)
+                if meta is not None:
+                    meta["detected_quantity"] = int(meta.get("detected_quantity") or 0) + 1
+                    meta["difference"] = int(meta["detected_quantity"]) - int(
+                        meta.get("expected_quantity") or 0
+                    )
+                    confs = list(meta.get("box_confidences") or [])
+                    confs.append(round(conf, 4))
+                    meta["box_confidences"] = confs
+                    meta["best_confidence"] = max(confs) if confs else conf
+                    meta["weakest_confidence"] = min(confs) if confs else conf
+                det_n[code] = int(det_n.get(code, 0)) + 1
+        meta = counts.get(code)
+        if meta is not None:
+            meta["board_resolved"] = True
         promoted += 1
 
     for key in list(state._soft_name_dwell.keys()):
@@ -861,6 +1059,8 @@ def _apply_hold(
       short renewing hold. Never seeded from top1.
     - A 1-frame flicker does not reset the absence clock nor extend the long count hold.
     - Drop floor uses HOLD_DROP_STREAK hysteresis (brief conf dips do not clear sticky).
+    - Re-enter after a recent hold uses HOLD_REENTER_FRAMES (faster recover than first seed).
+    - pending_promote does not zero the table while a count-hold is still alive.
     """
     ttl = max(0.0, float(state.hold_seconds))
     name_ttl = max(ttl, float(state.name_hold_seconds))
@@ -868,9 +1068,11 @@ def _apply_hold(
     min_score = float(state.hold_min_score)
     drop_score = float(getattr(state, "hold_drop_score", HOLD_DROP_SCORE) or HOLD_DROP_SCORE)
     seed_need = max(1, int(state.hold_seed_frames))
+    reenter_need = max(1, int(getattr(state, "hold_reenter_frames", HOLD_REENTER_FRAMES) or 1))
     absent_need = max(1, int(state.hold_absent_streak))
     zone_iou = float(state.hold_zone_iou)
     seed_s = _hold_gate_s(state, seed_need)
+    reenter_s = _hold_gate_s(state, reenter_need)
     absent_s = _hold_gate_s(state, absent_need)
     dt = _infer_dt(state)
 
@@ -899,7 +1101,16 @@ def _apply_hold(
         prev = state._hold_by_family.get(code)
         live_since = state._live_since.get(code)
         live_dur = 0.0 if live_since is None else max(0.0, video_t - float(live_since))
-        sustained = (live_dur + dt) >= seed_s
+        last_good = state._last_good_live_t.get(code)
+        recent_hold = bool(
+            prev is not None
+            or (
+                last_good is not None
+                and (video_t - float(last_good)) <= max(ttl, absent_ttl * 2)
+            )
+        )
+        need_s = reenter_s if recent_hold else seed_s
+        sustained = (live_dur + dt) >= need_s
         if not sustained:
             # Flicker / brief swap: do not seed or refresh the long count TTL.
             continue
@@ -1024,6 +1235,22 @@ def _apply_hold(
             state._confusion_by_family.pop(code, None)
             continue
         if det > 0 and code not in sustained_live:
+            hold = state._hold_by_family.get(code)
+            if hold and video_t <= float(hold.get("until") or 0):
+                # Flicker while hold alive: keep board on last good count (no zero stutter).
+                restored = copy.deepcopy(hold["count"])
+                restored["held"] = True
+                restored["sticky_name"] = bool(hold.get("named"))
+                restored["pending_promote"] = True
+                restored["hold_remaining_s"] = round(float(hold["until"]) - video_t, 2)
+                restored["raw_detected_quantity"] = counts.get(code, {}).get(
+                    "raw_detected_quantity", det
+                )
+                restored["difference"] = int(restored.get("detected_quantity") or 0) - int(
+                    restored.get("expected_quantity") or 0
+                )
+                out_counts[code] = restored
+                continue
             # Brief matrix resolution: do not promote to the table yet.
             out_counts[code]["detected_quantity"] = 0
             out_counts[code]["raw_detected_quantity"] = counts.get(code, {}).get(
@@ -1452,6 +1679,7 @@ def reset_hold_state(state: SessionState) -> None:
     state._last_good_live_t = {}
     state._hold_drop_weak_streak = {}
     state._soft_name_dwell = {}
+    state._board_claim_hist = {}
     state._tracks = []
 
 
@@ -1498,9 +1726,12 @@ def prepare_live_run(state: SessionState) -> None:
     state.hold_absent_seconds = HOLD_ABSENT_SECONDS
     state.hold_absent_streak = HOLD_ABSENT_STREAK
     state.hold_seed_frames = HOLD_SEED_FRAMES
+    state.hold_reenter_frames = HOLD_REENTER_FRAMES
     state.hold_zone_iou = HOLD_ZONE_IOU
     state.soft_name_seconds = SOFT_NAME_SECONDS
     state.soft_name_min_score = SOFT_NAME_MIN_SCORE
+    state.board_claim_history = BOARD_CLAIM_HISTORY
+    state.conf_display_threshold = CONF_DISPLAY_THRESHOLD
     state.category_summary = {}
 
 
@@ -1612,9 +1843,12 @@ def process_video_file(path: str, state: SessionState) -> None:
     state.hold_absent_seconds = HOLD_ABSENT_SECONDS
     state.hold_absent_streak = HOLD_ABSENT_STREAK
     state.hold_seed_frames = HOLD_SEED_FRAMES
+    state.hold_reenter_frames = HOLD_REENTER_FRAMES
     state.hold_zone_iou = HOLD_ZONE_IOU
     state.soft_name_seconds = SOFT_NAME_SECONDS
     state.soft_name_min_score = SOFT_NAME_MIN_SCORE
+    state.board_claim_history = BOARD_CLAIM_HISTORY
+    state.conf_display_threshold = CONF_DISPLAY_THRESHOLD
     state.category_summary = {}
     # Truncate prior timeline for this new run id (file is new per run_id).
     cap = cv2.VideoCapture(path)

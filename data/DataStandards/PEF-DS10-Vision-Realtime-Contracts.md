@@ -3,7 +3,7 @@ id: PEF-DS10
 title: Vision Realtime Contracts
 version: "0.1.0"
 status: draft
-owner: PEF Core / Visión / Estación
+owner: PEF Core / Vision / Station
 applies_to: [CS, Worker]
 stores: []
 related: [PEF-DS03, PEF-DS04, PEF-DS06]
@@ -12,57 +12,57 @@ last_updated: 2026-11-19
 
 # PEF-DS10 · Vision Realtime Contracts
 
-## INTRODUCCION
+## INTRODUCTION
 
-Este estándar define los **mensajes WebSocket seguro (WSS)** entre la **Estación de Conteo** y el **VisionWorker** (YOLO).
+This standard defines the **Secure WebSocket (WSS) messages** exchanged between the **Counting Station** and the **VisionWorker** (YOLO).
 
-Es el canal de percepción en tiempo real: la estación envía cuadros (o metadatos de frame) y recibe detecciones sugeridas. **No** es la fuente de verdad del negocio: abrir/cerrar sesión, discrepancias y `count_event` pasan por Backend Web (DS04/DS09). Los checkpoints viven en Mongo (DS06) vía EvidenceWorker.
+It is the real-time perception channel: the station submits frames (or frame metadata) and receives suggested detections. It is **not** the business source of truth: opening/closing sessions, discrepancies, and `count_event` records flow through the Web Backend (DS04/DS09). Checkpoints live in MongoDB (DS06) via EvidenceWorker.
 
-Runtime lab: pipeline `matrix_v1` (assign), holds sticky, soft-name dwell, live WS. Proceso host suele usarse por GPU; Docker Vision es CPU-only. Path típico `/ws`; en LAN el browser usa `wss://<LAN>:5443/ws` (portal-lan) hacia el worker en host. Auth de portal en ese mismo origen puede ser `/auth` relativo (ver DS01/DS09); no exige URL absoluta de auth.
+Lab runtime: `matrix_v1` pipeline (assign), sticky holds, soft-name dwell, live WS. Host process execution is typically used for GPU acceleration; Docker Vision is CPU-only. Typical path `/ws`; on LAN the browser connects to `wss://<LAN>:5443/ws` (portal-lan) forwarding to the host worker. Portal auth on that same origin may use relative `/auth` (see DS01/DS09); an absolute auth URL is not required.
 
 ---
 
-## 1. Explicación del estándar
+## 1. Standard Explanation
 
-### 1.1 Definiciones
+### 1.1 Definitions
 
-| Término | Significado |
+| Term | Meaning |
 | :--- | :--- |
-| **WSS** | WebSocket sobre TLS. |
-| **Hot path** | Inferencia + push UI; sin armar MP4 ni escribir PG. |
-| **Detección sugerida** | Propuesta del modelo; el humano/reglas validan. |
-| **client_event_id** | UUID de idempotencia cuando el backend materializa un hecho. |
+| **WSS** | WebSocket over TLS. |
+| **Hot path** | Inference + UI push; no MP4 encoding or PG writes. |
+| **Suggested detection** | Model proposal; validated by human/business rules. |
+| **client_event_id** | Idempotency UUID used when the backend materializes a fact. |
 
-### 1.2 Uso
+### 1.2 Usage
 
-1. Estación autentica el bind WSS (lab: ticket HMAC `VISION_WS_SECRET`; el campo `auth_token` del mensaje sigue siendo el vehículo del secreto de bind, no el JWT de login de portal) y abre WSS con `session_id`.
-2. Envía frames muestreados (o chunks según implementación).
-3. Worker responde `detections.result` (hot path vivo; el payload público de sesión puede incluir holds / soft_named). `count.suggestion` no está implementado en el runtime actual.
-4. La estación puede enviar `session.cancel` para detener captura live.
-5. Si hay que persistir hechos: Backend crea `count_event`. Checkpoints/clips: EvidenceWorker (DS05/DS06).
+1. The station authenticates the WSS bind (lab: `VISION_WS_SECRET` HMAC ticket; the `auth_token` field carries this bind secret, not the portal login JWT) and opens WSS with `session_id`.
+2. It sends sampled frames (or chunks depending on implementation).
+3. The worker replies with `detections.result` (live hot path; public session payload may include holds / `soft_named`). `count.suggestion` is not implemented in the current runtime.
+4. The station may send `session.cancel` to stop live capture.
+5. When facts must be persisted: Backend writes `count_event`. Checkpoints/clips: EvidenceWorker (DS05/DS06).
 
-**Qué no hace el worker:** crear/cerrar sesión, aceptar discrepancias, escribir PostgreSQL como dueño, ni ser dueño de Garage/Mongo evidencia.
-
----
-
-### 1.3 Convenciones
-
-Transporte: WSS. Payload: JSON (UTF-8). Cada mensaje lleva `type` discriminador.
-
-Relación lógica: 1 estación ↔ 1 conexión worker por sesión activa típica (N conexiones técnicas posibles; una sesión de negocio).
+**What the worker does not do:** open/close sessions, accept discrepancies, write to PostgreSQL as an owner, or own Garage/MongoDB evidence storage.
 
 ---
 
-#### 1.3.1 Mensaje `session.bind` (estación → worker)
+### 1.3 Conventions
 
-| Campo | Tipo | Nulo | Significado |
+Transport: WSS. Payload: JSON (UTF-8). Every message includes a `type` discriminator.
+
+Logical relationship: 1 station ↔ 1 worker connection per typical active session (N technical connections possible; one business session).
+
+---
+
+#### 1.3.1 Message `session.bind` (station → worker)
+
+| Field | Type | Nullable | Meaning |
 | :--- | :--- | :--- | :--- |
 | `type` | string | NO | `session.bind` |
-| `session_id` | uuid | NO | Sesión de conteo (DS04). |
-| `station_id` | uuid | SÍ | Estación (DS02). |
-| `model_version_pin` | string | SÍ | Tag del modelo **pineado** en `work_session.yolo_model_id` (`yolo_model.version_tag`). El worker no sustituye por el `active` global en sesiones ya abiertas. Mongo `checkpoint_frame.model_version` debe coincidir con ese tag. |
-| `auth_token` | string | NO | Secreto de bind (lab: ticket HMAC; no confundir con JWT de AuthService). Puede venir ya validado en handshake. |
-| `correlation_id` | string | SÍ | Trazas. |
+| `session_id` | uuid | NO | Counting session (DS04). |
+| `station_id` | uuid | YES | Station (DS02). |
+| `model_version_pin` | string | YES | Tag of the model **pinned** on `work_session.yolo_model_id` (`yolo_model.version_tag`). The worker must not substitute the global `active` model on already-open sessions. MongoDB `checkpoint_frame.model_version` must match this tag. |
+| `auth_token` | string | NO | Bind secret (lab: HMAC ticket; do not confuse with AuthService JWT). May already be validated during the handshake. |
+| `correlation_id` | string | YES | Tracing ID. |
 
 ```json
 {
@@ -77,22 +77,22 @@ Relación lógica: 1 estación ↔ 1 conexión worker por sesión activa típica
 
 ---
 
-#### 1.3.2 Mensaje `frame.submit` (estación → worker)
+#### 1.3.2 Message `frame.submit` (station → worker)
 
-| Campo | Tipo | Nulo | Significado |
+| Field | Type | Nullable | Meaning |
 | :--- | :--- | :--- | :--- |
 | `type` | string | NO | `frame.submit` |
 | `session_id` | uuid | NO | |
-| `frame_id` | uuid | NO | Id del frame en el cliente. |
-| `captured_at` | string ISO | NO | Momento de captura. |
-| `image_base64` | string | SÍ | JPEG en base64 (si no hay canal binario). |
-| `image_content_type` | string | SÍ | `image/jpeg` |
-| `roi` | object | SÍ | Override puntual de ROI. |
-| `roi.x` | number | SÍ | |
-| `roi.y` | number | SÍ | |
-| `roi.w` | number | SÍ | |
-| `roi.h` | number | SÍ | |
-| `correlation_id` | string | SÍ | |
+| `frame_id` | uuid | NO | Client-assigned frame ID. |
+| `captured_at` | string ISO | NO | Capture timestamp. |
+| `image_base64` | string | YES | Base64-encoded JPEG (when no binary channel is used). |
+| `image_content_type` | string | YES | `image/jpeg` |
+| `roi` | object | YES | Per-frame ROI override. |
+| `roi.x` | number | YES | |
+| `roi.y` | number | YES | |
+| `roi.w` | number | YES | |
+| `roi.h` | number | YES | |
+| `correlation_id` | string | YES | |
 
 ```json
 {
@@ -109,26 +109,26 @@ Relación lógica: 1 estación ↔ 1 conexión worker por sesión activa típica
 
 ---
 
-#### 1.3.3 Mensaje `detections.result` (worker → estación)
+#### 1.3.3 Message `detections.result` (worker → station)
 
-| Campo | Tipo | Nulo | Significado |
+| Field | Type | Nullable | Meaning |
 | :--- | :--- | :--- | :--- |
 | `type` | string | NO | `detections.result` |
 | `session_id` | uuid | NO | |
-| `frame_id` | uuid | NO | Frame respondido. |
-| `model_version` | string | NO | Tag usado. |
+| `frame_id` | uuid | NO | Responded frame ID. |
+| `model_version` | string | NO | Model tag used. |
 | `inferred_at` | string ISO | NO | |
-| `latency_ms` | number | SÍ | |
-| `detections` | array | NO | Lista (puede vacía). |
-| `detections[].family_code` | string | NO | Clase mapeada (DS03). |
-| `detections[].yolo_class_id` | int | SÍ | Entero crudo. |
+| `latency_ms` | number | YES | |
+| `detections` | array | NO | List (may be empty). |
+| `detections[].family_code` | string | NO | Mapped class (DS03). |
+| `detections[].yolo_class_id` | int | YES | Raw integer class ID. |
 | `detections[].confidence` | number | NO | 0..1 |
-| `detections[].bbox` | array | NO | `[x,y,w,h]` normalizado o px (declarar en `bbox_space`). |
+| `detections[].bbox` | array | NO | `[x,y,w,h]` normalized or pixels (declared via `bbox_space`). |
 | `bbox_space` | string | NO | `normalized` \| `pixels` |
-| `counts_by_family` | array | SÍ | Agregado sugerido. |
+| `counts_by_family` | array | YES | Suggested aggregate. |
 | `counts_by_family[].family_code` | string | NO | |
 | `counts_by_family[].detected_quantity` | int | NO | |
-| `correlation_id` | string | SÍ | |
+| `correlation_id` | string | YES | |
 
 ```json
 {
@@ -159,20 +159,20 @@ Relación lógica: 1 estación ↔ 1 conexión worker por sesión activa típica
 
 ---
 
-#### 1.3.4 Mensaje `count.suggestion` (no implementado)
+#### 1.3.4 Message `count.suggestion` (Not Implemented)
 
-Tipo histórico del contrato. No emitido en el runtime actual (`matrix_v1`): el hot path vive en `detections.result` (+ holds / soft_named en el estado público de sesión). No usar como camino de persistencia; los hechos los escribe Backend/SessionService (DS04).
+Historical contract message type. Not emitted in the current runtime (`matrix_v1`): the live hot path runs on `detections.result` (+ holds / `soft_named` in public session state). Do not use as a persistence path; facts are written by Backend/SessionService (DS04).
 
 ---
 
-#### 1.3.5 Mensaje `session.cancel` (estación → worker)
+#### 1.3.5 Message `session.cancel` (station → worker)
 
-Detiene la captura live de la sesión ya bindeada. Presente en `VisionWorker` (`live_ws`).
+Stops live capture for the currently bound session. Implemented in `VisionWorker` (`live_ws`).
 
-| Campo | Tipo | Nulo | Significado |
+| Field | Type | Nullable | Meaning |
 | :--- | :--- | :--- | :--- |
 | `type` | string | NO | `session.cancel` |
-| `session_id` | uuid | SÍ | Debe coincidir con la sesión bindeada si se envía. |
+| `session_id` | uuid | YES | Must match the bound session if sent. |
 
 ```json
 {
@@ -181,15 +181,15 @@ Detiene la captura live de la sesión ya bindeada. Presente en `VisionWorker` (`
 }
 ```
 
-Tras cancel, el worker responde `worker.status` con `state: stopping` y cierra el flujo live.
+After cancellation, the worker responds with `worker.status` (`state: stopping`) and closes the live stream.
 
 ---
 
-#### 1.3.6 Mensaje `worker.status` / `error`
+#### 1.3.6 Message `worker.status` / `error`
 
 **`worker.status`**
 
-| Campo | Tipo | Significado |
+| Field | Type | Meaning |
 | :--- | :--- | :--- |
 | `type` | string | `worker.status` |
 | `session_id` | uuid\|null | |
@@ -211,7 +211,7 @@ Tras cancel, el worker responde `worker.status` con `state: stopping` y cierra e
 
 **`error`**
 
-| Campo | Tipo | Significado |
+| Field | Type | Meaning |
 | :--- | :--- | :--- |
 | `type` | string | `error` |
 | `code` | string | `unauthorized` \| `invalid_frame` \| `model_unavailable` \| … |
@@ -223,7 +223,7 @@ Tras cancel, el worker responde `worker.status` con `state: stopping` y cierra e
 {
   "type": "error",
   "code": "invalid_frame",
-  "message": "JPEG vacío o corrupto",
+  "message": "Empty or corrupted JPEG",
   "frame_id": "ff000001-0000-4000-8000-000000000001",
   "correlation_id": "corr-ws-001"
 }
@@ -231,55 +231,55 @@ Tras cancel, el worker responde `worker.status` con `state: stopping` y cierra e
 
 ---
 
-#### 1.3.7 Reglas de frontera
+#### 1.3.7 Boundary Rules
 
-1. Si el modelo cae, la estación sigue en modo manual vía Backend.
-2. Clip/checkpoint: off hot path (EvidenceWorker → DS05/DS06); el WSS no espera el MP4.
-3. No enviar PII de paciente en el bus de frames.
-4. Rate: muestreo de frames; no flood sin límite.
-5. Demo `matrix_v1`: assign + hold sticky + soft_named dwell viven en el estado de sesión del worker; no redefinir tablas aquí.
+1. If the model goes down, the station continues operating in manual mode via the Backend.
+2. Clips/checkpoints run off the hot path (EvidenceWorker → DS05/DS06); WSS does not wait for MP4 encoding.
+3. Never transmit patient PII over the frame bus.
+4. Rate control: sample frames; do not flood unboundedly.
+5. `matrix_v1` demo: assign + sticky hold + `soft_named` dwell live inside worker session state; do not redefine database tables here.
 
 ---
 
 ### 1.4 Governance and Ownership
 
-| Aspecto | Responsable |
+| Aspect | Owner |
 | :--- | :--- |
-| Contrato WSS | Visión + estación |
-| Persistencia de hechos | Backend (no worker dueño de PG) |
-| Versión de modelo | DS03 (`yolo_model`) |
+| WSS contract | Vision + Station |
+| Fact persistence | Backend (worker does not own PG) |
+| Model version | DS03 (`yolo_model`) |
 
 ---
 
-### 1.5 Justificación del estándar
+### 1.5 Standard Rationale
 
-**Decisiones tomadas**
+**Design decisions taken**
 
-1. **WSS solo percepción**; negocio por HTTPS/Backend.
-2. **Mensajes tipados por `type`** con campos explícitos.
-3. **`client_event_id`** para idempotencia al materializar conteo (cuando aplique).
-4. **Sugerencia ≠ hecho** hasta que Backend escribe `count_event`. Al materializar `auto_count`, copia `detections[].confidence` (o el score asignado de esa caja) a `payload.confidences` / `board.families[].confidences`. No avg/best/worst.
-5. **Bind WSS con ticket HMAC** en lab (no JWT de usuario); GPU preferida en proceso host.
+1. **WSS for perception only**; business logic over HTTPS/Backend.
+2. **Messages typed by `type`** with explicit fields.
+3. **`client_event_id`** for idempotency when materializing counts (where applicable).
+4. **Suggestion ≠ fact** until Backend writes `count_event`. When materializing `auto_count`, copy `detections[].confidence` (or that box's assigned score) into `payload.confidences` / `board.families[].confidences`. Do not store avg/best/worst.
+5. **HMAC-ticket WSS bind** in lab (not user JWT); host process preferred for GPU.
 
-**Alternativas no elegidas**
+**Rejected alternatives**
 
-| Alternativa | Por qué no |
+| Alternative | Why not |
 | :--- | :--- |
-| Worker escribe PG directo | Bifurca verdad y complica RBAC/auditoría. |
-| REST polling de frames | Latencia inútil para UI de quirófano. |
-| Un solo blob binario sin JSON de control | Dificulta versionar y depurar tipos de mensaje. |
-| Meter discrepancia aceptada en WSS | Es decisión clínica; pertenece a Backend/estación HTTP. |
+| Worker writes directly to PG | Splits source of truth and complicates RBAC/auditing. |
+| REST polling for frames | Unacceptable latency for operating room UI. |
+| Single raw binary blob without JSON control envelope | Harder to version and debug message types. |
+| Send accepted discrepancies over WSS | That is a clinical decision; belongs to Backend/station HTTP. |
 
 ---
 
-## 2. Anexo A – Información general
+## 2. Annex A – General Information
 
-| Campo | Valor |
+| Field | Value |
 | :--- | :--- |
-| Código | PEF-DS10 |
-| Título | Vision Realtime Contracts |
-| Versión | 0.1.0 |
-| Estado | draft |
-| Almacén | Ninguno propio (transporte WSS); efectos en DS04/DS06 |
-| Fuera de alcance | REST (DS09); bytes en bucket (DS05) |
-| Referencias | `apps/VisionWorker/`; DS05/DS06 (EvidenceWorker); runbook raíz `README.md` |
+| Code | PEF-DS10 |
+| Title | Vision Realtime Contracts |
+| Version | 0.1.0 |
+| Status | draft |
+| Store | None of its own (WSS transport); effects in DS04/DS06 |
+| Out of scope | REST (DS09); bucket bytes (DS05) |
+| References | `apps/VisionWorker/`; DS05/DS06 (EvidenceWorker); root runbook `README.md` |

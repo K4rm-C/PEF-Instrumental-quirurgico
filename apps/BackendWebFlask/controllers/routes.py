@@ -164,18 +164,18 @@ def _current_user():
     # (OP/SPD must not be kicked mid-flow solely because access max-age elapsed).
     response = None
     if access_token:
-        response = _auth_request('get', '/verify', token=access_token)
+    response = _auth_request('get', '/verify', token=access_token)
     need_refresh = (
         not access_token
         or (response is not None and response.status_code == 401)
     )
     if need_refresh and refresh_token:
-        refreshed = _auth_request('post', '/refresh', token=refresh_token)
-        if refreshed is not None and refreshed.ok:
-            g.auth_set_cookies = _upstream_set_cookies(refreshed)
-            access_token = refreshed.cookies.get('access_token')
-            if access_token:
-                response = _auth_request('get', '/verify', token=access_token)
+            refreshed = _auth_request('post', '/refresh', token=refresh_token)
+            if refreshed is not None and refreshed.ok:
+                g.auth_set_cookies = _upstream_set_cookies(refreshed)
+                access_token = refreshed.cookies.get('access_token')
+                if access_token:
+                    response = _auth_request('get', '/verify', token=access_token)
 
     if response is None or not response.ok:
         session.clear()
@@ -305,9 +305,6 @@ def _nav_urls(user):
             'dashboard': url_for('web.operator_sessions'),
             'counting_sessions': url_for('web.operator_sessions'),
             'session_history': url_for('web.operator_session_history'),
-            # Pre-RF UI kept under /legacy (see apps/BackendWebFlask/legacy/README.md).
-            'legacy_dashboard': url_for('web.legacy_operator_dashboard'),
-            'legacy_new_session': url_for('web.legacy_operator_session_new'),
         }
     if user['role_code'] == 'spd_supervisor':
         return {
@@ -533,8 +530,8 @@ def operator_profile():
 @web_bp.route('/operator/dashboard')
 @require_role('station_operator')
 def operator_dashboard():
-    # Pre-RF metrics dashboard kept reachable via redirect to legacy.
-    return redirect(url_for('web.legacy_operator_dashboard'))
+    # Bookmarks: RF-OP-01 home is the assigned-sessions list (pre-RF dashboard retired).
+    return redirect(url_for('web.operator_sessions'))
 
 
 @web_bp.route('/operator/sessions')
@@ -617,8 +614,8 @@ def operator_sessions():
 @web_bp.route('/operator/sessions/new', methods=['GET', 'POST'])
 @require_role('station_operator')
 def operator_session_new():
-    # RF-SP-02: only SPD schedules sessions. Operator create UI → legacy.
-    return redirect(url_for('web.legacy_operator_session_new'))
+    # RF-SP-02: only SPD schedules sessions. Operator create UI retired.
+    return redirect(url_for('web.operator_sessions'))
 
 
 @web_bp.route('/operator/sessions/history')
@@ -806,7 +803,7 @@ def operator_session_manual_report(session_id):
             try:
                 reported = int(request.form.get(f"reported_{family_id}", ""))
             except ValueError:
-                return _page(
+    return _page(
                     'operator/sessions/manual_report.html',
                     session=detail,
                     session_id=session_id,
@@ -874,40 +871,6 @@ def _manual_reason_options():
         {'code': 'other', 'label': gettext('Other')},
     ]
 
-
-# ----------------------------------------------------------------------------------------
-# Legacy operator UI (pre-RF). Reachable under /legacy/... so it does not collide with
-# RF-OP-01 / RF-SP-02. Templates stay in operator/; see legacy/README.md.
-# ----------------------------------------------------------------------------------------
-
-@web_bp.route('/legacy/operator/dashboard')
-@require_role('station_operator')
-def legacy_operator_dashboard():
-    stats, sessions, _ = dashboard_data('operator')
-    return _page('operator/dashboard.html', dashboard_stats=stats, recent_sessions=sessions[:5])
-
-
-@web_bp.route('/legacy/operator/sessions/new', methods=['GET', 'POST'])
-@require_role('station_operator')
-def legacy_operator_session_new():
-    if request.method == 'POST':
-        return redirect(url_for('web.operator_session_capture', session_id='WS-026'))
-    return _page('operator/sessions/new.html')
-
-
-# ----------------------------------------------------------------------------------------
-# Operator V2 counting-session workflow (prompts/09_Operator_V2.md).
-#
-# Each stage below is a distinct, session-id-scoped page per the approved V2 references.
-# None of these query WorkSession/CountEvent/Discrepancy/HumanCorrection/AccessAudit yet:
-# the detailed per-instrument AI/validation/discrepancy/audit data those references show
-# (confidence scores, correction reasons, supervisor evidence, etc.) has no backing field on
-# any existing model, and inventing one would violate this prompt's "do not invent database
-# fields" constraint. Every route below renders its template with only the session_id it was
-# given; the template itself supplies the approved WS-026 reference-case data as its
-# |default(...) fallback (same convention already used by every other page in this app), so
-# full click-through works today; swap defaults for real queries later when ready
-# ----------------------------------------------------------------------------------------
 
 @web_bp.route('/operator/sessions/<session_id>/capture')
 @require_role('station_operator')

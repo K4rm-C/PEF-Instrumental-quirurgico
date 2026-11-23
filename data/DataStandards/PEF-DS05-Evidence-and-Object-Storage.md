@@ -12,97 +12,97 @@ last_updated: 2026-11-19
 
 # PEF-DS05 · Evidence and Object Storage
 
-## INTRODUCCION
+## INTRODUCTION
 
-Este estándar define **dónde viven los bytes** (JPEG, clip de ráfaga MP4, pesos del modelo) y **cómo se registran en PostgreSQL** sin meter el archivo dentro de la base relacional.
+This standard defines **where binary bytes live** (JPEG, MP4 burst clip, model weights) and **how they are registered in PostgreSQL** without storing files inside the relational database.
 
-Tabla dueña: `media_asset`. El object storage (API S3-compatible) guarda el objeto; PG guarda metadata, URI y ciclo de purga. Lab y prod on-prem usan Garage (S3-compatible); `storage_provider` sigue admitiendo `gcs` / `minio` / `other` (Garage en lab suele etiquetarse `minio` como tag S3-compat, sin implicar producto MinIO).
+Owned table: `media_asset`. Object storage (S3-compatible API) stores the binary object; PG stores metadata, URI, and purge lifecycle. Lab and on-prem production use Garage (S3-compatible); `storage_provider` continues to allow `gcs` / `minio` / `other` (in lab, Garage is typically tagged `minio` as an S3-compatible tag, without implying the MinIO product).
 
-No define el documento Mongo del checkpoint (PEF-DS06): ese documento **apunta** a `media_asset.id`. No define familias ni YOLO registry (PEF-DS03): solo el puntero desde esas tablas. No define el flujo ARCO completo (PEF-DS07), aunque reutiliza `blocked_at` / `purge_*`.
+It does not define the MongoDB checkpoint document (PEF-DS06): that document **points** to `media_asset.id`. It does not define families or the YOLO registry (PEF-DS03): only the pointer from those tables. It does not define the full ARCO workflow (PEF-DS07), although it reuses `blocked_at` / `purge_*`.
 
 ---
 
-## 1. Explicación del estándar
+## 1. Standard Explanation
 
-### 1.1 Definiciones
+### 1.1 Definitions
 
-| Término | Significado |
+| Term | Meaning |
 | :--- | :--- |
-| **media_asset** | Fila de metadata de un objeto en storage. |
-| **Object storage** | Bucket de objetos direccionables por clave (`bucket` + `object_key`). |
-| **URI canónica** | Cadena en `gcs_uri` (nombre histórico; también vale para Garage/S3 u otros S3-compat). |
-| **Purga** | Borrar el objeto del bucket y marcar `purged_at` en PG. |
-| **Bloqueo** | `blocked_at` marcado (p. ej. ARCO); no se sirve el objeto aunque aún exista. |
+| **media_asset** | Metadata row for an object stored in object storage. |
+| **Object storage** | Bucket of objects addressable by key (`bucket` + `object_key`). |
+| **Canonical URI** | String stored in `gcs_uri` (historical column name; also valid for Garage/S3 or other S3-compatible stores). |
+| **Purge** | Delete the object from the bucket and set `purged_at` in PG. |
+| **Block** | `blocked_at` is set (e.g., ARCO); the object is not served even if it still exists. |
 
-### 1.2 Uso
+### 1.2 Usage
 
-**Quién escribe:** EvidenceWorker (clips MP4 desde el ring Redis `pef:evidence:frames:*` + triggers), VisionWorker (JPEG al ring; no dueño del bucket), jobs MLOps (pesos), Backend/Evidence Service (altas autorizadas).  
-**Quién lee:** Portal (URL firmada), MS Evidence, panel de supervisión / App.
+**Who writes:** EvidenceWorker (MP4 clips from the Redis ring `pef:evidence:frames:*` + triggers), VisionWorker (JPEGs to the ring; does not own the bucket), MLOps jobs (weights), Backend/Evidence Service (authorized uploads).  
+**Who reads:** Portal (signed URL), MS Evidence, supervision panel / App.
 
-**Flujo típico**
+**Typical flow**
 
-1. VisionWorker publica frames JPEG al ring Redis; EvidenceWorker ensambla clip off hot path.
-2. Subir bytes al bucket Garage (S3) con `object_key` prefijado (`institution_id/session_id/...`).
-3. INSERT `media_asset` con URI, kind, hash, retención.
-4. Quien necesite el archivo (Mongo checkpoint, `family_example`, `yolo_model`) guarda solo el UUID. Retry de upload: cola Redis `pef:evidence:upload_retry`.
-
----
-
-### 1.3 Convenciones
-
-En “Hacia dónde apunta”: esta tabla **no tiene FKs salientes**. Otras tablas apuntan **hacia** ella (N:0..1 desde DS03).
-
-Naming de clave sugerido: `{institution_id}/{session_id|models}/{yyyy}/{uuid}.{ext}`.
+1. VisionWorker publishes JPEG frames to the Redis ring; EvidenceWorker assembles clips off the hot path.
+2. Upload bytes to the Garage (S3) bucket with a prefixed `object_key` (`institution_id/session_id/...`).
+3. INSERT `media_asset` with URI, kind, hash, and retention.
+4. Any consumer that needs the file (MongoDB checkpoint, `family_example`, `yolo_model`) stores only the UUID. Upload retries use the Redis queue `pef:evidence:upload_retry`.
 
 ---
 
-#### 1.3.1 Tabla `media_asset`
+### 1.3 Conventions
 
-**Para qué existe:** registro único de un objeto binario accesible por el sistema.
+Under "References": this table has **no outgoing FKs**. Other tables point **to** it (N:0..1 from DS03).
 
-| Campo | Tipo | Nulo | Default | Significado |
+Suggested key naming: `{institution_id}/{session_id|models}/{yyyy}/{uuid}.{ext}`.
+
+---
+
+#### 1.3.1 Table `media_asset`
+
+**Purpose:** single registry entry for a binary object accessible by the system.
+
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | UUID | NO | `gen_random_uuid()` | PK; es lo que referencian otras tablas/Mongo. |
-| `gcs_uri` | TEXT | NO | — | URI completa de acceso lógico al objeto (gs://, s3://, o URL canónica interna). |
-| `bucket` | VARCHAR(128) | NO | — | Nombre del bucket. |
-| `object_key` | TEXT | NO | — | Clave dentro del bucket. |
-| `content_type` | VARCHAR(128) | SÍ | NULL | MIME (`image/jpeg`, `video/mp4`, `video/webm`, `video/x-matroska`, `application/octet-stream`, …). |
-| `kind` | VARCHAR(32) | NO | `'jpeg'` | Clase de asset: `jpeg`, `mp4`, `mkv`, `webm`, `gif` (legado), `weights`, `other`. |
+| `id` | UUID | NO | `gen_random_uuid()` | PK; referenced by other tables and MongoDB. |
+| `gcs_uri` | TEXT | NO | — | Full logical access URI (`gs://`, `s3://`, or internal canonical URL). |
+| `bucket` | VARCHAR(128) | NO | — | Bucket name. |
+| `object_key` | TEXT | NO | — | Key inside the bucket. |
+| `content_type` | VARCHAR(128) | YES | NULL | MIME type (`image/jpeg`, `video/mp4`, `video/webm`, `video/x-matroska`, `application/octet-stream`, …). |
+| `kind` | VARCHAR(32) | NO | `'jpeg'` | Asset class: `jpeg`, `mp4`, `mkv`, `webm`, `gif` (legacy), `weights`, `other`. |
 | `storage_provider` | VARCHAR(32) | NO | `'gcs'` | `gcs`, `minio`, `other`. |
-| `sha256` | CHAR(64) | SÍ | NULL | Hash del contenido (hex). |
-| `size_bytes` | BIGINT | SÍ | NULL | Tamaño en bytes (≥ 0 si informado). |
-| `retention_until` | TIMESTAMPTZ | SÍ | NULL | Hasta cuándo debe retenerse (job de TTL). |
-| `purge_requested_at` | TIMESTAMPTZ | SÍ | NULL | Cuándo se pidió borrar (TTL o ARCO). |
-| `purged_at` | TIMESTAMPTZ | SÍ | NULL | Cuándo se borró efectivamente del storage. |
-| `blocked_at` | TIMESTAMPTZ | SÍ | NULL | Bloqueo de servicio (no entregar URL firmada). |
-| `created_at` | TIMESTAMPTZ | NO | `now()` | Alta de metadata. |
-| `updated_at` | TIMESTAMPTZ | NO | `now()` | Última modificación de metadata. |
+| `sha256` | CHAR(64) | YES | NULL | Content hash (hex). |
+| `size_bytes` | BIGINT | YES | NULL | Size in bytes (≥ 0 if provided). |
+| `retention_until` | TIMESTAMPTZ | YES | NULL | Retention deadline (TTL job). |
+| `purge_requested_at` | TIMESTAMPTZ | YES | NULL | When deletion was requested (TTL or ARCO). |
+| `purged_at` | TIMESTAMPTZ | YES | NULL | When the object was actually deleted from storage. |
+| `blocked_at` | TIMESTAMPTZ | YES | NULL | Serving block (do not issue signed URLs). |
+| `created_at` | TIMESTAMPTZ | NO | `now()` | Metadata creation timestamp. |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Last metadata update timestamp. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| — | — | — | Sin FK salientes; es hoja de metadata. | — |
+| — | — | — | No outgoing FKs; metadata leaf table. | — |
 
-**Quién apunta hacia aquí (referencia cruzada, no dueños de este DS)**
+**Incoming references (cross-reference, not owned by this DS)**
 
-| Origen | Relación | Motivo |
+| Source | Relationship | Rationale |
 | :--- | :--- | :--- |
-| `family_example.media_asset_id` (DS03) | N:0..1 | Foto de ejemplo de familia. |
-| `yolo_model.media_asset_id` (DS03) | N:0..1 | Archivo de pesos. |
-| `checkpoint_frame.media_asset_id` (DS06, lógico) | N:0..1 | Evidencia del checkpoint. |
+| `family_example.media_asset_id` (DS03) | N:0..1 | Family reference photo. |
+| `yolo_model.media_asset_id` (DS03) | N:0..1 | Model weights file. |
+| `checkpoint_frame.media_asset_id` (DS06, logical) | N:0..1 | Checkpoint evidence. |
 
-**Restricciones:** PK `id`; UNIQUE (`bucket`, `object_key`); CHECK `kind`; CHECK `storage_provider`; CHECK `size_bytes >= 0`; CHECK orden purga (`purged_at` ≥ `purge_requested_at` si ambas existen).
+**Constraints:** PK `id`; UNIQUE (`bucket`, `object_key`); CHECK `kind`; CHECK `storage_provider`; CHECK `size_bytes >= 0`; CHECK purge ordering (`purged_at` ≥ `purge_requested_at` when both are present).
 
-**Reglas de ciclo de vida**
+**Lifecycle rules**
 
-1. Tras subir objeto → INSERT con `retention_until` (90 días base o 180 si la sesión tiene retención extendida; ver DS04/DS07).
-2. Job idempotente: si `purge_requested_at` y aún no `purged_at` → borrar en storage → `purged_at = now()`.
-3. Si `blocked_at` no es nulo → no emitir URL firmada aunque el objeto siga en el bucket.
-4. Pesos (`kind = weights`) pueden tener retención distinta (política MLOps); no se purgan con el mismo TTL clínico sin revisión.
-5. **Clip de ráfaga v1:** EvidenceWorker toma el ring (Redis → RAM, unos 5–8 s de JPEG) y lo codifica a **MP4 H.264**, `yuv420p`, **sin audio**, un archivo / un checkpoint. Es más liviano que GIF y el navegador lo reproduce nativo. `kind = 'mp4'`, `content_type = 'video/mp4'`. `mkv` y `webm` están en el CHECK; la UI web prioriza MP4. Si falla el encode → un JPEG (`kind = 'jpeg'`). `gif` solo filas viejas.
+1. After uploading an object → INSERT with `retention_until` (90 days baseline, or 180 if the session has extended retention; see DS04/DS07).
+2. Idempotent job: if `purge_requested_at` is set and `purged_at` is still null → delete from storage → set `purged_at = now()`.
+3. If `blocked_at` is non-null → do not issue a signed URL even if the object remains in the bucket.
+4. Weights (`kind = weights`) may have a separate retention policy (MLOps policy); they are not purged on the clinical TTL without review.
+5. **Burst clip v1:** EvidenceWorker reads the ring (Redis → RAM, ~5–8 s of JPEGs) and encodes an **H.264 MP4**, `yuv420p`, **no audio**, one file / one checkpoint. It is lighter than GIF and plays natively in browsers. `kind = 'mp4'`, `content_type = 'video/mp4'`. `mkv` and `webm` are allowed in the CHECK; web UI prioritizes MP4. If encoding fails → fallback to a single JPEG (`kind = 'jpeg'`). `gif` is kept for legacy rows only.
 
-**Ejemplo de fila completa (JPEG de checkpoint)**
+**Complete example row (checkpoint JPEG)**
 
 ```json
 {
@@ -124,7 +124,7 @@ Naming de clave sugerido: `{institution_id}/{session_id|models}/{yyyy}/{uuid}.{e
 }
 ```
 
-**Ejemplo de fila completa (MP4 de ráfaga)**
+**Complete example row (burst MP4)**
 
 ```json
 {
@@ -146,7 +146,7 @@ Naming de clave sugerido: `{institution_id}/{session_id|models}/{yyyy}/{uuid}.{e
 }
 ```
 
-**Ejemplo de fila completa (pesos YOLO)**
+**Complete example row (YOLO weights)**
 
 ```json
 {
@@ -172,50 +172,50 @@ Naming de clave sugerido: `{institution_id}/{session_id|models}/{yyyy}/{uuid}.{e
 
 ### 1.4 Governance and Ownership
 
-| Aspecto | Responsable |
+| Aspect | Owner |
 | :--- | :--- |
-| Alta de evidencia clínica | EvidenceWorker + Backend / Evidence Service |
-| Publicación de pesos | Visión / MLOps |
-| Job de purga | Ops / Backend (idempotente) |
-| Bloqueo ARCO | Cumplimiento vía DS07 |
+| Clinical evidence ingestion | EvidenceWorker + Backend / Evidence Service |
+| Weights publication | Vision / MLOps |
+| Purge job | Ops / Backend (idempotent) |
+| ARCO blocking | Compliance via DS07 |
 
 ---
 
-### 1.5 Justificación del estándar
+### 1.5 Standard Rationale
 
-**Por qué existe**
+**Why it exists**
 
-Los bytes no caben ni deben vivir en PostgreSQL ni en Mongo como BLOB masivo de producción. PG necesita saber *qué* archivo existe y *hasta cuándo*; el bucket guarda el contenido.
+Binary bytes do not belong inside PostgreSQL or MongoDB as massive production BLOBs. PG needs to know *which* file exists and *until when*; the bucket stores the content.
 
-**Decisiones tomadas**
+**Design decisions taken**
 
-1. **Una tabla `media_asset`** con `kind` discriminador (JPEG, MP4 de ráfaga, pesos; `gif` legado).
-2. **Clip v1 = MP4 H.264 sin audio**, no GIF: menor peso, mejor fidelidad, `<video>` nativo.
-3. **`storage_provider`** para portar GCS ↔ Garage (S3) u otros S3-compat sin cambiar el modelo.
-4. **Campos de purga/bloqueo en la misma fila** para que el job ARCO/TTL sea único.
-5. **Nombre de columna `gcs_uri` conservado** aunque el provider sea Garage (legado de diseño; el valor es la URI canónica del objeto).
+1. **Single `media_asset` table** with a `kind` discriminator (JPEG, burst MP4, weights; `gif` legacy).
+2. **Clip v1 = audio-free H.264 MP4**, not GIF: smaller size, better fidelity, native `<video>` playback.
+3. **`storage_provider`** to support portability across GCS ↔ Garage (S3) or other S3-compatible providers without changing the schema.
+4. **Purge/block fields on the same row** so the ARCO/TTL purge job has a single control plane.
+5. **Column name `gcs_uri` retained** even when the provider is Garage (design legacy; value holds the canonical object URI).
 
-**Alternativas no elegidas**
+**Rejected alternatives**
 
-| Alternativa | Por qué no |
+| Alternative | Why not |
 | :--- | :--- |
-| Guardar bytes en PG (`BYTEA`) | Infla backups, empeora réplicas, complica CDN/URLs firmadas. |
-| Solo path en Mongo sin fila PG | El portal y FHIR Attachment necesitan metadata consultable en SQL; ARCO multi-almacén se complica. |
-| Tabla por tipo (`jpeg_asset`, `mp4_asset`) | Duplica ciclo de purga y FKs. |
-| GIF animado como clip v1 | Pesado y peor fidelidad que H.264 para la misma ráfaga. |
-| MKV como clip por defecto | El navegador no lo reproduce bien; se admite en CHECK, no en UI. |
-| Borrar solo el objeto y dejar fila huérfana sin `purged_at` | Mentira de inventario; el job debe cerrar el ciclo. |
+| Store bytes in PG (`BYTEA`) | Bloats backups, slows replicas, complicates CDN/signed URLs. |
+| Path only in MongoDB with no PG row | Portal and FHIR Attachment require SQL-queryable metadata; multi-store ARCO becomes harder. |
+| Separate table per type (`jpeg_asset`, `mp4_asset`) | Duplicates purge lifecycle and FKs. |
+| Animated GIF as v1 clip format | Heavier and lower fidelity than H.264 for the same burst. |
+| MKV as default clip format | Poor browser playback; allowed in CHECK, not prioritized in UI. |
+| Delete only the object and leave an orphan row without `purged_at` | Breaks inventory truth; the job must close the lifecycle. |
 
 ---
 
-## 2. Anexo A – Información general
+## 2. Annex A – General Information
 
-| Campo | Valor |
+| Field | Value |
 | :--- | :--- |
-| Código | PEF-DS05 |
-| Título | Evidence and Object Storage |
-| Versión | 0.2.0 |
-| Estado | draft |
-| Almacenes | PostgreSQL (`media_asset`); Object storage (Garage S3 on-prem hoy; otros S3-compat / GCS por contrato) |
-| Fuera de alcance | Documento Mongo; política legal ARCO (orquestación en DS07); contrato HTTP (DS09) |
-| DDL de referencia | `esquema_base_datos_v2.md` §5.5 |
+| Code | PEF-DS05 |
+| Title | Evidence and Object Storage |
+| Version | 0.2.0 |
+| Status | draft |
+| Stores | PostgreSQL (`media_asset`); Object storage (on-prem Garage S3 today; other S3-compat / GCS by contract) |
+| Out of scope | MongoDB document; ARCO legal policy (orchestrated in DS07); HTTP contract (DS09) |
+| Reference DDL | `esquema_base_datos_v2.md` §5.5 |

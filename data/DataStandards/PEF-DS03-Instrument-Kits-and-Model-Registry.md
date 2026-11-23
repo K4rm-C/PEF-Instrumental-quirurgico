@@ -3,7 +3,7 @@ id: PEF-DS03
 title: Instrument Kits and Model Registry
 version: "0.2.0"
 status: draft
-owner: PEF Core / Visión
+owner: PEF Core / Vision
 applies_to: [WP, BE, Worker, MS]
 stores: [PostgreSQL]
 related: [PEF-DS02, PEF-DS04, PEF-DS05]
@@ -12,70 +12,70 @@ last_updated: 2026-09-06
 
 # PEF-DS03 · Instrument Kits and Model Registry
 
-## INTRODUCCION
+## INTRODUCTION
 
-Este estándar define **qué se cuenta** y **cómo el modelo de visión nombra las clases**.
+This standard defines **what is counted** and **how the vision model names its classes**.
 
-Tablas dueñas: `instrument_family`, `family_example`, `instrument`, `instrument_usage`, `instrument_cycle_event`, `kit`, `kit_item`, `procedure_kit`, `procedure_phase`, `instrument_reservation`, `yolo_model`, `model_class`.
+Owned tables: `instrument_family`, `family_example`, `instrument`, `instrument_usage`, `instrument_cycle_event`, `kit`, `kit_item`, `procedure_kit`, `procedure_phase`, `instrument_reservation`, `yolo_model`, `model_class`.
 
-Catálogos dueños: `cat_instrument_category`, `cat_usage_context`, `cat_instrument_cycle_status`, `cat_operation_phase`.
+Owned catalogs: `cat_instrument_category`, `cat_usage_context`, `cat_instrument_cycle_status`, `cat_operation_phase`.
 
-`cat_procedure_type` se define en PEF-DS02; aquí solo se referencia.
+`cat_procedure_type` is defined in PEF-DS02; it is only referenced here.
 
-No define sesión/eventos de conteo (PEF-DS04). No define bytes de `.pt`/fotos (solo el puntero `media_asset_id`; el asset es PEF-DS05).
+It does not define counting sessions/events (PEF-DS04). It does not define `.pt`/photo bytes (only the `media_asset_id` pointer; the asset itself is PEF-DS05).
 
-Abajo: **todos** los campos, FKs con motivo, y **fila completa** por tabla.
-
----
-
-## 1. Explicación del estándar
-
-### 1.1 Definiciones
-
-
-| Término                   | Significado                                                                        |
-| ------------------------- | ---------------------------------------------------------------------------------- |
-| **Familia**               | Tipo de instrumento a nivel catálogo (lo que el modelo suele detectar como clase). |
-| **Pieza**                 | Unidad física en stock de una institución.                                         |
-| **Kit**                   | Receta versionada: cantidades por familia (no lista UUIDs de piezas).              |
-| **Procedure kit**         | Vínculo procedimiento ↔ kit (con default opcional).                                |
-| **Fase de procedimiento** | Orden de fases clínicas y si el conteo es obligatorio.                             |
-| **Reserva**               | Pieza asignada a una operación mientras `active`.                                  |
-| **Modelo YOLO**           | Versión del detector; como máximo uno `active = true`.                             |
-| **Clase de modelo**       | Entero `yolo_class_id` ↔ `family_id`.                                              |
-
-
-### 1.2 Uso
-
-Admin arma **familias** (con examples) y publica **modelos**. SPD da de alta **piezas** y **kits**. Worker carga pesos y traduce clase→familia. Al abrir sesión (DS04) se suele copiar el kit a `expected_inventory`.
-
-**Idea de stock:** el stock son las filas `instrument`. El kit habla de familias. En operación se pueden reservar piezas concretas.
+Below: **all** fields, FKs with rationales, and one **complete example row** per table.
 
 ---
 
-### 1.3 Convenciones
+## 1. Standard Explanation
 
-En “Hacia dónde apunta”, columna **Relación**: `N:1` = muchas filas de esta tabla a una del destino; `N:0..1` = destino opcional (FK nullable); `1:1` = a lo sumo un par (p. ej. UNIQUE); `N:N` se arma con tabla puente (cada FK del puente sigue siendo `N:1`).
+### 1.1 Definitions
+
+
+| Term | Meaning |
+| --- | --- |
+| **Family** | Catalog-level instrument type (what the model typically detects as a class). |
+| **Piece** | Physical unit in an institution's stock. |
+| **Kit** | Versioned recipe: quantities per family (does not list individual piece UUIDs). |
+| **Procedure kit** | Procedure ↔ kit link (with optional default). |
+| **Procedure phase** | Ordered clinical phases and whether counting is required. |
+| **Reservation** | Physical piece assigned to an operation while `active`. |
+| **YOLO model** | Detector version; at most one row has `active = true`. |
+| **Model class** | Integer `yolo_class_id` ↔ `family_id` mapping. |
+
+
+### 1.2 Usage
+
+Admin creates **families** (with examples) and publishes **models**. SPD registers **pieces** and **kits**. Worker loads weights and translates class → family. Opening a session (DS04) typically copies the kit into `expected_inventory`.
+
+**Stock concept:** stock consists of `instrument` rows. The kit speaks in families. Specific pieces can be reserved for an operation.
+
+---
+
+### 1.3 Conventions
+
+Under "References", the **Relationship** column means: `N:1` = many rows in this table to one in the target; `N:0..1` = optional target (nullable FK); `1:1` = at most one pair (e.g., UNIQUE); `N:N` is built via a junction table (each junction FK remains `N:1`).
 
 ---
 
 #### 1.3.1 `cat_instrument_category`
 
 
-| Campo  | Tipo         | Nulo | Default             | Significado                |
-| ------ | ------------ | ---- | ------------------- | -------------------------- |
-| `id`   | UUID         | NO   | `gen_random_uuid()` | PK.                        |
-| `code` | VARCHAR(64)  | NO   | —                   | Ej. `suturing`, `cutting`. |
-| `name` | VARCHAR(120) | NO   | —                   | Etiqueta.                  |
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(64) | NO | — | E.g. `suturing`, `cutting`. |
+| `name` | VARCHAR(120) | NO | — | Label. |
 
 
-FKs: ninguna. UNIQUE `code`.
+FKs: none. UNIQUE `code`.
 
 ```json
 {
   "id": "b1000001-0000-4000-8000-000000000001",
   "code": "suturing",
-  "name": "Sutura y cierre"
+  "name": "Suturing and closure"
 }
 ```
 
@@ -84,20 +84,20 @@ FKs: ninguna. UNIQUE `code`.
 #### 1.3.2 `cat_usage_context`
 
 
-| Campo  | Tipo         | Nulo | Default             | Significado                  |
-| ------ | ------------ | ---- | ------------------- | ---------------------------- |
-| `id`   | UUID         | NO   | `gen_random_uuid()` | PK.                          |
-| `code` | VARCHAR(64)  | NO   | —                   | Contexto de uso documentado. |
-| `name` | VARCHAR(200) | NO   | —                   | Etiqueta.                    |
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(64) | NO | — | Documented usage context. |
+| `name` | VARCHAR(200) | NO | — | Label. |
 
 
-FKs: ninguna. UNIQUE `code`.
+FKs: none. UNIQUE `code`.
 
 ```json
 {
   "id": "b1000002-0000-4000-8000-000000000002",
   "code": "primary_tray",
-  "name": "Charola primaria"
+  "name": "Primary tray"
 }
 ```
 
@@ -106,20 +106,20 @@ FKs: ninguna. UNIQUE `code`.
 #### 1.3.3 `cat_instrument_cycle_status`
 
 
-| Campo  | Tipo        | Nulo | Default             | Significado                                    |
-| ------ | ----------- | ---- | ------------------- | ---------------------------------------------- |
-| `id`   | UUID        | NO   | `gen_random_uuid()` | PK.                                            |
-| `code` | VARCHAR(32) | NO   | —                   | Ej. `clean`, `in_use`, `dirty`, `sterilizing`. |
-| `name` | VARCHAR(80) | NO   | —                   | Etiqueta.                                      |
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(32) | NO | — | E.g. `clean`, `in_use`, `dirty`, `sterilizing`. |
+| `name` | VARCHAR(80) | NO | — | Label. |
 
 
-FKs: ninguna. UNIQUE `code`.
+FKs: none. UNIQUE `code`.
 
 ```json
 {
   "id": "b1000003-0000-4000-8000-000000000003",
   "code": "clean",
-  "name": "Limpio / listo"
+  "name": "Clean / ready"
 }
 ```
 
@@ -127,53 +127,52 @@ FKs: ninguna. UNIQUE `code`.
 
 #### 1.3.4 `cat_operation_phase`
 
-**Dueño canónico aquí** (también lo usa `work_session` en DS04).
+**Canonical owner here** (also used by `work_session` in DS04).
 
 
-| Campo    | Tipo        | Nulo | Default             | Significado                           |
-| -------- | ----------- | ---- | ------------------- | ------------------------------------- |
-| `id`     | UUID        | NO   | `gen_random_uuid()` | PK.                                   |
-| `code`   | VARCHAR(32) | NO   | —                   | Ej. `pre_count`, `intra`, `closing`.  |
-| `name`   | VARCHAR(80) | NO   | —                   | Etiqueta.                             |
-| `active` | BOOLEAN     | NO   | `TRUE`              | Fase usable en nuevos procedimientos. |
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(32) | NO | — | E.g. `pre_count`, `intra`, `closing`. |
+| `name` | VARCHAR(80) | NO | — | Label. |
+| `active` | BOOLEAN | NO | `TRUE` | Phase usable in new procedures. |
 
-
-FKs: ninguna. UNIQUE `code`.
+FKs: none. UNIQUE `code`.
 
 ```json
 {
   "id": "b1000004-0000-4000-8000-000000000004",
   "code": "pre_count",
-  "name": "Conteo previo",
+  "name": "Pre-count",
   "active": true
 }
 ```
 
 ---
 
-#### 1.3.5 Tabla `instrument_family`
+#### 1.3.5 Table `instrument_family`
 
-**Para qué:** tipo de instrumento (vocabulario de detección y de kits).
-
-
-| Campo           | Tipo         | Nulo | Default             | Significado                                 |
-| --------------- | ------------ | ---- | ------------------- | ------------------------------------------- |
-| `id`            | UUID         | NO   | `gen_random_uuid()` | PK.                                         |
-| `code`          | VARCHAR(64)  | NO   | —                   | Código único global de familia.             |
-| `name`          | VARCHAR(160) | NO   | —                   | Nombre legible.                             |
-| `category_id`   | UUID         | NO   | —                   | Categoría.                                  |
-| `identify_text` | TEXT         | SÍ   | NULL                | Texto de identificación (entrenamiento/UI). |
-| `classify_text` | TEXT         | SÍ   | NULL                | Texto de clasificación.                     |
-| `function_text` | TEXT         | SÍ   | NULL                | Función clínica del tipo.                   |
-| `active`        | BOOLEAN      | NO   | `TRUE`              | Familia usable.                             |
+**Purpose:** instrument type (detection and kit vocabulary).
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `code` | VARCHAR(64) | NO | — | Globally unique family code. |
+| `name` | VARCHAR(160) | NO | — | Human-readable name. |
+| `category_id` | UUID | NO | — | Category. |
+| `identify_text` | TEXT | YES | NULL | Identification text (training/UI). |
+| `classify_text` | TEXT | YES | NULL | Classification text. |
+| `function_text` | TEXT | YES | NULL | Clinical function of this type. |
+| `active` | BOOLEAN | NO | `TRUE` | Usable family. |
 
 
-| Campo         | Apunta a                     | Relación | Por qué          | ON DELETE  |
-| ------------- | ---------------------------- | -------- | ---------------- | ---------- |
-| `category_id` | `cat_instrument_category.id` | N:1      | Agrupa familias. | `RESTRICT` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `category_id` | `cat_instrument_category.id` | N:1 | Groups families. | `RESTRICT` |
 
 
 UNIQUE `code`.
@@ -182,38 +181,38 @@ UNIQUE `code`.
 {
   "id": "f1000001-0000-4000-8000-000000000001",
   "code": "mayo_hegar_needle_holder",
-  "name": "Portaagujas Mayo-Hegar",
+  "name": "Mayo-Hegar Needle Holder",
   "category_id": "b1000001-0000-4000-8000-000000000001",
-  "identify_text": "Portaagujas con cremallera y anillos; punta roma.",
-  "classify_text": "Needle holder Mayo-Hegar vs Olsen-Hegar.",
-  "function_text": "Sujetar la aguja durante la sutura.",
+  "identify_text": "Ratcheted needle holder with ring handles and blunt tip.",
+  "classify_text": "Mayo-Hegar needle holder vs. Olsen-Hegar.",
+  "function_text": "Hold the suture needle during suturing.",
   "active": true
 }
 ```
 
 ---
 
-#### 1.3.6 Tabla `family_example`
+#### 1.3.6 Table `family_example`
 
-**Para qué:** ejemplos (texto y/o imagen) ligados a una familia, para uso de este sistema en laboratorio/educación.
-
-
-| Campo            | Tipo     | Nulo | Default             | Significado                        |
-| ---------------- | -------- | ---- | ------------------- | ---------------------------------- |
-| `id`             | UUID     | NO   | `gen_random_uuid()` | PK.                                |
-| `family_id`      | UUID     | NO   | —                   | Familia.                           |
-| `media_asset_id` | UUID     | SÍ   | NULL                | Imagen de ejemplo (bytes en DS05). |
-| `example_text`   | TEXT     | SÍ   | NULL                | Nota o caption.                    |
-| `sort_order`     | SMALLINT | NO   | `0`                 | Orden de presentación.             |
+**Purpose:** examples (text and/or image) linked to a family, used by this system in lab/training contexts.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `family_id` | UUID | NO | — | Family. |
+| `media_asset_id` | UUID | YES | NULL | Example image (bytes in DS05). |
+| `example_text` | TEXT | YES | NULL | Note or caption. |
+| `sort_order` | SMALLINT | NO | `0` | Display order. |
 
 
-| Campo            | Apunta a                | Relación | Por qué                                   | ON DELETE  |
-| ---------------- | ----------------------- | -------- | ----------------------------------------- | ---------- |
-| `family_id`      | `instrument_family.id`  | N:1      | Dueño del ejemplo.                        | `CASCADE`  |
-| `media_asset_id` | `media_asset.id` (DS05) | N:0..1   | Foto de referencia; no guarda bytes aquí. | `SET NULL` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `family_id` | `instrument_family.id` | N:1 | Example owner. | `CASCADE` |
+| `media_asset_id` | `media_asset.id` (DS05) | N:0..1 | Reference photo; no bytes stored here. | `SET NULL` |
 
 
 ```json
@@ -221,41 +220,41 @@ UNIQUE `code`.
   "id": "f1000002-0000-4000-8000-000000000002",
   "family_id": "f1000001-0000-4000-8000-000000000001",
   "media_asset_id": "m1000001-0000-4000-8000-000000000001",
-  "example_text": "Vista cenital limpia, mango hacia abajo.",
+  "example_text": "Clean overhead view, handle pointing downward.",
   "sort_order": 1
 }
 ```
 
 ---
 
-#### 1.3.7 Tabla `instrument`
+#### 1.3.7 Table `instrument`
 
-**Para qué:** pieza física = unidad de stock.
-
-
-| Campo             | Tipo        | Nulo | Default             | Significado                                             |
-| ----------------- | ----------- | ---- | ------------------- | ------------------------------------------------------- |
-| `id`              | UUID        | NO   | `gen_random_uuid()` | PK.                                                     |
-| `internal_code`   | VARCHAR(64) | SÍ   | NULL                | Código interno de la institución (etiqueta/inventario). |
-| `family_id`       | UUID        | NO   | —                   | Tipo al que pertenece.                                  |
-| `cycle_status_id` | UUID        | NO   | —                   | Estado de ciclo **actual**.                             |
-| `institution_id`  | UUID        | NO   | —                   | Dueño del stock.                                        |
-| `active`          | BOOLEAN     | NO   | `TRUE`              | Pieza en inventario usable.                             |
-| `created_at`      | TIMESTAMPTZ | NO   | `now()`             | Alta.                                                   |
-| `updated_at`      | TIMESTAMPTZ | NO   | `now()`             | Última actualización.                                   |
+**Purpose:** physical piece = unit of stock.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `internal_code` | VARCHAR(64) | YES | NULL | Institution internal code (tag/inventory). |
+| `family_id` | UUID | NO | — | Instrument type it belongs to. |
+| `cycle_status_id` | UUID | NO | — | **Current** cycle status. |
+| `institution_id` | UUID | NO | — | Stock owner. |
+| `active` | BOOLEAN | NO | `TRUE` | Piece in usable inventory. |
+| `created_at` | TIMESTAMPTZ | NO | `now()` | Created at. |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Last updated at. |
 
 
-| Campo             | Apunta a                         | Relación | Por qué                                           | ON DELETE  |
-| ----------------- | -------------------------------- | -------- | ------------------------------------------------- | ---------- |
-| `family_id`       | `instrument_family.id`           | N:1      | Clasifica la pieza.                               | `RESTRICT` |
-| `cycle_status_id` | `cat_instrument_cycle_status.id` | N:1      | Estado actual denormalizado para consulta rápida. | `RESTRICT` |
-| `institution_id`  | `institution.id` (DS01)          | N:1      | Stock por tenant.                                 | `RESTRICT` |
+**References**
 
 
-UNIQUE parcial (`institution_id`, `internal_code`) WHERE `internal_code IS NOT NULL`.
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `family_id` | `instrument_family.id` | N:1 | Classifies the piece. | `RESTRICT` |
+| `cycle_status_id` | `cat_instrument_cycle_status.id` | N:1 | Denormalized current state for fast lookup. | `RESTRICT` |
+| `institution_id` | `institution.id` (DS01) | N:1 | Stock per tenant. | `RESTRICT` |
+
+
+Partial UNIQUE (`institution_id`, `internal_code`) WHERE `internal_code IS NOT NULL`.
 
 ```json
 {
@@ -272,29 +271,29 @@ UNIQUE parcial (`institution_id`, `internal_code`) WHERE `internal_code IS NOT N
 
 ---
 
-#### 1.3.8 Tabla `instrument_usage`
+#### 1.3.8 Table `instrument_usage`
 
-**Para qué:** documenta en qué procedimiento/contexto se usa una pieza (catálogo operativo, no el conteo en vivo).
-
-
-| Campo               | Tipo    | Nulo | Default             | Significado                   |
-| ------------------- | ------- | ---- | ------------------- | ----------------------------- |
-| `id`                | UUID    | NO   | `gen_random_uuid()` | PK.                           |
-| `instrument_id`     | UUID    | NO   | —                   | Pieza.                        |
-| `procedure_type_id` | UUID    | NO   | —                   | Tipo de procedimiento (DS02). |
-| `context_id`        | UUID    | NO   | —                   | Contexto de uso.              |
-| `notes`             | TEXT    | SÍ   | NULL                | Notas.                        |
-| `active`            | BOOLEAN | NO   | `TRUE`              | Uso vigente.                  |
+**Purpose:** documents in which procedure/context a piece is used (operational catalog, not live counting).
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `instrument_id` | UUID | NO | — | Piece. |
+| `procedure_type_id` | UUID | NO | — | Procedure type (DS02). |
+| `context_id` | UUID | NO | — | Usage context. |
+| `notes` | TEXT | YES | NULL | Notes. |
+| `active` | BOOLEAN | NO | `TRUE` | Active usage. |
 
 
-| Campo               | Apunta a                | Relación | Por qué            | ON DELETE  |
-| ------------------- | ----------------------- | -------- | ------------------ | ---------- |
-| `instrument_id`     | `instrument.id`         | N:1      | Pieza documentada. | `CASCADE`  |
-| `procedure_type_id` | `cat_procedure_type.id` | N:1      | Procedimiento.     | `RESTRICT` |
-| `context_id`        | `cat_usage_context.id`  | N:1      | Contexto.          | `RESTRICT` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `instrument_id` | `instrument.id` | N:1 | Documented piece. | `CASCADE` |
+| `procedure_type_id` | `cat_procedure_type.id` | N:1 | Procedure. | `RESTRICT` |
+| `context_id` | `cat_usage_context.id` | N:1 | Context. | `RESTRICT` |
 
 
 UNIQUE (`instrument_id`, `procedure_type_id`, `context_id`).
@@ -305,38 +304,38 @@ UNIQUE (`instrument_id`, `procedure_type_id`, `context_id`).
   "instrument_id": "i1000001-0000-4000-8000-000000000001",
   "procedure_type_id": "a1000003-0000-4000-8000-000000000003",
   "context_id": "b1000002-0000-4000-8000-000000000002",
-  "notes": "Preferido en charola primaria de hernia inguinal.",
+  "notes": "Preferred in primary tray for inguinal hernia.",
   "active": true
 }
 ```
 
 ---
 
-#### 1.3.9 Tabla `instrument_cycle_event`
+#### 1.3.9 Table `instrument_cycle_event`
 
-**Para qué:** historial de cambios de ciclo (hechos temporales). El estado actual sigue en `instrument.cycle_status_id`.
-
-
-| Campo             | Tipo        | Nulo | Default             | Significado                               |
-| ----------------- | ----------- | ---- | ------------------- | ----------------------------------------- |
-| `id`              | UUID        | NO   | `gen_random_uuid()` | PK.                                       |
-| `instrument_id`   | UUID        | NO   | —                   | Pieza.                                    |
-| `cycle_status_id` | UUID        | NO   | —                   | Estado **en ese momento**.                |
-| `occurred_at`     | TIMESTAMPTZ | NO   | `now()`             | Cuándo ocurrió el cambio.                 |
-| `session_id`      | UUID        | SÍ   | NULL                | Sesión de conteo relacionada (si aplica). |
-| `operation_id`    | UUID        | SÍ   | NULL                | Operación relacionada (si aplica).        |
-| `notes`           | TEXT        | SÍ   | NULL                | Nota libre.                               |
+**Purpose:** history of cycle status transitions (temporal facts). The current state remains on `instrument.cycle_status_id`.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `instrument_id` | UUID | NO | — | Piece. |
+| `cycle_status_id` | UUID | NO | — | Status **at that moment**. |
+| `occurred_at` | TIMESTAMPTZ | NO | `now()` | When the transition occurred. |
+| `session_id` | UUID | YES | NULL | Related counting session (if applicable). |
+| `operation_id` | UUID | YES | NULL | Related operation (if applicable). |
+| `notes` | TEXT | YES | NULL | Free-form note. |
 
 
-| Campo             | Apunta a                         | Relación | Por qué                                                   | ON DELETE                            |
-| ----------------- | -------------------------------- | -------- | --------------------------------------------------------- | ------------------------------------ |
-| `instrument_id`   | `instrument.id`                  | N:1      | Pieza.                                                    | `CASCADE`                            |
-| `cycle_status_id` | `cat_instrument_cycle_status.id` | N:1      | Estado registrado.                                        | `RESTRICT`                           |
-| `operation_id`    | `operation.id` (DS02)            | N:0..1   | Contexto clínico opcional.                                | `SET NULL`                           |
-| `session_id`      | `work_session.id` (DS04)         | N:0..1   | Contexto de conteo opcional; FK añadida al final del DDL. | `SET NULL` (según ALTER del esquema) |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `instrument_id` | `instrument.id` | N:1 | Piece. | `CASCADE` |
+| `cycle_status_id` | `cat_instrument_cycle_status.id` | N:1 | Recorded status. | `RESTRICT` |
+| `operation_id` | `operation.id` (DS02) | N:0..1 | Optional clinical context. | `SET NULL` |
+| `session_id` | `work_session.id` (DS04) | N:0..1 | Optional counting context; FK added at the end of the DDL. | `SET NULL` (per schema ALTER) |
 
 
 ```json
@@ -347,34 +346,34 @@ UNIQUE (`instrument_id`, `procedure_type_id`, `context_id`).
   "occurred_at": "2026-09-05T08:00:00Z",
   "session_id": null,
   "operation_id": null,
-  "notes": "Salida de esterilización; marcado limpio."
+  "notes": "Released from sterilization; marked clean."
 }
 ```
 
 ---
 
-#### 1.3.10 Tabla `kit`
+#### 1.3.10 Table `kit`
 
-**Para qué:** receta versionada por institución.
-
-
-| Campo            | Tipo         | Nulo | Default             | Significado     |
-| ---------------- | ------------ | ---- | ------------------- | --------------- |
-| `id`             | UUID         | NO   | `gen_random_uuid()` | PK.             |
-| `name`           | VARCHAR(160) | NO   | —                   | Nombre del kit. |
-| `version`        | SMALLINT     | NO   | `1`                 | Versión (> 0).  |
-| `active`         | BOOLEAN      | NO   | `TRUE`              | Kit usable.     |
-| `institution_id` | UUID         | NO   | —                   | Tenant.         |
-| `created_at`     | TIMESTAMPTZ  | NO   | `now()`             | Alta.           |
-| `updated_at`     | TIMESTAMPTZ  | NO   | `now()`             | Última edición. |
+**Purpose:** versioned recipe per institution.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `name` | VARCHAR(160) | NO | — | Kit name. |
+| `version` | SMALLINT | NO | `1` | Version (> 0). |
+| `active` | BOOLEAN | NO | `TRUE` | Usable kit. |
+| `institution_id` | UUID | NO | — | Tenant. |
+| `created_at` | TIMESTAMPTZ | NO | `now()` | Created at. |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Last edited at. |
 
 
-| Campo            | Apunta a         | Relación | Por qué            | ON DELETE |
-| ---------------- | ---------------- | -------- | ------------------ | --------- |
-| `institution_id` | `institution.id` | N:1      | Kits por hospital. | `CASCADE` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `institution_id` | `institution.id` | N:1 | Kits per hospital. | `CASCADE` |
 
 
 UNIQUE (`institution_id`, `name`, `version`). CHECK `version > 0`.
@@ -382,7 +381,7 @@ UNIQUE (`institution_id`, `name`, `version`). CHECK `version > 0`.
 ```json
 {
   "id": "k1000001-0000-4000-8000-000000000001",
-  "name": "Kit hernia inguinal abierta",
+  "name": "Open inguinal hernia kit",
   "version": 1,
   "active": true,
   "institution_id": "11111111-1111-1111-1111-111111111111",
@@ -393,26 +392,26 @@ UNIQUE (`institution_id`, `name`, `version`). CHECK `version > 0`.
 
 ---
 
-#### 1.3.11 Tabla `kit_item`
+#### 1.3.11 Table `kit_item`
 
-**Para qué:** línea del kit = familia + cantidad.
-
-
-| Campo       | Tipo     | Nulo | Default             | Significado              |
-| ----------- | -------- | ---- | ------------------- | ------------------------ |
-| `id`        | UUID     | NO   | `gen_random_uuid()` | PK.                      |
-| `kit_id`    | UUID     | NO   | —                   | Kit.                     |
-| `family_id` | UUID     | NO   | —                   | Familia pedida.          |
-| `quantity`  | SMALLINT | NO   | —                   | Cantidad esperada (> 0). |
+**Purpose:** kit line item = family + quantity.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `kit_id` | UUID | NO | — | Kit. |
+| `family_id` | UUID | NO | — | Requested family. |
+| `quantity` | SMALLINT | NO | — | Expected quantity (> 0). |
 
 
-| Campo       | Apunta a               | Relación | Por qué            | ON DELETE  |
-| ----------- | ---------------------- | -------- | ------------------ | ---------- |
-| `kit_id`    | `kit.id`               | N:1      | Dueño de la línea. | `CASCADE`  |
-| `family_id` | `instrument_family.id` | N:1      | Qué tipo se pide.  | `RESTRICT` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `kit_id` | `kit.id` | N:1 | Line item owner. | `CASCADE` |
+| `family_id` | `instrument_family.id` | N:1 | Required instrument type. | `RESTRICT` |
 
 
 UNIQUE (`kit_id`, `family_id`). CHECK `quantity > 0`.
@@ -428,41 +427,41 @@ UNIQUE (`kit_id`, `family_id`). CHECK `quantity > 0`.
 
 ---
 
-#### 1.3.12 Tabla `procedure_kit`
+#### 1.3.12 Table `procedure_kit`
 
-**Para qué:** qué kits aplican a un tipo de procedimiento.
-
-
-| Campo               | Tipo         | Nulo | Default             | Significado                                    |
-| ------------------- | ------------ | ---- | ------------------- | ---------------------------------------------- |
-| `id`                | UUID         | NO   | `gen_random_uuid()` | PK.                                            |
-| `procedure_type_id` | UUID         | NO   | —                   | Procedimiento (DS02).                          |
-| `kit_id`            | UUID         | NO   | —                   | Kit.                                           |
-| `technique_label`   | VARCHAR(160) | SÍ   | NULL                | Etiqueta de técnica/variante.                  |
-| `is_default`        | BOOLEAN      | NO   | `FALSE`             | Si es el kit por defecto de ese procedimiento. |
-| `active`            | BOOLEAN      | NO   | `TRUE`              | Relación vigente.                              |
-| `created_at`        | TIMESTAMPTZ  | NO   | `now()`             | Alta.                                          |
-| `updated_at`        | TIMESTAMPTZ  | NO   | `now()`             | Edición.                                       |
+**Purpose:** defines which kits apply to a procedure type.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `procedure_type_id` | UUID | NO | — | Procedure (DS02). |
+| `kit_id` | UUID | NO | — | Kit. |
+| `technique_label` | VARCHAR(160) | YES | NULL | Technique/variant label. |
+| `is_default` | BOOLEAN | NO | `FALSE` | Whether this is the default kit for that procedure. |
+| `active` | BOOLEAN | NO | `TRUE` | Active relationship. |
+| `created_at` | TIMESTAMPTZ | NO | `now()` | Created at. |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Updated at. |
 
 
-| Campo               | Apunta a                | Relación                                  | Por qué        | ON DELETE  |
-| ------------------- | ----------------------- | ----------------------------------------- | -------------- | ---------- |
-| `procedure_type_id` | `cat_procedure_type.id` | N:1 (procedure↔kit es N:N vía esta tabla) | Procedimiento. | `CASCADE`  |
-| `kit_id`            | `kit.id`                | N:1 (procedure↔kit es N:N vía esta tabla) | Receta.        | `RESTRICT` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `procedure_type_id` | `cat_procedure_type.id` | N:1 (procedure↔kit is N:N via this table) | Procedure. | `CASCADE` |
+| `kit_id` | `kit.id` | N:1 (procedure↔kit is N:N via this table) | Recipe. | `RESTRICT` |
 
 
 UNIQUE (`procedure_type_id`, `kit_id`).  
-UNIQUE parcial: un solo default activo por `procedure_type_id`.
+Partial UNIQUE: at most one active default per `procedure_type_id`.
 
 ```json
 {
   "id": "k1000003-0000-4000-8000-000000000003",
   "procedure_type_id": "a1000003-0000-4000-8000-000000000003",
   "kit_id": "k1000001-0000-4000-8000-000000000001",
-  "technique_label": "Técnica abierta estándar",
+  "technique_label": "Standard open technique",
   "is_default": true,
   "active": true,
   "created_at": "2026-04-01T10:05:00Z",
@@ -472,28 +471,28 @@ UNIQUE parcial: un solo default activo por `procedure_type_id`.
 
 ---
 
-#### 1.3.13 Tabla `procedure_phase`
+#### 1.3.13 Table `procedure_phase`
 
-**Para qué:** fases ordenadas de un procedimiento y si exigen conteo.
-
-
-| Campo               | Tipo     | Nulo | Default             | Significado                   |
-| ------------------- | -------- | ---- | ------------------- | ----------------------------- |
-| `id`                | UUID     | NO   | `gen_random_uuid()` | PK.                           |
-| `procedure_type_id` | UUID     | NO   | —                   | Procedimiento.                |
-| `phase_id`          | UUID     | NO   | —                   | Fase del catálogo.            |
-| `sort_order`        | SMALLINT | NO   | —                   | Orden (> 0).                  |
-| `is_count_required` | BOOLEAN  | NO   | `TRUE`              | Si en esa fase debe contarse. |
-| `active`            | BOOLEAN  | NO   | `TRUE`              | Vigente.                      |
+**Purpose:** ordered phases for a procedure and whether each requires counting.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `procedure_type_id` | UUID | NO | — | Procedure. |
+| `phase_id` | UUID | NO | — | Catalog phase. |
+| `sort_order` | SMALLINT | NO | — | Order (> 0). |
+| `is_count_required` | BOOLEAN | NO | `TRUE` | Whether counting is required in this phase. |
+| `active` | BOOLEAN | NO | `TRUE` | Active. |
 
 
-| Campo               | Apunta a                 | Relación | Por qué          | ON DELETE  |
-| ------------------- | ------------------------ | -------- | ---------------- | ---------- |
-| `procedure_type_id` | `cat_procedure_type.id`  | N:1      | Dueño del flujo. | `CASCADE`  |
-| `phase_id`          | `cat_operation_phase.id` | N:1      | Fase clínica.    | `RESTRICT` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `procedure_type_id` | `cat_procedure_type.id` | N:1 | Workflow owner. | `CASCADE` |
+| `phase_id` | `cat_operation_phase.id` | N:1 | Clinical phase. | `RESTRICT` |
 
 
 UNIQUE (`procedure_type_id`, `phase_id`); UNIQUE (`procedure_type_id`, `sort_order`).
@@ -511,32 +510,32 @@ UNIQUE (`procedure_type_id`, `phase_id`); UNIQUE (`procedure_type_id`, `sort_ord
 
 ---
 
-#### 1.3.14 Tabla `instrument_reservation`
+#### 1.3.14 Table `instrument_reservation`
 
-**Para qué:** pieza reservada a una operación (una reserva activa por pieza).
-
-
-| Campo           | Tipo        | Nulo | Default             | Significado        |
-| --------------- | ----------- | ---- | ------------------- | ------------------ |
-| `id`            | UUID        | NO   | `gen_random_uuid()` | PK.                |
-| `operation_id`  | UUID        | NO   | —                   | Operación.         |
-| `instrument_id` | UUID        | NO   | —                   | Pieza.             |
-| `reserved_at`   | TIMESTAMPTZ | NO   | `now()`             | Inicio de reserva. |
-| `released_at`   | TIMESTAMPTZ | SÍ   | NULL                | Liberación.        |
-| `active`        | BOOLEAN     | NO   | `TRUE`              | Reserva vigente.   |
+**Purpose:** physical piece reserved for an operation (at most one active reservation per piece).
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `operation_id` | UUID | NO | — | Operation. |
+| `instrument_id` | UUID | NO | — | Piece. |
+| `reserved_at` | TIMESTAMPTZ | NO | `now()` | Reservation start. |
+| `released_at` | TIMESTAMPTZ | YES | NULL | Release time. |
+| `active` | BOOLEAN | NO | `TRUE` | Active reservation. |
 
 
-| Campo           | Apunta a              | Relación                                                                               | Por qué                    | ON DELETE  |
-| --------------- | --------------------- | -------------------------------------------------------------------------------------- | -------------------------- | ---------- |
-| `operation_id`  | `operation.id` (DS02) | N:1                                                                                    | Caso que retiene la pieza. | `CASCADE`  |
-| `instrument_id` | `instrument.id`       | N:1 (con UNIQUE parcial activo: a lo sumo 1 reserva activa por pieza ≈ 0..1:1 vigente) | Pieza retenida.            | `RESTRICT` |
+**References**
 
 
-CHECK: `released_at` ≥ `reserved_at` si ambas existen.  
-UNIQUE parcial: `instrument_id` WHERE `active = TRUE`.
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `operation_id` | `operation.id` (DS02) | N:1 | Case holding the piece. | `CASCADE` |
+| `instrument_id` | `instrument.id` | N:1 (with active partial UNIQUE: at most 1 active reservation per piece ≈ active 0..1:1) | Held piece. | `RESTRICT` |
+
+
+CHECK: `released_at` ≥ `reserved_at` when both are present.  
+Partial UNIQUE: `instrument_id` WHERE `active = TRUE`.
 
 ```json
 {
@@ -551,34 +550,34 @@ UNIQUE parcial: `instrument_id` WHERE `active = TRUE`.
 
 ---
 
-#### 1.3.15 Tabla `yolo_model`
+#### 1.3.15 Table `yolo_model`
 
-**Para qué:** registro de versión del detector.
-
-
-| Campo            | Tipo        | Nulo | Default             | Significado                          |
-| ---------------- | ----------- | ---- | ------------------- | ------------------------------------ |
-| `id`             | UUID        | NO   | `gen_random_uuid()` | PK.                                  |
-| `version_tag`    | VARCHAR(32) | NO   | —                   | Etiqueta única de versión.           |
-| `media_asset_id` | UUID        | SÍ   | NULL                | Archivo de pesos (DS05).             |
-| `checksum`       | CHAR(64)    | SÍ   | NULL                | Hash del artefacto (p. ej. SHA-256). |
-| `architecture`   | VARCHAR(64) | SÍ   | NULL                | Familia del detector extraída al alta Admin (ej. `yolo26`). |
-| `model_size`     | VARCHAR(8)  | SÍ   | NULL                | Tamaño del peso (ej. `n`, `s`, `m`, `l`, `x`). |
-| `active`         | BOOLEAN     | NO   | `FALSE`             | Si es el modelo en producción **para Starts nuevos**. |
-| `published_at`   | TIMESTAMPTZ | NO   | `now()`             | Publicación.                         |
+**Purpose:** detector version registry.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `version_tag` | VARCHAR(32) | NO | — | Unique version tag. |
+| `media_asset_id` | UUID | YES | NULL | Weights file (DS05). |
+| `checksum` | CHAR(64) | YES | NULL | Artifact hash (e.g., SHA-256). |
+| `architecture` | VARCHAR(64) | YES | NULL | Detector family extracted on Admin upload (e.g., `yolo26`). |
+| `model_size` | VARCHAR(8) | YES | NULL | Weight size (e.g., `n`, `s`, `m`, `l`, `x`). |
+| `active` | BOOLEAN | NO | `FALSE` | Whether this is the production model **for new Starts**. |
+| `published_at` | TIMESTAMPTZ | NO | `now()` | Publication timestamp. |
 
 
-| Campo            | Apunta a                | Relación | Por qué                  | ON DELETE  |
-| ---------------- | ----------------------- | -------- | ------------------------ | ---------- |
-| `media_asset_id` | `media_asset.id` (DS05) | N:0..1   | Bytes del `.pt`/weights. | `SET NULL` |
+**References**
 
 
-UNIQUE `version_tag`. UNIQUE parcial: un solo `active = TRUE`.
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `media_asset_id` | `media_asset.id` (DS05) | N:0..1 | `.pt`/weights bytes. | `SET NULL` |
 
-**Pin de sesión:** `work_session.yolo_model_id` (PEF-DS04). El worker de una sesión ya abierta lee esa FK, no este `active`.
+
+UNIQUE `version_tag`. Partial UNIQUE: at most one `active = TRUE`.
+
+**Session pin:** `work_session.yolo_model_id` (PEF-DS04). The worker for an already-open session reads that FK, not this global `active` flag.
 
 ```json
 {
@@ -595,26 +594,26 @@ UNIQUE `version_tag`. UNIQUE parcial: un solo `active = TRUE`.
 
 ---
 
-#### 1.3.16 Tabla `model_class`
+#### 1.3.16 Table `model_class`
 
-**Para qué:** mapa clase YOLO → familia para una versión de modelo.
-
-
-| Campo           | Tipo     | Nulo | Default             | Significado                       |
-| --------------- | -------- | ---- | ------------------- | --------------------------------- |
-| `id`            | UUID     | NO   | `gen_random_uuid()` | PK.                               |
-| `model_id`      | UUID     | NO   | —                   | Modelo.                           |
-| `family_id`     | UUID     | NO   | —                   | Familia detectada.                |
-| `yolo_class_id` | SMALLINT | NO   | —                   | Entero de clase del modelo (≥ 0). |
+**Purpose:** maps YOLO class → family for a specific model version.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `model_id` | UUID | NO | — | Model. |
+| `family_id` | UUID | NO | — | Detected family. |
+| `yolo_class_id` | SMALLINT | NO | — | Model class integer (≥ 0). |
 
 
-| Campo       | Apunta a               | Relación | Por qué               | ON DELETE  |
-| ----------- | ---------------------- | -------- | --------------------- | ---------- |
-| `model_id`  | `yolo_model.id`        | N:1      | Versión del detector. | `CASCADE`  |
-| `family_id` | `instrument_family.id` | N:1      | Tipo de instrumento.  | `RESTRICT` |
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `model_id` | `yolo_model.id` | N:1 | Detector version. | `CASCADE` |
+| `family_id` | `instrument_family.id` | N:1 | Instrument type. | `RESTRICT` |
 
 
 UNIQUE (`model_id`, `yolo_class_id`); UNIQUE (`model_id`, `family_id`).
@@ -633,58 +632,56 @@ UNIQUE (`model_id`, `yolo_class_id`); UNIQUE (`model_id`, `family_id`).
 ### 1.4 Governance and Ownership
 
 
-| Aspecto               | Responsable                                |
-| --------------------- | ------------------------------------------ |
-| Familias y kits       | PEF Core / estandarización de instrumental |
-| Publicación de modelo | Visión / MLOps                             |
-| Reservas              | Flujo de quirófano (portal/estación)       |
+| Aspect | Owner |
+| --- | --- |
+| Families and kits | PEF Core / instrument standardization |
+| Model publishing | Vision / MLOps |
+| Reservations | Operating room workflow (portal/station) |
 
 
-Cambiar clases de un modelo ya usado = publicar **otra** versión, no reescribir historia.
-
----
-
-### 1.5 Justificación del estándar
-
-**Por qué este bloque**
-
-Hay que separar tres ideas que la gente mezcla: 1 tipo de instrumento, 2 pieza física con ciclo, 3 número de clase que escupió YOLO. Sin eso no se audita si “faltó un tipo” o “faltó la pieza NH-MH-014”, ni con qué modelo se contó.
-
-**Decisiones tomadas**
-
-1. **Stock = filas** `instrument`, no tabla `family_stock`. El conteo esperado viene del kit (familias); el inventario real son piezas.
-2. **Kit = receta por familia**, no lista de UUIDs. Reutilizable y versionable; la sesión congela el esperado en DS04.
-3. **Estado de ciclo actual en la pieza + historial en** `instrument_cycle_event`**.** Consulta rápida sin perder traza.
-4. **Un solo** `yolo_model` **activo** + `model_class` por versión. Evita ambigüedad en el worker.
-5. **Reserva única activa por pieza.** Impide doble asignación.
-6. **Pesos y fotos solo por** `media_asset_id`**.** Este DS no administra buckets.
-
-**Alternativas no elegidas**
-
-
-| Alternativa                               | Por qué no                                                      |
-| ----------------------------------------- | --------------------------------------------------------------- |
-| Contar stock solo como entero por familia | Pierde serialización, ciclo y reserva por pieza.                |
-| Kit que lista piezas concretas            | Cada cirugía armaría un kit distinto; no hay plantilla estable. |
-| Clases YOLO hardcodeadas en el worker     | Al cambiar el modelo se rompe producción sin registro.          |
-| Varios modelos `active` a la vez          | La estación no sabría cuál usar sin otra capa de routing.       |
-| Meter bounding boxes aquí                 | Eso es telemetría de visión (Mongo / DS06), no catálogo.        |
-| `family_stock` + `instrument`             | Duplica la verdad; los totales se calculan contando piezas.     |
-
+Changing the classes of a model already in use = publish **another** version, never rewrite history.
 
 ---
 
-## 2. Anexo A – Información general
+### 1.5 Standard Rationale
+
+**Why this block exists**
+
+Three concepts that are often conflated must stay separate: (1) instrument type, (2) physical piece with lifecycle state, and (3) integer class ID emitted by YOLO. Without this separation, it is impossible to audit whether "a type was missing" versus "piece NH-MH-014 was missing," or which model produced the count.
+
+**Design decisions taken**
+
+1. **Stock =** `instrument` **rows**, not a `family_stock` table. Expected counts come from the kit (families); real inventory consists of pieces.
+2. **Kit = family-level recipe**, not a list of piece UUIDs. Reusable and versionable; the session freezes expected quantities in DS04.
+3. **Current cycle status on the piece + history in** `instrument_cycle_event`**.** Fast queries without losing audit trail.
+4. **Single active** `yolo_model` + per-version `model_class`. Prevents ambiguity in the worker.
+5. **Single active reservation per piece.** Prevents double-allocation.
+6. **Weights and photos referenced only via** `media_asset_id`**.** This DS does not manage buckets.
+
+**Rejected alternatives**
 
 
-| Campo             | Valor                                                     |
-| ----------------- | --------------------------------------------------------- |
-| Código            | PEF-DS03                                                  |
-| Título            | Instrument Kits and Model Registry                        |
-| Versión           | 0.2.0                                                     |
-| Estado            | draft                                                     |
-| Almacén           | PostgreSQL (§5.6 + catálogos de instrumental/fase)        |
-| Fuera de alcance  | `expected_inventory`, `count_event`, bytes object storage |
-| DDL de referencia | `esquema_base_datos_v2.md`                                |
+| Alternative | Why not |
+| --- | --- |
+| Track stock only as an integer per family | Loses serialization, lifecycle history, and per-piece reservations. |
+| Kit listing specific physical pieces | Every surgery would need a different kit; no stable template. |
+| Hardcode YOLO classes in the worker | Changing the model breaks production with no audit trail. |
+| Multiple `active` models simultaneously | The station would not know which one to use without an extra routing layer. |
+| Store bounding boxes here | That belongs to vision telemetry (MongoDB / DS06), not catalog data. |
+| `family_stock` + `instrument` | Duplicates the source of truth; totals are computed by counting pieces. |
 
 
+---
+
+## 2. Annex A – General Information
+
+
+| Field | Value |
+| --- | --- |
+| Code | PEF-DS03 |
+| Title | Instrument Kits and Model Registry |
+| Version | 0.2.0 |
+| Status | draft |
+| Store | PostgreSQL (§5.6 + instrument/phase catalogs) |
+| Out of scope | `expected_inventory`, `count_event`, object storage bytes |
+| Reference DDL | `esquema_base_datos_v2.md` |

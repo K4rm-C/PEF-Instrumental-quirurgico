@@ -267,7 +267,32 @@ DB_RECORD_TEXTS = {
             'Video Demo Kit 1': N_('Video Demo Kit 1'),
         },
         '51515151-0000-4000-8000-000000000002': {
-            'Video Demo Kit 2': N_('Video Demo Kit 2'),
+            'Video Demo Kit 2': N_('Video Demo Overview'),
+            'Video Demo Overview': N_('Video Demo Overview'),
+        },
+        '51515151-0000-4000-8000-000000000003': {
+            'Kit parto vaginal': N_('Vaginal delivery kit'),
+            'Vaginal delivery kit': N_('Vaginal delivery kit'),
+        },
+        '51515151-0000-4000-8000-000000000004': {
+            'Kit hernioplastia abierta': N_('Open hernioplasty kit'),
+            'Open hernioplasty kit': N_('Open hernioplasty kit'),
+        },
+        '51515151-0000-4000-8000-000000000005': {
+            'Kit desbridamiento y cierre': N_('Wound debridement and closure kit'),
+            'Wound debridement and closure kit': N_('Wound debridement and closure kit'),
+        },
+        '51515151-0000-4000-8000-000000000006': {
+            'Kit exéresis / cirugía menor': N_('Excision / minor surgery kit'),
+            'Excision / minor surgery kit': N_('Excision / minor surgery kit'),
+        },
+        '51515151-0000-4000-8000-000000000007': {
+            'Kit apendicectomía abierta': N_('Open appendectomy kit'),
+            'Open appendectomy kit': N_('Open appendectomy kit'),
+        },
+        '51515151-0000-4000-8000-000000000008': {
+            'Kit cesárea': N_('Cesarean kit'),
+            'Cesarean kit': N_('Cesarean kit'),
         },
     },
     'instrument_family': {

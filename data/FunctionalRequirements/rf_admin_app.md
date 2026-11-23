@@ -1,815 +1,813 @@
-# Contrato funcional formal · Administrador TI y Supervisor de piso (App)
+# Formal Functional Contract · IT Administrator and Floor Supervisor (App)
 
-## Cómo leer este documento
+## How to read this document
 
-Cada requisito funcional (RF) sigue la misma plantilla de diez puntos que [rf_operador_supervisor_spd.md](rf_operador_supervisor_spd.md): identificador, actor, llegada, UI, acciones del usuario, efectos en el sistema, almacenes, configuración, salida, errores.
+Each functional requirement (RF) follows the same ten-point template as [rf_operador_supervisor_spd.md](rf_operador_supervisor_spd.md): identifier, actor, entry point, UI, user actions, system effects, stores, configuration, output, errors.
 
-**Convención de escritura en bases de datos:** igual que el contrato OP/SPD (Backend Web escribe PostgreSQL; vision-worker no es dueño de PG; evidence-worker escribe storage + Mongo; el cliente nunca abre JDBC).
+**Database write convention:** same as the OP/SPD contract (Web Backend writes PostgreSQL; vision-worker does not own PG; evidence-worker writes storage + Mongo; the client never opens JDBC).
 
-Este contrato **no sustituye** el de operador/SPD. Lo complementa: Admin es dueño de familias, catálogos de selección, identidad, topología y modelos; la App es vigilancia de piso. El conteo en sala, **kits**, **piezas individuales** y el cierre de ciclo de material siguen en RF-OP-* y RF-SP-*.
+This contract does **not replace** the operator/SPD one. It complements it: Admin owns families, selection catalogs, identity, topology, and models; the App is floor monitoring. Room counting, **kits**, **individual pieces**, and the material cycle closing remain in RF-OP-* and RF-SP-*.
 
 ---
 
-## Glosario de este contrato
+## Glossary of this contract
 
 
-| Término en UI | Significado | Dónde vive |
+| UI term | Meaning | Where it lives |
 | --- | --- | --- |
-| Familia | Tipo de instrumento que se cuenta / detecta | `instrument_family` + `family_example` |
-| Pieza | Unidad física de stock (**SPD**, no Admin) | `instrument` |
-| Kit (receta) | Cantidades por familia, versionada (**SPD**, no Admin) | `kit` + `kit_item` + `procedure_kit` |
-| Modelo activo | Detector que tomarán las **nuevas** sesiones al Start | `yolo_model.active = true` (un solo TRUE) |
-| Pin de modelo | Detector **congelado** en una sesión ya iniciada | `work_session.yolo_model_id` |
-| Hold de sala | Faltante confirmado por humano; SPD aún no entra | `cat_session_status.code = or_hold` |
-| Resolución sugerida | Relato OR (encontrado / no encontrado / búsqueda) | `discrepancy.suggested_resolution` |
-| Liberación a SPD | El **OP** envía el caso a review SPD | status `correction_required` + `or_released_at` |
-| Asignación de sala | SdP ↔ quirófano | `user_operating_room` |
-| Aviso (biblioteca) | PDF/HTML versionado del hospital | `privacy_notice_version` |
-| Acuerdo de sesión | Ligar un aviso a **esta** sesión (sigue siendo SPD) | `session_processing_agreement` |
+| Family | Instrument type that is counted / detected | `instrument_family` + `family_example` |
+| Piece | Physical stock unit (**SPD**, not Admin) | `instrument` |
+| Kit (recipe) | Quantities per family, versioned (**SPD**, not Admin) | `kit` + `kit_item` + `procedure_kit` |
+| Active model | Detector that **new** sessions will take at Start | `yolo_model.active = true` (only one TRUE) |
+| Model pin | Detector **frozen** in an already started session | `work_session.yolo_model_id` |
+| Room hold | Human-confirmed shortfall; SPD does not enter yet | `cat_session_status.code = or_hold` |
+| Suggested resolution | OR account (found / not found / searching) | `discrepancy.suggested_resolution` |
+| Release to SPD | The **OP** sends the case to SPD review | status `correction_required` + `or_released_at` |
+| Room assignment | SdP ↔ operating room | `user_operating_room` |
+| Notice (library) | Hospital's versioned PDF/HTML | `privacy_notice_version` |
+| Session agreement | Linking a notice to **this** session (still SPD's) | `session_processing_agreement` |
 
+**RACI catalog vs operation (v1)**
 
-**RACI catálogo vs operación (v1)**
-
-1. **Admin** crea, edita y **desactiva** familias (con examples), procedimientos/catálogos de selección, avisos, usuarios, roles, salas, estaciones y modelos. Lo desactivado se **oculta** a OP/SPD/App; Admin sí lo lista.
-2. **SPD** da de alta **piezas** (`instrument`), mueve ciclo (`instrument_cycle_event`) y **crea/gestiona kits** (RF-SP-09). Usa familias y procedimientos de Admin al programar (RF-SP-02). No publica pesos.
-3. No hay DELETE físico si hay FKs; solo `active = false`.
-4. FHIR / `integration_client`: **considerado en plan, no diseñado**.
+1. **Admin** creates, edits, and **deactivates** families (with examples), procedures/selection catalogs, notices, users, roles, rooms, stations, and models. Deactivated items are **hidden** from OP/SPD/App; Admin does list them.
+2. **SPD** registers **pieces** (`instrument`), moves the cycle (`instrument_cycle_event`), and **creates/manages kits** (RF-SP-09). Uses Admin's families and procedures when scheduling (RF-SP-02). Does not publish weights.
+3. There is no physical DELETE if there are FKs; only `active = false`.
+4. FHIR / `integration_client`: **considered in the plan, not designed**.
 
 ---
 
-## Roles y acceso
+## Roles and access
 
 
-| Código | Nombre | Cliente | Puede |
+| Code | Name | Client | Can |
 | --- | --- | --- | --- |
-| `it_admin` | Administrador TI | Portal web Admin | Familias, catálogos, IAM, topología, modelos, audit de acceso, ARCO stub |
-| `or_charge` | Supervisor de piso (SdP) | App | Ve todas las salas (las suyas primero); **notif solo** de salas ligadas; comenta holds; **no** cierra ciclo SPD ni edita catálogo |
-| `station_operator` | Operador | Estación | Conteo; documenta hold y **libera a SPD** (RF-OP-07) |
-| `spd_supervisor` | Supervisor SPD | Portal SPD | Programar, kits, piezas, review post-liberación, ciclo de material |
+| `it_admin` | IT Administrator | Admin web portal | Families, catalogs, IAM, topology, models, access audit, ARCO stub |
+| `or_charge` | Floor Supervisor (SdP) | App | Sees all rooms (their own first); **notifications only** for linked rooms; comments on holds; does **not** close the SPD cycle or edit the catalog |
+| `station_operator` | Operator | Station | Counting; documents hold and **releases to SPD** (RF-OP-07) |
+| `spd_supervisor` | SPD Supervisor | SPD Portal | Scheduling, kits, pieces, post-release review, material cycle |
 
+**Fixed rules**
 
-**Reglas fijas**
-
-1. JWT/Redis según DS01. El Backend aplica el rol antes de escribir PostgreSQL.
-2. Admin no valida conteos ni cierra `work_session` de negocio.
-3. App no abre WSS al vision-worker. Live de sesiones = lecturas PG (poll o WS al Backend) + evidencias de video ya guardadas.
-4. Listas de App: **todas** las salas, ordenadas con las de `user_operating_room` del SdP **primero**. **Notificaciones in-app solo** si el hold/sesión es de una sala ligada a ese usuario.
+1. JWT/Redis per DS01. The Backend applies the role before writing to PostgreSQL.
+2. Admin does not validate counts or close business `work_session`s.
+3. The App does not open WSS to the vision-worker. Session live view = PG reads (poll or WS to the Backend) + already stored video evidence.
+4. App lists: **all** rooms, ordered with the SdP's `user_operating_room` ones **first**. **In-app notifications only** if the hold/session belongs to a room linked to that user.
 
 ---
 
-## Estados de sesión (cruce con OP/SPD)
+## Session states (cross-reference with OP/SPD)
 
-Códigos en `cat_session_status`. Admin/App **no** inventan otros.
+Codes in `cat_session_status`. Admin/App do **not** invent others.
 
 
-| code | Quién lo provoca | Quién lo ve como cola |
+| code | Who triggers it | Who sees it as a queue |
 | --- | --- | --- |
-| `scheduled` | SPD programa | App (próximas) |
-| `in_progress` | OP Start | App home / sesiones |
-| `or_hold` | OP confirma **faltante** humano | App alertas + OP-07; **SPD no entra** |
-| `correction_required` | OP **libera** el hold a SPD (RF-OP-07) | Cola SPD review |
-| `awaiting_spd_review` | OP cierra **sin** faltante | Cola SPD cierre limpio |
-| `closed` / `aborted` | SPD u aborto controlado | Histórico |
+| `scheduled` | SPD schedules | App (upcoming) |
+| `in_progress` | OP Start | App home / sessions |
+| `or_hold` | OP confirms human-verified **shortfall** | App alerts + OP-07; **SPD does not enter** |
+| `correction_required` | OP **releases** the hold to SPD (RF-OP-07) | SPD review queue |
+| `awaiting_spd_review` | OP closes **without** shortfall | SPD clean closing queue |
+| `closed` / `aborted` | SPD or controlled abort | History |
 
 ---
 
-## Canales técnicos
+## Technical channels
 
 
-| Canal | Uso en este contrato |
+| Channel | Use in this contract |
 | --- | --- |
-| HTTPS → Backend Web | Todo Admin y toda la App |
-| WSS → vision-worker | No lo usa Admin ni App |
-| Object storage | Pesos `.pt`, imágenes `family_example`, avisos PDF/HTML, evidencias de sesión (solo lectura App) |
-| Mongo `checkpoint_frame` | App lee evidencias/video **ya guardados**; no escribe |
+| HTTPS → Web Backend | All of Admin and all of the App |
+| WSS → vision-worker | Not used by Admin or App |
+| Object storage | `.pt` weights, `family_example` images, PDF/HTML notices, session evidence (read-only for App) |
+| Mongo `checkpoint_frame` | App reads **already stored** evidence/video; does not write |
 
 ---
 
-# PARTE A — ADMINISTRADOR TI
+# PART A — IT ADMINISTRATOR
 
-El administrador inicia sesión con `it_admin`. Home = dashboard de métricas. Lo desactivado permanece visible **solo** aquí.
+The administrator logs in with `it_admin`. Home = metrics dashboard. Deactivated items remain visible **only** here.
 
 ---
 
-## RF-AD-01 · Dashboard de métricas
+## RF-AD-01 · Metrics dashboard
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
-Login portal Admin → Dashboard (sidebar HOME).
+Admin portal login → Dashboard (sidebar HOME).
 
-### Qué muestra la interfaz
+### What the interface shows
 
-KPIs de solo lectura, por ejemplo:
+Read-only KPIs, for example:
 
-- **Catálogo:** familias activas/inactivas, procedimientos, modelos (cuál está `active`).
-- **Sistema:** Auth/PG/Redis/Mongo/storage alcanzables (health; sin fingir microservicios).
-- **Operación:** sesiones por status (`in_progress`, `or_hold`, `correction_required`, `awaiting_spd_review`), usuarios `active = false`.
+- **Catalog:** active/inactive families, procedures, models (which one is `active`).
+- **System:** Auth/PG/Redis/Mongo/storage reachable (health; without faking microservices).
+- **Operation:** sessions by status (`in_progress`, `or_hold`, `correction_required`, `awaiting_spd_review`), users with `active = false`.
 
-Sin botones que cierren casos clínicos. **No** es dueño de conteo de piezas ni de kits (esos KPIs, si aparecen, son de lectura).
+No buttons that close clinical cases. It does **not** own piece counts or kits (those KPIs, if they appear, are read-only).
 
-### Qué hace el usuario
+### What the user does
 
-Consulta; navega a un RF-AD-* de detalle.
+Reviews; navigates to a detailed RF-AD-*.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-`GET` → SELECT agregados. Sin escritura.
+`GET` → SELECT aggregates. No writes.
 
-### Almacenes
+### Stores
 
-PostgreSQL lectura. Health: ping de servicios de app.
+PostgreSQL read. Health: ping of app services.
 
-### Configuración
+### Configuration
 
-Umbrales de color de KPI.
+KPI color thresholds.
 
-### Salida
+### Output
 
-Navegación a familias / IAM / modelos / audit.
+Navigation to families / IAM / models / audit.
 
-### Errores
+### Errors
 
-Si un almacén no responde, el KPI de sistema muestra error; el resto del dashboard no se bloquea.
+If a store does not respond, the system KPI shows an error; the rest of the dashboard is not blocked.
 
 ---
 
-## RF-AD-02 · Familias de instrumentos y examples
+## RF-AD-02 · Instrument families and examples
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
-Sidebar CATÁLOGOS → Instrument families. Alta/edición desde la lista.
+Sidebar CATALOGS → Instrument families. Create/edit from the list.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-Lista (incluye inactivas, badge). Formulario: `code` (el que usa SPD al alta de **pieza**), `name`, `category_id`, `identify_text`, `classify_text`, `function_text`, `active`. **Tabla de `family_example`:** imagen vía `media_asset`, `example_text`, `sort_order`.
+List (includes inactive ones, with badge). Form: `code` (the one SPD uses when registering a **piece**), `name`, `category_id`, `identify_text`, `classify_text`, `function_text`, `active`. **`family_example` table:** image via `media_asset`, `example_text`, `sort_order`.
 
-Botones: Save, Deactivate / Reactivate. No hay Delete si existen `instrument`, `kit_item` o `model_class`.
+Buttons: Save, Deactivate / Reactivate. There is no Delete if `instrument`, `kit_item`, or `model_class` exist.
 
-**Admin no da de alta instrumentos individuales.** Eso es SPD (`instrument` + ciclo).
+**Admin does not register individual instruments.** That is SPD (`instrument` + cycle).
 
-### Qué hace el usuario
+### What the user does
 
-Crea o corrige el maestro de **tipo** (familia) y sus fotos pedagógicas.
+Creates or corrects the master record of the **type** (family) and its educational photos.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
 1. INSERT/UPDATE `instrument_family`.
-2. Por cada example: subir archivo a storage, INSERT `media_asset`, INSERT/UPDATE `family_example`.
-3. Desactivar: `active = false` (OP/SPD/App dejan de ofrecerla en altas nuevas; sesiones ya congeladas no cambian).
-4. `access_audit` acción `catalog.family.upsert` / `catalog.family.deactivate`.
+2. For each example: upload file to storage, INSERT `media_asset`, INSERT/UPDATE `family_example`.
+3. Deactivate: `active = false` (OP/SPD/App stop offering it for new registrations; already frozen sessions do not change).
+4. `access_audit` action `catalog.family.upsert` / `catalog.family.deactivate`.
 
-### Almacenes
+### Stores
 
-PostgreSQL + object storage (imágenes).
+PostgreSQL + object storage (images).
 
-### Configuración
+### Configuration
 
-MIME y tamaño máx. de example (default imagen, 5 MB).
+MIME type and max size of an example (default image, 5 MB).
 
-### Salida
+### Output
 
-Lista de familias.
+Families list.
 
-### Errores
+### Errors
 
-Código duplicado (`uk_instrument_family_code`). Desactivar la familia del modelo activo: advertir y exigir confirmación.
+Duplicate code (`uk_instrument_family_code`). Deactivating the family of the active model: warn and require confirmation.
 
 ---
 
-## RF-AD-03 · Procedimientos y catálogos de selección
+## RF-AD-03 · Procedures and selection catalogs
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
-CATÁLOGOS → Procedures (y subpantallas: fases / categorías / motivos).
+CATALOGS → Procedures (and sub-screens: phases / categories / reasons).
 
-### Qué muestra la interfaz
+### What the interface shows
 
-CRUD de `cat_procedure_type`. Donde el mockup lo permita: `cat_operation_phase` (orden, si el conteo es obligatorio), `cat_instrument_category`, `cat_discrepancy_reason`. OP y SPD solo **eligen** estos valores.
+CRUD of `cat_procedure_type`. Where the mockup allows: `cat_operation_phase` (order, whether the count is mandatory), `cat_instrument_category`, `cat_discrepancy_reason`. OP and SPD only **choose** these values.
 
-### Qué hace el usuario
+### What the user does
 
-Mantiene la biblioteca que alimenta RF-SP-02 y los dropdowns de corrección.
+Maintains the library that feeds RF-SP-02 and the correction dropdowns.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-INSERT/UPDATE catálogos (`code` único). No borrar códigos referenciados (`ON DELETE RESTRICT`); ocultar o `active` si existe. `access_audit`.
+INSERT/UPDATE catalogs (unique `code`). Do not delete referenced codes (`ON DELETE RESTRICT`); hide or use `active` if it exists. `access_audit`.
 
-### Almacenes
+### Stores
 
 PostgreSQL.
 
-### Configuración
+### Configuration
 
-Ninguna.
+None.
 
-### Salida
+### Output
 
-Lista del catálogo editado.
+List of the edited catalog.
 
-### Errores
+### Errors
 
-Código duplicado. Quitar un procedimiento con `operation` ligadas: bloquear o solo ocultar.
+Duplicate code. Removing a procedure with linked `operation`s: block or only hide.
 
 ---
 
-## RF-AD-04 · Biblioteca de avisos de privacidad
+## RF-AD-04 · Privacy notice library
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
-Administración / Privacy notices.
+Administration / Privacy notices.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-Lista de `privacy_notice_version` (`version`, `effective_at`, `active`, enlace al documento). Alta: subir PDF/HTML, versión, vigencia, marcar activa.
+List of `privacy_notice_version` (`version`, `effective_at`, `active`, link to the document). Creation: upload PDF/HTML, version, effective date, mark as active.
 
-**SPD no es dueño de esta biblioteca.** En RF-SP-02 elige una versión activa y **liga el aviso a UNA sesión** (`session_processing_agreement`).
+**SPD does not own this library.** In RF-SP-02 it chooses an active version and **links the notice to ONE session** (`session_processing_agreement`).
 
-### Qué hace el usuario
+### What the user does
 
-Publica o desactiva versiones.
+Publishes or deactivates versions.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-1. Subir a object storage; SHA-256; INSERT `privacy_notice_version`.
-2. Varias activas permitidas por default (`privacy_notice_single_active = false`); el SPD elige.
+1. Upload to object storage; SHA-256; INSERT `privacy_notice_version`.
+2. Multiple active versions allowed by default (`privacy_notice_single_active = false`); SPD chooses.
 3. `access_audit` `privacy.notice.publish`.
 4. **No** INSERT `session_processing_agreement`.
 
-### Almacenes
+### Stores
 
 PostgreSQL + object storage (`privacy-notices/`).
 
-### Configuración
+### Configuration
 
-`privacy_notice_max_mb`, MIME pdf/html (mismos defaults que RF-SP-02).
+`privacy_notice_max_mb`, MIME pdf/html (same defaults as RF-SP-02).
 
-### Salida
+### Output
 
-Lista de versiones.
+List of versions.
 
-### Errores
+### Errors
 
-Hash duplicado: advertir. Sesiones ya acordadas no cambian de versión.
+Duplicate hash: warn. Sessions already agreed do not change version.
 
 ---
 
-## RF-AD-05 · Gestión de usuarios
+## RF-AD-05 · User management
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
 ADMINISTRATION → Users.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-Lista (activos e inactivos): nombre, email, roles, status, last login. Alta/edición: `name`, `email`, rol(es) vía `user_role` (`station_operator` / `spd_supervisor` / `it_admin` / `or_charge`), password inicial o reset, `active`. Modal desactivar.
+List (active and inactive): name, email, roles, status, last login. Create/edit: `name`, `email`, role(s) via `user_role` (`station_operator` / `spd_supervisor` / `it_admin` / `or_charge`), initial password or reset, `active`. Deactivate modal.
 
-Asignación de salas (`user_operating_room`) en el usuario `or_charge`: **sí se usa**. La App lista todas las salas (las suyas primero) y **notifica solo** las ligadas.
+Room assignment (`user_operating_room`) on the `or_charge` user: **is used**. The App lists all rooms (the user's own first) and **notifies only** for linked ones.
 
-### Qué hace el usuario
+### What the user does
 
-Altas, resets, desactivación, ligar SdP ↔ quirófano. Nunca ve el password en claro después de guardar.
+Creation, resets, deactivation, linking SdP ↔ operating room. Never sees the password in clear text after saving.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-INSERT/UPDATE `user` (`password_hash`, `password_updated_at`). INSERT/DELETE `user_role`. INSERT/DELETE `user_operating_room`. Desactivar: `active = false` (login denegado). `access_audit`. Invalidar refresh Redis del usuario desactivado si existe.
+INSERT/UPDATE `user` (`password_hash`, `password_updated_at`). INSERT/DELETE `user_role`. INSERT/DELETE `user_operating_room`. Deactivate: `active = false` (login denied). `access_audit`. Invalidate the deactivated user's Redis refresh token if it exists.
 
-### Almacenes
+### Stores
 
-PostgreSQL + Redis (opcional blacklist).
+PostgreSQL + Redis (optional blacklist).
 
-### Configuración
+### Configuration
 
-Política de longitud de password.
+Password length policy.
 
-### Salida
+### Output
 
-Lista.
+List.
 
-### Errores
+### Errors
 
-Email duplicado. Quitar el último `it_admin` activo: bloquear.
+Duplicate email. Removing the last active `it_admin`: block.
 
 ---
 
-## RF-AD-06 · Gestión de roles
+## RF-AD-06 · Role management
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
 ADMINISTRATION → Roles.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-`code`, `description`, `institution_id`. Los cuatro códigos de producto son fijos en v1: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge`.
+`code`, `description`, `institution_id`. The four product codes are fixed in v1: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge`.
 
-### Qué hace el usuario
+### What the user does
 
-Edita **descripción**. Crear códigos nuevos fuera de esa lista queda fuera de v1.
+Edits the **description**. Creating new codes outside that list is out of scope for v1.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-UPDATE `role.description`. INSERT de códigos no producto: rechazar en v1. `access_audit`.
+UPDATE `role.description`. INSERT of non-product codes: reject in v1. `access_audit`.
 
-### Almacenes
+### Stores
 
 PostgreSQL.
 
-### Configuración
+### Configuration
 
-Ninguna.
+None.
 
-### Salida
+### Output
 
-Lista.
+List.
 
-### Errores
+### Errors
 
-Cambiar `code` de un rol en uso: bloqueado.
+Changing the `code` of a role in use: blocked.
 
 ---
 
-## RF-AD-07 · Quirofanos y estaciones de captura
+## RF-AD-07 · Operating rooms and capture stations
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
 Configuration → Operating rooms / Capture stations.
 
-### Qué muestra la interfaz
+### What the interface shows
 
 CRUD `operating_room` (`code`, `name`, `active`). CRUD `capture_station` (`name`, `room_id`, `roi` JSON, `active`).
 
-### Qué hace el usuario
+### What the user does
 
-Registra o desactiva espacios y postes de cámara.
+Registers or deactivates spaces and camera posts.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-INSERT/UPDATE. Desactivar sala no borra sesiones históricas. `access_audit`.
+INSERT/UPDATE. Deactivating a room does not delete historical sessions. `access_audit`.
 
-### Almacenes
+### Stores
 
 PostgreSQL.
 
-### Configuración
+### Configuration
 
-Validación de ROI (claves `x,y,w,h,frame_w,frame_h`).
+ROI validation (keys `x,y,w,h,frame_w,frame_h`).
 
-### Salida
+### Output
 
-Overview de configuration.
+Configuration overview.
 
-### Errores
+### Errors
 
-Estación sin sala: bloquear. Código de sala duplicado en la institución.
+Station without a room: block. Duplicate room code within the institution.
 
 ---
 
-## RF-AD-08 · Modelos de visión (alta, mapping, activar)
+## RF-AD-08 · Vision models (create, mapping, activate)
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
 ADMINISTRATION → Vision models. New / Edit / Activate.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-Lista: `version_tag`, `architecture`, `model_size`, checksum, `active`, `published_at`.
+List: `version_tag`, `architecture`, `model_size`, checksum, `active`, `published_at`.
 
-**Alta (dos pasos):**
+**Creation (two steps):**
 
-1. Subir archivo de pesos (`.pt`). El Backend calcula SHA-256, guarda `media_asset`, intenta extraer `names` / `nc` y metadatos YOLO. Si el parse falla, pide `names.yaml` o JSON `{id: nombre}`.
-2. Tabla de mapping: `yolo_class_id` → `instrument_family`. Autocompletar si el nombre coincide con `family.code` o `name`. Familias del catálogo **activo** que el modelo **no** trae: **overlay de aviso**; Admin debe **confirmar** para publicar. Clases del modelo sin familia: mapearlas o rechazar esa clase.
+1. Upload the weights file (`.pt`). The Backend computes SHA-256, saves `media_asset`, tries to extract `names` / `nc` and YOLO metadata. If parsing fails, it asks for `names.yaml` or a JSON `{id: name}`.
+2. Mapping table: `yolo_class_id` → `instrument_family`. Autocomplete if the name matches `family.code` or `name`. **Active** catalog families that the model does **not** include: **warning overlay**; Admin must **confirm** to publish. Model classes without a family: map them or reject that class.
 
-Activate: modal “este modelo será el activo para **nuevas** sesiones”. Las `in_progress` / `or_hold` conservan `work_session.yolo_model_id`.
+Activate: modal "this model will be the active one for **new** sessions". `in_progress` / `or_hold` sessions keep `work_session.yolo_model_id`.
 
-No hay Delete; desactivar = `active = false` (v1: no dejar cero activos si hay estaciones vision).
+There is no Delete; deactivate = `active = false` (v1: do not leave zero active models if there are vision stations).
 
-### Qué hace el usuario
+### What the user does
 
-Sube, mapea, confirma el overlay de familias faltantes, publica, activa.
+Uploads, maps, confirms the missing-families overlay, publishes, activates.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
 1. INSERT `yolo_model` (`version_tag`, `media_asset_id`, `checksum`, `architecture`, `model_size`, `active = false`).
-2. INSERT `model_class` por clase mapeada.
-3. Activar: transacción UPDATE el anterior `active = false`, el nuevo `active = true`.
-4. **No** notifica al vision-worker para sesiones abiertas.
+2. INSERT `model_class` for each mapped class.
+3. Activate: transaction that UPDATEs the previous one `active = false` and the new one `active = true`.
+4. Does **not** notify the vision-worker for open sessions.
 5. `access_audit` `vision.model.publish` / `vision.model.activate`.
 
-### Almacenes
+### Stores
 
 PostgreSQL + object storage.
 
-### Configuración
+### Configuration
 
-Tamaño máx. `.pt`; extensiones; texto del overlay de familias faltantes.
+Max `.pt` size; extensions; text of the missing-families overlay.
 
-### Salida
+### Output
 
-Lista de modelos.
+List of models.
 
-### Errores
+### Errors
 
-Checksum ya existente: rechazar. Activar sin `model_class`: bloquear. Parse fallido sin YAML/JSON: bloquear paso 2.
+Checksum already exists: reject. Activate without `model_class`: block. Parse failed without YAML/JSON: block step 2.
 
 ---
 
-## RF-AD-09 · Audit log de accesos
+## RF-AD-09 · Access audit log
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
 ADMINISTRATION → Audit log.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-Tabla de `access_audit`: `occurred_at`, actor, `action`, `resource_type`, `resource_id`, `outcome`, IP. Filtros por fecha, acción, usuario.
+Table of `access_audit`: `occurred_at`, actor, `action`, `resource_type`, `resource_id`, `outcome`, IP. Filters by date, action, user.
 
-Esto **no** es el timeline clínico (`count_event`).
+This is **not** the clinical timeline (`count_event`).
 
-### Qué hace el usuario
+### What the user does
 
-Consulta. Sin editar filas (append-only).
+Reviews. No row editing (append-only).
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-SELECT filtrado. Sin UPDATE/DELETE.
+Filtered SELECT. No UPDATE/DELETE.
 
-### Almacenes
+### Stores
 
 PostgreSQL.
 
-### Configuración
+### Configuration
 
-Paginación.
+Pagination.
 
-### Salida
+### Output
 
-Misma pantalla.
+Same screen.
 
-### Errores
+### Errors
 
-Rango de fechas vacío: no consultar.
+Empty date range: do not query.
 
 ---
 
-## RF-AD-10 · Institución y configuración de aplicación
+## RF-AD-10 · Institution and application configuration
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
 Configuration overview / Edit institution.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-`institution.name`, `active`. Parámetros de aplicación visibles en UI (umbrales KPI, MIME de avisos).
+`institution.name`, `active`. Application parameters visible in the UI (KPI thresholds, notice MIME types).
 
-### Qué hace el usuario
+### What the user does
 
-Corrige nombre; no borra la institución demo.
+Corrects the name; does not delete the demo institution.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
 UPDATE `institution`. `access_audit`.
 
-### Almacenes
+### Stores
 
 PostgreSQL.
 
-### Configuración
+### Configuration
 
-N/A (esta pantalla *es* la config).
+N/A (this screen *is* the config).
 
-### Salida
+### Output
 
 Overview.
 
-### Errores
+### Errors
 
-Dejar `active = false` en la única institución: bloquear en v1.
+Setting `active = false` on the only institution: block in v1.
 
 ---
 
-## RF-AD-11 · Solicitudes ARCO (stub de demo)
+## RF-AD-11 · ARCO requests (demo stub)
 
 ### Actor
 
 `it_admin`
 
-### Cómo se llega
+### How the user gets there
 
-Sidebar legal / ARCO.
+Legal / ARCO sidebar.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-Lista de `privacy_request` si hay filas: tipo, status, paciente, fechas. Detalle de solo lectura.
+List of `privacy_request` if there are rows: type, status, patient, dates. Read-only detail.
 
-Texto fijo de demo: *registro preparado; v1 no ejecuta el derecho.* Los tipos de fila deben parecerse a operaciones ARCO hospitalarias reales (acceso, rectificación, cancelación, oposición) para que la pantalla se entienda en la demo — investigar ese vocabulario institucional; **no** implementar el flujo.
+Fixed demo text: *record prepared; v1 does not execute the right.* The row types should resemble real hospital ARCO operations (access, rectification, cancellation, opposition) so the screen is understandable in the demo — research that institutional vocabulary; do **not** implement the flow.
 
-Sin botones Efectuar borrado / Exportar bundle.
+No Execute deletion / Export bundle buttons.
 
-### Qué hace el usuario
+### What the user does
 
-Abre la pantalla para la demo.
+Opens the screen for the demo.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-SELECT. Sin jobs de purga.
+SELECT. No purge jobs.
 
-### Almacenes
+### Stores
 
-PostgreSQL lectura.
+PostgreSQL read.
 
-### Configuración
+### Configuration
 
-Ninguna.
+None.
 
-### Salida
+### Output
 
-Lista.
+List.
 
-### Errores
+### Errors
 
-Tabla vacía: empty state, no error.
-
----
-
-# PARTE B — APP SUPERVISOR DE PISO
-
-Pestañas: **Inicio**, **Discrepancias/alertas**, **Sesiones**, **Personal**. El detalle de hold (RF-AP-03) es drill-in, no pestaña extra.
-
-El sistema **no** levanta alertas por IA sola. La alerta existe cuando un humano confirmó faltante (`or_hold`).
-
-**Salas:** el SdP **ve todas**. El orden de listas pone **primero** las de `user_operating_room` de ese usuario, luego el resto. **Notificación in-app (y badge de alerta nueva) solo** si `work_session` → `operation.room_id` (o estación/`capture_station.room_id`) está en las salas ligadas a ese `or_charge`.
+Empty table: empty state, not an error.
 
 ---
 
-## RF-AP-01 · Home (KPIs de piso)
+# PART B — FLOOR SUPERVISOR APP
+
+Tabs: **Home** (Inicio), **Discrepancies/alerts**, **Sessions**, **Staff** (Personal). The hold detail (RF-AP-03) is a drill-in, not an extra tab.
+
+The system does **not** raise alerts through AI alone. The alert exists when a human confirmed a shortfall (`or_hold`).
+
+**Rooms:** the SdP **sees all**. List order puts that user's `user_operating_room` rooms **first**, then the rest. **In-app notification (and new-alert badge) only** if `work_session` → `operation.room_id` (or station/`capture_station.room_id`) is in the rooms linked to that `or_charge`.
+
+---
+
+## RF-AP-01 · Home (floor KPIs)
 
 ### Actor
 
 `or_charge`
 
-### Cómo se llega
+### How the user gets there
 
-Login App → pestaña Inicio.
+App login → Home tab.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-KPIs: sesiones `in_progress`; holds `or_hold`; pendientes SPD ya liberadas; atajo a holds. Las cifras de “mis salas” pueden destacarse; el listado global sigue visible.
+KPIs: `in_progress` sessions; `or_hold` holds; already released SPD pending items; shortcut to holds. "My rooms" figures may be highlighted; the global listing remains visible.
 
-### Qué hace el usuario
+### What the user does
 
-Consulta; entra a un caso.
+Reviews; enters a case.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-SELECT agregados sobre todas las salas. Orden: ligadas primero.
+SELECT aggregates over all rooms. Order: linked ones first.
 
-### Almacenes
+### Stores
 
 PostgreSQL.
 
-### Configuración
+### Configuration
 
-Ninguna.
+None.
 
-### Salida
+### Output
 
 AP-02 / AP-03 / AP-04.
 
-### Errores
+### Errors
 
-Vacío: ceros, no error.
+Empty: zeros, not an error.
 
 ---
 
-## RF-AP-02 · Cola de alertas (`or_hold`)
+## RF-AP-02 · Alert queue (`or_hold`)
 
 ### Actor
 
 `or_charge`
 
-### Cómo se llega
+### How the user gets there
 
-Pestaña Discrepancias/alertas.
+Discrepancies/alerts tab.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-Sesiones `or_hold` (faltante humano). Sala, procedimiento, operador, familias en falta, antigüedad. Badge “sin liberar a SPD”.
+`or_hold` sessions (human-verified shortfall). Room, procedure, operator, missing families, age. Badge "not released to SPD".
 
-Lista: todas las salas, **las suyas primero**. **Push/in-app notif solo** de holds en salas ligadas (sin SMS).
+List: all rooms, **their own first**. **Push/in-app notification only** for holds in linked rooms (no SMS).
 
-### Qué hace el usuario
+### What the user does
 
-Abre un caso (RF-AP-03). No resuelve pérdida de pieza.
+Opens a case (RF-AP-03). Does not resolve piece loss.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-SELECT `work_session` status `or_hold` + `discrepancy.resolved = false`. JOIN sala. Notif: filtro `user_operating_room`.
+SELECT `work_session` status `or_hold` + `discrepancy.resolved = false`. JOIN room. Notification: filter `user_operating_room`.
 
-### Almacenes
+### Stores
 
 PostgreSQL.
 
-### Configuración
+### Configuration
 
-TTL del badge de notif.
+TTL of the notification badge.
 
-### Salida
+### Output
 
 RF-AP-03.
 
-### Errores
+### Errors
 
-Hold ya liberado: quitar de la cola; toast “ya en review SPD”.
+Hold already released: remove from the queue; toast "already in SPD review".
 
 ---
 
-## RF-AP-03 · Detalle de hold (solo enterarse; no libera a SPD)
+## RF-AP-03 · Hold detail (for awareness only; does not release to SPD)
 
 ### Actor
 
-`or_charge` (lectura/comentario). El **OP dueño** libera en RF-OP-07.
+`or_charge` (read/comment). The **owning OP** releases in RF-OP-07.
 
-### Cómo se llega
+### How the user gets there
 
-Desde AP-02 o desde sesión en hold.
+From AP-02 or from a session on hold.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-- Ficha (status, expected vs validado, faltantes).
-- Timeline `count_event`.
-- Evidencias: clips/checkpoints **ya guardados** (URL firmada, MP4). **No** stream de cámara.
-- Hilo de comentarios (OP y SdP).
-- Resolución sugerida si OP ya la cargó.
-- Botón **Comentar**. **No** hay “Enviar a SPD”, “Marcar lost” ni “Confirm and close”.
+- Record (status, expected vs validated, shortfalls).
+- `count_event` timeline.
+- Evidence: **already stored** clips/checkpoints (signed URL, MP4). **No** camera stream.
+- Comment thread (OP and SdP).
+- Suggested resolution if the OP already entered it.
+- **Comment** button. There is **no** "Send to SPD", "Mark lost", or "Confirm and close".
 
-El SdP se entera y documenta. **Liberar para SPD va desde OP** (RF-OP-07).
+The SdP is informed and documents. **Releasing to SPD is done by the OP** (RF-OP-07).
 
-### Qué hace el usuario
+### What the user does
 
-Lee evidencias, escribe comentario, espera a que OP libere.
+Reads evidence, writes a comment, waits for the OP to release.
 
-### Qué ocurre en el sistema
+### What happens in the system
 
-Comentar: INSERT `count_event` `or_hold_comment` (`user_id`, `payload` `{discrepancy_id, text, actor_role: or_charge}`). **No** cambia status. **No** llena `or_released_*`.
+Comment: INSERT `count_event` `or_hold_comment` (`user_id`, `payload` `{discrepancy_id, text, actor_role: or_charge}`). Does **not** change status. Does **not** fill `or_released_*`.
 
-### Almacenes
+### Stores
 
-PostgreSQL write (evento). Mongo + storage **lectura**.
+PostgreSQL write (event). Mongo + storage **read**.
 
-### Configuración
+### Configuration
 
-Longitud mínima del comentario (default 10).
+Minimum comment length (default 10).
 
-### Salida
+### Output
 
-Sigue en detalle o vuelve a la cola.
+Stays on the detail or returns to the queue.
 
-### Errores
+### Errors
 
-Comentar sesión que ya no está `or_hold`: bloquear. WSS visión: no abrir.
-
----
-
-## RF-AP-04 · Sesiones (tabla de conteo en vivo, sin cámara)
-
-### Actor
-
-`or_charge`
-
-### Cómo se llega
-
-Pestaña Sesiones.
-
-### Qué muestra la interfaz
-
-Filtros: programadas, en progreso, `or_hold`, procedimiento, sala. Lista **todas** las salas, ligadas primero.
-
-Ficha: datos, inventario, timeline. **Live de tabla de conteo:** expected vs detected y `confidences` por caja al persistirse `count_event` (poll o WS Backend). **Sin** feed de cámara. **Sí** evidencias de video **ya guardadas** (URL firmada, MP4).
-
-### Qué hace el usuario
-
-Filtra y observa.
-
-### Qué ocurre en el sistema
-
-GET lista/detalle. Sin escritura salvo navegación. Notif de cambio a hold: solo si la sala está ligada.
-
-### Almacenes
-
-PostgreSQL. Mongo/storage lectura de evidencias. No WSS DS10.
-
-### Configuración
-
-Intervalo de poll (default 3 s).
-
-### Salida
-
-AP-03 si el status es `or_hold`.
-
-### Errores
-
-Sesión abortada: ficha histórica solo lectura.
+Commenting on a session that is no longer `or_hold`: block. Vision WSS: do not open.
 
 ---
 
-## RF-AP-05 · Personal (médicos y usuarios)
+## RF-AP-04 · Sessions (live count table, no camera)
 
 ### Actor
 
 `or_charge`
 
-### Cómo se llega
+### How the user gets there
 
-Pestaña Personal.
+Sessions tab.
 
-### Qué muestra la interfaz
+### What the interface shows
 
-Directorio de **`physician`** y **`user`** (sin hashes). Por persona:
+Filters: scheduled, in progress, `or_hold`, procedure, room. Lists **all** rooms, linked ones first.
 
-- ficha (especialidad / rol, contacto mínimo);
-- historial de sesiones en las que participó;
-- sesiones **programadas**;
-- si está **en sesión ahora**: cuál y **dónde** (sala).
+Record: data, inventory, timeline. **Live count table:** expected vs detected and `confidences` per box as `count_event` is persisted (poll or Backend WS). **No** camera feed. **Yes** to already stored video evidence (signed URL, MP4).
 
-Un cirujano **puede no tener** cuenta de login. No edita IAM (RF-AD-05).
+### What the user does
 
-### Qué hace el usuario
+Filters and observes.
 
-Consulta; atajo a la sesión relacionada.
+### What happens in the system
 
-### Qué ocurre en el sistema
+GET list/detail. No writes except navigation. Notification of change to hold: only if the room is linked.
 
-SELECT `physician` + `physician_specialty` + `operation_physician` + `user` + `work_session` / `operation` / `operating_room`. Sin password. PHI: no listar `patient.display_name` en este directorio (sí en ficha de sesión ya autorizada).
+### Stores
 
-### Almacenes
+PostgreSQL. Mongo/storage read of evidence. No DS10 WSS.
+
+### Configuration
+
+Poll interval (default 3 s).
+
+### Output
+
+AP-03 if the status is `or_hold`.
+
+### Errors
+
+Aborted session: read-only historical record.
+
+---
+
+## RF-AP-05 · Staff (physicians and users)
+
+### Actor
+
+`or_charge`
+
+### How the user gets there
+
+Staff tab.
+
+### What the interface shows
+
+Directory of **`physician`** and **`user`** (without hashes). For each person:
+
+- record (specialty / role, minimal contact);
+- history of sessions they participated in;
+- **scheduled** sessions;
+- if **currently in a session**: which one and **where** (room).
+
+A surgeon **may not have** a login account. Does not edit IAM (RF-AD-05).
+
+### What the user does
+
+Reviews; shortcut to the related session.
+
+### What happens in the system
+
+SELECT `physician` + `physician_specialty` + `operation_physician` + `user` + `work_session` / `operation` / `operating_room`. No password. PHI: do not list `patient.display_name` in this directory (it is shown in an already authorized session record).
+
+### Stores
 
 PostgreSQL.
 
-### Configuración
+### Configuration
 
-Ninguna crítica.
+Nothing critical.
 
-### Salida
+### Output
 
-Detalle → RF-AP-04.
+Detail → RF-AP-04.
 
-### Errores
+### Errors
 
-Vacío: empty state.
-
----
-
-# PARTE C — FUERA DE ALCANCE (explícito)
-
-- Kits (CRUD receta): RF-SP-09.
-- Instrumentos individuales y ciclo de material: SPD.
-- Familias y examples: RF-AD-02.
-- Clientes máquina FHIR / `integration_client` (considerado, **no diseñado**).
-- Ejecutar derechos ARCO (solo RF-AD-11 stub de lista).
-- Entrenamiento ML ni publicación desde dataset.
-- Push/SMS. Stream de cámara en la App.
-- App que programe sesiones, edite kits, active modelos o **libere hold a SPD**.
-- Admin que valide conteos o cierre `work_session`.
+Empty: empty state.
 
 ---
 
-*Fin del contrato v1 Admin + App. Cualquier cambio de pantalla o de escritura en BD debe actualizar el RF correspondiente aquí y, si toca conteo, kits o review, también [rf_operador_supervisor_spd.md](rf_operador_supervisor_spd.md).*
+# PART C — OUT OF SCOPE (explicit)
+
+- Kits (recipe CRUD): RF-SP-09.
+- Individual instruments and material cycle: SPD.
+- Families and examples: RF-AD-02.
+- FHIR machine clients / `integration_client` (considered, **not designed**).
+- Executing ARCO rights (only RF-AD-11 list stub).
+- ML training or publishing from a dataset.
+- Push/SMS. Camera stream in the App.
+- An App that schedules sessions, edits kits, activates models, or **releases a hold to SPD**.
+- Admin validating counts or closing `work_session`.
+
+---
+
+*End of v1 Admin + App contract. Any screen or DB write change must update the corresponding RF here and, if it affects counting, kits, or review, also [rf_operador_supervisor_spd.md](rf_operador_supervisor_spd.md).*

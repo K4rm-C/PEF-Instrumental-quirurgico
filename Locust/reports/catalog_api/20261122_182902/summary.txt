@@ -1,0 +1,32 @@
+﻿PEF Locust load report (English)
+================================
+Type:          catalog_api
+Started (local): 2026-11-22 18:29:02 -06:00
+Host:          http://127.0.0.1:8080
+Gateway:       http://127.0.0.1:8080
+Portal:        http://127.0.0.1:5000
+Auth:          http://127.0.0.1:5001
+Users:         8
+Spawn rate:    1
+Run time:      3m (cap 10m)
+Headless:      True
+Locustfile:    scenarios/catalog_api.py
+
+Artifacts
+---------
+- pef_catalog_api_report.html   Locust HTML report
+- pef_catalog_api_stats.csv     Request stats
+- pef_catalog_api_stats_history.csv
+- pef_catalog_api_failures.csv
+- pef_catalog_api_exceptions.csv
+
+Notes
+-----
+- Demo credentials only (see data/seeds/DEMO_CREDENTIALS.md).
+- auth_api: keep users low; Gateway login is rate-limited; refresh uses JSON body.
+- admin_portal: kits traffic uses dual.admin.spd (SPD RACI); IT pages use it_admin.
+- Profiles baseline/load/spike/stress/soak drive mixed OP+SPD+catalog via LoadTestShape.
+- Portal types are read-heavy (no inventory mutations in this suite).
+
+Finished (local): 2026-11-22 18:32:03 -06:00
+Exit code:        1

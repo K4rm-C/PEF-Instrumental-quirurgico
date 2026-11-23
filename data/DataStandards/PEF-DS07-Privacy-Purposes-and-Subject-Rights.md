@@ -3,7 +3,7 @@ id: PEF-DS07
 title: Privacy Purposes and Subject Rights
 version: "0.1.0"
 status: draft
-owner: PEF Core / Cumplimiento / Backend Web
+owner: PEF Core / Compliance / Web Backend
 applies_to: [WP, BE]
 stores: [PostgreSQL]
 related: [PEF-DS01, PEF-DS04, PEF-DS05, PEF-DS08]
@@ -12,88 +12,88 @@ last_updated: 2026-09-06
 
 # PEF-DS07 · Privacy Purposes and Subject Rights
 
-## INTRODUCCION
+## INTRODUCTION
 
-Este estándar define **finalidades de tratamiento**, **aviso de privacidad versionado**, **acuerdo por sesión de conteo**, **auditoría de acceso** a recursos sensibles y **solicitudes ARCO** (acceso, rectificación, cancelación, oposición).
+This standard defines **processing purposes**, **versioned privacy notices**, **per-session counting agreements**, **access auditing** for sensitive resources, and **ARCO requests** (access, rectification, cancellation, opposition).
 
-Tablas dueñas: `privacy_notice_version`, `session_processing_agreement`, `access_audit`, `privacy_request`.
+Owned tables: `privacy_notice_version`, `session_processing_agreement`, `access_audit`, `privacy_request`.
 
-Catálogo dueño: `cat_processing_purpose` (vocabulario; el acuerdo usa booleanos, no FK a cada purpose).
+Owned catalog: `cat_processing_purpose` (vocabulary; the agreement uses booleans rather than a per-purpose FK).
 
-No define `media_asset` (PEF-DS05) ni checkpoints (PEF-DS06): los orquesta vía flags de purga/bloqueo. No define login humano (PEF-DS01) ni cliente máquina (PEF-DS08), aunque `access_audit` puede registrar ambos actores.
+It does not define `media_asset` (PEF-DS05) or checkpoints (PEF-DS06): it orchestrates them via purge/block flags. It does not define human login (PEF-DS01) or machine clients (PEF-DS08), though `access_audit` can record both actor types.
 
 ---
 
-## 1. Explicación del estándar
+## 1. Standard Explanation
 
-### 1.1 Definiciones
+### 1.1 Definitions
 
-| Término | Significado |
+| Term | Meaning |
 | :--- | :--- |
-| **Aviso de privacidad versionado** | Texto/URI del aviso con hash y vigencia. |
-| **Acuerdo de sesión** | 0..1 por `work_session`: qué finalidades aplican al usar el conteo. |
-| **quality_ops** | Finalidad siempre verdadera si hay acuerdo: operar y auditar el conteo. |
-| **model_improvement** | Opt-in: permitir listar evidencia de esa sesión para entrenamiento offline. |
-| **access_audit** | Log append-oriented de quién accedió a qué recurso (no es `count_event`). |
-| **privacy_request** | Caso ARCO sobre un paciente sujeto. |
+| **Versioned privacy notice** | Notice text/URI with content hash and effective date. |
+| **Session agreement** | 0..1 per `work_session`: which processing purposes apply when using counting. |
+| **quality_ops** | Purpose that is always true when an agreement exists: operating and auditing counting. |
+| **model_improvement** | Opt-in: allows listing evidence from that session for offline model training. |
+| **access_audit** | Append-oriented log of who accessed which resource (distinct from `count_event`). |
+| **privacy_request** | ARCO case concerning a data-subject patient. |
 
-### 1.2 Uso
+### 1.2 Usage
 
-Al abrir/activar conteo con captura: materializar acuerdo. Al leer paciente/sesión/clip: insertar `access_audit`. Al recibir ARCO: crear `privacy_request` y, si cancelación, bloquear/purgar multi-almacén.
+When opening/activating capture-based counting: materialize an agreement. When reading a patient/session/clip: insert `access_audit`. When receiving an ARCO request: create `privacy_request` and, for cancellation, block/purge across stores.
 
-**Cardinalidad clave:** `work_session` 0..1 `session_processing_agreement` (sesión puede existir sin acuerdo, p. ej. reserva previa).
-
----
-
-### 1.3 Convenciones
+**Key cardinality:** `work_session` 0..1 `session_processing_agreement` (a session may exist without an agreement, e.g., pre-reservation).
 
 ---
 
-#### 1.3.1 Catálogo `cat_processing_purpose`
+### 1.3 Conventions
 
-Vocabulario de finalidades. El acuerdo **no** hace FK fila a fila: usa booleanos (`purpose_quality_ops`, `purpose_model_improvement`), igual patrón que reasons de checkpoint.
+---
 
-| Campo | Tipo | Nulo | Default | Significado |
+#### 1.3.1 Catalog `cat_processing_purpose`
+
+Processing purpose vocabulary. The agreement does **not** hold row-by-row FKs: it uses booleans (`purpose_quality_ops`, `purpose_model_improvement`), following the same pattern as checkpoint reasons.
+
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `code` | VARCHAR(64) | NO | — | Solo: `quality_ops`, `model_improvement`, `external_sharing`. |
-| `name` | VARCHAR(160) | NO | — | Etiqueta. |
-| `active` | BOOLEAN | NO | `TRUE` | Si el purpose está habilitado en el producto. |
+| `code` | VARCHAR(64) | NO | — | Allowed only: `quality_ops`, `model_improvement`, `external_sharing`. |
+| `name` | VARCHAR(160) | NO | — | Label. |
+| `active` | BOOLEAN | NO | `TRUE` | Whether the purpose is enabled in the product. |
 
-**Hacia dónde apunta:** ninguna FK.
+**References:** no FKs.
 
-**Ejemplo de fila completa**
+**Complete example row**
 
 ```json
 {
   "id": "p1000001-0000-4000-8000-000000000001",
   "code": "quality_ops",
-  "name": "Calidad operativa y auditoría del conteo",
+  "name": "Operational quality and count auditing",
   "active": true
 }
 ```
 
-`external_sharing` existe para el futuro; no forma parte del flujo demo.
+`external_sharing` exists for future use; it is not part of the demo workflow.
 
 ---
 
-#### 1.3.2 Tabla `privacy_notice_version`
+#### 1.3.2 Table `privacy_notice_version`
 
-**Para qué:** congelar qué texto de aviso se mostró/aceptó.
+**Purpose:** freeze which privacy notice text was displayed/accepted.
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `version` | VARCHAR(32) | NO | — | Etiqueta de versión única (`2026.09.1`). |
-| `effective_at` | TIMESTAMPTZ | NO | — | Desde cuándo rige. |
-| `document_uri` | TEXT | NO | — | URI del PDF/HTML del aviso. |
-| `content_sha256` | CHAR(64) | SÍ | NULL | Hash del contenido publicado. |
-| `active` | BOOLEAN | NO | `TRUE` | Versión ofrecible a nuevos acuerdos. |
-| `created_at` | TIMESTAMPTZ | NO | `now()` | Alta. |
+| `version` | VARCHAR(32) | NO | — | Unique version label (`2026.09.1`). |
+| `effective_at` | TIMESTAMPTZ | NO | — | Effective start timestamp. |
+| `document_uri` | TEXT | NO | — | URI of the notice PDF/HTML. |
+| `content_sha256` | CHAR(64) | YES | NULL | Hash of the published content. |
+| `active` | BOOLEAN | NO | `TRUE` | Version available for new agreements. |
+| `created_at` | TIMESTAMPTZ | NO | `now()` | Created at. |
 
-**Hacia dónde apunta:** ninguna FK saliente.
+**References:** no outgoing FKs.
 
-**Ejemplo de fila completa**
+**Complete example row**
 
 ```json
 {
@@ -109,29 +109,29 @@ Vocabulario de finalidades. El acuerdo **no** hace FK fila a fila: usa booleanos
 
 ---
 
-#### 1.3.3 Tabla `session_processing_agreement`
+#### 1.3.3 Table `session_processing_agreement`
 
-**Para qué:** registrar finalidades aceptadas para **una** sesión.
+**Purpose:** record accepted processing purposes for **one** session.
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `session_id` | UUID | NO | — | Sesión (único: 0..1 acuerdo). |
-| `privacy_notice_version_id` | UUID | NO | — | Aviso vigente al acordar. |
-| `purpose_quality_ops` | BOOLEAN | NO | `TRUE` | Siempre debe ser true (CHECK). |
-| `purpose_model_improvement` | BOOLEAN | NO | `FALSE` | Opt-in mejora de modelo. |
-| `agreed_at` | TIMESTAMPTZ | NO | `now()` | Momento del acuerdo. |
-| `agreed_by_user_id` | UUID | SÍ | NULL | Quién aceptó. |
+| `session_id` | UUID | NO | — | Session (unique: 0..1 agreement). |
+| `privacy_notice_version_id` | UUID | NO | — | Notice version active at agreement time. |
+| `purpose_quality_ops` | BOOLEAN | NO | `TRUE` | Must always be true (CHECK). |
+| `purpose_model_improvement` | BOOLEAN | NO | `FALSE` | Model improvement opt-in. |
+| `agreed_at` | TIMESTAMPTZ | NO | `now()` | Agreement timestamp. |
+| `agreed_by_user_id` | UUID | YES | NULL | Who accepted. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `session_id` | `work_session.id` (DS04) | 1:1 (UNIQUE session_id; sesión 0..1 acuerdo) | Ancla del tratamiento. | `CASCADE` |
-| `privacy_notice_version_id` | `privacy_notice_version.id` | N:1 | Qué texto se aceptó. | `RESTRICT` |
-| `agreed_by_user_id` | `user.id` (DS01) | N:0..1 | Actor humano. | `SET NULL` |
+| `session_id` | `work_session.id` (DS04) | 1:1 (UNIQUE session_id; session has 0..1 agreement) | Processing anchor. | `CASCADE` |
+| `privacy_notice_version_id` | `privacy_notice_version.id` | N:1 | Which text was accepted. | `RESTRICT` |
+| `agreed_by_user_id` | `user.id` (DS01) | N:0..1 | Human actor. | `SET NULL` |
 
-**Ejemplo de fila completa**
+**Complete example row**
 
 ```json
 {
@@ -147,37 +147,37 @@ Vocabulario de finalidades. El acuerdo **no** hace FK fila a fila: usa booleanos
 
 ---
 
-#### 1.3.4 Tabla `access_audit`
+#### 1.3.4 Table `access_audit`
 
-**Para qué:** traza de acceso a recursos (PHI, evidencia, export). No es bitácora de conteo.
+**Purpose:** access trace for sensitive resources (PHI, evidence, exports). Not a counting log.
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `occurred_at` | TIMESTAMPTZ | NO | `now()` | Momento. |
-| `actor_type` | VARCHAR(16) | NO | — | `user` o `client`. |
-| `actor_user_id` | UUID | SÍ | NULL | Usuario si `actor_type=user`. |
-| `actor_client_id` | UUID | SÍ | NULL | Cliente máquina si `actor_type=client`. |
-| `action` | VARCHAR(64) | NO | — | Ej. `read`, `export`, `download`. |
-| `resource_type` | VARCHAR(64) | NO | — | Ej. `patient`, `work_session`, `media_asset`. |
-| `resource_id` | UUID | NO | — | UUID del recurso. |
-| `institution_id` | UUID | SÍ | NULL | Tenant del acceso. |
-| `outcome` | VARCHAR(16) | NO | `'success'` | `success` o `denied`. |
-| `correlation_id` | VARCHAR(64) | SÍ | NULL | Correlación HTTP/WSS. |
-| `ip` | INET | SÍ | NULL | IP de origen. |
+| `occurred_at` | TIMESTAMPTZ | NO | `now()` | Timestamp. |
+| `actor_type` | VARCHAR(16) | NO | — | `user` or `client`. |
+| `actor_user_id` | UUID | YES | NULL | User when `actor_type=user`. |
+| `actor_client_id` | UUID | YES | NULL | Machine client when `actor_type=client`. |
+| `action` | VARCHAR(64) | NO | — | E.g. `read`, `export`, `download`. |
+| `resource_type` | VARCHAR(64) | NO | — | E.g. `patient`, `work_session`, `media_asset`. |
+| `resource_id` | UUID | NO | — | Resource UUID. |
+| `institution_id` | UUID | YES | NULL | Access tenant. |
+| `outcome` | VARCHAR(16) | NO | `'success'` | `success` or `denied`. |
+| `correlation_id` | VARCHAR(64) | YES | NULL | HTTP/WSS correlation ID. |
+| `ip` | INET | YES | NULL | Source IP. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `actor_user_id` | `user.id` (DS01) | N:0..1 | Actor humano. | `SET NULL` |
-| `actor_client_id` | `integration_client.id` (DS08) | N:0..1 | Actor máquina. | `SET NULL` |
-| `institution_id` | `institution.id` (DS01) | N:0..1 | Contexto tenant. | `SET NULL` |
-| `resource_id` | Lógico según `resource_type` | N:1 lógico | Sin FK polimórfica. | N/A |
+| `actor_user_id` | `user.id` (DS01) | N:0..1 | Human actor. | `SET NULL` |
+| `actor_client_id` | `integration_client.id` (DS08) | N:0..1 | Machine actor. | `SET NULL` |
+| `institution_id` | `institution.id` (DS01) | N:0..1 | Tenant context. | `SET NULL` |
+| `resource_id` | Logical per `resource_type` | Logical N:1 | No polymorphic FK. | N/A |
 
-CHECK: par actor coherente con `actor_type`; `outcome` ∈ (`success`,`denied`).
+CHECK: actor columns consistent with `actor_type`; `outcome` ∈ (`success`, `denied`).
 
-**Ejemplo de fila completa**
+**Complete example row**
 
 ```json
 {
@@ -198,35 +198,35 @@ CHECK: par actor coherente con `actor_type`; `outcome` ∈ (`success`,`denied`).
 
 ---
 
-#### 1.3.5 Tabla `privacy_request`
+#### 1.3.5 Table `privacy_request`
 
-**Para qué:** expediente de derecho ARCO del titular (paciente).
+**Purpose:** ARCO rights case file for a data subject (patient).
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
 | `request_type` | VARCHAR(16) | NO | — | `access`, `rectify`, `cancel`, `oppose`. |
 | `status` | VARCHAR(32) | NO | `'received'` | `received`, `in_progress`, `completed`, `denied`. |
-| `channel` | VARCHAR(32) | SÍ | NULL | Canal de recepción (`portal`, `email`, …). |
-| `subject_patient_id` | UUID | NO | — | Paciente titular. |
-| `requested_at` | TIMESTAMPTZ | NO | `now()` | Recepción. |
-| `due_at` | TIMESTAMPTZ | SÍ | NULL | Plazo interno de respuesta. |
-| `handled_by_user_id` | UUID | SÍ | NULL | Operador de cumplimiento. |
-| `resolution_notes` | TEXT | SÍ | NULL | Notas de resolución. |
-| `completed_at` | TIMESTAMPTZ | SÍ | NULL | Cierre (obligatorio si completed/denied). |
-| `created_at` | TIMESTAMPTZ | NO | `now()` | Alta. |
-| `updated_at` | TIMESTAMPTZ | NO | `now()` | Edición. |
+| `channel` | VARCHAR(32) | YES | NULL | Intake channel (`portal`, `email`, …). |
+| `subject_patient_id` | UUID | NO | — | Data-subject patient. |
+| `requested_at` | TIMESTAMPTZ | NO | `now()` | Received timestamp. |
+| `due_at` | TIMESTAMPTZ | YES | NULL | Internal response deadline. |
+| `handled_by_user_id` | UUID | YES | NULL | Compliance operator. |
+| `resolution_notes` | TEXT | YES | NULL | Resolution notes. |
+| `completed_at` | TIMESTAMPTZ | YES | NULL | Closure timestamp (required if completed/denied). |
+| `created_at` | TIMESTAMPTZ | NO | `now()` | Created at. |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Updated at. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `subject_patient_id` | `patient.id` (DS02) | N:1 | Titular. | `RESTRICT` |
-| `handled_by_user_id` | `user.id` (DS01) | N:0..1 | Quién atiende. | `SET NULL` |
+| `subject_patient_id` | `patient.id` (DS02) | N:1 | Data subject. | `RESTRICT` |
+| `handled_by_user_id` | `user.id` (DS01) | N:0..1 | Handler. | `SET NULL` |
 
-**Cancelación (orientación operativa):** marcar `media_asset.blocked_at` / `purge_requested_at` de evidencias ligadas; borrar/anonymizar según política; reutilizar job de DS05; no “un checkbox”.
+**Cancellation (operational guidance):** set `media_asset.blocked_at` / `purge_requested_at` on linked evidence; delete/anonymize per policy; reuse the DS05 purge job; not "just a checkbox."
 
-**Ejemplo de fila completa**
+**Complete example row**
 
 ```json
 {
@@ -238,7 +238,7 @@ CHECK: par actor coherente con `actor_type`; `outcome` ∈ (`success`,`denied`).
   "requested_at": "2026-09-06T10:00:00Z",
   "due_at": "2026-09-26T10:00:00Z",
   "handled_by_user_id": "22222222-2222-2222-2222-222222222222",
-  "resolution_notes": "Inventario de sesiones y media en curso.",
+  "resolution_notes": "Inventory of linked sessions and media in progress.",
   "completed_at": null,
   "created_at": "2026-09-06T10:00:00Z",
   "updated_at": "2026-09-06T11:00:00Z"
@@ -249,49 +249,49 @@ CHECK: par actor coherente con `actor_type`; `outcome` ∈ (`success`,`denied`).
 
 ### 1.4 Governance and Ownership
 
-| Aspecto | Responsable |
+| Aspect | Owner |
 | :--- | :--- |
-| Texto del aviso | Legal / cumplimiento institucional |
-| Acuerdos de sesión | Estación / Backend al activar captura |
-| access_audit | Todos los endpoints/pantallas que lean PHI |
-| ARCO | Rol de cumplimiento |
+| Privacy notice text | Legal / institutional compliance |
+| Session agreements | Station / Backend upon capture activation |
+| `access_audit` | All endpoints/screens reading PHI |
+| ARCO | Compliance role |
 
 ---
 
-### 1.5 Justificación del estándar
+### 1.5 Standard Rationale
 
-**Por qué existe**
+**Why it exists**
 
-Sin finalidades y sin traza de acceso, el conteo con evidencia nominativa no se puede explicar a un auditor ni atender ARCO.
+Without explicit purposes and an access trail, counting with identifiable evidence cannot be explained to an auditor or fulfill ARCO obligations.
 
-**Decisiones tomadas**
+**Design decisions taken**
 
-1. **Acuerdo 0..1 por sesión**, no obligatorio al crear la sesión (reserva previa).
-2. **`quality_ops` siempre true** en el acuerdo; **`model_improvement` opt-in**.
-3. **Booleanos en el acuerdo** + catálogo de purposes (como checkpoint reasons).
-4. **`access_audit` separado de `count_event`.**
-5. **Actor user XOR client** en el mismo log.
-6. **ARCO como entidad** que orquesta purga ya modelada en `media_asset`. En v1 el portal Admin solo **lista** `privacy_request` (stub RF-AD-11); no ejecuta acceso, rectificación, cancelación ni oposición.
+1. **0..1 agreement per session**, not mandatory on session creation (supports pre-reservation).
+2. **`quality_ops` always true** in the agreement; **`model_improvement` opt-in**.
+3. **Booleans on the agreement** + purpose catalog (same pattern as checkpoint reasons).
+4. **`access_audit` separate from `count_event`.**
+5. **Actor user XOR client** in the same audit log.
+6. **ARCO as an entity** orchestrating purges already modeled in `media_asset`. In v1, the Admin portal only **lists** `privacy_request` (stub RF-AD-11); it does not execute access, rectification, cancellation, or opposition workflows.
 
-**Alternativas no elegidas**
+**Rejected alternatives**
 
-| Alternativa | Por qué no |
+| Alternative | Why not |
 | :--- | :--- |
-| Consentimiento global por usuario sin sesión | La evidencia es por acto/sesión; el opt-in de entrenamiento debe acotarse. |
-| FK N:M acuerdo↔purpose | Más flexible, más complejidad; hoy bastan dos flags + catálogo. |
-| Mezclar ARCO en tickets genéricos | Pierde plazos, tipos y vínculo al paciente. |
-| Auditar cada frame YOLO | Ruido inútil; se audita acceso a recurso nominativo/descarga. |
+| Global per-user consent without session scope | Evidence is per clinical act/session; training opt-in must be scoped. |
+| N:M FK agreement ↔ purpose | More flexible, more complexity; two flags + catalog suffice today. |
+| Mix ARCO into generic support tickets | Loses statutory deadlines, request types, and patient linkage. |
+| Audit every YOLO frame | Useless noise; audit access to identifiable resources/downloads instead. |
 
 ---
 
-## 2. Anexo A – Información general
+## 2. Annex A – General Information
 
-| Campo | Valor |
+| Field | Value |
 | :--- | :--- |
-| Código | PEF-DS07 |
-| Título | Privacy Purposes and Subject Rights |
-| Versión | 0.1.0 |
-| Estado | draft |
-| Almacén | PostgreSQL (§5.7b + `cat_processing_purpose`) |
-| Fuera de alcance | Bytes storage; FHIR export (DS08); contratos HTTP detalle (DS09) |
-| DDL de referencia | `esquema_base_datos_v2.md` |
+| Code | PEF-DS07 |
+| Title | Privacy Purposes and Subject Rights |
+| Version | 0.1.0 |
+| Status | draft |
+| Store | PostgreSQL (§5.7b + `cat_processing_purpose`) |
+| Out of scope | Storage bytes; FHIR export (DS08); detailed HTTP contracts (DS09) |
+| Reference DDL | `esquema_base_datos_v2.md` |

@@ -1,0 +1,6 @@
+Method,Name,Error,Occurrences
+GET,GET /api/v1/catalog/families,HTTPError('401 Client Error: UNAUTHORIZED for url: GET /api/v1/catalog/families'),38
+GET,GET /api/v1/catalog/kits,HTTPError('401 Client Error: UNAUTHORIZED for url: GET /api/v1/catalog/kits'),35
+GET,GET /api/v1/catalog/instruments,HTTPError('401 Client Error: UNAUTHORIZED for url: GET /api/v1/catalog/instruments'),13
+POST,POST /api/v1/auth/login,CatchResponseError('login HTTP 429'),1
+GET,GET /api/v1/catalog/categories,HTTPError('401 Client Error: UNAUTHORIZED for url: GET /api/v1/catalog/categories'),20

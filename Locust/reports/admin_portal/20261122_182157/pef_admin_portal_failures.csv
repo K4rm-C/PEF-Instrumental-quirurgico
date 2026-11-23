@@ -1,0 +1,2 @@
+Method,Name,Error,Occurrences
+GET,GET /admin/kits,HTTPError('403 Client Error: FORBIDDEN for url: GET /admin/kits'),95

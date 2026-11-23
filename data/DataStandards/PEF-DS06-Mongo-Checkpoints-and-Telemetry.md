@@ -3,7 +3,7 @@ id: PEF-DS06
 title: Mongo Checkpoints and Telemetry
 version: "0.2.0"
 status: draft
-owner: PEF Core / Visión / Worker
+owner: PEF Core / Vision / Worker
 applies_to: [Worker, BE, WP]
 stores: [MongoDB]
 related: [PEF-DS04, PEF-DS05, PEF-DS03]
@@ -12,114 +12,114 @@ last_updated: 2026-11-19
 
 # PEF-DS06 · Mongo Checkpoints and Telemetry
 
-## INTRODUCCION
+## INTRODUCTION
 
-Este estándar define **documentos MongoDB** de evidencia visual ocasional y telemetría ligera del worker.
+This standard defines **MongoDB documents** for occasional visual evidence and lightweight worker telemetry.
 
-Colecciones dueñas: `checkpoint_frame`, `session_telemetry`. Runtime de evidencia: DB típica `pef_evidence` (env `EVIDENCE_MONGO_DB`).
+Owned collections: `checkpoint_frame`, `session_telemetry`. Evidence runtime: typical DB `pef_evidence` (env `EVIDENCE_MONGO_DB`).
 
-Vocabulario de motivo: códigos alineados a `cat_checkpoint_reason` en PostgreSQL (este DS documenta el uso en Mongo; la fila catálogo vive en PG sin FK hacia Mongo).
+Reason vocabulary: codes aligned to `cat_checkpoint_reason` in PostgreSQL (this DS documents MongoDB usage; the catalog row lives in PG with no FK toward MongoDB).
 
-No define hechos de conteo SQL (`count_event`, PEF-DS04). No define bytes del archivo (PEF-DS05): solo `media_asset_id` + URI redundante.
+It does not define SQL count facts (`count_event`, PEF-DS04). It does not define file bytes (PEF-DS05): only `media_asset_id` + redundant URI.
 
 ---
 
-## 1. Explicación del estándar
+## 1. Standard Explanation
 
-### 1.1 Definiciones
+### 1.1 Definitions
 
-| Término | Significado |
+| Term | Meaning |
 | :--- | :--- |
-| **Checkpoint** | Documento que congela un momento visual/detecciones de una sesión. |
-| **Razón (`reason`)** | Motivo tipado (`start`, `close`, `hourly`, `state_change`, `discrepancy`, `manual_pin`). |
-| **Ráfaga / clip** | Varios frames del ring Redis/RAM → un MP4 (H.264) vía EvidenceWorker → **un** checkpoint (no N documentos). |
-| **Telemetría** | Métricas de runtime (FPS, latencia); no es evidencia legal. |
-| **Tope por sesión** | Máximo 30–50 `checkpoint_frame` por `session_id`. |
+| **Checkpoint** | Document freezing a visual moment and detections for a session. |
+| **Reason (`reason`)** | Typed cause (`start`, `close`, `hourly`, `state_change`, `discrepancy`, `manual_pin`). |
+| **Burst / clip** | Multiple frames from the Redis/RAM ring → one MP4 (H.264) via EvidenceWorker → **one** checkpoint (not N documents). |
+| **Telemetry** | Runtime metrics (FPS, latency); not legal evidence. |
+| **Per-session cap** | Maximum 30–50 `checkpoint_frame` documents per `session_id`. |
 
-### 1.2 Uso
+### 1.2 Usage
 
-EvidenceWorker escribe checkpoints y telemetría en Mongo (`pef_evidence`) fuera del hot path (encode + Garage + `media_asset` + Mongo) cuando la política lo pide. VisionWorker alimenta el ring Redis y el WSS en vivo; no escribe checkpoints ni es dueño de Mongo evidencia. Backend/portal listan por `session_id`. Fan-out: detección → WSS UI; `count_event` (DS04) lo materializa Backend/portal; checkpoint Mongo si aplica.
-
----
-
-### 1.3 Convenciones
-
-Enlaces a PG son **lógicos** (UUID string), sin FK Mongo.
-
-Relación lógica: `work_session` 1 → 0..N `checkpoint_frame`; `media_asset` 1 → 0..N checkpoints.
+EvidenceWorker writes checkpoints and telemetry to MongoDB (`pef_evidence`) off the hot path (encode + Garage + `media_asset` + MongoDB) when policy requires it. VisionWorker feeds the Redis ring and live WSS; it does not write checkpoints or own evidence MongoDB. Backend/portal query by `session_id`. Fan-out: detection → WSS UI; `count_event` (DS04) is materialized by Backend/portal; MongoDB checkpoint when applicable.
 
 ---
 
-#### 1.3.1 Vocabulario `cat_checkpoint_reason` (referencia PG)
+### 1.3 Conventions
 
-Tabla PG de códigos (sin FK a Mongo). Campos estándar de catálogo:
+Links to PG are **logical** (UUID strings), with no MongoDB FK.
 
-| Campo | Tipo | Nulo | Default | Significado |
+Logical relationships: `work_session` 1 → 0..N `checkpoint_frame`; `media_asset` 1 → 0..N checkpoints.
+
+---
+
+#### 1.3.1 Vocabulary `cat_checkpoint_reason` (PG Reference)
+
+PostgreSQL code table (no FK to MongoDB). Standard catalog fields:
+
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `code` | VARCHAR(32) | NO | — | Código usado en Mongo `reason`. |
-| `name` | VARCHAR(80) | NO | — | Etiqueta. |
+| `code` | VARCHAR(32) | NO | — | Code used in MongoDB `reason`. |
+| `name` | VARCHAR(80) | NO | — | Label. |
 
-**Ejemplo de fila completa**
+**Complete example row**
 
 ```json
 {
   "id": "d1000001-0000-4000-8000-000000000001",
   "code": "discrepancy",
-  "name": "Discrepancia registrada"
+  "name": "Discrepancy recorded"
 }
 ```
 
-Códigos esperados: `start`, `close`, `hourly`, `state_change`, `discrepancy`, `manual_pin`.
+Expected codes: `start`, `close`, `hourly`, `state_change`, `discrepancy`, `manual_pin`.
 
 ---
 
-#### 1.3.2 Colección `checkpoint_frame`
+#### 1.3.2 Collection `checkpoint_frame`
 
-**Para qué:** evidencia semiestructurada por sesión.
+**Purpose:** semi-structured evidence per session.
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
-| `_id` | ObjectId | NO | auto | PK Mongo. |
+| `_id` | ObjectId | NO | auto | MongoDB PK. |
 | `session_id` | string (UUID) | NO | — | = `work_session.id` (DS04). |
-| `operation_id` | string (UUID) | SÍ | — | Denormalizado para paneles. |
-| `media_asset_id` | string (UUID) | SÍ | — | = `media_asset.id` (DS05). |
-| `gcs_uri` | string | SÍ | — | URI redundante para lectura rápida. |
-| `model_version` | string | SÍ | — | Tag `yolo_model.version_tag` **del modelo pineado en la sesión** (`work_session.yolo_model_id` → `yolo_model.version_tag`, DS04/DS03). No se redefine el contrato Mongo. |
-| `reason` | string | NO | — | Código de motivo (ver catálogo). |
-| `phase_id` | string (UUID) | SÍ | — | Copia de fase al capturar. |
-| `phase_code` | string | SÍ | — | Código de fase denormalizado. |
-| `burst_frame_count` | int | SÍ | — | Frames del ring buffer usados en el clip. |
-| `burst_interval_ms` | int | SÍ | — | Espaciado aproximado entre frames. |
-| `captured_at` | ISODate | NO | — | Momento UTC. |
-| `detections` | array | NO | `[]` | Detecciones del frame clave. |
-| `detections[].family_code` | string | NO* | — | Código de familia. |
-| `detections[].confidence` | number | SÍ | — | Score del modelo. |
-| `detections[].bbox` | array/object | SÍ | — | Caja `[x,y,w,h]` o equivalente. |
-| `retention_until` | ISODate | NO | — | TTL Mongo + alineación con media. |
-| `session_checkpoint_seq` | int | NO | — | Secuencia ascendente por sesión. |
+| `operation_id` | string (UUID) | YES | — | Denormalized for dashboards. |
+| `media_asset_id` | string (UUID) | YES | — | = `media_asset.id` (DS05). |
+| `gcs_uri` | string | YES | — | Redundant URI for fast reads. |
+| `model_version` | string | YES | — | `yolo_model.version_tag` **of the model pinned on the session** (`work_session.yolo_model_id` → `yolo_model.version_tag`, DS04/DS03). Does not redefine the MongoDB contract. |
+| `reason` | string | NO | — | Reason code (see catalog). |
+| `phase_id` | string (UUID) | YES | — | Copy of phase at capture time. |
+| `phase_code` | string | YES | — | Denormalized phase code. |
+| `burst_frame_count` | int | YES | — | Number of ring-buffer frames used in the clip. |
+| `burst_interval_ms` | int | YES | — | Approximate spacing between frames. |
+| `captured_at` | ISODate | NO | — | UTC timestamp. |
+| `detections` | array | NO | `[]` | Detections from the key frame. |
+| `detections[].family_code` | string | NO* | — | Family code. |
+| `detections[].confidence` | number | YES | — | Model score. |
+| `detections[].bbox` | array/object | YES | — | Box `[x,y,w,h]` or equivalent. |
+| `retention_until` | ISODate | NO | — | MongoDB TTL + media alignment. |
+| `session_checkpoint_seq` | int | NO | — | Ascending sequence number per session. |
 
-\*En cada elemento del array, `family_code` es obligatorio si hay detección.
+\*In each array element, `family_code` is required when a detection is present.
 
-**Hacia dónde apunta (lógico)**
+**References (logical)**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `session_id` | `work_session.id` (DS04) | N:1 | Dueño temporal del checkpoint. | N/A (lógico); purga por job/TTL |
-| `operation_id` | `operation.id` (DS02) | N:0..1 | Filtro de panel. | N/A |
-| `media_asset_id` | `media_asset.id` (DS05) | N:0..1 | Bytes del clip (MP4) o JPEG de fallback. | N/A; job borra doc + marca purga media |
+| `session_id` | `work_session.id` (DS04) | N:1 | Temporal owner of the checkpoint. | N/A (logical); purged by job/TTL |
+| `operation_id` | `operation.id` (DS02) | N:0..1 | Dashboard filter. | N/A |
+| `media_asset_id` | `media_asset.id` (DS05) | N:0..1 | Clip (MP4) or fallback JPEG bytes. | N/A; job deletes doc + marks media for purge |
 
-**Índices:** `(session_id, captured_at)`; TTL en `retention_until`; sparse `operation_id`, `phase_code`.
+**Indexes:** `(session_id, captured_at)`; TTL on `retention_until`; sparse `operation_id`, `phase_code`.
 
-**Reglas**
+**Rules**
 
-1. Máximo 30–50 docs por sesión; al exceder, borrar primero `interval`/`hourly` viejos; conservar `start`, `close`, `state_change`, `discrepancy`, `manual_pin`.
-2. Un clip (MP4) = un documento.
-3. Debounce ráfagas ricas: 10–30 s por sesión.
-4. Fallback: si falla el encode MP4 → JPEG único. `gif` no es el formato v1.
-5. Retención: +90 días; +180 si `work_session.extended_retention`.
+1. Maximum 30–50 docs per session; when exceeded, delete oldest `interval`/`hourly` docs first; preserve `start`, `close`, `state_change`, `discrepancy`, `manual_pin`.
+2. One clip (MP4) = one document.
+3. Debounce rich bursts: 10–30 s per session.
+4. Fallback: if MP4 encode fails → single JPEG. `gif` is not the v1 format.
+5. Retention: +90 days; +180 if `work_session.extended_retention`.
 
-**Ejemplo de documento completo**
+**Complete example document**
 
 ```json
 {
@@ -154,29 +154,29 @@ Códigos esperados: `start`, `close`, `hourly`, `state_change`, `discrepancy`, `
 
 ---
 
-#### 1.3.3 Colección `session_telemetry`
+#### 1.3.3 Collection `session_telemetry`
 
-**Para qué:** métricas de runtime; no evidencia legal.
+**Purpose:** runtime metrics; not legal evidence.
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `_id` | ObjectId | NO | auto | PK. |
-| `session_id` | string (UUID) | NO | — | Sesión. |
-| `ts` | ISODate | NO | — | Marca de tiempo de la muestra. |
-| `fps_avg` | number | SÍ | — | FPS promedio de la ventana. |
-| `latency_ms` | number | SÍ | — | Latencia de inferencia/pipeline. |
-| `drops` | int | SÍ | — | Frames descartados. |
-| `roi_ok` | boolean | SÍ | — | ROI válida/estable. |
+| `session_id` | string (UUID) | NO | — | Session. |
+| `ts` | ISODate | NO | — | Sample timestamp. |
+| `fps_avg` | number | YES | — | Window average FPS. |
+| `latency_ms` | number | YES | — | Inference/pipeline latency. |
+| `drops` | int | YES | — | Dropped frames. |
+| `roi_ok` | boolean | YES | — | Whether the ROI is valid/stable. |
 
-**Hacia dónde apunta (lógico)**
+**References (logical)**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `session_id` | `work_session.id` | N:1 | Agrupa telemetría. | N/A; TTL 7 días o capped |
+| `session_id` | `work_session.id` | N:1 | Groups telemetry. | N/A; 7-day TTL or capped collection |
 
-No cuenta dentro del tope de checkpoints.
+Does not count toward the checkpoint cap.
 
-**Ejemplo de documento completo**
+**Complete example document**
 
 ```json
 {
@@ -194,48 +194,48 @@ No cuenta dentro del tope de checkpoints.
 
 ### 1.4 Governance and Ownership
 
-| Aspecto | Responsable |
+| Aspect | Owner |
 | :--- | :--- |
-| Escritura checkpoint/telemetría | EvidenceWorker (Mongo `pef_evidence`); VisionWorker no escribe |
-| Política de tope/TTL | PEF Core / Ops |
-| Lectura panel | Backend Web |
+| Checkpoint/telemetry writes | EvidenceWorker (MongoDB `pef_evidence`); VisionWorker does not write |
+| Cap/TTL policy | PEF Core / Ops |
+| Dashboard reads | Web Backend |
 
 ---
 
-### 1.5 Justificación del estándar
+### 1.5 Standard Rationale
 
-**Por qué Mongo aquí**
+**Why MongoDB here**
 
-Los checkpoints son documentos variables (detections array, burst metadata) de alta frecuencia relativa. Meter boxes en cada `count_event` inflaría PostgreSQL.
+Checkpoints are variable-shape documents (detections array, burst metadata) generated at relatively high frequency. Putting bounding boxes in every `count_event` would bloat PostgreSQL.
 
-**Decisiones tomadas**
+**Design decisions taken**
 
-1. **PG = hechos de negocio; Mongo = detalle visual/telemetría.**
-2. **Tope 30–50** y prioridad de borrado por `reason`.
-3. **Encode MP4 off hot path** (EvidenceWorker); ring Redis `pef:evidence:frames:*` + buffer RAM.
-4. **`reason` string** alineado a catálogo PG sin FK cruzada de motores.
-5. **URI redundante** en el doc para no forzar join PG en cada thumbnail.
+1. **PG = business facts; MongoDB = visual detail/telemetry.**
+2. **30–50 cap** with deletion priority by `reason`.
+3. **MP4 encoding off the hot path** (EvidenceWorker); Redis ring `pef:evidence:frames:*` + RAM buffer.
+4. **String `reason`** aligned with PG catalog without cross-engine FKs.
+5. **Redundant URI** on the document to avoid forcing a PG join for every thumbnail.
 
-**Alternativas no elegidas**
+**Rejected alternatives**
 
-| Alternativa | Por qué no |
+| Alternative | Why not |
 | :--- | :--- |
-| Todo en PostgreSQL JSONB | Posible, pero índices TTL y volumen de telemetría encajan mejor en Mongo. |
-| Un documento por frame de ráfaga | Rompe el tope y multiplica I/O. |
-| GIF como contenedor v1 | Peor peso/fidelidad que MP4 para la misma cola de frames. |
-| Worker escribe `count_event` directo | Bifurca fuente de verdad; el diseño manda Backend/adaptador para hechos SQL (DS04). |
-| Sin `media_asset_id`, solo URI | Pierde ciclo de purga unificado en PG. |
+| Everything in PostgreSQL JSONB | Possible, but TTL indexes and telemetry volume fit MongoDB better. |
+| One document per burst frame | Violates the cap and multiplies I/O. |
+| GIF as the v1 container | Worse size/fidelity than MP4 for the same frame queue. |
+| Worker writes `count_event` directly | Splits the source of truth; the design routes SQL facts through Backend/adapter (DS04). |
+| No `media_asset_id`, URI only | Loses the unified purge lifecycle in PG. |
 
 ---
 
-## 2. Anexo A – Información general
+## 2. Annex A – General Information
 
-| Campo | Valor |
+| Field | Value |
 | :--- | :--- |
-| Código | PEF-DS06 |
-| Título | Mongo Checkpoints and Telemetry |
-| Versión | 0.2.0 |
-| Estado | draft |
-| Almacén | MongoDB (`checkpoint_frame`, `session_telemetry`); vocab `cat_checkpoint_reason` en PG |
-| Fuera de alcance | `count_event`; bytes storage; mensajes WSS frame-a-frame (DS10) |
-| Referencia | DS05 (`media_asset` / Garage); ER [`../ER PostgreSQL-MongoDB-v3.jpg`](../ER%20PostgreSQL-MongoDB-v3.jpg); runbook raíz `README.md` |
+| Code | PEF-DS06 |
+| Title | Mongo Checkpoints and Telemetry |
+| Version | 0.2.0 |
+| Status | draft |
+| Store | MongoDB (`checkpoint_frame`, `session_telemetry`); vocabulary `cat_checkpoint_reason` in PG |
+| Out of scope | `count_event`; storage bytes; frame-by-frame WSS messages (DS10) |
+| References | DS05 (`media_asset` / Garage); ER [`../ER PostgreSQL-MongoDB-v3.jpg`](../ER%20PostgreSQL-MongoDB-v3.jpg); root runbook `README.md` |
