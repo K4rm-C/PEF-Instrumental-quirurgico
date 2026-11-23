@@ -21,25 +21,25 @@ INSERT INTO capture_station (id, name, roi, active, room_id) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO "user" (id, name, email, password_hash, active, ui_preferences, institution_id) VALUES
-  ('22222222-2222-2222-2222-222222222231', 'Operador Ana Ruiz', 'ana.ruiz@instrumed.com',
+  ('22222222-2222-2222-2222-222222222231', 'Operator Ana Ruiz', 'ana.ruiz@instrumed.com',
    'pbkdf2:sha256:600000$pBt90bMOFJshdYWs$4a2d7fe6185d1787ebfeaf2202863fbed1a0a8cfa19848a907327fdb9baf25d4', TRUE,
    '{"theme": "light", "locale": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222232', 'Operador Luis Pena', 'luis.pena@instrumed.com',
+  ('22222222-2222-2222-2222-222222222232', 'Operator Luis Pena', 'luis.pena@instrumed.com',
    'pbkdf2:sha256:600000$ruYQcXa3zGai8fon$5440ce1335a005785bdcebe25864be96cc67f36c1a273c80f644ec0068b7acd6', TRUE,
    '{"theme": "light", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
   ('22222222-2222-2222-2222-222222222233', 'SPD Carla Soto', 'carla.soto@instrumed.com',
    'pbkdf2:sha256:600000$OIkAMI7h31rAH0wL$d3e48c1db70235e51f3fe293bbf67b14b08ff00deb458c1a7505f7244311d562', TRUE,
    '{"theme": "dark", "locale": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222234', 'Admin TI Extra', 'ti.extra@instrumed.com',
+  ('22222222-2222-2222-2222-222222222234', 'IT Admin Extra', 'ti.extra@instrumed.com',
    'pbkdf2:sha256:600000$cgRkTgIJBmVmDGXI$0f5298444ecf2ea9c9f8fb20f403061d11968b2fe71e7ca39445937f205ef000', TRUE,
    '{"theme": "system", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222235', 'Piso Nora Diaz', 'nora.diaz@instrumed.com',
+  ('22222222-2222-2222-2222-222222222235', 'Floor Nora Diaz', 'nora.diaz@instrumed.com',
    'pbkdf2:sha256:600000$M0mNEmXKC6clH5og$bcd831c54266d09d194cd97bd9e943832cfeffec524c148de279a6d8cdbdd226', TRUE,
    '{"theme": "light", "locale": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222236', 'Admin y SPD Dual', 'dual.admin.spd@instrumed.com',
+  ('22222222-2222-2222-2222-222222222236', 'Dual Admin SPD', 'dual.admin.spd@instrumed.com',
    'pbkdf2:sha256:600000$P7YSsITcxlOhTEOm$2f30c96acf5bebe8f92a536ff83708abb25f26465fc10146fcc6dbc98a7b4418', TRUE,
    '{"theme": "system", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 
 INSERT INTO user_role (user_id, role_id) VALUES
   ('22222222-2222-2222-2222-222222222231', '14141414-0000-4000-8000-000000000001'),

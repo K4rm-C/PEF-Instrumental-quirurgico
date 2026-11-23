@@ -12,111 +12,111 @@ last_updated: 2026-11-19
 
 # PEF-DS01 · Identity and Credentials
 
-## INTRODUCCION
+## INTRODUCTION
 
-Este estándar define **quién puede entrar al sistema** y **cómo se guarda la identidad humana**.
+This standard defines **who can access the system** and **how human identity is stored**.
 
-Cubre estas tablas PostgreSQL: `institution`, `role`, `user`, `user_role`, `user_operating_room`. Cubre también las claves temporales de autenticación en Redis (JWT / rate limit). No son la misma cosa que una `work_session` de conteo.
+It covers these PostgreSQL tables: `institution`, `role`, `user`, `user_role`, `user_operating_room`. It also covers temporary authentication keys in Redis (JWT / rate limit). These are not the same thing as a counting `work_session`.
 
-Roles de producto v1: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge`.
+Product v1 roles: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge`.
 
-No cubre pacientes ni médicos de la operación (PEF-DS02). No cubre clientes máquina tipo HIS (`integration_client`, PEF-DS08). No cubre aviso de privacidad ni ARCO (PEF-DS07).
+It does not cover patients or physicians involved in an operation (PEF-DS02). It does not cover HIS-style machine clients (`integration_client`, PEF-DS08). It does not cover privacy notices or ARCO requests (PEF-DS07).
 
-Para cada tabla de este estándar se documentan **todos** los campos, hacia dónde apuntan las FKs y por qué, y un ejemplo de **fila completa**.
-
----
-
-## 1. Explicación del estándar
-
-### 1.1 Definiciones
-
-
-| Término                             | Significado en PEF                                                                                      |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| **Institución**                     | Organización dueña de datos operativos (hospital, clínica, unidad). Puede tener padre si hay jerarquía. |
-| **Usuario**                         | Persona con cuenta de login: correo, hash de contraseña, institución.                                   |
-| **Rol**                             | Permiso nombrado **dentro de una institución** (`code` + descripción).                                  |
-| **Asignación de rol**               | Fila en `user_role` que une un usuario con un rol.                                                      |
-| **Credencial**                      | Correo + contraseña. En BD solo existe el **hash**, nunca el texto en claro.                            |
-| **Sesión de autenticación (Redis)** | Estado temporal del token / intentos de login. Distinto de `work_session`.                              |
-
-
-### 1.2 Uso
-
-**Quién usa esto:** portal (login y administración IAM), backend web (valida JWT y permisos), estación de captura (mismo usuario humano).
-
-**Para qué sirve**
-
-1. Saber a qué institución pertenece quien entra.
-2. Decidir pantallas y acciones vía roles.
-3. Dejar `user.id` e `institution.id` como anclas para auditoría y resto del modelo.
-
-**Flujo típico**
-
-1. La persona escribe correo y contraseña.
-2. BackendAuthService busca el usuario, verifica el hash, revisa `active`.
-3. Emite JWT (y/o cookies HttpOnly en rutas de portal) y registra en Redis lo necesario (TTL, blacklist, fallos de login).
-4. Las peticiones siguientes llevan el token; el backend resuelve `user_id` e institución.
-
-Superficies: portal/browser usa rutas legacy de cookie (`/login`, …) y, detrás de portal-lan (lab HTTPS :5443), `AUTH_BROWSER_URL=/auth` same-origin es válido (path relativo; no exige URL absoluta). Android y MS usan `/api/v1/auth` vía Gateway :8080.
-
-**Qué no hace:** no define conteo, paciente clínico ni consentimiento de tratamiento de datos.
+For every table in this standard, **all** fields, FK targets and rationales, and one **complete example row** are documented.
 
 ---
 
-### 1.3 Convenciones
+## 1. Standard Explanation
 
-Convenciones globales de este DS:
+### 1.1 Definitions
 
-- Códigos de rol en inglés snake_case. Producto v1 fijo: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (floor app). La UI puede mostrar español.
-- Email de login único en todo el sistema.
-- Contraseña: hash lento (runtime actual: Werkzeug `pbkdf2:sha256`). Prohibido texto plano en BD, logs, mocks reales o tickets.
-- Timestamps en UTC (`TIMESTAMPTZ`).
-- Un usuario pertenece a **una** institución. Los roles se definen **por** institución.
-- En “Hacia dónde apunta”, la columna **Relación** se lee desde esta tabla hacia el destino: `N:1` = muchas filas aquí a una allá; `N:0..1` = el destino es opcional (FK nullable); `1:1` = a lo sumo un par; `N:N` se logra con tabla puente (cada FK del puente sigue siendo `N:1`).
+
+| Term | Meaning in PEF |
+| --- | --- |
+| **Institution** | Organization that owns operational data (hospital, clinic, unit). May have a parent if organized hierarchically. |
+| **User** | Person with a login account: email, password hash, institution. |
+| **Role** | Named permission **within an institution** (`code` + description). |
+| **Role assignment** | Row in `user_role` linking a user to a role. |
+| **Credential** | Email + password. Only the **hash** exists in the DB, never plaintext. |
+| **Authentication session (Redis)** | Temporary token / login-attempt state. Distinct from `work_session`. |
+
+
+### 1.2 Usage
+
+**Who uses this:** web portal (login and IAM administration), web backend (validates JWT and permissions), capture station (same human user).
+
+**Purpose**
+
+1. Determine which institution the authenticated user belongs to.
+2. Control screens and actions via roles.
+3. Anchor `user.id` and `institution.id` for auditing and the rest of the model.
+
+**Typical flow**
+
+1. The person enters their email and password.
+2. BackendAuthService looks up the user, verifies the hash, and checks `active`.
+3. It issues a JWT (and/or HttpOnly cookies on portal routes) and records required state in Redis (TTL, blacklist, login failures).
+4. Subsequent requests carry the token; the backend resolves `user_id` and institution.
+
+Surfaces: portal/browser uses legacy cookie routes (`/login`, …) and, behind portal-lan (lab HTTPS :5443), same-origin `AUTH_BROWSER_URL=/auth` is valid (relative path; an absolute URL is not required). Android and MS use `/api/v1/auth` via Gateway :8080.
+
+**Out of scope:** does not define counting, clinical patients, or data-processing consent.
 
 ---
 
-#### 1.3.1 Tabla `institution`
+### 1.3 Conventions
 
-**Para qué existe:** ancla multi-tenant. Casi todas las tablas de negocio cuelgan de una institución.
+Global conventions for this DS:
 
+- Role codes in English snake_case. Fixed product v1 set: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge` (floor app). The UI may display localized labels.
+- Login email is globally unique across the entire system.
+- Password: slow hash (current runtime: Werkzeug `pbkdf2:sha256`). Plaintext is prohibited in the DB, logs, real mocks, or tickets.
+- Timestamps in UTC (`TIMESTAMPTZ`).
+- Each user belongs to **one** institution. Roles are defined **per** institution.
+- Under "References", the **Relationship** column is read from this table toward the target: `N:1` = many rows here to one there; `N:0..1` = optional target (nullable FK); `1:1` = at most one pair; `N:N` is achieved via a junction table (each junction FK remains `N:1`).
 
-| Campo       | Tipo         | Nulo | Default             | Significado                                                                         |
-| ----------- | ------------ | ---- | ------------------- | ----------------------------------------------------------------------------------- |
-| `id`        | UUID         | NO   | `gen_random_uuid()` | Identificador interno de la institución.                                            |
-| `name`      | VARCHAR(200) | NO   | —                   | Nombre legible (hospital, unidad, red).                                             |
-| `active`    | BOOLEAN      | NO   | `TRUE`              | Si es `false`, no se deben crear usuarios/operaciones nuevas ahí (política de app). |
-| `parent_id` | UUID         | SÍ   | NULL                | Institución padre en una jerarquía (red → hospital → satélite).                     |
+---
 
+#### 1.3.1 Table `institution`
 
-**Hacia dónde apunta**
-
-
-| Campo       | Apunta a         | Relación                                              | Por qué                                           | ON DELETE                                                              |
-| ----------- | ---------------- | ----------------------------------------------------- | ------------------------------------------------- | ---------------------------------------------------------------------- |
-| `parent_id` | `institution.id` | N:0..1 (hijos→padre; un padre puede tener 0..N hijos) | Permite árbol de sedes sin otra tabla de “grupo”. | `SET NULL` — si se borra el padre, el hijo sigue existiendo sin padre. |
+**Purpose:** multi-tenant anchor. Almost all business tables hang from an institution.
 
 
-**Restricciones:** PK `id`.
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | Internal institution identifier. |
+| `name` | VARCHAR(200) | NO | — | Human-readable name (hospital, unit, network). |
+| `active` | BOOLEAN | NO | `TRUE` | If `false`, new users/operations must not be created under it (app policy). |
+| `parent_id` | UUID | YES | NULL | Parent institution in a hierarchy (network → hospital → satellite). |
 
-**Ejemplo de fila completa**
+
+**References**
+
+
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `parent_id` | `institution.id` | N:0..1 (children→parent; a parent can have 0..N children) | Enables a site tree without a separate "group" table. | `SET NULL` — if the parent is deleted, the child remains without a parent. |
+
+
+**Constraints:** PK `id`.
+
+**Complete example row**
 
 ```json
 {
   "id": "11111111-1111-1111-1111-111111111111",
-  "name": "Hospital Demo Norte",
+  "name": "Demo North Hospital",
   "active": true,
   "parent_id": null
 }
 ```
 
-Ejemplo hijo (misma tabla, otra fila):
+Child example (same table, another row):
 
 ```json
 {
   "id": "12121212-1212-1212-1212-121212121212",
-  "name": "Unidad Quirúrgica Demo Norte Oriente",
+  "name": "Demo North East Surgical Unit",
   "active": true,
   "parent_id": "11111111-1111-1111-1111-111111111111"
 }
@@ -124,89 +124,89 @@ Ejemplo hijo (misma tabla, otra fila):
 
 ---
 
-#### 1.3.2 Tabla `role`
+#### 1.3.2 Table `role`
 
-**Para qué existe:** catálogo de permisos **por institución**. El mismo `code` puede repetirse en otro hospital con otro UUID.
-
-
-| Campo            | Tipo         | Nulo | Default             | Significado                                                       |
-| ---------------- | ------------ | ---- | ------------------- | ----------------------------------------------------------------- |
-| `id`             | UUID         | NO   | `gen_random_uuid()` | Identificador del rol.                                            |
-| `code`           | VARCHAR(64)  | NO   | —                   | Código estable de permiso. Producto v1: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge`. |
-| `description`    | VARCHAR(255) | NO   | —                   | Texto explicativo para UI/administración.                         |
-| `institution_id` | UUID         | NO   | —                   | Institución dueña de este rol.                                    |
+**Purpose:** permission catalog **per institution**. The same `code` may repeat in another hospital with a different UUID.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | Role identifier. |
+| `code` | VARCHAR(64) | NO | — | Stable permission code. Product v1: `station_operator`, `spd_supervisor`, `it_admin`, `or_charge`. |
+| `description` | VARCHAR(255) | NO | — | Explanatory text for UI/administration. |
+| `institution_id` | UUID | NO | — | Institution owning this role. |
 
 
-| Campo            | Apunta a         | Relación | Por qué                                                  | ON DELETE                                                        |
-| ---------------- | ---------------- | -------- | -------------------------------------------------------- | ---------------------------------------------------------------- |
-| `institution_id` | `institution.id` | N:1      | Los roles no son globales: cada hospital arma su matriz. | `CASCADE` — si desaparece la institución, desaparecen sus roles. |
+**References**
 
 
-**Restricciones:** PK `id`; UNIQUE (`institution_id`, `code`).
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `institution_id` | `institution.id` | N:1 | Roles are not global: each hospital maintains its own matrix. | `CASCADE` — if the institution is removed, its roles are removed. |
 
-**Ejemplo de fila completa**
+
+**Constraints:** PK `id`; UNIQUE (`institution_id`, `code`).
+
+**Complete example row**
 
 ```json
 {
   "id": "33333333-3333-3333-3333-333333333333",
   "code": "or_charge",
-  "description": "Supervisor de piso. Vigila holds de sala; no cierra ciclo SPD.",
+  "description": "Floor supervisor. Monitors room holds; does not close SPD cycle.",
   "institution_id": "11111111-1111-1111-1111-111111111111"
 }
 ```
 
 ---
 
-#### 1.3.3 Tabla `user`
+#### 1.3.3 Table `user`
 
-**Para qué existe:** cuenta humana de acceso. Es la fila que el JWT representa.
-
-
-| Campo                 | Tipo         | Nulo | Default                                      | Significado                                      |
-| --------------------- | ------------ | ---- | -------------------------------------------- | ------------------------------------------------ |
-| `id`                  | UUID         | NO   | `gen_random_uuid()`                          | Identificador del usuario.                       |
-| `name`                | VARCHAR(160) | NO   | —                                            | Nombre para mostrar.                             |
-| `active`              | BOOLEAN      | NO   | `TRUE`                                       | Si es `false`, el login debe rechazarse.         |
-| `email`               | VARCHAR(255) | NO   | —                                            | Correo de login; único global.                   |
-| `password_hash`       | TEXT         | NO   | —                                            | Hash de la contraseña (nunca el texto en claro). Runtime: Werkzeug `pbkdf2:sha256`. |
-| `password_updated_at` | TIMESTAMPTZ  | SÍ   | NULL                                         | Última vez que se cambió la contraseña.          |
-| `last_login_at`       | TIMESTAMPTZ  | SÍ   | NULL                                         | Último login exitoso.                            |
-| `ui_preferences`      | JSONB        | NO   | `{"locale":"en","theme":"light"}`            | Preferencias de interfaz (varias en un solo campo). |
-| `created_at`          | TIMESTAMPTZ  | NO   | `now()`                                      | Alta de la cuenta.                               |
-| `updated_at`          | TIMESTAMPTZ  | NO   | `now()`                                      | Última modificación de la fila.                  |
-| `institution_id`      | UUID         | NO   | —                                            | Institución a la que pertenece el usuario.       |
+**Purpose:** human access account. This is the row represented by the JWT.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | User identifier. |
+| `name` | VARCHAR(160) | NO | — | Display name. |
+| `active` | BOOLEAN | NO | `TRUE` | If `false`, login must be rejected. |
+| `email` | VARCHAR(255) | NO | — | Login email; globally unique. |
+| `password_hash` | TEXT | NO | — | Password hash (never plaintext). Runtime: Werkzeug `pbkdf2:sha256`. |
+| `password_updated_at` | TIMESTAMPTZ | YES | NULL | Last time the password was changed. |
+| `last_login_at` | TIMESTAMPTZ | YES | NULL | Last successful login. |
+| `ui_preferences` | JSONB | NO | `{"locale":"en","theme":"light"}` | Interface preferences (multiple settings in one field). |
+| `created_at` | TIMESTAMPTZ | NO | `now()` | Account creation timestamp. |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Last row modification timestamp. |
+| `institution_id` | UUID | NO | — | Institution the user belongs to. |
 
 
-| Campo            | Apunta a         | Relación | Por qué                                                | ON DELETE                                                       |
-| ---------------- | ---------------- | -------- | ------------------------------------------------------ | --------------------------------------------------------------- |
-| `institution_id` | `institution.id` | N:1      | Todo lo que haga el usuario queda acotado a un tenant. | `RESTRICT` — no se borra una institución si aún tiene usuarios. |
+**References**
 
 
-**Restricciones:** PK `id`; UNIQUE `email`; `ui_preferences` debe ser un objeto JSON (`jsonb_typeof = object`).
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `institution_id` | `institution.id` | N:1 | Everything the user does is scoped to one tenant. | `RESTRICT` — an institution cannot be deleted while it still has users. |
 
-**Claves acordadas dentro de `ui_preferences`** (extensible sin migrar columnas):
 
-| Clave | Valores esperados | Default | Significado |
+**Constraints:** PK `id`; UNIQUE `email`; `ui_preferences` must be a JSON object (`jsonb_typeof = object`).
+
+**Agreed keys inside `ui_preferences`** (extensible without column migrations):
+
+| Key | Expected values | Default | Meaning |
 | :--- | :--- | :--- | :--- |
-| `locale` | BCP 47 corto: `en`, `es`, `sv`, … | `en` | Idioma de la interfaz (no traduce códigos de negocio en BD). |
-| `theme` | `light`, `dark` | `light` | Apariencia de la UI. |
+| `locale` | Short BCP 47: `en`, `es`, `sv`, … | `en` | Interface language (does not translate business codes in the DB). |
+| `theme` | `light`, `dark` | `light` | UI visual theme. |
 
-Otras claves de UI (densidad, etc.) pueden añadirse después en el mismo JSONB; no van columnas nuevas por cada preferencia cosmética.
+Additional UI keys (density, etc.) may be added later in the same JSONB; do not add new columns for each cosmetic preference.
 
-**Cookies / localStorage vs este campo:** sin login, el cliente puede guardar locale/theme en cookie. Tras login, **gana** `user.ui_preferences` y el cliente debería sincronizar cookie ← BD. Al cambiar preferencia en UI autenticada, se actualiza BD y cookie.
+**Cookies / localStorage vs. this field:** before login, the client may store locale/theme in a cookie. After login, `user.ui_preferences` **wins** and the client should sync cookie ← DB. When changing a preference in an authenticated UI, both DB and cookie are updated.
 
-**Ejemplo de fila completa**
+**Complete example row**
 
 ```json
 {
   "id": "22222222-2222-2222-2222-222222222222",
-  "name": "Ana Pérez",
+  "name": "Ana Perez",
   "active": true,
   "email": "ana.perez@demo.local",
   "password_hash": "pbkdf2:sha256:600000$[REDACTED]",
@@ -224,33 +224,33 @@ Otras claves de UI (densidad, etc.) pueden añadirse después en el mismo JSONB;
 
 ---
 
-#### 1.3.4 Tabla `user_role`
+#### 1.3.4 Table `user_role`
 
-**Para qué existe:** N:M entre usuario y rol. Un usuario puede tener varios roles a la vez.
-
-
-| Campo         | Tipo        | Nulo | Default             | Significado                     |
-| ------------- | ----------- | ---- | ------------------- | ------------------------------- |
-| `id`          | UUID        | NO   | `gen_random_uuid()` | Identificador de la asignación. |
-| `assigned_at` | TIMESTAMPTZ | NO   | `now()`             | Cuándo se asignó el rol.        |
-| `user_id`     | UUID        | NO   | —                   | Usuario que recibe el rol.      |
-| `role_id`     | UUID        | NO   | —                   | Rol asignado.                   |
+**Purpose:** N:M between user and role. A user may hold multiple roles simultaneously.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | Assignment identifier. |
+| `assigned_at` | TIMESTAMPTZ | NO | `now()` | When the role was assigned. |
+| `user_id` | UUID | NO | — | User receiving the role. |
+| `role_id` | UUID | NO | — | Assigned role. |
 
 
-| Campo     | Apunta a  | Relación                                     | Por qué                 | ON DELETE                                             |
-| --------- | --------- | -------------------------------------------- | ----------------------- | ----------------------------------------------------- |
-| `user_id` | `user.id` | N:1 (el par user↔role es N:N vía esta tabla) | Dueño de la asignación. | `CASCADE` — al borrar usuario, se quitan sus roles.   |
-| `role_id` | `role.id` | N:1 (el par user↔role es N:N vía esta tabla) | Permiso concreto.       | `CASCADE` — al borrar el rol, se quitan asignaciones. |
+**References**
 
 
-**Restricciones:** PK `id`; UNIQUE (`user_id`, `role_id`).
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `user_id` | `user.id` | N:1 (the user↔role pair is N:N via this table) | Assignment owner. | `CASCADE` — deleting a user removes their role assignments. |
+| `role_id` | `role.id` | N:1 (the user↔role pair is N:N via this table) | Specific permission. | `CASCADE` — deleting a role removes its assignments. |
 
-**Nota de aplicación:** el `role` debería pertenecer a la misma `institution_id` que el `user`. El DDL no lo fuerza con un check compuesto; la app (o un trigger) debe validarlo.
 
-**Ejemplo de fila completa**
+**Constraints:** PK `id`; UNIQUE (`user_id`, `role_id`).
+
+**Application note:** the `role` should belong to the same `institution_id` as the `user`. The DDL does not enforce this with a composite check; the application (or a trigger) must validate it.
+
+**Complete example row**
 
 ```json
 {
@@ -263,29 +263,29 @@ Otras claves de UI (densidad, etc.) pueden añadirse después en el mismo JSONB;
 
 ---
 
-#### 1.3.5 Tabla `user_operating_room`
+#### 1.3.5 Table `user_operating_room`
 
-**Para qué existe:** N:M usuario ↔ quirófano. Alimenta al supervisor de piso (`or_charge`). La App **lista todas** las salas (las ligadas **primero**); las **notificaciones in-app** solo salen si la sesión/hold es de una sala de este par.
-
-
-| Campo         | Tipo        | Nulo | Default             | Significado            |
-| ------------- | ----------- | ---- | ------------------- | ---------------------- |
-| `id`          | UUID        | NO   | `gen_random_uuid()` | PK.                    |
-| `user_id`     | UUID        | NO   | —                   | Usuario asignado.      |
-| `room_id`     | UUID        | NO   | —                   | Quirofano asignado.    |
-| `assigned_at` | TIMESTAMPTZ | NO   | `now()`             | Cuándo se asignó.      |
+**Purpose:** N:M user ↔ operating room. Feeds the floor supervisor (`or_charge`). The App **lists all** rooms (linked rooms **first**); **in-app notifications** fire only if the session/hold belongs to a room in this pairing.
 
 
-**Hacia dónde apunta**
+| Field | Type | Nullable | Default | Meaning |
+| --- | --- | --- | --- | --- |
+| `id` | UUID | NO | `gen_random_uuid()` | PK. |
+| `user_id` | UUID | NO | — | Assigned user. |
+| `room_id` | UUID | NO | — | Assigned operating room. |
+| `assigned_at` | TIMESTAMPTZ | NO | `now()` | When it was assigned. |
 
 
-| Campo     | Apunta a              | Relación | Por qué                         | ON DELETE  |
-| --------- | --------------------- | -------- | ------------------------------- | ---------- |
-| `user_id` | `user.id`             | N:1      | Dueño de la asignación.         | `CASCADE`  |
-| `room_id` | `operating_room.id` (DS02) | N:1 | Sala física.                    | `CASCADE`  |
+**References**
 
 
-**Restricciones:** PK `id`; UNIQUE (`user_id`, `room_id`) = `uk_user_operating_room_user_room`.
+| Field | Points to | Relationship | Rationale | ON DELETE |
+| --- | --- | --- | --- | --- |
+| `user_id` | `user.id` | N:1 | Assignment owner. | `CASCADE` |
+| `room_id` | `operating_room.id` (DS02) | N:1 | Physical room. | `CASCADE` |
+
+
+**Constraints:** PK `id`; UNIQUE (`user_id`, `room_id`) = `uk_user_operating_room_user_room`.
 
 ```json
 {
@@ -298,18 +298,18 @@ Otras claves de UI (densidad, etc.) pueden añadirse después en el mismo JSONB;
 
 ---
 
-#### 1.3.6 Redis · autenticación (no es tabla SQL)
+#### 1.3.6 Redis · Authentication (Not a SQL Table)
 
-Redis guarda estado **temporal** de login. No sustituye `user`.
-
-
-| Clave (patrón)                  | Campos / valor esperado                                   | TTL                     | Para qué                           |
-| ------------------------------- | --------------------------------------------------------- | ----------------------- | ---------------------------------- |
-| `auth:jwt:{jti}`                | JSON o flag: `{ "user_id", "institution_id", "revoked" }` | Igual a la vida del JWT | Validar / revocar token por `jti`. |
-| `auth:login_fail:{email_or_ip}` | Entero (contador)                                         | Minutos (p. ej. 15)     | Rate limit ante fuerza bruta.      |
+Redis stores **temporary** login state. It does not replace `user`.
 
 
-**Ejemplo completo de valor en `auth:jwt:{jti}`**
+| Key (pattern) | Expected fields / value | TTL | Purpose |
+| --- | --- | --- | --- |
+| `auth:jwt:{jti}` | JSON or flag: `{ "user_id", "institution_id", "revoked" }` | Equal to JWT lifetime | Validate / revoke token by `jti`. |
+| `auth:login_fail:{email_or_ip}` | Integer (counter) | Minutes (e.g., 15) | Brute-force rate limiting. |
+
+
+**Complete example value in `auth:jwt:{jti}`**
 
 ```json
 {
@@ -321,7 +321,7 @@ Redis guarda estado **temporal** de login. No sustituye `user`.
 }
 ```
 
-**Ejemplo completo de valor en `auth:login_fail:...`**
+**Complete example value in `auth:login_fail:...`**
 
 ```json
 {
@@ -333,76 +333,74 @@ Redis guarda estado **temporal** de login. No sustituye `user`.
 
 ---
 
-#### 1.3.7 Reglas de negocio
+#### 1.3.7 Business Rules
 
-1. Login solo si `user.active = true` e institución usable.
-2. Cambio de contraseña → nuevo `password_hash` + `password_updated_at`.
-3. Login OK → actualizar `last_login_at`; limpiar contador Redis de fallos; devolver `ui_preferences` al cliente.
-4. Logout / revocación → marcar `revoked` o borrar `auth:jwt:{jti}`.
-5. Cambio de idioma/tema autenticado → merge en `ui_preferences` + `updated_at` (no crear columnas nuevas por cada preferencia UI).
-6. `integration_client` (máquinas) **no** vive aquí → PEF-DS08.
+1. Login is permitted only if `user.active = true` and the institution is usable.
+2. Password change → new `password_hash` + `password_updated_at`.
+3. Successful login → update `last_login_at`; clear Redis failure counter; return `ui_preferences` to the client.
+4. Logout / revocation → mark `revoked` or delete `auth:jwt:{jti}`.
+5. Authenticated language/theme change → merge into `ui_preferences` + `updated_at` (do not add new columns for each UI preference).
+6. `integration_client` (machine clients) does **not** live here → PEF-DS08.
 
 ---
 
 ### 1.4 Governance and Ownership
 
 
-| Aspecto             | Responsable                                                 |
-| ------------------- | ----------------------------------------------------------- |
-| Dueño del estándar  | BackendAuthService / PEF Core                               |
-| Alta de usuarios    | Administración institucional (portal) o bootstrap           |
-| Asignación de roles | Administración con permiso IAM                              |
-| Cambios a este DS   | Revisar con seguridad si toca hash, JWT o unicidad de email |
+| Aspect | Owner |
+| --- | --- |
+| Standard owner | BackendAuthService / PEF Core |
+| User provisioning | Institutional administration (portal) or bootstrap |
+| Role assignment | Administration with IAM permission |
+| Changes to this DS | Review with security if touching hashing, JWT, or email uniqueness |
 
 
-**Dependencias aguas abajo:** casi todo el modelo referencia `user.id` o `institution.id`.
-
----
-
-### 1.5 Justificación del estándar
-
-**Por qué existe este bloque aparte**
-
-Sin un estándar de identidad, cada pantalla inventa “quién es el usuario”. Aparecen cuentas duplicadas, contraseñas mal guardadas y roles con nombres distintos. Separar identidad humana (este DS) de contexto clínico (DS02) y de cliente máquina (DS08) evita mezclar “Ana que hace login”, “el paciente de la cirugía” y “el HIS que llama la API”.
-
-**Decisiones de diseño que sí se tomaron**
-
-1. **Un usuario → una institución.** Simplifica permisos y reportes multi-tenant. Si alguien trabaja en dos hospitales, se modelan dos cuentas (o más adelante un puente explícito; hoy no).
-2. **Roles por institución, no globales.** Cada sede instancia los códigos de producto (`station_operator`, …) con su propio UUID sin contaminar a otras.
-3. **Email único global institucional.** Un solo login string en todo el despliegue; menos ambigüedad en soporte.
-4. **Solo hash en PostgreSQL; sesión en Redis.** La fuente de verdad de la persona es PG. Redis se puede vaciar sin perder usuarios.
-5. **Tabla puente `user_role`.** Permite varios roles sin arrays frágiles ni columnas booleanas por permiso.
-6. **`parent_id` en institución.** Jerarquía ligera sin tabla `institution_group` aparte.
-7. **Un solo `ui_preferences` JSONB** para locale, theme y futuras prefs de UI. Evita migración por cada toggle cosmético; los códigos de negocio siguen en inglés.
-
-**Acercamientos que se podrían haber hecho y no se hicieron**
-
-
-| Alternativa                                    | Por qué no                                                                                                                                       |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Roles globales únicos en todo el sistema       | Choca con hospitales que bautizan distinto el mismo permiso; fuerza migraciones al onboarding.                                                   |
-| Usuario multi-institución N:M desde el día 1   | Más correcto a largo plazo en redes grandes, pero complica JWT, auditoría y filtros en v1. Se pospone.                                           |
-| Guardar permisos como JSON en `user`           | Rápido de prototipar; malo para consultar “quién tiene rol X” y para auditoría.                                                                  |
-| Sesión solo en cookie de servidor sin Redis    | Válido en monolito chico; con varias réplicas/backends el JWT + Redis (o store compartido) escala mejor.                                         |
-| LDAP/OIDC como única identidad desde el inicio | Deseable en hospital real; el núcleo PEF primero necesita identidad local predecible. OIDC puede montarse después sin cambiar el UUID de `user`. |
-| Mezclar `user` con `physician` | El médico de la cirugía no siempre es quien inicia sesión en la estación. Son conceptos distintos (DS02). |
-| Solo cookie para idioma/tema, sin campo en `user` | Pierde preferencia entre dispositivos (portal vs estación) y al limpiar el navegador. |
-| Una columna `locale` + otra `theme` + … | Válido si nunca crecerán; JSONB cubre las mismas dos hoy y deja espacio sin ALTER. |
-
+**Downstream dependencies:** nearly the entire model references `user.id` or `institution.id`.
 
 ---
 
-## 2. Anexo A – Información general
+### 1.5 Standard Rationale
+
+**Why this block is separate**
+
+Without an identity standard, each screen invents "who the user is." Duplicate accounts, poorly stored passwords, and inconsistent role names quickly appear. Separating human identity (this DS) from clinical context (DS02) and machine clients (DS08) prevents conflating "Ana logging in," "the surgery patient," and "the HIS calling the API."
+
+**Design decisions taken**
+
+1. **One user → one institution.** Simplifies multi-tenant permissions and reporting. If someone works at two hospitals, two accounts are modeled (or an explicit bridge later; not today).
+2. **Per-institution roles, not global roles.** Each site instantiates the product codes (`station_operator`, …) with its own UUID without affecting other sites.
+3. **Globally unique login email.** One login string across the entire deployment; less ambiguity for support.
+4. **Hash only in PostgreSQL; session state in Redis.** PG is the source of truth for the person. Redis can be flushed without losing users.
+5. **Junction table `user_role`.** Supports multiple roles without brittle arrays or boolean permission columns.
+6. **`parent_id` on institution.** Lightweight hierarchy without a separate `institution_group` table.
+7. **Single `ui_preferences` JSONB** for locale, theme, and future UI preferences. Avoids schema migrations for every cosmetic toggle; business codes remain in English.
+
+**Rejected alternatives**
 
 
-| Campo             | Valor                                                                              |
-| ----------------- | ---------------------------------------------------------------------------------- |
-| Código            | PEF-DS01                                                                           |
-| Título            | Identity and Credentials                                                           |
-| Versión           | 0.2.2                                                                              |
-| Estado            | draft                                                                              |
-| Almacenes         | PostgreSQL (`institution`, `role`, `user`, `user_role`, `user_operating_room`); Redis (auth) |
-| Fuera de alcance  | Paciente, médico, operación; `integration_client`; privacidad ARCO; `work_session` |
-| DDL de referencia | `esquema_base_datos_v2.md` §5.3                                                    |
+| Alternative | Why not |
+| --- | --- |
+| Single global roles across the entire system | Conflicts with hospitals that name the same permission differently; forces migrations during onboarding. |
+| Multi-institution N:M user from day 1 | More accurate long-term for large networks, but complicates JWT, auditing, and filters in v1. Deferred. |
+| Store permissions as JSON on `user` | Fast to prototype; poor for querying "who has role X" and for auditing. |
+| Server-cookie-only session without Redis | Valid for a small monolith; with multiple replicas/backends, JWT + Redis (or shared store) scales better. |
+| LDAP/OIDC as the sole identity from day 1 | Desirable in a real hospital; the PEF core first needs predictable local identity. OIDC can be layered later without changing `user` UUIDs. |
+| Merge `user` with `physician` | The surgery physician is not always the person logging into the station. They are distinct concepts (DS02). |
+| Cookie-only language/theme, no field on `user` | Loses preferences across devices (portal vs. station) and when clearing browser data. |
+| Separate `locale` column + `theme` column + … | Acceptable if they never grow; JSONB covers both today and leaves room without ALTER. |
 
 
+---
+
+## 2. Annex A – General Information
+
+
+| Field | Value |
+| --- | --- |
+| Code | PEF-DS01 |
+| Title | Identity and Credentials |
+| Version | 0.2.2 |
+| Status | draft |
+| Stores | PostgreSQL (`institution`, `role`, `user`, `user_role`, `user_operating_room`); Redis (auth) |
+| Out of scope | Patient, physician, operation; `integration_client`; ARCO privacy; `work_session` |
+| Reference DDL | `esquema_base_datos_v2.md` §5.3 |

@@ -260,6 +260,21 @@ curl -i -X POST http://127.0.0.1:5001/login -H "Content-Type: application/json" 
 
 ---
 
+## Documentation (canonical)
+
+| Kind | Path | What it covers |
+| --- | --- | --- |
+| Data standards (DS01–DS10) | [`data/DataStandards/`](data/DataStandards/README.md) | Identity, clinical context, kits/YOLO, sessions, evidence, Mongo, privacy, FHIR clients, REST, vision WSS |
+| Functional requirements (RF) | [`data/FunctionalRequirements/`](data/FunctionalRequirements/) | Operator / SPD screens ([`rf_operador_supervisor_spd.md`](data/FunctionalRequirements/rf_operador_supervisor_spd.md)), Admin / App ([`rf_admin_app.md`](data/FunctionalRequirements/rf_admin_app.md)) |
+| Schema briefing | [`data/briefing_esquema_bd.md`](data/briefing_esquema_bd.md) | Short narrative of what the DB covers |
+| Medical / interoperability notes | [`data/estandares_medicos.md`](data/estandares_medicos.md) | Clinical standards alignment notes |
+| DDL snapshot (historical) | [`data/esquema_base_datos_v2.md`](data/esquema_base_datos_v2.md) | Base DDL reference; live schema is `data/migrations/` |
+| Demo credentials | [`data/seeds/DEMO_CREDENTIALS.md`](data/seeds/DEMO_CREDENTIALS.md) | Seed users / Locust accounts |
+| Locust load suite | [`Locust/README.md`](Locust/README.md) | Per-type HTTP load tests and English reports |
+| Docs stub | [`docs/README.md`](docs/README.md) | Points here and to `data/` (no separate pack) |
+
+Contracts and RFs are written in English. UI copy uses English msgids (`en` source) with Babel `es-MX`. Seed free-text that the UI shows (kit names, role blurbs, station labels) is stored in English and mapped in `apps/BackendWebFlask/i18n.py` for locale display.
+
 ## Repository layout
 
 ```
@@ -267,6 +282,7 @@ PEF-Instrumental-quirurgico/
 ├── docker-compose.integral.yml     # Main stack (Docker)
 ├── docker-compose.vision-cpu.yml   # Option B: Vision in container (CPU)
 ├── .env.example
+├── Locust/                         # Load scenarios + reports/
 ├── apps/
 │   ├── BackendAuthService/
 │   ├── BackendWebFlask/            # Portal + admin_local
@@ -275,10 +291,10 @@ PEF-Instrumental-quirurgico/
 │   ├── CatalogService/ … IntegrationService/
 │   └── PEF-Android/
 ├── data/
-│   ├── migrations/                 # 001 + 004…021
+│   ├── migrations/                 # 001 + 004…023
 │   ├── seeds/                      # 002, 003(+Locust), 004, DEMO_CREDENTIALS.md, example_images/
-│   ├── DataStandards/
-│   └── FunctionalRequirements/
+│   ├── DataStandards/              # PEF-DS01…DS10
+│   └── FunctionalRequirements/     # Operator/SPD + Admin/App RFs
 ├── docs/                           # stub only; contracts live under data/
 ├── infra/                          # Garage, gateway
 └── scripts/
@@ -312,7 +328,7 @@ Hourly: does not fire while idle; catch-up on resume; ratio via VisionWorker `/s
 Flask-Babel in `BackendWebFlask`: source language `en`, catalog `es-MX` (`translations/es_MX/`). Preference: authenticated user → `ui_preferences.locale`; guest → cookie `pef_locale`.
 
 UI strings use English msgids in code/templates (`_()` / `N_()`).  
-System DB labels (catalog `code`s, known seed names) are mapped in `i18n.py` (`localize_db_label` / `localize_db_text`) to English msgids, then translated by Babel. Free-text entered by users is not translated.
+System DB labels (catalog `code`s, known seed names) are stored in English and mapped in `i18n.py` (`localize_db_label` / `localize_db_text`) to English msgids, then translated by Babel for `es-MX`. Free-text entered by users is not translated.
 
 After adding portal screens (e.g. Hospital operations, capture traffic strip), re-run extract/update/compile and fill empty or fuzzy `msgstr` entries in `es_MX` - fuzzy auto-matches can attach the wrong Spanish string to a new msgid.
 
@@ -408,5 +424,4 @@ Demo pipeline `matrix_v1` (Hungarian by default; `VISION_ASSIGN_SOLVER=greedy` f
 | 8 | Session/Evidence/Audit/… microservices + Android | Integrated |
 
 Code comments: English. UI copy: `en` + `es-MX` via Babel.
-Pre-RF operator redirects still under `/legacy/...` (see `apps/BackendWebFlask/legacy/README.md`).
 Data contracts: `data/DataStandards/`. Screen RFs: `data/FunctionalRequirements/`.

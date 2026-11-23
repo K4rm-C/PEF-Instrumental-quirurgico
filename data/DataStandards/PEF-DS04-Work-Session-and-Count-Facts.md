@@ -3,7 +3,7 @@ id: PEF-DS04
 title: Work Session and Count Facts
 version: "0.2.1"
 status: draft
-owner: PEF Core / Estación / Worker
+owner: PEF Core / Station / Worker
 applies_to: [CS, BE, Worker, WP]
 stores: [PostgreSQL]
 related: [PEF-DS01, PEF-DS02, PEF-DS03, PEF-DS06, PEF-DS07]
@@ -12,63 +12,63 @@ last_updated: 2026-11-19
 
 # PEF-DS04 · Work Session and Count Facts
 
-## INTRODUCCION
+## INTRODUCTION
 
-Este estándar define **el acto de contar en charola** y lo que queda como hecho auditable en PostgreSQL.
+This standard defines **the act of counting on a tray** and what is persisted as an auditable fact in PostgreSQL.
 
-Tablas dueñas: `work_session`, `expected_inventory`, `count_event`, `discrepancy`, `human_correction`.
+Owned tables: `work_session`, `expected_inventory`, `count_event`, `discrepancy`, `human_correction`.
 
-Catálogos dueños: `cat_session_status`, `cat_event_type`, `cat_discrepancy_reason`.
+Owned catalogs: `cat_session_status`, `cat_event_type`, `cat_discrepancy_reason`.
 
-`cat_operation_phase` se define en PEF-DS03; aquí la sesión solo guarda `current_phase_id`.
+`cat_operation_phase` is defined in PEF-DS03; here the session only stores `current_phase_id`.
 
-No define checkpoints Mongo (PEF-DS06), ni bytes JPEG/MP4 (PEF-DS05), ni el acuerdo de privacidad de la sesión (PEF-DS07) — aunque la sesión puede existir antes de ese acuerdo.
+It does not define MongoDB checkpoints (PEF-DS06), JPEG/MP4 bytes (PEF-DS05), or the session privacy agreement (PEF-DS07) — although a session may exist prior to that agreement.
 
-Abajo: **todos** los campos, FKs con motivo, y **fila completa** por tabla.
-
----
-
-## 1. Explicación del estándar
-
-### 1.1 Definiciones
-
-| Término | Significado |
-| :--- | :--- |
-| **Sesión de trabajo** | Periodo en que un usuario cuenta o prepara conteo, ligado opcionalmente a operación, estación, kit y fase. |
-| **Inventario esperado** | Cantidades por familia **congeladas** para esa sesión. |
-| **Evento de conteo** | Hecho auditable (auto/manual/cambio de fase, etc.). |
-| **Discrepancia** | Registro de descuadre; puede resolverse después. |
-| **Corrección humana** | Justificación obligatoria ligada a un `count_event` (1:1). |
-
-### 1.2 Uso
-
-Estación abre/cierra sesión y muestra esperado vs detectado. Backend/portal (SessionService) **persisten** `count_event`. VisionWorker empuja UI por WSS y alimenta el ring de evidencia en Redis; no es dueño de hechos SQL. Portal consulta historial y discrepancias.
-
-| Pregunta | Dónde |
-| :--- | :--- |
-| ¿Cuántos se dieron por detectados a las 10:32 en la sesión X? | `count_event` (este DS) |
-| ¿Boxes, score, traza fina? | Mongo (DS06) |
-| ¿URI del JPEG? | `media_asset` (DS05) |
-
-Fan-out del proyecto: detección → UI (WSS) **y** hecho en PG (+ checkpoint si la política lo pide).
+Below: **all** fields, FKs with rationales, and one **complete example row** per table.
 
 ---
 
-### 1.3 Convenciones
+## 1. Standard Explanation
 
-En “Hacia dónde apunta”, columna **Relación**: `N:1` = muchas filas de esta tabla a una del destino; `N:0..1` = destino opcional; `1:1` = a lo sumo un par (UNIQUE); `N:N` vía tabla puente.
+### 1.1 Definitions
+
+| Term | Meaning |
+| :--- | :--- |
+| **Work session** | Period during which a user counts or prepares a count, optionally linked to an operation, station, kit, and phase. |
+| **Expected inventory** | Per-family quantities **frozen** for that session. |
+| **Count event** | Auditable fact (auto/manual/phase change, etc.). |
+| **Discrepancy** | Mismatch record; may be resolved later. |
+| **Human correction** | Mandatory justification linked to a `count_event` (1:1). |
+
+### 1.2 Usage
+
+The station opens/closes the session and displays expected vs. detected counts. Backend/portal (SessionService) **persists** `count_event`. VisionWorker pushes UI updates over WSS and feeds the Redis evidence ring; it does not own SQL facts. The portal queries history and discrepancies.
+
+| Question | Where |
+| :--- | :--- |
+| How many items were recorded as detected at 10:32 in session X? | `count_event` (this DS) |
+| Boxes, score, fine-grained trace? | MongoDB (DS06) |
+| JPEG URI? | `media_asset` (DS05) |
+
+Project fan-out: detection → UI (WSS) **and** fact in PG (+ checkpoint if policy requires it).
+
+---
+
+### 1.3 Conventions
+
+Under "References", the **Relationship** column means: `N:1` = many rows in this table to one in the target; `N:0..1` = optional target; `1:1` = at most one pair (UNIQUE); `N:N` via junction table.
 
 ---
 
 #### 1.3.1 `cat_session_status`
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
 | `code` | VARCHAR(32) | NO | — | `scheduled`, `in_progress`, `or_hold`, `awaiting_spd_review`, `correction_required`, `closed`, `aborted`. |
-| `name` | VARCHAR(80) | NO | — | Etiqueta. |
+| `name` | VARCHAR(80) | NO | — | Label. |
 
-FKs: ninguna. UNIQUE `code`.
+FKs: none. UNIQUE `code`.
 
 ```json
 {
@@ -82,19 +82,19 @@ FKs: ninguna. UNIQUE `code`.
 
 #### 1.3.2 `cat_event_type`
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `code` | VARCHAR(64) | NO | — | Incluye `auto_count`, `manual_count`, `phase_change`, `or_hold_opened`, `or_hold_comment`, `or_hold_released`. |
-| `name` | VARCHAR(160) | NO | — | Etiqueta. |
+| `code` | VARCHAR(64) | NO | — | Includes `auto_count`, `manual_count`, `phase_change`, `or_hold_opened`, `or_hold_comment`, `or_hold_released`. |
+| `name` | VARCHAR(160) | NO | — | Label. |
 
-FKs: ninguna. UNIQUE `code`.
+FKs: none. UNIQUE `code`.
 
 ```json
 {
   "id": "c1000002-0000-4000-8000-000000000002",
   "code": "auto_count",
-  "name": "Conteo automático"
+  "name": "Automatic count"
 }
 ```
 
@@ -102,63 +102,63 @@ FKs: ninguna. UNIQUE `code`.
 
 #### 1.3.3 `cat_discrepancy_reason`
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `code` | VARCHAR(64) | NO | — | Ej. `left_in_patient`, `counting_error`, `extra_on_tray`. |
-| `name` | VARCHAR(160) | NO | — | Etiqueta. |
+| `code` | VARCHAR(64) | NO | — | E.g. `left_in_patient`, `counting_error`, `extra_on_tray`. |
+| `name` | VARCHAR(160) | NO | — | Label. |
 
-FKs: ninguna. UNIQUE `code`.
+FKs: none. UNIQUE `code`.
 
 ```json
 {
   "id": "c1000003-0000-4000-8000-000000000003",
   "code": "counting_error",
-  "name": "Error de conteo / detección"
+  "name": "Counting / detection error"
 }
 ```
 
 ---
 
-#### 1.3.4 Tabla `work_session`
+#### 1.3.4 Table `work_session`
 
-**Para qué:** cabecera del periodo de conteo.
+**Purpose:** header record for a counting period.
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | UUID | NO | `gen_random_uuid()` | PK de la sesión. |
-| `started_at` | TIMESTAMPTZ | NO | `now()` | Inicio. |
-| `ended_at` | TIMESTAMPTZ | SÍ | NULL | Cierre. |
-| `status_id` | UUID | NO | — | Estado de sesión. |
-| `user_id` | UUID | NO | — | Usuario dueño / quien abre. |
-| `closed_by_user_id` | UUID | SÍ | NULL | Quien cerró. |
-| `operation_id` | UUID | SÍ | NULL | Caso clínico (política de producto puede exigirlo). |
-| `station_id` | UUID | SÍ | NULL | Estación de captura. |
-| `kit_id` | UUID | SÍ | NULL | Kit de referencia al abrir. |
-| `current_phase_id` | UUID | SÍ | NULL | Fase clínica actual. |
-| `phase_changed_at` | TIMESTAMPTZ | SÍ | NULL | Cuándo cambió la fase. |
-| `yolo_model_id` | UUID | SÍ | NULL | Pin del detector al Start en modo `vision`. NULL en `scheduled` y en `manual_no_privacy`. Worker/UI de sesión abierta leen esta FK, no el `yolo_model.active` global. |
-| `atypical_session` | BOOLEAN | NO | `FALSE` | Sesión fuera de proceso estándar. |
-| `extended_retention` | BOOLEAN | NO | `FALSE` | Señal de retención extendida de evidencia. |
-| `retention_until` | TIMESTAMPTZ | SÍ | NULL | Hasta cuándo retener (si aplica). |
-| `updated_at` | TIMESTAMPTZ | NO | `now()` | Última actualización de la cabecera. |
+| `id` | UUID | NO | `gen_random_uuid()` | Session PK. |
+| `started_at` | TIMESTAMPTZ | NO | `now()` | Start time. |
+| `ended_at` | TIMESTAMPTZ | YES | NULL | Close time. |
+| `status_id` | UUID | NO | — | Session status. |
+| `user_id` | UUID | NO | — | Owning user / who opened it. |
+| `closed_by_user_id` | UUID | YES | NULL | Who closed it. |
+| `operation_id` | UUID | YES | NULL | Clinical case (product policy may require it). |
+| `station_id` | UUID | YES | NULL | Capture station. |
+| `kit_id` | UUID | YES | NULL | Reference kit at open time. |
+| `current_phase_id` | UUID | YES | NULL | Current clinical phase. |
+| `phase_changed_at` | TIMESTAMPTZ | YES | NULL | When the phase last changed. |
+| `yolo_model_id` | UUID | YES | NULL | Detector pinned at Start in `vision` mode. NULL in `scheduled` and in `manual_no_privacy`. Worker/UI for an open session read this FK, not the global `yolo_model.active`. |
+| `atypical_session` | BOOLEAN | NO | `FALSE` | Session outside standard procedure. |
+| `extended_retention` | BOOLEAN | NO | `FALSE` | Extended evidence retention flag. |
+| `retention_until` | TIMESTAMPTZ | YES | NULL | Retain evidence until this timestamp (if applicable). |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Last header update. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `status_id` | `cat_session_status.id` | N:1 | Estado controlado. | `RESTRICT` |
-| `user_id` | `user.id` (DS01) | N:1 | Responsable de la sesión. | `RESTRICT` |
-| `closed_by_user_id` | `user.id` (DS01) | N:0..1 | Quién cerró; puede diferir del abridor. | `SET NULL` |
-| `operation_id` | `operation.id` (DS02) | N:0..1 | Contexto clínico. | `RESTRICT` |
-| `station_id` | `capture_station.id` (DS02) | N:0..1 | Dónde se capturó. | `SET NULL` |
-| `kit_id` | `kit.id` (DS03) | N:0..1 | Receta de referencia; el detalle esperado está en `expected_inventory`. | `SET NULL` |
-| `current_phase_id` | `cat_operation_phase.id` (DS03) | N:0..1 | Fase actual. | `SET NULL` |
-| `yolo_model_id` | `yolo_model.id` (DS03) | N:0..1 | Detector congelado para esta sesión. | `SET NULL` |
+| `status_id` | `cat_session_status.id` | N:1 | Controlled status. | `RESTRICT` |
+| `user_id` | `user.id` (DS01) | N:1 | Session owner. | `RESTRICT` |
+| `closed_by_user_id` | `user.id` (DS01) | N:0..1 | Closer; may differ from opener. | `SET NULL` |
+| `operation_id` | `operation.id` (DS02) | N:0..1 | Clinical context. | `RESTRICT` |
+| `station_id` | `capture_station.id` (DS02) | N:0..1 | Where capture occurred. | `SET NULL` |
+| `kit_id` | `kit.id` (DS03) | N:0..1 | Reference recipe; expected breakdown is stored in `expected_inventory`. | `SET NULL` |
+| `current_phase_id` | `cat_operation_phase.id` (DS03) | N:0..1 | Current phase. | `SET NULL` |
+| `yolo_model_id` | `yolo_model.id` (DS03) | N:0..1 | Frozen detector for this session. | `SET NULL` |
 
-CHECK: `ended_at` ≥ `started_at` si ambas existen.
+CHECK: `ended_at` ≥ `started_at` when both are present.
 
-**Nota:** `session_processing_agreement` (0..1) es PEF-DS07. Una sesión puede existir sin acuerdo (p. ej. reserva previa).
+**Note:** `session_processing_agreement` (0..1) belongs to PEF-DS07. A session may exist without an agreement (e.g., pre-reservation).
 
 ```json
 {
@@ -183,28 +183,28 @@ CHECK: `ended_at` ≥ `started_at` si ambas existen.
 
 ---
 
-#### 1.3.5 Tabla `expected_inventory`
+#### 1.3.5 Table `expected_inventory`
 
-**Para qué:** snapshot de “cuántos deberían verse” por familia en esta sesión.
+**Purpose:** snapshot of "how many should be present" per family in this session.
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `family_id` | UUID | NO | — | Familia esperada. |
-| `expected_quantity` | SMALLINT | NO | — | Cantidad esperada (≥ 0). |
-| `session_id` | UUID | NO | — | Sesión dueña. |
-| `source` | VARCHAR(32) | NO | `'kit_snapshot'` | `kit_snapshot` o `manual`. |
+| `family_id` | UUID | NO | — | Expected family. |
+| `expected_quantity` | SMALLINT | NO | — | Expected quantity (≥ 0). |
+| `session_id` | UUID | NO | — | Owning session. |
+| `source` | VARCHAR(32) | NO | `'kit_snapshot'` | `kit_snapshot` or `manual`. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `family_id` | `instrument_family.id` (DS03) | N:1 | Qué tipo se espera. | `RESTRICT` |
-| `session_id` | `work_session.id` | N:1 | Congela esperado por sesión. | `CASCADE` |
+| `family_id` | `instrument_family.id` (DS03) | N:1 | Which type is expected. | `RESTRICT` |
+| `session_id` | `work_session.id` | N:1 | Freezes expected counts per session. | `CASCADE` |
 
-UNIQUE (`session_id`, `family_id`). CHECK cantidad ≥ 0; CHECK `source` ∈ (`kit_snapshot`, `manual`).
+UNIQUE (`session_id`, `family_id`). CHECK quantity ≥ 0; CHECK `source` ∈ (`kit_snapshot`, `manual`).
 
-Editar el kit **después** no reescribe solos estos snapshots.
+Editing the kit **later** does not automatically rewrite these snapshots.
 
 ```json
 {
@@ -218,35 +218,35 @@ Editar el kit **después** no reescribe solos estos snapshots.
 
 ---
 
-#### 1.3.6 Tabla `count_event`
+#### 1.3.6 Table `count_event`
 
-**Para qué:** hecho auditable de conteo u evento relacionado.
+**Purpose:** auditable counting fact or related event.
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | UUID | NO | `gen_random_uuid()` | PK del hecho. |
-| `event_type_id` | UUID | NO | — | Tipo de evento. |
-| `client_event_id` | UUID | SÍ | NULL | Id del cliente para idempotencia (único si viene). |
-| `family_id` | UUID | SÍ | NULL | Familia afectada (nulo si el evento no es por familia). |
-| `expected_quantity` | SMALLINT | SÍ | NULL | Esperado en ese momento (≥ 0 si informado). |
-| `detected_quantity` | SMALLINT | SÍ | NULL | Detectado/contabilizado (≥ 0 si informado). |
-| `payload` | JSONB | NO | `'{}'` | Datos extra controlados (sin PII innecesaria). En `auto_count`: lista `confidences` (0..1, una por caja). |
-| `occurred_at` | TIMESTAMPTZ | NO | `now()` | Momento del hecho. |
-| `session_id` | UUID | NO | — | Sesión. |
-| `user_id` | UUID | SÍ | NULL | Usuario si el evento fue humano; nulo si solo sistema. |
+| `id` | UUID | NO | `gen_random_uuid()` | Fact PK. |
+| `event_type_id` | UUID | NO | — | Event type. |
+| `client_event_id` | UUID | YES | NULL | Client ID for idempotency (unique when provided). |
+| `family_id` | UUID | YES | NULL | Affected family (null if event is not per-family). |
+| `expected_quantity` | SMALLINT | YES | NULL | Expected count at that moment (≥ 0 if provided). |
+| `detected_quantity` | SMALLINT | YES | NULL | Detected/counted quantity (≥ 0 if provided). |
+| `payload` | JSONB | NO | `'{}'` | Controlled extra data (no unnecessary PII). In `auto_count`: `confidences` list (0..1, one per box). |
+| `occurred_at` | TIMESTAMPTZ | NO | `now()` | Timestamp of the fact. |
+| `session_id` | UUID | NO | — | Session. |
+| `user_id` | UUID | YES | NULL | User if triggered by a human; null if system-only. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `event_type_id` | `cat_event_type.id` | N:1 | Clasifica el hecho. | `RESTRICT` |
-| `family_id` | `instrument_family.id` (DS03) | N:0..1 | Tipo contado. | `SET NULL` |
-| `session_id` | `work_session.id` | N:1 | Dueño temporal. | `CASCADE` |
-| `user_id` | `user.id` (DS01) | N:0..1 | Actor humano opcional. | `SET NULL` |
+| `event_type_id` | `cat_event_type.id` | N:1 | Classifies the fact. | `RESTRICT` |
+| `family_id` | `instrument_family.id` (DS03) | N:0..1 | Counted type. | `SET NULL` |
+| `session_id` | `work_session.id` | N:1 | Temporal owner. | `CASCADE` |
+| `user_id` | `user.id` (DS01) | N:0..1 | Optional human actor. | `SET NULL` |
 
-UNIQUE `client_event_id` (cuando no es nulo, vía UNIQUE en columna).
+UNIQUE `client_event_id` (when non-null, via column UNIQUE constraint).
 
-En `auto_count` el payload **debe** incluir las confianzas de cada caja reportada (0..1). Fila por familia: `payload.confidences`. Snapshot de tablero (`scope = board`): `payload.board.families[].confidences`. No se persisten `avg` / `best` / `worst`.
+In `auto_count`, the payload **must** include the per-box confidences (0..1). Per-family row: `payload.confidences`. Board snapshot (`scope = board`): `payload.board.families[].confidences`. Do not persist `avg` / `best` / `worst`.
 
 ```json
 {
@@ -269,43 +269,43 @@ En `auto_count` el payload **debe** incluir las confianzas de cada caja reportad
 
 ---
 
-#### 1.3.7 Tabla `discrepancy`
+#### 1.3.7 Table `discrepancy`
 
-**Para qué:** descuadre abierto o resuelto, trazable a sesión y opcionalmente a un evento origen.
+**Purpose:** open or resolved mismatch, traceable to a session and optionally to an originating event.
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `description` | TEXT | NO | — | Descripción legible del descuadre. |
-| `resolved` | BOOLEAN | NO | `FALSE` | Si ya se cerró. |
-| `resolved_at` | TIMESTAMPTZ | SÍ | NULL | Cuándo se resolvió (obligatorio si `resolved`). |
-| `reason_id` | UUID | SÍ | NULL | Motivo de catálogo al clasificar/resolver. |
-| `family_id` | UUID | SÍ | NULL | Familia involucrada. |
-| `expected_quantity` | SMALLINT | SÍ | NULL | Esperado (≥ 0 si informado). |
-| `detected_quantity` | SMALLINT | SÍ | NULL | Detectado (≥ 0 si informado). |
-| `session_id` | UUID | NO | — | Sesión. |
-| `origin_event_id` | UUID | SÍ | NULL | `count_event` que originó el aviso. |
-| `suggested_resolution` | TEXT | SÍ | NULL | Relato OR al liberar el hold (encontrado / no encontrado / búsqueda). |
-| `or_released_at` | TIMESTAMPTZ | SÍ | NULL | Cuándo OP envió el caso a SPD. |
-| `or_released_by_user_id` | UUID | SÍ | NULL | Quién liberó el hold. |
-| `updated_at` | TIMESTAMPTZ | NO | `now()` | Última actualización. |
+| `description` | TEXT | NO | — | Human-readable mismatch description. |
+| `resolved` | BOOLEAN | NO | `FALSE` | Whether it has been closed. |
+| `resolved_at` | TIMESTAMPTZ | YES | NULL | When it was resolved (mandatory if `resolved`). |
+| `reason_id` | UUID | YES | NULL | Catalog reason when classifying/resolving. |
+| `family_id` | UUID | YES | NULL | Involved family. |
+| `expected_quantity` | SMALLINT | YES | NULL | Expected count (≥ 0 if provided). |
+| `detected_quantity` | SMALLINT | YES | NULL | Detected count (≥ 0 if provided). |
+| `session_id` | UUID | NO | — | Session. |
+| `origin_event_id` | UUID | YES | NULL | `count_event` that originated the alert. |
+| `suggested_resolution` | TEXT | YES | NULL | OR narrative when releasing the hold (found / not found / search). |
+| `or_released_at` | TIMESTAMPTZ | YES | NULL | When OP sent the case to SPD. |
+| `or_released_by_user_id` | UUID | YES | NULL | Who released the hold. |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Last update. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `reason_id` | `cat_discrepancy_reason.id` | N:0..1 | Clasificación controlada. | `SET NULL` |
-| `family_id` | `instrument_family.id` (DS03) | N:0..1 | Tipo en descuadre. | `SET NULL` |
-| `session_id` | `work_session.id` | N:1 | Dueño. | `CASCADE` |
-| `origin_event_id` | `count_event.id` | N:0..1 | Hecho disparador. | `SET NULL` |
-| `or_released_by_user_id` | `user.id` (DS01) | N:0..1 | Operador que liberó a SPD. | `SET NULL` |
+| `reason_id` | `cat_discrepancy_reason.id` | N:0..1 | Controlled classification. | `SET NULL` |
+| `family_id` | `instrument_family.id` (DS03) | N:0..1 | Mismatched type. | `SET NULL` |
+| `session_id` | `work_session.id` | N:1 | Owner. | `CASCADE` |
+| `origin_event_id` | `count_event.id` | N:0..1 | Triggering fact. | `SET NULL` |
+| `or_released_by_user_id` | `user.id` (DS01) | N:0..1 | Operator who released to SPD. | `SET NULL` |
 
-CHECK: si `resolved = TRUE` entonces `resolved_at` NOT NULL.
+CHECK: if `resolved = TRUE` then `resolved_at` NOT NULL.
 
 ```json
 {
   "id": "di000001-0000-4000-8000-000000000001",
-  "description": "Falta 1 portaagujas Mayo-Hegar respecto al esperado",
+  "description": "Missing 1 Mayo-Hegar needle holder relative to expected count",
   "resolved": false,
   "resolved_at": null,
   "reason_id": null,
@@ -323,31 +323,31 @@ CHECK: si `resolved = TRUE` entonces `resolved_at` NOT NULL.
 
 ---
 
-#### 1.3.8 Tabla `human_correction`
+#### 1.3.8 Table `human_correction`
 
-**Para qué:** corrección/validación humana de un evento. **Una** corrección por `count_event` (UNIQUE).
+**Purpose:** human correction/validation of an event. **One** correction per `count_event` (UNIQUE).
 
-| Campo | Tipo | Nulo | Default | Significado |
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
 | `id` | UUID | NO | `gen_random_uuid()` | PK. |
-| `justification` | TEXT | NO | — | Texto obligatorio: por qué se corrige/valida. |
-| `recorded_at` | TIMESTAMPTZ | NO | `now()` | Momento del registro. |
-| `count_event_id` | UUID | NO | — | Evento corregido (único). |
-| `user_id` | UUID | SÍ | NULL | Quien registró la corrección. |
+| `justification` | TEXT | NO | — | Mandatory text explaining why it is corrected/validated. |
+| `recorded_at` | TIMESTAMPTZ | NO | `now()` | Recording timestamp. |
+| `count_event_id` | UUID | NO | — | Corrected event (unique). |
+| `user_id` | UUID | YES | NULL | Who recorded the correction. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `count_event_id` | `count_event.id` | 1:1 (UNIQUE: a lo sumo una corrección por evento) | Hecho que se corrige; no se borra la historia del evento. | `CASCADE` |
-| `user_id` | `user.id` (DS01) | N:0..1 | Autor de la justificación. | `SET NULL` |
+| `count_event_id` | `count_event.id` | 1:1 (UNIQUE: at most one correction per event) | Fact being corrected; event history is not erased. | `CASCADE` |
+| `user_id` | `user.id` (DS01) | N:0..1 | Author of the justification. | `SET NULL` |
 
 UNIQUE `count_event_id`.
 
 ```json
 {
   "id": "hc000001-0000-4000-8000-000000000001",
-  "justification": "Confirmado en charola: el segundo portaagujas estaba bajo una gasa; conteo manual = 2.",
+  "justification": "Confirmed on tray: second needle holder was under gauze; manual count = 2.",
   "recorded_at": "2026-09-05T18:22:10Z",
   "count_event_id": "ce000001-0000-4000-8000-000000000001",
   "user_id": "22222222-2222-2222-2222-222222222222"
@@ -358,52 +358,52 @@ UNIQUE `count_event_id`.
 
 ### 1.4 Governance and Ownership
 
-| Aspecto | Responsable |
+| Aspect | Owner |
 | :--- | :--- |
-| Apertura/cierre de sesión | Estación + Backend |
-| Persistencia de `count_event` | Backend / SessionService (portal); VisionWorker no escribe PG |
-| Resolución de discrepancias | Personal clínico autorizado |
-| Retención extendida | Coordinar con PEF-DS07 / política de privacidad |
+| Session open/close | Station + Backend |
+| `count_event` persistence | Backend / SessionService (portal); VisionWorker does not write PG |
+| Discrepancy resolution | Authorized clinical staff |
+| Extended retention | Coordinate with PEF-DS07 / privacy policy |
 
 ---
 
-### 1.5 Justificación del estándar
+### 1.5 Standard Rationale
 
-**Por qué este bloque**
+**Why this block exists**
 
-La UI en tiempo real se olvida. Mongo guarda detalle de visión. Hace falta un lugar en PostgreSQL donde se pueda responder: “en esta sesión, a esta hora, se registró este conteo y esta discrepancia”.
+The real-time UI is ephemeral. MongoDB stores vision detail. PostgreSQL needs a durable record that answers: "in this session, at this time, this count and this discrepancy were recorded."
 
-**Decisiones tomadas**
+**Design decisions taken**
 
-1. **Snapshot `expected_inventory` por sesión.** Editar el kit mañana no reescribe lo que se esperaba ayer.
-2. **`count_event` como hecho de negocio**, no solo log de aplicación. Reportes y auditoría SQL.
-3. **`client_event_id` para idempotencia.** Reintentos de red no duplican el mismo hecho.
-4. **Discrepancia como entidad propia.** Puede vivir abierta; no todo descuadre es un “update” del último evento.
-5. **Corrección humana 1:1 con justificación obligatoria.** No hay “corregí el número y ya”.
-6. **Sesión puede existir sin acuerdo de privacidad.** El acuerdo es 0..1 en DS07; p. ej. reserva previa.
-7. **Fan-out UI + PG (+ Mongo opcional).** La pantalla no es la única verdad.
+1. **Per-session `expected_inventory` snapshot.** Editing a kit tomorrow does not rewrite what was expected yesterday.
+2. **`count_event` as a business fact**, not just an application log. Supports SQL reporting and auditing.
+3. **`client_event_id` for idempotency.** Network retries do not duplicate the same fact.
+4. **Discrepancy as a first-class entity.** Can remain open; not every mismatch is simply an update to the last event.
+5. **1:1 human correction with mandatory justification.** Prevents silent number overrides.
+6. **Session can exist without a privacy agreement.** Agreement is 0..1 in DS07 (e.g., pre-reservation).
+7. **Fan-out UI + PG (+ optional MongoDB).** The screen is not the sole source of truth.
 
-**Alternativas no elegidas**
+**Rejected alternatives**
 
-| Alternativa | Por qué no |
+| Alternative | Why not |
 | :--- | :--- |
-| Guardar solo el último conteo en la sesión | Pierde línea de tiempo; no hay auditoría de cambios. |
-| Esperado = join vivo al kit | El pasado se mueve cuando editan el kit. |
-| Solo Mongo para conteos | Reportes legales/hospitalarios suelen querer SQL relacional y retención distinta al TTL de checkpoints. |
-| Meter boxes (xyxy, top-k, matriz) dentro de `count_event.payload` siempre | Infla PG; el detalle geométrico es DS06. En cada `auto_count` sí van las **`confidences` por caja** (lista corta); no avg/best/worst. |
-| Varias correcciones humanas por evento sin regla | Ambiguo cuál mandó; el UNIQUE fuerza una corrección vigente por evento (si hace falta historial largo, se versiona el evento, no se apilan correcciones mudas). |
-| Discrepancia solo como flag en el evento | Complica listar abiertas, asignar motivo y resolver sin tocar el hecho original. |
+| Store only the latest count on the session | Loses timeline; no change audit trail. |
+| Expected = live join to kit | Past sessions shift whenever the kit is edited. |
+| MongoDB-only for counts | Legal/hospital reporting typically requires relational SQL and different retention than checkpoint TTLs. |
+| Always put boxes (xyxy, top-k, matrix) inside `count_event.payload` | Bloats PG; geometric detail belongs to DS06. Each `auto_count` does include per-box **`confidences`** (short list), not avg/best/worst. |
+| Multiple unconstrained human corrections per event | Ambiguous which one prevailed; UNIQUE enforces one active correction per event (if long history is needed, version the event rather than stacking silent corrections). |
+| Discrepancy only as a flag on the event | Complicates listing open items, assigning reasons, and resolving without altering the original fact. |
 
 ---
 
-## 2. Anexo A – Información general
+## 2. Annex A – General Information
 
-| Campo | Valor |
+| Field | Value |
 | :--- | :--- |
-| Código | PEF-DS04 |
-| Título | Work Session and Count Facts |
-| Versión | 0.2.1 |
-| Estado | draft |
-| Almacén | PostgreSQL (§5.7) |
-| Fuera de alcance | Checkpoints Mongo; object storage; WSS frame-a-frame (DS10); acuerdo privacy (DS07) |
-| DDL de referencia | `esquema_base_datos_v2.md` |
+| Code | PEF-DS04 |
+| Title | Work Session and Count Facts |
+| Version | 0.2.1 |
+| Status | draft |
+| Store | PostgreSQL (§5.7) |
+| Out of scope | MongoDB checkpoints; object storage; frame-by-frame WSS (DS10); privacy agreement (DS07) |
+| Reference DDL | `esquema_base_datos_v2.md` |

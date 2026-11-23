@@ -12,6 +12,7 @@ from flask_sock import Sock
 
 from config import (
     ASSIGN_SOLVER,
+    BOARD_CLAIM_HISTORY,
     BOX_RECALL_CONF,
     CONF_DISPLAY_REASSIGN,
     CONF_DISPLAY_THRESHOLD,
@@ -24,6 +25,7 @@ from config import (
     HOLD_DROP_SCORE,
     HOLD_DROP_STREAK,
     HOLD_MIN_SCORE,
+    HOLD_REENTER_FRAMES,
     HOLD_SECONDS,
     HOLD_SEED_FRAMES,
     HOLD_ZONE_IOU,
@@ -101,9 +103,11 @@ def health():
         "hold_absent_seconds": HOLD_ABSENT_SECONDS,
         "hold_absent_streak": HOLD_ABSENT_STREAK,
         "hold_seed_frames": HOLD_SEED_FRAMES,
+        "hold_reenter_frames": HOLD_REENTER_FRAMES,
         "hold_zone_iou": HOLD_ZONE_IOU,
         "soft_name_seconds": SOFT_NAME_SECONDS,
         "soft_name_min_score": SOFT_NAME_MIN_SCORE,
+        "board_claim_history": BOARD_CLAIM_HISTORY,
         "count_sample_interval_s": COUNT_SAMPLE_INTERVAL_S,
         "track_memory": TRACK_MEMORY,
         "ws_path": "/ws",
@@ -273,16 +277,19 @@ if __name__ == "__main__":
         COUNT_SAMPLE_INTERVAL_S,
     )
     logger.info(
-        "Holds: ttl=%.2fs name=%.2fs absent=%.2fs drop=%.2f×%s seed=%s zone_iou=%.2f soft_name=%.2fs@%.2f",
+        "Holds: ttl=%.2fs name=%.2fs absent=%.2fs drop=%.2f×%s seed=%s reenter=%s zone_iou=%.2f "
+        "board_resolve=%.2fs@%.2f claim_hist=%s",
         HOLD_SECONDS,
         NAME_HOLD_SECONDS,
         HOLD_ABSENT_SECONDS,
         HOLD_DROP_SCORE,
         HOLD_DROP_STREAK,
         HOLD_SEED_FRAMES,
+        HOLD_REENTER_FRAMES,
         HOLD_ZONE_IOU,
         SOFT_NAME_SECONDS,
         SOFT_NAME_MIN_SCORE,
+        BOARD_CLAIM_HISTORY,
     )
     logger.info("Track memory: %s (rollback: VISION_TRACK_MEMORY=0)", "on" if TRACK_MEMORY else "off")
     # Per-frame / WS traffic stays quiet on purpose; bind, video jobs and errors are logged above.

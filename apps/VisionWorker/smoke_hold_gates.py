@@ -497,7 +497,8 @@ def main() -> None:
         )
     assert "FOERSTER" not in state_drop._hold_by_family
 
-    # Soft-name: mid-conf assigned Type with open quota → name after dwell.
+    # Dual channel: mid-conf assigned Type → board_resolved after dwell;
+    # overlay stays Type until conf >= display (~0.70).
     from inference import _apply_soft_names
 
     state_soft = SessionState(session_id="smoke-soft-name")
@@ -512,6 +513,7 @@ def main() -> None:
     }
     state_soft.soft_name_seconds = 1.5
     state_soft.soft_name_min_score = 0.48
+    state_soft.conf_display_threshold = 0.70
     strong = {
         "xyxy": [10.0, 10.0, 40.0, 80.0],
         "family_code": "ADSON",
@@ -531,6 +533,12 @@ def main() -> None:
         "confidence": 0.50,
         "high_confidence": False,
         "track_id": 2,
+        "raw": {
+            "topk": [
+                {"family_code": "ADSON", "score": 0.50},
+                {"family_code": "ALLIS", "score": 0.20},
+            ]
+        },
     }
     soft_counts = {
         "ADSON": {
@@ -553,13 +561,41 @@ def main() -> None:
         state_soft, boxes=boxes_soft, counts=soft_counts, video_t=1.6
     )
     assert n == 1
-    assert boxes_soft[1]["high_confidence"] is True
+    assert boxes_soft[1].get("board_resolved") is True
     assert boxes_soft[1].get("soft_named") is True
-    assert boxes_soft[1]["label"] == "Adson"
+    # Mid-conf: board knows Adson; overlay keeps category label.
+    assert boxes_soft[1]["high_confidence"] is False
+    assert boxes_soft[1]["label"] == "Grasping"
+    assert boxes_soft[1]["family_code"] == "ADSON"
 
-    # No soft-name when quota names are already filled.
+    # High-conf board-resolve also paints the overlay name.
+    state_hi = SessionState(session_id="smoke-soft-hi")
+    state_hi.expected = state_soft.expected
+    state_hi.soft_name_seconds = 0.5
+    state_hi.soft_name_min_score = 0.48
+    state_hi.conf_display_threshold = 0.70
+    hi_weak = {
+        **dict(weak),
+        "confidence": 0.72,
+        "raw": {"topk": [{"family_code": "ADSON", "score": 0.72}]},
+    }
+    hi_boxes = [dict(strong), hi_weak]
+    hi_counts = {
+        "ADSON": {
+            "family_code": "ADSON",
+            "expected_quantity": 2,
+            "detected_quantity": 2,
+            "difference": 0,
+            "box_confidences": [0.88, 0.72],
+        }
+    }
+    assert _apply_soft_names(state_hi, boxes=hi_boxes, counts=hi_counts, video_t=0.0) == 0
+    assert _apply_soft_names(state_hi, boxes=hi_boxes, counts=hi_counts, video_t=0.6) == 1
+    assert hi_boxes[1]["high_confidence"] is True
+    assert hi_boxes[1]["label"] == "Adson"
+
+    # No board-resolve when quota names are already filled.
     state_full = SessionState(session_id="smoke-soft-full")
-    state_full.expected = state_soft.expected
     state_full.soft_name_seconds = 0.5
     state_full.soft_name_min_score = 0.48
     full_boxes = [
@@ -572,7 +608,6 @@ def main() -> None:
             "confidence": 0.52,
         },
     ]
-    # expected_quantity 2 but both already named → no promote for a third Type.
     state_full.expected = {
         "ADSON": {
             "family_id": "a1",
@@ -597,7 +632,86 @@ def main() -> None:
             )
             == 0
         )
+    assert full_boxes[1].get("board_resolved") is not True
     assert full_boxes[1]["high_confidence"] is False
+
+    # Re-enter after recent hold is faster than first seed (asymmetric).
+    state_re = SessionState(session_id="smoke-reenter")
+    state_re.expected = {"FOERSTER": {"family_id": "f1", "expected_quantity": 1}}
+    state_re.hold_seed_frames = 3
+    state_re.hold_reenter_frames = 1
+    state_re.hold_seconds = 2.5
+    state_re.name_hold_seconds = 4.0
+    state_re.hold_absent_seconds = 1.1
+    state_re.hold_absent_streak = 3
+    state_re.hold_min_score = 0.35
+    xy_re = [100.0, 100.0, 200.0, 300.0]
+    for t in (0.0, 0.2, 0.4):
+        _apply_hold(
+            state_re,
+            counts=_counts("FOERSTER", 1),
+            public_boxes=[_box("FOERSTER", xy_re)],
+            video_t=t,
+        )
+    assert "FOERSTER" in state_re._hold_by_family
+    # Confirmed absence → shrink count TTL; name sticky may remain.
+    for t in (0.6, 0.8, 1.0):
+        _apply_hold(
+            state_re,
+            counts=_counts("FOERSTER", 0),
+            public_boxes=[],
+            video_t=t,
+        )
+    out, _ = _apply_hold(
+        state_re,
+        counts=_counts("FOERSTER", 0),
+        public_boxes=[],
+        video_t=2.2,
+    )
+    assert int(out["FOERSTER"]["detected_quantity"]) == 0
+    # Count TTL gone but recent memory → reenter_frames=1 promotes on first live frame.
+    # (Fresh seed with seed_frames=3 would still be pending_promote here.)
+    out, _ = _apply_hold(
+        state_re,
+        counts=_counts("FOERSTER", 1),
+        public_boxes=[_box("FOERSTER", xy_re)],
+        video_t=2.4,
+    )
+    assert int(out["FOERSTER"]["detected_quantity"]) == 1
+    assert out["FOERSTER"].get("pending_promote") is not True
+
+    # pending_promote with live hold: keep last good count (no zero stutter).
+    state_keep = SessionState(session_id="smoke-keep-hold")
+    state_keep.expected = {"FOERSTER": {"family_id": "f1", "expected_quantity": 1}}
+    state_keep.hold_seed_frames = 3
+    state_keep.hold_reenter_frames = 3
+    state_keep.hold_seconds = 3.0
+    state_keep.hold_min_score = 0.35
+    xy_k = [50.0, 50.0, 120.0, 200.0]
+    for t in (0.0, 0.2, 0.4):
+        _apply_hold(
+            state_keep,
+            counts=_counts("FOERSTER", 1),
+            public_boxes=[_box("FOERSTER", xy_k)],
+            video_t=t,
+        )
+    assert int(state_keep._hold_by_family["FOERSTER"]["count"]["detected_quantity"]) == 1
+    # Leave live (clears _live_since) then return once — reenter_frames=3 so not sustained yet.
+    _apply_hold(
+        state_keep,
+        counts=_counts("FOERSTER", 0),
+        public_boxes=[],
+        video_t=0.5,
+    )
+    out, _ = _apply_hold(
+        state_keep,
+        counts=_counts("FOERSTER", 1),
+        public_boxes=[_box("FOERSTER", xy_k)],
+        video_t=0.55,
+    )
+    assert out["FOERSTER"].get("pending_promote") is True
+    assert out["FOERSTER"].get("held") is True
+    assert int(out["FOERSTER"]["detected_quantity"]) == 1
 
     print("OK smoke_hold_gates")
 

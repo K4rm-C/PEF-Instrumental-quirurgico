@@ -1,169 +1,168 @@
-# Briefing · Esquema de base de datos (PEF)
+# Briefing · Database Schema (PEF)
 
-> Snapshot histórico / narrativa introductoria. Para contratos canónicos usar `data/DataStandards/`; para correr el stack, el README raíz. `docs/` es solo un stub. No existe `Legacy/` ni `porting_sources` en la raíz. El conteo “51 tablas” describe el snapshot base; el esquema desplegado es `data/migrations/` (001 + 004…021). Object store on-prem actual: Garage (S3-compatible).
-
----
-
-## 1. Resumen
-
-El esquema modela quién cuenta, en qué acto quirúrgico, con qué kit e instrumental, qué detectó el sistema y qué decidió el humano, sin pretender ser un HIS/EHR completo. PostgreSQL es la fuente de verdad de negocio y auditoría; MongoDB guarda evidencia visual ocasional; object storage S3-compatible (Garage on-prem hoy) guarda archivos; Redis tokens efímeros y el ring de evidencia (`pef:evidence:*`).
-
-**Total (snapshot base):** 51 tablas en PostgreSQL + 2 colecciones Mongo. Incluye `user_operating_room`, pin `work_session.yolo_model_id` y estado `or_hold` (faltante humano antes de SPD).
+> Historical snapshot / introductory narrative. For canonical contracts, see `data/DataStandards/`; to run the stack, see the root README. `docs/` is only a stub. There is no `Legacy/` or `porting_sources` at the root. The "51 tables" count describes the baseline snapshot; the deployed schema is `data/migrations/` (001 + 004…021). Current on-prem object store: Garage (S3-compatible).
 
 ---
 
-## 2. Qué cubre
+## 1. Summary
 
+The schema models who counts, in which surgical procedure, with which kit and instruments, what the system detected, and what the human decided—without attempting to become a full HIS/EHR. PostgreSQL is the source of truth for business data and auditing; MongoDB stores occasional visual evidence; S3-compatible object storage (on-prem Garage today) stores binary files; Redis holds ephemeral tokens and the evidence ring (`pef:evidence:*`).
 
-| Área                             | Profundidad            | Qué incluye                                                                                              |
-| -------------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| **Sesión de conteo y auditoría** | Alta                   | Sesión de trabajo, inventario esperado, eventos, discrepancias, correcciones humanas, estados de sesión  |
-| **Instrumental y stock**         | Alta                   | Familia YOLO, pieza individual, usos, reservas por operación, kits versionables, ciclo de vida           |
-| **Visión / modelo**              | Media–alta (metadatos) | Versión de pesos, mapeo de clase YOLO a familia, ROI por estación; **no** el tensor del modelo           |
-| **Identidad y acceso**           | Alta                   | Institución, usuarios, roles N:M                                                                         |
-| **Contexto clínico-operativo**   | Media (mínimo viable)  | Paciente, médico, operación, sala, estación; solo lo necesario para vincular el conteo                   |
-| **Interoperabilidad FHIR**       | Media (contrato listo) | Identificadores `system` + `value`; sin HIS conectado aún                                                |
-| **Evidencia visual**             | Media                  | Checkpoints en Mongo + ancla de media en PostgreSQL; tope 30–50 frames por sesión; retención 90/180 días |
-
+**Total (baseline snapshot):** 51 tables in PostgreSQL + 2 MongoDB collections. Includes `user_operating_room`, `work_session.yolo_model_id` pinning, and the `or_hold` status (human shortage hold before SPD).
 
 ---
 
-## 3. Qué queda limitado
+## 2. Coverage
 
 
-| Limitación                                        | Por qué                                                                                                                                            |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **No es un EHR**                                  | Paciente y médico sin historial clínico, notas ni diagnósticos. El PEF es asistente de conteo, no expediente.                                      |
-| **No hay stock agregado por familia**             | Stock = filas de instrumento individual. Total disponible = consulta (estado + reservas). Evita desincronizar un número agregado vs piezas reales. |
-| **Detecciones no van a PostgreSQL frame a frame** | Alta frecuencia → Mongo y UI. PostgreSQL guarda **eventos de negocio**, no cada bbox a 10 FPS.                                                     |
-| `resource_identifier` **sin FK física**           | Polimórfico (patrón FHIR Identifier). PostgreSQL no soporta bien “FK a N tablas según tipo”. Integridad por consulta y capa de aplicación.         |
-| `cat_checkpoint_reason` **sin FK en PG**          | El motivo vive en Mongo como string. El catálogo en PostgreSQL es vocabulario de referencia.                                                       |
-| **Redis no está en el diagrama ER**               | Solo JWT/TTL; no es dato de negocio persistente.                                                                                                   |
-| **TTS / STT / HIS en vivo**                       | Fuera del núcleo o postergados; el esquema ya deja anclas FHIR.                                                                                    |
+| Area | Depth | What It Includes |
+| --- | --- | --- |
+| **Counting session & auditing** | High | Work session, expected inventory, events, discrepancies, human corrections, session statuses |
+| **Instruments & stock** | High | YOLO family, individual physical piece, usages, per-operation reservations, versionable kits, lifecycle |
+| **Vision / model** | Medium–high (metadata) | Weights version, YOLO class-to-family mapping, per-station ROI; **not** model tensors |
+| **Identity & access** | High | Institution, users, N:M roles |
+| **Clinical-operational context** | Medium (minimum viable) | Patient, physician, operation, room, station; only what is needed to link the count |
+| **FHIR interoperability** | Medium (contract-ready) | `system` + `value` identifiers; no live HIS connected yet |
+| **Visual evidence** | Medium | MongoDB checkpoints + media anchor in PostgreSQL; cap of 30–50 frames per session; 90/180-day retention |
 
 
 ---
 
-## 4. Cómo se reparte el almacenamiento
+## 3. Intentional Limitations
 
 
-| Almacén        | Guarda                                                  | No guarda                  |
-| -------------- | ------------------------------------------------------- | -------------------------- |
-| **PostgreSQL** | Negocio, auditoría, metadatos, URI canónica de archivos | Bytes del modelo ni JPEG   |
-| **MongoDB**    | Checkpoints de frame, telemetría de sesión              | Reglas de cierre, usuarios |
-| **Object storage (Garage/S3)** | Pesos YOLO, JPEG/MP4 de evidencia y ejemplos | Lógica de negocio |
-| **Redis**      | Tokens, contadores efímeros, ring evidencia             | Auditoría permanente       |
+| Limitation | Rationale |
+| --- | --- |
+| **Not an EHR** | Patients and physicians have no clinical history, notes, or diagnoses. PEF is a counting assistant, not a medical record system. |
+| **No aggregate stock per family** | Stock = individual `instrument` rows. Available total = query (status + reservations). Avoids desynchronizing an aggregate counter against real pieces. |
+| **Frame-by-frame detections do not go into PostgreSQL** | High frequency → MongoDB and UI. PostgreSQL records **business events**, not every bounding box at 10 FPS. |
+| `resource_identifier` **without physical FK** | Polymorphic (FHIR Identifier pattern). PostgreSQL does not cleanly support "FK to N tables based on type." Integrity is enforced by queries and application logic. |
+| `cat_checkpoint_reason` **without FK in PG** | Reason lives as a string in MongoDB. The PostgreSQL catalog serves as reference vocabulary. |
+| **Redis is omitted from the ER diagram** | Holds JWT/TTL only; not persistent business data. |
+| **Live TTS / STT / HIS** | Outside core scope or deferred; the schema already provides FHIR anchors. |
 
 
 ---
 
-## 5. Rundown de tablas importantes
+## 4. Storage Distribution
 
-### Identidad y portal
 
-- `institution` — raíz multi-campus
-- `user` **/** `role` **/** `user_role` — login y RBAC del portal (pacientes **no** son usuarios)
+| Store | Stores | Does Not Store |
+| --- | --- | --- |
+| **PostgreSQL** | Business data, auditing, metadata, canonical file URIs | Model weights or JPEG bytes |
+| **MongoDB** | Frame checkpoints, session telemetry | Closing rules, users |
+| **Object storage (Garage/S3)** | YOLO weights, evidence JPEG/MP4 files, and family examples | Business logic |
+| **Redis** | Tokens, ephemeral counters, evidence ring | Permanent audit trail |
 
-### Intercambio externo (integraciones)
 
-- `resource_identifier` — diccionario `system|value` ↔ UUID local (paciente, médico, operación, sala, instrumento). Búsqueda antes de duplicar. Sin FK polimórfica en PostgreSQL.
+---
 
-### Contexto clínico (ligero)
+## 5. Key Tables Rundown
 
-- `operation` — acto donde ocurre el conteo
-- `patient` **/** `physician` + puentes N:M
-- `operating_room` **→** `capture_station` — sala + cámara/ROI
-- `cat_procedure_type` — tipo de procedimiento (también alimenta usos de instrumental)
+### Identity and Portal
 
-### Instrumental y visión
+- `institution` — multi-campus root
+- `user` **/** `role` **/** `user_role` — portal login and RBAC (patients are **not** users)
 
-- `instrument_family` — vocabulario del conteo (código estable + textos pedagógicos)
-- `instrument` — pieza física (stock real)
-- `instrument_usage` — pieza × procedimiento × contexto
-- `kit` **/** `kit_item` — plantilla; al abrir sesión se copia a `expected_inventory`
-- `instrument_reservation` — pieza concreta amarrada a una operación
-- `yolo_model` **/** `model_class` — qué pesos están activos y qué `class_id` es qué familia
-- `media_asset` — ancla object storage (pesos, ejemplos, frames/clips)
+### External Exchange (Integrations)
 
-### Sesión de conteo (núcleo operativo)
+- `resource_identifier` — `system|value` ↔ local UUID dictionary (patient, physician, operation, room, instrument). Lookup before duplicating. No polymorphic FK in PostgreSQL.
 
-- `work_session` — quién, cuándo, estación, kit, flags de retención
-- `expected_inventory` — snapshot del kit al abrir sesión
-- `count_event` — hechos auditables (`event_type` + `payload` JSON)
-- `discrepancy` **/** `human_correction` — faltantes y justificación humana
+### Clinical Context (Lightweight)
+
+- `operation` — surgical act where counting takes place
+- `patient` **/** `physician` + N:M junction tables
+- `operating_room` **→** `capture_station` — room + camera/ROI
+- `cat_procedure_type` — procedure type (also feeds instrument usages)
+
+### Instruments and Vision
+
+- `instrument_family` — counting vocabulary (stable code + educational texts)
+- `instrument` — physical piece (real stock)
+- `instrument_usage` — piece × procedure × context
+- `kit` **/** `kit_item` — template; copied into `expected_inventory` when opening a session
+- `instrument_reservation` — specific piece reserved for an operation
+- `yolo_model` **/** `model_class` — which weights are active and which `class_id` maps to which family
+- `media_asset` — object storage anchor (weights, examples, frames/clips)
+
+### Counting Session (Operational Core)
+
+- `work_session` — who, when, station, kit, retention flags
+- `expected_inventory` — snapshot of the kit when opening the session
+- `count_event` — auditable facts (`event_type` + JSON `payload`)
+- `discrepancy` **/** `human_correction` — shortages and human justification
 
 ### MongoDB
 
-- `checkpoint_frame` — evidencia ocasional (detecciones + URI)
-- `session_telemetry` — FPS/latencia (TTL corto)
+- `checkpoint_frame` — occasional evidence (detections + URI)
+- `session_telemetry` — FPS/latency (short TTL)
 
 ---
 
-## 6. Decisiones de diseño generales
+## 6. General Design Decisions
 
-1. **4FN / catálogos** `cat_`* — estados y listas cerradas en tablas propias; evita texto libre y columnas repetidas.
-2. **Stock por pieza, no por familia** — reservas reales; asignar kit falla si no hay unidades libres.
-3. **Kit vs inventario esperado** — plantilla mutable; la sesión conserva snapshot histórico.
-4. **Modelo fuera del navegador** — PostgreSQL solo metadatos; el archivo de pesos vive en object storage y se carga en VisionWorker (host GPU preferido).
-5. **Fan-out post-inferencia** — mismo resultado filtrado → WebSocket (UI); `count_event` en PostgreSQL vía Backend/portal; checkpoint/clip vía EvidenceWorker + Garage/Mongo si la política lo pide.
-6. **FHIR Identifier centralizado** — preparado para HIS; el conteo usa UUID locales, no MRN en cada consulta.
+1. **4NF / `cat_*` catalogs** — states and closed lists in dedicated tables; avoids free text and repeated columns.
+2. **Per-piece stock, not per-family** — real reservations; kit assignment fails if no free units exist.
+3. **Kit vs. expected inventory** — mutable template; each session retains a historical snapshot.
+4. **Model outside the browser** — PostgreSQL stores metadata only; weights live in object storage and are loaded in VisionWorker (host GPU preferred).
+5. **Post-inference fan-out** — same filtered result → WebSocket (UI); `count_event` in PostgreSQL via Backend/portal; checkpoint/clip via EvidenceWorker + Garage/MongoDB when policy requires it.
+6. **Centralized FHIR Identifier** — HIS-ready; counting uses local UUIDs rather than querying by MRN everywhere.
 
 ---
 
-## 7. Los 4 módulos mayores y qué tocan de la BD
+## 7. The 4 Major Modules and Their DB Footprint
 
-### Módulo 1 — Portal / Auth / UI
+### Module 1 — Portal / Auth / UI
 
-**Tablas:** `institution`, `user`, `role`, `user_role`, Redis (tokens).  
-**Rol BD:** autenticar, acotar por institución, abrir/cerrar sesión de trabajo.  
-**No toca:** pesos YOLO, checkpoints, `resource_identifier` (salvo pantallas de supervisión que muestren ids externos).
+**Tables:** `institution`, `user`, `role`, `user_role`, Redis (tokens).  
+**DB role:** authenticate, scope by institution, open/close work sessions.  
+**Does not touch:** YOLO weights, checkpoints, `resource_identifier` (except supervision screens displaying external IDs).
 
-### Módulo 2 — Inferencia / visión / estación
+### Module 2 — Inference / Vision / Station
 
-**Tablas:** `capture_station` (ROI), `yolo_model`, `model_class`, `instrument_family`, `media_asset`; colecciones Mongo de checkpoint y telemetría.  
-**Rol BD:** cargar modelo activo, mapear `class_id` → familia, filtrar por ROI, emitir detecciones.  
-**No toca:** crear pacientes del HIS; no escribe cada frame en PostgreSQL.
+**Tables:** `capture_station` (ROI), `yolo_model`, `model_class`, `instrument_family`, `media_asset`; MongoDB checkpoint and telemetry collections.  
+**DB role:** load active model, map `class_id` → family, filter by ROI, emit detections.  
+**Does not touch:** creating HIS patients; never writes every frame to PostgreSQL.
 
-### Módulo 3 — Reglas de negocio / sesión de conteo
+### Module 3 — Business Rules / Counting Session
 
-**Tablas:** `work_session`, `expected_inventory`, `count_event`, `discrepancy`, `human_correction`, `cat_session_status`, `kit`/`kit_item`, reservas.  
-**Rol BD:** comparar conteo vs esperado, alertar, bloquear cierre, auditar correcciones.  
-**Conexión clave:** `work_session` une usuario + operación + estación + kit.
+**Tables:** `work_session`, `expected_inventory`, `count_event`, `discrepancy`, `human_correction`, `cat_session_status`, `kit`/`kit_item`, reservations.  
+**DB role:** compare counted vs. expected, raise alerts, block closure, audit corrections.  
+**Key link:** `work_session` connects user + operation + station + kit.
 
-### Módulo 4 — Integraciones / clínico-operativo / FHIR
+### Module 4 — Integrations / Clinical-Operational / FHIR
 
-**Tablas:** `resource_identifier`, `patient`, `physician`, `operation`, salas, especialidades.  
-**Rol BD:** recibir ids externos (`system|value`), traducir a UUID local, vincular acto ↔ paciente/médico.  
-**Limitado:** sin EHR; sin Mongo; el conteo no habla con el HIS directo.
+**Tables:** `resource_identifier`, `patient`, `physician`, `operation`, rooms, specialties.  
+**DB role:** ingest external IDs (`system|value`), resolve to local UUID, link procedure ↔ patient/physician.  
+**Bounded scope:** no EHR; no MongoDB; counting never talks to the HIS directly.
 
 ```text
-UI ──WS──► Inferencia ──► Reglas ──► PostgreSQL (eventos)
-                │              │
-                │              └──► (opcional) EvidenceWorker → Garage + Mongo
-                └── lee: ROI, yolo_model, model_class, familias
+UI ──WS──► Inference ──► Rules ──► PostgreSQL (events)
+               │           │
+               │           └──► (optional) EvidenceWorker → Garage + Mongo
+               └── reads: ROI, yolo_model, model_class, families
 
-Integraciones HIS ──► resource_identifier ──► patient / physician / operation
-                              (no toca el pipeline de frames)
+HIS Integrations ──► resource_identifier ──► patient / physician / operation
+                             (does not touch the frame pipeline)
 ```
 
 ---
 
-## 8. Diagrama
+## 8. Diagram
 
-- **Línea sólida** = foreign key real en PostgreSQL.
-- **Línea punteada o nota** = relación lógica (FHIR, Mongo, polimórfica).
-- `resource_identifier` esta sin flechas sólidas: es correcto; la unión es por consulta (`resource_type` + `resource_id`).
-- `cat_checkpoint_reason` no tiene FK entrante en PG; alimenta el campo `reason` en Mongo como catalogo)
-- El orden visual del lienzo **no** tiene que coincidir con el diagrama Mermaid interno; lo que importa son tablas y FK documentadas.
-- Export draw.io v3 (imagen canónica): [ER PostgreSQL-MongoDB-v3.jpg](ER%20PostgreSQL-MongoDB-v3.jpg)
+- **Solid line** = real foreign key in PostgreSQL.
+- **Dashed line or note** = logical relationship (FHIR, MongoDB, polymorphic).
+- `resource_identifier` has no solid arrows: this is intentional; joins occur via query (`resource_type` + `resource_id`).
+- `cat_checkpoint_reason` has no incoming FK in PG; it feeds the `reason` field in MongoDB as a vocabulary catalog.
+- Visual canvas layout does **not** need to match the internal Mermaid diagram; what matters are the documented tables and FKs.
+- Draw.io v3 export (canonical image): [ER PostgreSQL-MongoDB-v3.jpg](ER%20PostgreSQL-MongoDB-v3.jpg)
 
 ---
 
-## 9. Convenciones técnicas breves
+## 9. Brief Technical Conventions
 
-- PostgreSQL 15+, PK `UUID`, timestamps en UTC.
-- Identificadores FHIR: `system` (URI) + `value` (string).
-- URI interna PEF: `https://pef.udem/conteo-cenital` + UUID del registro.
-- Nombres de tablas en inglés en el DDL (`work_session`, `instrument_family`, etc.). (por el hecho que el pef es junto a Linnaeus)
-- Total (snapshot base): 51 tablas en PostgreSQL + 2 colecciones Mongo; despliegue vivo vía migraciones 001 + 004…021.
-
+- PostgreSQL 15+, `UUID` PKs, UTC timestamps.
+- FHIR Identifiers: `system` (URI) + `value` (string).
+- Internal PEF URI: `https://pef.udem/conteo-cenital` + record UUID.
+- Table names in English in the DDL (`work_session`, `instrument_family`, etc.) (because PEF is developed jointly with Linnaeus University).
+- Total (baseline snapshot): 51 PostgreSQL tables + 2 MongoDB collections; live deployment via migrations 001 + 004…021.

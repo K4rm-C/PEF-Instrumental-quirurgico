@@ -1,0 +1,4 @@
+Method,Name,Error,Occurrences
+POST,POST Gateway /api/v1/auth/login,CatchResponseError('login HTTP 429 (rate limited)'),9
+GET,GET /supervisor/sessions,RemoteDisconnected('Remote end closed connection without response'),3
+GET,GET /operator/sessions/history,RemoteDisconnected('Remote end closed connection without response'),1

@@ -1,0 +1,32 @@
+﻿PEF Locust load report (English)
+================================
+Type:          baseline
+Started (local): 2026-11-22 18:40:08 -06:00
+Host:          http://127.0.0.1:5000
+Gateway:       http://127.0.0.1:8080
+Portal:        http://127.0.0.1:5000
+Auth:          http://127.0.0.1:5001
+Users:         shaped (see profile)
+Spawn rate:    shaped
+Run time:      3m (cap 10m)
+Headless:      True
+Locustfile:    scenarios/baseline.py
+
+Artifacts
+---------
+- pef_baseline_report.html   Locust HTML report
+- pef_baseline_stats.csv     Request stats
+- pef_baseline_stats_history.csv
+- pef_baseline_failures.csv
+- pef_baseline_exceptions.csv
+
+Notes
+-----
+- Demo credentials only (see data/seeds/DEMO_CREDENTIALS.md).
+- auth_api: keep users low; Gateway login is rate-limited; refresh uses JSON body.
+- admin_portal: kits traffic uses dual.admin.spd (SPD RACI); IT pages use it_admin.
+- Profiles baseline/load/spike/stress/soak drive mixed OP+SPD+catalog via LoadTestShape.
+- Portal types are read-heavy (no inventory mutations in this suite).
+
+Finished (local): 2026-11-22 18:43:11 -06:00
+Exit code:        1

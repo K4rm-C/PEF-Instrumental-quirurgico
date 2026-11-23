@@ -4,7 +4,7 @@
 # Option B — VisionWorker in Docker (CPU only, no CUDA):
 #   docker compose -f docker-compose.integral.yml -f docker-compose.vision-cpu.yml --profile vision-container --env-file .env up -d --build
 # Optional API Gateway: --profile gateway
-# db-migrate applies additive migrations 004..021; garage-init creates privacy-notices + pef-admin;
+# db-migrate applies additive migrations 004..023; garage-init creates privacy-notices + pef-admin;
 # seed-family-examples uploads data/seeds/example_images → Garage and links family_example.
 # seed-demo-volume re-applies Locust accounts (004) + generates variable KPI/history volume.
 services:
@@ -51,7 +51,7 @@ services:
       timeout: 5s
       retries: 10
   db-migrate:
-    # MS-11: one-shot step that applies the ADDITIVE, idempotent migrations 004..021 (a new database already has them
+    # MS-11: one-shot step that applies the ADDITIVE, idempotent migrations 004..023 (a new database already has them
     # from initdb; an existing volume gets the missing ones). 001 (base schema) and the seeds 002/003 are NEVER re-run.
     # Same advisory lock as the services (pef:schema:migration), one file at a time.
     image: postgres:16
@@ -77,7 +77,7 @@ services:
       # ONE transaction for the whole sequence: a re-run never exposes an intermediate state to running services
       psql -X -q -v ON_ERROR_STOP=1 --single-transaction \
         -c "SELECT pg_advisory_xact_lock(hashtext('pef:schema:migration'))" "$$@" > /dev/null
-      echo "applied $$(( $$# / 2 )) migrations (004..021) in one transaction"
+      echo "applied $$(( $$# / 2 )) migrations (004..023) in one transaction"
     volumes:
     - ./data/migrations:/migrations:ro
     depends_on:

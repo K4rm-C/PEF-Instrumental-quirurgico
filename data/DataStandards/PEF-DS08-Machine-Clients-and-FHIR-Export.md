@@ -3,7 +3,7 @@ id: PEF-DS08
 title: Machine Clients and FHIR Export
 version: "0.1.0"
 status: draft
-owner: PEF Core / Integraciones
+owner: PEF Core / Integrations
 applies_to: [BE, MS]
 stores: [PostgreSQL]
 related: [PEF-DS01, PEF-DS02, PEF-DS07]
@@ -12,79 +12,79 @@ last_updated: 2026-09-06
 
 # PEF-DS08 · Machine Clients and FHIR Export
 
-## INTRODUCCION
+## INTRODUCTION
 
-Este estándar define **clientes máquina** (`integration_client`) que consumen APIs o export FHIR sin ser usuarios humanos del portal, y las **reglas de exportación FHIR R4** (recursos y scopes) hacia sistemas externos.
+This standard defines **machine clients** (`integration_client`) that consume APIs or FHIR exports without being human portal users, together with the **FHIR R4 export rules** (resources and scopes) toward external systems.
 
-Tabla dueña: `integration_client`.
+Owned table: `integration_client`.
 
-Los recursos FHIR se **proyectan** desde tablas de DS01/DS02 (Patient, Practitioner, Encounter/Operation, Identifier, etc.); este DS no redefine esas tablas. El detalle HTTP genérico de microservicios está en PEF-DS09; aquí el foco es identidad máquina + contrato FHIR.
+FHIR resources are **projected** from DS01/DS02 tables (Patient, Practitioner, Encounter/Operation, Identifier, etc.); this DS does not redefine those tables. Generic microservice HTTP details live in PEF-DS09; here the focus is machine identity + FHIR contract.
 
 ---
 
-## 1. Explicación del estándar
+## 1. Standard Explanation
 
-### 1.1 Definiciones
+### 1.1 Definitions
 
-| Término | Significado |
+| Term | Meaning |
 | :--- | :--- |
-| **integration_client** | Aplicación/HIS registrada con `client_id` + `secret_hash` + scopes. |
-| **Scope** | Cadena de permiso en JSONB (`fhir.patient.read`, …). |
-| **Export FHIR** | Respuestas JSON FHIR R4 (y Bundle cuando aplique). |
-| **Client credentials** | Flujo máquina: no usa email/password de `user`. |
+| **integration_client** | External application/HIS registered with `client_id` + `secret_hash` + scopes. |
+| **Scope** | Permission string in JSONB (`fhir.patient.read`, …). |
+| **FHIR export** | FHIR R4 JSON responses (and Bundles where applicable). |
+| **Client credentials** | Machine flow: does not use `user` email/password. |
 
-### 1.2 Uso
+### 1.2 Usage
 
-Alta del cliente por admin → el HIS pide token con client credentials → lee recursos permitidos → cada lectura sensible genera `access_audit` con `actor_type=client` (DS07).
-
----
-
-### 1.3 Convenciones
+Admin registers the client → the HIS requests a token via client credentials → reads permitted resources → each sensitive read emits an `access_audit` row with `actor_type=client` (DS07).
 
 ---
 
-#### 1.3.1 Tabla `integration_client`
+### 1.3 Conventions
 
-**Para qué:** identidad de sistema externo.
+---
 
-| Campo | Tipo | Nulo | Default | Significado |
+#### 1.3.1 Table `integration_client`
+
+**Purpose:** external system identity.
+
+| Field | Type | Nullable | Default | Meaning |
 | :--- | :--- | :--- | :--- | :--- |
-| `id` | UUID | NO | `gen_random_uuid()` | PK interno. |
-| `client_id` | VARCHAR(128) | NO | — | Identificador público del cliente (login máquina). |
-| `name` | VARCHAR(160) | NO | — | Nombre legible. |
-| `secret_hash` | TEXT | NO | — | Hash del secreto (nunca en claro). Runtime: Werkzeug `pbkdf2:sha256`. |
-| `scopes` | JSONB | NO | `[]` | Lista de scopes concedidos. |
-| `active` | BOOLEAN | NO | `TRUE` | Si puede autenticarse. |
-| `last_used_at` | TIMESTAMPTZ | SÍ | NULL | Último uso exitoso. |
-| `created_at` | TIMESTAMPTZ | NO | `now()` | Alta. |
-| `updated_at` | TIMESTAMPTZ | NO | `now()` | Edición. |
-| `institution_id` | UUID | NO | — | Tenant al que pertenece el cliente. |
+| `id` | UUID | NO | `gen_random_uuid()` | Internal PK. |
+| `client_id` | VARCHAR(128) | NO | — | Public client identifier (machine login). |
+| `name` | VARCHAR(160) | NO | — | Human-readable name. |
+| `secret_hash` | TEXT | NO | — | Hash of the secret (never plaintext). Runtime: Werkzeug `pbkdf2:sha256`. |
+| `scopes` | JSONB | NO | `[]` | List of granted scopes. |
+| `active` | BOOLEAN | NO | `TRUE` | Whether it can authenticate. |
+| `last_used_at` | TIMESTAMPTZ | YES | NULL | Last successful use. |
+| `created_at` | TIMESTAMPTZ | NO | `now()` | Created at. |
+| `updated_at` | TIMESTAMPTZ | NO | `now()` | Updated at. |
+| `institution_id` | UUID | NO | — | Tenant the client belongs to. |
 
-**Hacia dónde apunta**
+**References**
 
-| Campo | Apunta a | Relación | Por qué | ON DELETE |
+| Field | Points to | Relationship | Rationale | ON DELETE |
 | :--- | :--- | :--- | :--- | :--- |
-| `institution_id` | `institution.id` (DS01) | N:1 | Aísla datos por hospital. | `CASCADE` |
+| `institution_id` | `institution.id` (DS01) | N:1 | Isolates data per hospital. | `CASCADE` |
 
-**Restricciones:** PK `id`; UNIQUE `client_id`.
+**Constraints:** PK `id`; UNIQUE `client_id`.
 
-**Scopes iniciales sugeridos**
+**Suggested initial scopes**
 
-| Scope | Permite |
+| Scope | Grants |
 | :--- | :--- |
-| `fhir.patient.read` | Lectura Patient |
-| `fhir.practitioner.read` | Lectura Practitioner |
-| `fhir.encounter.read` | Lectura Encounter (proyección de `operation`) |
-| `fhir.binary.read` | Lectura Binary/Attachment de evidencia elegible |
-| `fhir.export.bundle` | Bundle de exportación acotado |
+| `fhir.patient.read` | Read Patient |
+| `fhir.practitioner.read` | Read Practitioner |
+| `fhir.encounter.read` | Read Encounter (projection of `operation`) |
+| `fhir.binary.read` | Read Binary/Attachment of eligible evidence |
+| `fhir.export.bundle` | Scoped export Bundle |
 
-**Ejemplo de fila completa**
+**Complete example row**
 
 ```json
 {
   "id": "ic000001-0000-4000-8000-000000000001",
   "client_id": "his-demo-norte",
-  "name": "HIS Demo Norte",
+  "name": "Demo North HIS",
   "secret_hash": "pbkdf2:sha256:600000$[REDACTED]",
   "scopes": [
     "fhir.patient.read",
@@ -101,20 +101,20 @@ Alta del cliente por admin → el HIS pide token con client credentials → lee 
 
 ---
 
-#### 1.3.2 Proyección FHIR (contrato de datos, no tablas nuevas)
+#### 1.3.2 FHIR Projection (Data Contract, No New Tables)
 
-Mapeo lógico PEF → FHIR R4:
+Logical PEF → FHIR R4 mapping:
 
-| Recurso FHIR | Fuente PEF | Notas |
+| FHIR Resource | PEF Source | Notes |
 | :--- | :--- | :--- |
 | Patient | `patient` + `resource_identifier` | Identifier = system\|value |
 | Practitioner | `physician` + identifiers | |
-| Encounter | `operation` (+ pacientes/médicos) | Status desde `cat_operation_status` |
+| Encounter | `operation` (+ patients/physicians) | Status from `cat_operation_status` |
 | Location | `operating_room` | |
-| Device / Observation (opcional futuro) | estación / conteos | Fuera del MVP si no hay demanda |
-| Binary / Attachment | `media_asset` | Solo si scope y acuerdo lo permiten |
+| Device / Observation (optional future) | station / counts | Outside MVP unless demanded |
+| Binary / Attachment | `media_asset` | Only if scope and agreement permit |
 
-**Ejemplo completo de Patient (respuesta mock)**
+**Complete Patient example (mock response)**
 
 ```json
 {
@@ -130,7 +130,7 @@ Mapeo lógico PEF → FHIR R4:
   "active": true,
   "name": [
     {
-      "text": "Paciente Demo"
+      "text": "Demo Patient"
     }
   ],
   "gender": "female",
@@ -141,14 +141,14 @@ Mapeo lógico PEF → FHIR R4:
 }
 ```
 
-**Ejemplo completo de token client-credentials (campos del payload de respuesta)**
+**Complete client-credentials token example (response payload fields)**
 
-| Campo | Tipo | Significado |
+| Field | Type | Meaning |
 | :--- | :--- | :--- |
-| `access_token` | string | JWT de acceso. |
+| `access_token` | string | Access JWT. |
 | `token_type` | string | `Bearer`. |
-| `expires_in` | int | Segundos de vida. |
-| `scope` | string | Scopes concedidos separados por espacio. |
+| `expires_in` | int | Lifetime in seconds. |
+| `scope` | string | Space-separated granted scopes. |
 
 ```json
 {
@@ -163,42 +163,42 @@ Mapeo lógico PEF → FHIR R4:
 
 ### 1.4 Governance and Ownership
 
-| Aspecto | Responsable |
+| Aspect | Owner |
 | :--- | :--- |
-| Alta de clientes y scopes | Admin institucional + integraciones |
-| Rotación de secretos | Ops / seguridad |
-| Mapeo FHIR | Integraciones + PEF Core |
+| Client provisioning and scopes | Institutional admin + Integrations |
+| Secret rotation | Ops / Security |
+| FHIR mapping | Integrations + PEF Core |
 
 ---
 
-### 1.5 Justificación del estándar
+### 1.5 Standard Rationale
 
-**Decisiones tomadas**
+**Design decisions taken**
 
-1. **Cliente máquina ≠ `user`.** Secretos y scopes distintos de contraseñas humanas.
-2. **Scopes en JSONB** listables y auditables.
-3. **FHIR como proyección**, no segundo modelo de persistencia. En v1 está **considerado en plan, no diseñado** (sin rutas ni `integration_client` operativos en Admin/App).
-4. **Aprobación humana al dar de alta el cliente**, no en cada GET.
+1. **Machine client ≠ `user`.** Secrets and scopes are distinct from human passwords.
+2. **Scopes in JSONB** are easy to list and audit.
+3. **FHIR as a projection**, not a second persistence model. In v1 it is **planned, not yet designed** (no active routes or operational `integration_client` flows in Admin/App).
+4. **Human approval when provisioning the client**, not on every GET request.
 
-**Alternativas no elegidas**
+**Rejected alternatives**
 
-| Alternativa | Por qué no |
+| Alternative | Why not |
 | :--- | :--- |
-| Reusar tabla `user` con flag `is_service` | Mezcla IAM humano y máquina; complica RBAC y auditoría. |
-| Guardar secreto en claro | Inaceptable. |
-| Microservicio FHIR obligatorio desde día 1 | El Backend Web puede exponer export; MS se añade si el volumen lo pide (DS09). |
-| Duplicar Patient en colección Mongo | Rompe unicidad con DS02. |
+| Reuse `user` table with an `is_service` flag | Mixes human and machine IAM; complicates RBAC and auditing. |
+| Store secret in plaintext | Unacceptable. |
+| Mandatory dedicated FHIR microservice from day 1 | The Web Backend can expose exports; a dedicated MS can be added if traffic warrants it (DS09). |
+| Duplicate Patient in a MongoDB collection | Breaks single source of truth with DS02. |
 
 ---
 
-## 2. Anexo A – Información general
+## 2. Annex A – General Information
 
-| Campo | Valor |
+| Field | Value |
 | :--- | :--- |
-| Código | PEF-DS08 |
-| Título | Machine Clients and FHIR Export |
-| Versión | 0.1.0 |
-| Estado | draft |
-| Almacén | PostgreSQL (`integration_client`); proyección FHIR desde DS02 |
-| Fuera de alcance | Endpoints REST de apps Android/Desktop (DS09); WSS (DS10) |
-| DDL de referencia | `esquema_base_datos_v2.md` §5.3 |
+| Code | PEF-DS08 |
+| Title | Machine Clients and FHIR Export |
+| Version | 0.1.0 |
+| Status | draft |
+| Store | PostgreSQL (`integration_client`); FHIR projection from DS02 |
+| Out of scope | Android/Desktop REST endpoints (DS09); WSS (DS10) |
+| Reference DDL | `esquema_base_datos_v2.md` §5.3 |

@@ -1,0 +1,4 @@
+Method,Name,Error,Occurrences
+GET,GET /operator/sessions,RemoteDisconnected('Remote end closed connection without response'),6
+GET,GET /supervisor/sessions,RemoteDisconnected('Remote end closed connection without response'),5
+GET,GET /operator/sessions/history,RemoteDisconnected('Remote end closed connection without response'),2

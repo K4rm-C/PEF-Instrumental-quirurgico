@@ -76,22 +76,22 @@ INSERT INTO role (id, code, description, institution_id) VALUES
 
 -- ui_preferences: clave DS01 `locale` (en | es-MX) + theme. Babel/traduccion real = fase i18n posterior.
 INSERT INTO "user" (id, name, email, password_hash, active, ui_preferences, institution_id) VALUES
-  ('22222222-2222-2222-2222-222222222221', 'Operador Demo', 'operator@instrumed.com',
+  ('22222222-2222-2222-2222-222222222221', 'Demo Operator 1', 'operator@instrumed.com',
    'pbkdf2:sha256:600000$q1YkN7fvtlFnwfZc$04dfe82983804ead8a83f535479601217903e355e16d32f20d0152ae970cba79', TRUE,
    '{"theme": "light", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222224', 'Operador Demo 2', 'operador2@instrumed.com',
+  ('22222222-2222-2222-2222-222222222224', 'Demo Operator 2', 'operador2@instrumed.com',
    'pbkdf2:sha256:600000$Upoc6Ut0Tb6S6XID$2f48c677cb92cdc0484a6ff624246a2a9defb926bf414a414f07d5c4dc30f337', TRUE,
    '{"theme": "light", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222222', 'Supervisor Demo', 'supervisor@instrumed.com',
+  ('22222222-2222-2222-2222-222222222222', 'Demo Supervisor 1', 'supervisor@instrumed.com',
    'pbkdf2:sha256:600000$4nOgHclHpgqor4sA$adb64c6ed577594e684d746190dae5fab45eb239dae93f73a1dd42b9e00f234e', TRUE,
    '{"theme": "dark", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222225', 'Supervisor Demo 2', 'supervisor2@instrumed.com',
+  ('22222222-2222-2222-2222-222222222225', 'Demo Supervisor 2', 'supervisor2@instrumed.com',
    'pbkdf2:sha256:600000$gkf3FVXr0T15vkTq$5f7bac349638c0c81e6b95d7ce07a1074fd7be6fba3e411b2463da937066aeed', TRUE,
    '{"theme": "dark", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222223', 'Admin Demo', 'admin@instrumed.com',
+  ('22222222-2222-2222-2222-222222222223', 'Demo Admin', 'admin@instrumed.com',
    'pbkdf2:sha256:600000$7c8qfwZeUHfYRb6N$7ffb6e05addb4ed80157d1e532c25da5d2412ba16937f15eaf45eb01fb09f32e', TRUE,
    '{"theme": "system", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222226', 'Supervisor de piso Demo', 'floor@instrumed.com',
+  ('22222222-2222-2222-2222-222222222226', 'Demo Floor Supervisor', 'floor@instrumed.com',
    'pbkdf2:sha256:600000$sMy6cTCxvZhCSVAC$26f6f77be1babcc398ff7309569e22ccdf8cc6e6651d5ebda1aa542c31ac4c9a', TRUE,
    '{"theme": "light", "locale": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111');
 
@@ -289,40 +289,45 @@ INSERT INTO procedure_kit (procedure_type_id, kit_id, technique_label, is_defaul
 SELECT pt.id, '51515151-0000-4000-8000-000000000001', 'Video demo', TRUE, TRUE
 FROM cat_procedure_type pt WHERE pt.code = 'demo';
 
--- Demo Kit 2: smaller mixed set for schedule / inventory QA
+-- Demo Overview: companion tray for Demo procedure (alongside Video Demo Kit 1)
 INSERT INTO kit (id, name, version, active, institution_id) VALUES
-  ('51515151-0000-4000-8000-000000000002', 'Video Demo Kit 2', 1, TRUE,
+  ('51515151-0000-4000-8000-000000000002', 'Video Demo Overview', 1, TRUE,
    '11111111-1111-1111-1111-111111111111');
 
 INSERT INTO kit_item (kit_id, family_id, quantity)
 SELECT '51515151-0000-4000-8000-000000000002', f.id, v.qty
 FROM (VALUES
-  ('SCALPEL3', 2),
-  ('MOSQUITO', 3),
-  ('ADSON_TEETH', 2),
-  ('CRILE_WOOD', 1),
-  ('FARABEUF', 2),
-  ('PROBE', 1)
+  ('FARABEUF', 1),
+  ('MAYO_CURVED', 1),
+  ('MAYO_STRAIGHT', 1),
+  ('ROCHESTER', 1),
+  ('FOERSTER', 1),
+  ('ALLIS', 1),
+  ('MAYOHEG', 1),
+  ('OLSENHEG', 1),
+  ('KELLY_FORCEPS', 1),
+  ('SCALPEL3', 1),
+  ('POZZI', 1)
 ) AS v(family_code, qty)
 JOIN instrument_family f ON f.code = v.family_code;
 
 INSERT INTO procedure_kit (procedure_type_id, kit_id, technique_label, is_default, active)
-SELECT pt.id, '51515151-0000-4000-8000-000000000002', 'Compact demo', FALSE, TRUE
+SELECT pt.id, '51515151-0000-4000-8000-000000000002', 'Overview', FALSE, TRUE
 FROM cat_procedure_type pt WHERE pt.code = 'demo';
 
 -- Procedure kits for common SPD procedures (also applied by migration 020 on existing DBs)
 INSERT INTO kit (id, name, version, active, institution_id) VALUES
-  ('51515151-0000-4000-8000-000000000003', 'Kit parto vaginal', 1, TRUE,
+  ('51515151-0000-4000-8000-000000000003', 'Vaginal delivery kit', 1, TRUE,
    '11111111-1111-1111-1111-111111111111'),
-  ('51515151-0000-4000-8000-000000000004', 'Kit hernioplastia abierta', 1, TRUE,
+  ('51515151-0000-4000-8000-000000000004', 'Open hernioplasty kit', 1, TRUE,
    '11111111-1111-1111-1111-111111111111'),
-  ('51515151-0000-4000-8000-000000000005', 'Kit desbridamiento y cierre', 1, TRUE,
+  ('51515151-0000-4000-8000-000000000005', 'Wound debridement and closure kit', 1, TRUE,
    '11111111-1111-1111-1111-111111111111'),
-  ('51515151-0000-4000-8000-000000000006', 'Kit exéresis / cirugía menor', 1, TRUE,
+  ('51515151-0000-4000-8000-000000000006', 'Excision / minor surgery kit', 1, TRUE,
    '11111111-1111-1111-1111-111111111111'),
-  ('51515151-0000-4000-8000-000000000007', 'Kit apendicectomía abierta', 1, TRUE,
+  ('51515151-0000-4000-8000-000000000007', 'Open appendectomy kit', 1, TRUE,
    '11111111-1111-1111-1111-111111111111'),
-  ('51515151-0000-4000-8000-000000000008', 'Kit cesárea', 1, TRUE,
+  ('51515151-0000-4000-8000-000000000008', 'Cesarean kit', 1, TRUE,
    '11111111-1111-1111-1111-111111111111');
 
 INSERT INTO kit_item (kit_id, family_id, quantity)
@@ -339,38 +344,31 @@ FROM (VALUES
   ('51515151-0000-4000-8000-000000000003', 'OLSENHEG', 1),
   ('51515151-0000-4000-8000-000000000003', 'SCALPEL3', 1),
   ('51515151-0000-4000-8000-000000000003', 'FARABEUF', 2),
+  -- Hernioplastia abierta
   ('51515151-0000-4000-8000-000000000004', 'SCALPEL3', 1),
-  ('51515151-0000-4000-8000-000000000004', 'SCALPEL4', 1),
-  ('51515151-0000-4000-8000-000000000004', 'ADSON_PLAIN', 1),
-  ('51515151-0000-4000-8000-000000000004', 'ADSON_TEETH', 1),
-  ('51515151-0000-4000-8000-000000000004', 'ALLIS', 1),
-  ('51515151-0000-4000-8000-000000000004', 'KELLY_FORCEPS', 1),
-  ('51515151-0000-4000-8000-000000000004', 'MOSQUITO', 1),
   ('51515151-0000-4000-8000-000000000004', 'MAYO_STRAIGHT', 1),
-  ('51515151-0000-4000-8000-000000000004', 'MAYO_CURVED', 1),
+  ('51515151-0000-4000-8000-000000000004', 'ALLIS', 1),
   ('51515151-0000-4000-8000-000000000004', 'MAYOHEG', 1),
-  ('51515151-0000-4000-8000-000000000004', 'OLSENHEG', 1),
+  ('51515151-0000-4000-8000-000000000004', 'KELLY_FORCEPS', 1),
+  ('51515151-0000-4000-8000-000000000004', 'ADSON_TEETH', 1),
+  ('51515151-0000-4000-8000-000000000004', 'ADSON_PLAIN', 1),
   ('51515151-0000-4000-8000-000000000004', 'FARABEUF', 2),
+  -- Desbridamiento y cierre
   ('51515151-0000-4000-8000-000000000005', 'SCALPEL3', 1),
-  ('51515151-0000-4000-8000-000000000005', 'ADSON_PLAIN', 1),
-  ('51515151-0000-4000-8000-000000000005', 'ADSON_TEETH', 1),
+  ('51515151-0000-4000-8000-000000000005', 'MAYO_CURVED', 1),
   ('51515151-0000-4000-8000-000000000005', 'ALLIS', 1),
   ('51515151-0000-4000-8000-000000000005', 'KELLY_FORCEPS', 1),
-  ('51515151-0000-4000-8000-000000000005', 'MOSQUITO', 1),
-  ('51515151-0000-4000-8000-000000000005', 'MAYO_STRAIGHT', 1),
-  ('51515151-0000-4000-8000-000000000005', 'MAYO_CURVED', 1),
   ('51515151-0000-4000-8000-000000000005', 'MAYOHEG', 1),
-  ('51515151-0000-4000-8000-000000000005', 'OLSENHEG', 1),
+  ('51515151-0000-4000-8000-000000000005', 'ADSON_PLAIN', 1),
   ('51515151-0000-4000-8000-000000000005', 'FARABEUF', 2),
+  -- Exéresis / cirugía menor
   ('51515151-0000-4000-8000-000000000006', 'SCALPEL3', 1),
+  ('51515151-0000-4000-8000-000000000006', 'MAYO_CURVED', 1),
+  ('51515151-0000-4000-8000-000000000006', 'KELLY_FORCEPS', 1),
+  ('51515151-0000-4000-8000-000000000006', 'ALLIS', 1),
+  ('51515151-0000-4000-8000-000000000006', 'OLSENHEG', 1),
   ('51515151-0000-4000-8000-000000000006', 'ADSON_PLAIN', 1),
   ('51515151-0000-4000-8000-000000000006', 'ADSON_TEETH', 1),
-  ('51515151-0000-4000-8000-000000000006', 'KELLY_FORCEPS', 1),
-  ('51515151-0000-4000-8000-000000000006', 'MOSQUITO', 1),
-  ('51515151-0000-4000-8000-000000000006', 'ALLIS', 1),
-  ('51515151-0000-4000-8000-000000000006', 'MAYO_STRAIGHT', 1),
-  ('51515151-0000-4000-8000-000000000006', 'MAYO_CURVED', 1),
-  ('51515151-0000-4000-8000-000000000006', 'MAYOHEG', 1),
   ('51515151-0000-4000-8000-000000000006', 'FARABEUF', 2),
   ('51515151-0000-4000-8000-000000000007', 'SCALPEL3', 1),
   ('51515151-0000-4000-8000-000000000007', 'KELLY_FORCEPS', 1),
@@ -425,7 +423,10 @@ CROSS JOIN (VALUES
   ('final_count',  5, TRUE)
 ) AS v(phase_code, ord, req)
 JOIN cat_operation_phase ph ON ph.code = v.phase_code
-WHERE pt.code IN ('demo', 'lap_chole');
+WHERE pt.code IN (
+  'demo', 'lap_chole', 'vaginal_delivery', 'hernia_repair',
+  'wound_debridement', 'soft_tissue_excision', 'appendectomy', 'cesarean'
+);
 
 -- -----------------------------------------------------------------------------
 -- 8. Operacion
@@ -482,14 +483,14 @@ SELECT 'c1000001-0000-4000-8000-000000000001',
 FROM cat_session_status ss, cat_operation_phase ph
 WHERE ss.code = 'closed' AND ph.code = 'final_count';
 
--- Operaciones programadas para sesiones B y C (mismo kit/OR/estacion demo).
+-- Operaciones programadas para sesiones B y C (Demo procedure + Video Demo Kit 1).
 INSERT INTO operation (id, scheduled_at, started_at, ended_at, status_id, procedure_type_id, room_id, institution_id)
 SELECT '61616161-0000-4000-8000-000000000002',
        (date_trunc('day', now() AT TIME ZONE 'UTC') + interval '15 hours'), NULL, NULL,
        st.id, pt.id, '12121212-0000-4000-8000-000000000001',
        '11111111-1111-1111-1111-111111111111'
 FROM cat_operation_status st, cat_procedure_type pt
-WHERE st.code = 'scheduled' AND pt.code = 'lap_chole';
+WHERE st.code = 'scheduled' AND pt.code = 'demo';
 
 INSERT INTO operation (id, scheduled_at, started_at, ended_at, status_id, procedure_type_id, room_id, institution_id)
 SELECT '61616161-0000-4000-8000-000000000003',
@@ -497,7 +498,7 @@ SELECT '61616161-0000-4000-8000-000000000003',
        st.id, pt.id, '12121212-0000-4000-8000-000000000001',
        '11111111-1111-1111-1111-111111111111'
 FROM cat_operation_status st, cat_procedure_type pt
-WHERE st.code = 'scheduled' AND pt.code = 'lap_chole';
+WHERE st.code = 'scheduled' AND pt.code = 'demo';
 
 INSERT INTO operation_patient (operation_id, patient_id) VALUES
   ('61616161-0000-4000-8000-000000000002', '31313131-0000-4000-8000-000000000001'),
@@ -968,22 +969,22 @@ INSERT INTO capture_station (id, name, roi, active, room_id) VALUES
    TRUE, '12121212-0000-4000-8000-000000000002');
 
 INSERT INTO "user" (id, name, email, password_hash, active, ui_preferences, institution_id) VALUES
-  ('22222222-2222-2222-2222-222222222231', 'Operador Ana Ruiz', 'ana.ruiz@instrumed.com',
+  ('22222222-2222-2222-2222-222222222231', 'Operator Ana Ruiz', 'ana.ruiz@instrumed.com',
    'pbkdf2:sha256:600000$pBt90bMOFJshdYWs$4a2d7fe6185d1787ebfeaf2202863fbed1a0a8cfa19848a907327fdb9baf25d4', TRUE,
    '{"theme": "light", "locale": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222232', 'Operador Luis Pena', 'luis.pena@instrumed.com',
+  ('22222222-2222-2222-2222-222222222232', 'Operator Luis Pena', 'luis.pena@instrumed.com',
    'pbkdf2:sha256:600000$ruYQcXa3zGai8fon$5440ce1335a005785bdcebe25864be96cc67f36c1a273c80f644ec0068b7acd6', TRUE,
    '{"theme": "light", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
   ('22222222-2222-2222-2222-222222222233', 'SPD Carla Soto', 'carla.soto@instrumed.com',
    'pbkdf2:sha256:600000$OIkAMI7h31rAH0wL$d3e48c1db70235e51f3fe293bbf67b14b08ff00deb458c1a7505f7244311d562', TRUE,
    '{"theme": "dark", "locale": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222234', 'Admin TI Extra', 'ti.extra@instrumed.com',
+  ('22222222-2222-2222-2222-222222222234', 'IT Admin Extra', 'ti.extra@instrumed.com',
    'pbkdf2:sha256:600000$cgRkTgIJBmVmDGXI$0f5298444ecf2ea9c9f8fb20f403061d11968b2fe71e7ca39445937f205ef000', TRUE,
    '{"theme": "system", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222235', 'Piso Nora Diaz', 'nora.diaz@instrumed.com',
+  ('22222222-2222-2222-2222-222222222235', 'Floor Nora Diaz', 'nora.diaz@instrumed.com',
    'pbkdf2:sha256:600000$M0mNEmXKC6clH5og$bcd831c54266d09d194cd97bd9e943832cfeffec524c148de279a6d8cdbdd226', TRUE,
    '{"theme": "light", "locale": "es-MX"}'::jsonb, '11111111-1111-1111-1111-111111111111'),
-  ('22222222-2222-2222-2222-222222222236', 'Admin y SPD Dual', 'dual.admin.spd@instrumed.com',
+  ('22222222-2222-2222-2222-222222222236', 'Dual Admin SPD', 'dual.admin.spd@instrumed.com',
    'pbkdf2:sha256:600000$P7YSsITcxlOhTEOm$2f30c96acf5bebe8f92a536ff83708abb25f26465fc10146fcc6dbc98a7b4418', TRUE,
    '{"theme": "system", "locale": "en"}'::jsonb, '11111111-1111-1111-1111-111111111111');
 
@@ -1102,6 +1103,101 @@ INSERT INTO expected_inventory (session_id, family_id, expected_quantity, source
 SELECT 'c100000b-0000-4000-8000-000000000001', ki.family_id, ki.quantity, 'kit_snapshot'
 FROM kit_item ki
 WHERE ki.kit_id = '51515151-0000-4000-8000-000000000001';
+
+-- -----------------------------------------------------------------------------
+-- Vision-ready scheduled sessions (like WS-C1000002): Demo Operator 1 + aviso SPD
+-- One per demo tray / SPD procedure kit.
+-- -----------------------------------------------------------------------------
+INSERT INTO operation (id, scheduled_at, started_at, ended_at, status_id, procedure_type_id, room_id, institution_id)
+SELECT v.op_id::uuid,
+       (date_trunc('day', now() AT TIME ZONE 'UTC') + v.hour_offset),
+       NULL, NULL, st.id, pt.id,
+       '12121212-0000-4000-8000-000000000001',
+       '11111111-1111-1111-1111-111111111111'
+FROM (VALUES
+  ('61616161-0000-4000-8000-000000000021', 'demo',                 interval '11 hours'),
+  ('61616161-0000-4000-8000-000000000022', 'vaginal_delivery',     interval '12 hours'),
+  ('61616161-0000-4000-8000-000000000023', 'hernia_repair',        interval '13 hours'),
+  ('61616161-0000-4000-8000-000000000024', 'wound_debridement',    interval '14 hours'),
+  ('61616161-0000-4000-8000-000000000025', 'soft_tissue_excision', interval '16 hours')
+) AS v(op_id, proc_code, hour_offset)
+JOIN cat_operation_status st ON st.code = 'scheduled'
+JOIN cat_procedure_type pt ON pt.code = v.proc_code;
+
+INSERT INTO operation_patient (operation_id, patient_id)
+SELECT v.op_id::uuid, '31313131-0000-4000-8000-000000000001'
+FROM (VALUES
+  ('61616161-0000-4000-8000-000000000021'),
+  ('61616161-0000-4000-8000-000000000022'),
+  ('61616161-0000-4000-8000-000000000023'),
+  ('61616161-0000-4000-8000-000000000024'),
+  ('61616161-0000-4000-8000-000000000025')
+) AS v(op_id);
+
+INSERT INTO operation_physician (operation_id, physician_id, surgical_role_id)
+SELECT v.op_id::uuid, '32323232-0000-4000-8000-000000000001', r.id
+FROM (VALUES
+  ('61616161-0000-4000-8000-000000000021'),
+  ('61616161-0000-4000-8000-000000000022'),
+  ('61616161-0000-4000-8000-000000000023'),
+  ('61616161-0000-4000-8000-000000000024'),
+  ('61616161-0000-4000-8000-000000000025')
+) AS v(op_id)
+JOIN cat_surgical_role r ON r.code = 'surgeon';
+
+INSERT INTO work_session (
+  id, started_at, ended_at, status_id, user_id, closed_by_user_id,
+  operation_id, station_id, kit_id, current_phase_id, phase_changed_at,
+  capture_mode, atypical_session, extended_retention, retention_until)
+SELECT v.session_id::uuid, NULL, NULL, ss.id,
+       '22222222-2222-2222-2222-222222222221',
+       NULL,
+       v.op_id::uuid,
+       '13131313-0000-4000-8000-000000000001',
+       v.kit_id::uuid,
+       ph.id, NULL,
+       NULL, FALSE, FALSE, NULL
+FROM (VALUES
+  ('c1000021-0000-4000-8000-000000000001', '61616161-0000-4000-8000-000000000021',
+   '51515151-0000-4000-8000-000000000002'),
+  ('c1000022-0000-4000-8000-000000000001', '61616161-0000-4000-8000-000000000022',
+   '51515151-0000-4000-8000-000000000003'),
+  ('c1000023-0000-4000-8000-000000000001', '61616161-0000-4000-8000-000000000023',
+   '51515151-0000-4000-8000-000000000004'),
+  ('c1000024-0000-4000-8000-000000000001', '61616161-0000-4000-8000-000000000024',
+   '51515151-0000-4000-8000-000000000005'),
+  ('c1000025-0000-4000-8000-000000000001', '61616161-0000-4000-8000-000000000025',
+   '51515151-0000-4000-8000-000000000006')
+) AS v(session_id, op_id, kit_id)
+JOIN cat_session_status ss ON ss.code = 'scheduled'
+JOIN cat_operation_phase ph ON ph.code = 'start';
+
+INSERT INTO expected_inventory (session_id, family_id, expected_quantity, source)
+SELECT v.session_id::uuid, ki.family_id, ki.quantity, 'kit_snapshot'
+FROM (VALUES
+  ('c1000021-0000-4000-8000-000000000001', '51515151-0000-4000-8000-000000000002'),
+  ('c1000022-0000-4000-8000-000000000001', '51515151-0000-4000-8000-000000000003'),
+  ('c1000023-0000-4000-8000-000000000001', '51515151-0000-4000-8000-000000000004'),
+  ('c1000024-0000-4000-8000-000000000001', '51515151-0000-4000-8000-000000000005'),
+  ('c1000025-0000-4000-8000-000000000001', '51515151-0000-4000-8000-000000000006')
+) AS v(session_id, kit_id)
+JOIN kit_item ki ON ki.kit_id = v.kit_id::uuid;
+
+INSERT INTO session_processing_agreement (
+  session_id, privacy_notice_version_id, purpose_quality_ops,
+  purpose_model_improvement, agreed_at, agreed_by_user_id)
+SELECT v.session_id::uuid, pnv.id, TRUE, FALSE,
+       (now() AT TIME ZONE 'UTC') - interval '1 hour',
+       '22222222-2222-2222-2222-222222222222'
+FROM (VALUES
+  ('c1000021-0000-4000-8000-000000000001'),
+  ('c1000022-0000-4000-8000-000000000001'),
+  ('c1000023-0000-4000-8000-000000000001'),
+  ('c1000024-0000-4000-8000-000000000001'),
+  ('c1000025-0000-4000-8000-000000000001')
+) AS v(session_id)
+CROSS JOIN privacy_notice_version pnv
+WHERE pnv.version = 'v1.0';
 
 COMMIT;
 

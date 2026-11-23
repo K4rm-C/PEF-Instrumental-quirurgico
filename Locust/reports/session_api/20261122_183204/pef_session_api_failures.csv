@@ -1,0 +1,4 @@
+Method,Name,Error,Occurrences
+GET,GET /api/v1/sessions,CatchResponseError('list HTTP 401'),77
+GET,GET /api/v1/sessions?page,HTTPError('401 Client Error: UNAUTHORIZED for url: GET /api/v1/sessions?page'),9
+POST,POST /api/v1/auth/login,CatchResponseError('login HTTP 429'),1

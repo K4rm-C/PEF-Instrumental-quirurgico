@@ -129,8 +129,8 @@
       cell.textContent = selectKitEmpty;
       empty.appendChild(cell);
       tbody.appendChild(empty);
-      return;
-    }
+            return;
+        }
     let currentCat = "";
     lines.forEach((line) => {
       const cat = line.category_label || line.category_code || otherLabel;
@@ -196,8 +196,8 @@
     if (!kitLinesUrl || !tbody) return;
     if (!kitId) {
       renderKitLines([]);
-      return;
-    }
+                    return;
+                }
     try {
       const url = new URL(kitLinesUrl, window.location.origin);
       url.searchParams.set("kit_id", kitId);
@@ -340,8 +340,8 @@
       empty.style.cursor = "default";
       menu.appendChild(empty);
       menu.hidden = false;
-      return;
-    }
+                return;
+            }
     matches.slice(0, 12).forEach((p, index) => {
       const li = document.createElement("li");
       li.textContent = p.name;
@@ -387,12 +387,12 @@
     input.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         menu.hidden = true;
-        return;
-      }
+            return;
+        }
       if (event.key === "Enter") {
         const active = menu.querySelector("li.is-active[data-id]");
         if (active && !menu.hidden) {
-          event.preventDefault();
+            event.preventDefault();
           hidden.value = active.dataset.id;
           input.value = active.textContent || "";
           menu.hidden = true;
