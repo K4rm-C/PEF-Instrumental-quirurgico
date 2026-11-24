@@ -76,6 +76,7 @@ EXPECTED_SOURCE_LABELS = {
     'schedule_additional': N_('Additional (schedule)'),
     'live_add': N_('Added during session'),
     'manual': N_('Manual'),
+    'operator_adjustment': N_('Operator adjustment'),
 }
 
 PAST_OPERATOR_STATUS_CODES = {

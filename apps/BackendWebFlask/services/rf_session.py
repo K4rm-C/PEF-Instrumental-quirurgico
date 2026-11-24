@@ -58,6 +58,7 @@ EXPECTED_SOURCE_LABELS = {
     "schedule_additional": "Additional (schedule)",
     "live_add": "Added during session",
     "manual": "Manual",
+    "operator_adjustment": "Operator adjustment",
 }
 
 
@@ -1228,6 +1229,100 @@ def update_session_inventory(
         db.session.rollback()
         raise RfSessionError(N_("Could not update session inventory; please retry."), 503) from exc
     return {"session_id": str(session_id), "lines": len(lines)}
+
+
+def apply_operator_prestart_adjustments(
+    *,
+    session_id: UUID,
+    operator_user_id: UUID,
+    institution_id: UUID | None,
+    lines: list[dict],
+    physicians: list[dict],
+    ip: str | None = None,
+) -> dict:
+    """Apply OP-reported instrument/personnel differences while the session is still scheduled.
+
+    New or quantity-changed inventory lines are tagged source=operator_adjustment.
+    Unchanged lines keep their previous source. Surgical team is replaced in full.
+    """
+    work = db.session.get(WorkSession, session_id)
+    if work is None:
+        raise RfSessionError(N_("Session not found."), 404)
+    if work.user_id != operator_user_id:
+        raise RfSessionError(N_("Session is not assigned to you."), 403)
+    status = db.session.get(CatSessionStatus, work.status_id)
+    if status is None or status.code != "scheduled":
+        raise RfSessionError(N_("Differences can only be reported before the session starts."), 409)
+    if work.operation_id is None:
+        raise RfSessionError(N_("Session has no linked operation."), 409)
+    if not lines:
+        raise RfSessionError(N_("Provide at least one inventory line."), 400)
+
+    team = _normalize_physicians(physician_id=None, physicians=physicians)
+
+    for line in lines:
+        qty = int(line["expected_quantity"])
+        if qty < 1:
+            raise RfSessionError(N_("Expected quantities must be >= 1."), 400)
+        family_id = UUID(str(line["family_id"]))
+        stock = stock_for_families([family_id]).get(str(family_id), {})
+        if qty > stock.get("stock_available", 0):
+            raise RfSessionError(N_("Stock BLOCK: requested quantity exceeds available instruments."), 400)
+
+    existing = {
+        str(row.family_id): row
+        for row in db.session.execute(
+            select(ExpectedInventory).where(ExpectedInventory.session_id == session_id)
+        ).scalars()
+    }
+    submitted: set[str] = set()
+    for line in lines:
+        family_id = UUID(str(line["family_id"]))
+        qty = int(line["expected_quantity"])
+        key = str(family_id)
+        submitted.add(key)
+        row = existing.get(key)
+        if row is None:
+            db.session.add(ExpectedInventory(
+                session_id=session_id,
+                family_id=family_id,
+                expected_quantity=qty,
+                source="operator_adjustment",
+            ))
+            continue
+        if int(row.expected_quantity) != qty:
+            row.expected_quantity = qty
+            row.source = "operator_adjustment"
+    for key, row in existing.items():
+        if key not in submitted:
+            db.session.delete(row)
+
+    for row in db.session.execute(
+        select(OperationPhysician).where(OperationPhysician.operation_id == work.operation_id)
+    ).scalars():
+        db.session.delete(row)
+    db.session.flush()
+    for member in team:
+        db.session.add(OperationPhysician(
+            operation_id=work.operation_id,
+            physician_id=member["physician_id"],
+            surgical_role_id=member["surgical_role_id"],
+        ))
+
+    work.updated_at = utc_now()
+    _audit(
+        user_id=operator_user_id,
+        action="session.operator_prestart_adjusted",
+        resource_id=session_id,
+        institution_id=institution_id,
+        ip=ip,
+    )
+    try:
+        db.session.commit()
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        raise RfSessionError(N_("Could not apply operator adjustments; please retry."), 503) from exc
+    return {"session_id": str(session_id), "lines": len(lines), "physicians": len(team)}
 
 
 def update_scheduled_session(

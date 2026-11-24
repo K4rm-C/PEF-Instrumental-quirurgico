@@ -202,6 +202,14 @@
                         <input type="checkbox" id="instruments-ready" name="instruments_ready" value="1" required data-v3-readiness-check>
                         <label for="instruments-ready">{{ _("I confirm that the physical instrument set is present and matches the expected inventory.") }}</label>
                     </div>
+                    <p class="v3-muted-note" style="margin-top: .85rem;">
+                        {{ _("If instruments or personnel do not match the schedule, report the differences before starting.") }}
+                    </p>
+                    <a class="btn btn--secondary"
+                       href="{{ url_for('web.operator_session_report_differences', session_id=session_id) }}"
+                       style="margin-top: .5rem;">
+                        {{ _("Report differences") }}
+                    </a>
                 </div>
             </div>
             <div class="v3-form-footer">

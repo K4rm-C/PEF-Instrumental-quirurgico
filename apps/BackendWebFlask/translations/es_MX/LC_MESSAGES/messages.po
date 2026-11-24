@@ -1909,6 +1909,11 @@ msgstr "Agregado durante la sesión"
 msgid "Manual"
 msgstr "Manual"
 
+#: controllers/view_data.py:79 services/rf_session.py:62
+#: templates/operator/sessions/report_differences.html
+msgid "Operator adjustment"
+msgstr "Ajuste de operador"
+
 #: controllers/view_data.py:197 templates/operator/sessions/capture_rf.html:211
 #: templates/supervisor/sessions/_evidence_traceability.html:70
 #: templates/supervisor/sessions/rf_details.html:182
@@ -10895,4 +10900,68 @@ msgstr "Métricas de operación"
 
 msgid "Live camera needs HTTPS or http://127.0.0.1 (browsers block the camera on plain LAN HTTP). Open the portal on localhost or use a demo video."
 msgstr "La cámara en vivo requiere HTTPS o http://127.0.0.1 (el navegador bloquea la cámara en HTTP LAN). Abre el portal en localhost o usa un video demo."
+
+
+msgid "Report differences"
+msgstr "Reportar diferencias"
+
+
+msgid "If instruments or personnel do not match the schedule, report the differences before starting."
+msgstr "Si el instrumental o el personal no coinciden con lo programado, reporta las diferencias antes de iniciar."
+
+
+msgid "Adjust expected instruments or surgical team. Changes are saved only after you confirm the endorsement overlay."
+msgstr "Ajusta el instrumental esperado o el equipo quirúrgico. Los cambios solo se guardan después de confirmar el overlay de aval."
+
+
+msgid "Back to confirmation"
+msgstr "Volver a la confirmación"
+
+
+msgid "Difference report sections"
+msgstr "Secciones del reporte de diferencias"
+
+
+msgid "Personnel"
+msgstr "Personal"
+
+
+msgid "Add missing instruments or remove extras. New or changed lines are tagged as Operator adjustment."
+msgstr "Agrega instrumental faltante o quita extras. Las líneas nuevas o modificadas se etiquetan como Ajuste de operador."
+
+
+msgid "Add or remove personnel. Type to search physicians; assign a surgical role to each row."
+msgstr "Agrega o quita personal. Escribe para buscar médicos; asigna un rol quirúrgico a cada fila."
+
+
+msgid "I endorse, together with the team present, the instrument and personnel adjustments reported for this session."
+msgstr "Avalo, junto con el equipo presente, los ajustes de instrumental y personal reportados para esta sesión."
+
+
+msgid "Confirm operator adjustments"
+msgstr "Confirmar ajustes de operador"
+
+
+msgid "Confirm and apply"
+msgstr "Confirmar y aplicar"
+
+
+msgid "Keep editing"
+msgstr "Seguir editando"
+
+
+msgid "Apply adjustments"
+msgstr "Aplicar ajustes"
+
+
+msgid "Differences can only be reported before the session starts."
+msgstr "Las diferencias solo se pueden reportar antes de iniciar la sesión."
+
+
+msgid "Session has no linked operation."
+msgstr "La sesión no tiene una operación vinculada."
+
+
+msgid "Could not apply operator adjustments; please retry."
+msgstr "No se pudieron aplicar los ajustes del operador; intenta de nuevo."
 
