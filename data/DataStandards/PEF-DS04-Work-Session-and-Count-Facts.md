@@ -193,7 +193,7 @@ CHECK: `ended_at` ≥ `started_at` when both are present.
 | `family_id` | UUID | NO | — | Expected family. |
 | `expected_quantity` | SMALLINT | NO | — | Expected quantity (≥ 0). |
 | `session_id` | UUID | NO | — | Owning session. |
-| `source` | VARCHAR(32) | NO | `'kit_snapshot'` | `kit_snapshot` or `manual`. |
+| `source` | VARCHAR(32) | NO | `'kit_snapshot'` | Traceability of how the line was set (see CHECK below). |
 
 **References**
 
@@ -202,7 +202,7 @@ CHECK: `ended_at` ≥ `started_at` when both are present.
 | `family_id` | `instrument_family.id` (DS03) | N:1 | Which type is expected. | `RESTRICT` |
 | `session_id` | `work_session.id` | N:1 | Freezes expected counts per session. | `CASCADE` |
 
-UNIQUE (`session_id`, `family_id`). CHECK quantity ≥ 0; CHECK `source` ∈ (`kit_snapshot`, `manual`).
+UNIQUE (`session_id`, `family_id`). CHECK quantity ≥ 0; CHECK `source` ∈ (`kit_snapshot`, `schedule_additional`, `live_add`, `manual`, `operator_adjustment`).
 
 Editing the kit **later** does not automatically rewrite these snapshots.
 

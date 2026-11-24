@@ -130,6 +130,11 @@
     });
   }
 
+  function addedSourceLabel() {
+    if (!form) return t("newRow");
+    return form.getAttribute("data-inventory-added-source-label") || t("newRow");
+  }
+
   function createRow(family, qty, origin) {
     var row = document.createElement("tr");
     row.setAttribute("data-inventory-row", "1");
@@ -152,7 +157,7 @@
       qty +
       '" required data-qty-input></td>' +
       "<td>" +
-      (origin === "added" ? t("newRow") : "—") +
+      (origin === "added" ? addedSourceLabel() : "—") +
       '</td><td><button type="button" class="btn btn--secondary btn--small" data-remove-row>' +
       t("remove") +
       "</button></td>";
@@ -307,16 +312,23 @@
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       if (window.appConfirm) {
-        window
-          .appConfirm({
-            title: t("inventorySaveTitle"),
-            html: buildChangeSummaryHtml(),
-            okLabel: t("save"),
-            cancelLabel: t("cancel"),
-          })
-          .then(function (ok) {
-            if (ok && window.appConfirmProceed) window.appConfirmProceed(form);
-          });
+        var endorse = form.getAttribute("data-inventory-confirm-mode") === "endorse";
+        var confirmOpts = endorse
+          ? {
+              title: form.getAttribute("data-app-confirm-title") || t("confirm"),
+              message: form.getAttribute("data-app-confirm") || "",
+              okLabel: form.getAttribute("data-app-confirm-ok") || t("continue"),
+              cancelLabel: form.getAttribute("data-app-confirm-cancel") || t("cancel"),
+            }
+          : {
+              title: t("inventorySaveTitle"),
+              html: buildChangeSummaryHtml(),
+              okLabel: t("save"),
+              cancelLabel: t("cancel"),
+            };
+        window.appConfirm(confirmOpts).then(function (ok) {
+          if (ok && window.appConfirmProceed) window.appConfirmProceed(form);
+        });
         return;
       }
       if (window.appConfirmProceed) window.appConfirmProceed(form);

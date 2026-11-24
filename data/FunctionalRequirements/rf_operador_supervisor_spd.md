@@ -264,7 +264,8 @@ Fixed banner: *"Expected inventory will be frozen when the session starts."*
 
 **Section 3 — Instrument readiness**  
 Mandatory checkbox: *"I confirm the instrument set is physically present and matches the expected inventory."*  
-Must be checked to enable Start.
+Must be checked to enable Start.  
+Below the checkbox: **Report differences** → dedicated screen with two tabs (Instruments / Personnel). Instrument add/remove follows the SPD inventory-edit pattern; new or quantity-changed lines are tagged `source = operator_adjustment`. Personnel uses physician typeahead + surgical role, same as SPD scheduling. Applying changes requires an endorsement overlay (*operator + team present*); Cancel / leaving the screen discards unsaved edits. After confirm, the operator returns to Begin to re-check readiness and Start.
 
 **Section 4 — Privacy notice (read-only for the operator)**  
 

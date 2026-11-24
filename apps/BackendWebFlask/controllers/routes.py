@@ -164,18 +164,18 @@ def _current_user():
     # (OP/SPD must not be kicked mid-flow solely because access max-age elapsed).
     response = None
     if access_token:
-    response = _auth_request('get', '/verify', token=access_token)
+        response = _auth_request('get', '/verify', token=access_token)
     need_refresh = (
         not access_token
         or (response is not None and response.status_code == 401)
     )
     if need_refresh and refresh_token:
-            refreshed = _auth_request('post', '/refresh', token=refresh_token)
-            if refreshed is not None and refreshed.ok:
-                g.auth_set_cookies = _upstream_set_cookies(refreshed)
-                access_token = refreshed.cookies.get('access_token')
-                if access_token:
-                    response = _auth_request('get', '/verify', token=access_token)
+        refreshed = _auth_request('post', '/refresh', token=refresh_token)
+        if refreshed is not None and refreshed.ok:
+            g.auth_set_cookies = _upstream_set_cookies(refreshed)
+            access_token = refreshed.cookies.get('access_token')
+            if access_token:
+                response = _auth_request('get', '/verify', token=access_token)
 
     if response is None or not response.ok:
         session.clear()
@@ -743,6 +743,79 @@ def operator_session_begin(session_id):
     return _v3_operator_page('operator/sessions/begin.html', demo=False, **values)
 
 
+@web_bp.route('/operator/sessions/<session_id>/report-differences', methods=['GET', 'POST'])
+@require_role('station_operator')
+def operator_session_report_differences(session_id):
+    """OP pre-start: report instrument/personnel differences (tagged operator_adjustment)."""
+    from services.rf_session import (
+        RfSessionError,
+        apply_operator_prestart_adjustments,
+        schedule_form_options,
+    )
+
+    user = _current_user()
+    detail = operator_session_detail(session_id, user['id'])
+    if detail is None:
+        abort(404)
+    if detail.get('status_code') != 'scheduled':
+        return redirect(url_for('web.operator_session_details', session_id=session_id))
+
+    try:
+        institution_id = UUID(user['institution_id']) if user.get('institution_id') else None
+        options = schedule_form_options(institution_id) if institution_id else {}
+    except (TypeError, ValueError, KeyError):
+        institution_id = None
+        options = {}
+
+    def _render(form_error=None, status=200):
+        return _v3_operator_page(
+            'operator/sessions/report_differences.html',
+            demo=False,
+            session=detail,
+            session_id=session_id,
+            families=options.get('families', []),
+            physicians=options.get('physicians', []),
+            surgical_roles=options.get('surgical_roles', []),
+            form_error=form_error,
+            begin_url=url_for('web.operator_session_begin', session_id=session_id),
+        ), status
+
+    if request.method == 'POST':
+        family_ids = request.form.getlist('family_id[]')
+        quantities = request.form.getlist('expected_quantity[]')
+        lines = []
+        for family_id, qty in zip(family_ids, quantities):
+            if not family_id:
+                continue
+            lines.append({'family_id': family_id, 'expected_quantity': int(qty)})
+        physician_ids = request.form.getlist('physician_id[]')
+        role_codes = request.form.getlist('surgical_role_code[]')
+        physicians = []
+        for pid, role_code in zip(physician_ids, role_codes):
+            if not pid:
+                continue
+            physicians.append({
+                'physician_id': pid,
+                'surgical_role_code': role_code or 'surgeon',
+            })
+        try:
+            apply_operator_prestart_adjustments(
+                session_id=UUID(session_id),
+                operator_user_id=UUID(user['id']),
+                institution_id=institution_id,
+                lines=lines,
+                physicians=physicians,
+                ip=request.remote_addr,
+            )
+        except (RfSessionError, ValueError, TypeError) as exc:
+            message = _error_message(exc) if isinstance(exc, RfSessionError) else str(exc)
+            detail = operator_session_detail(session_id, user['id']) or detail
+            return _render(form_error=message, status=400)
+        return redirect(url_for('web.operator_session_begin', session_id=session_id))
+
+    return _render()[0]
+
+
 @web_bp.route('/operator/sessions/<session_id>/manual')
 @require_role('station_operator')
 def operator_session_manual(session_id):
@@ -803,7 +876,7 @@ def operator_session_manual_report(session_id):
             try:
                 reported = int(request.form.get(f"reported_{family_id}", ""))
             except ValueError:
-    return _page(
+                return _page(
                     'operator/sessions/manual_report.html',
                     session=detail,
                     session_id=session_id,

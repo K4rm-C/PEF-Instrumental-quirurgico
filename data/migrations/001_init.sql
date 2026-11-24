@@ -677,7 +677,13 @@ CREATE TABLE expected_inventory (
   CONSTRAINT uk_expected_inventory_session_family UNIQUE (session_id, family_id),
   CONSTRAINT chk_expected_inventory_quantity CHECK (expected_quantity >= 0),
   CONSTRAINT chk_expected_inventory_source CHECK (
-    source IN ('kit_snapshot', 'schedule_additional', 'live_add', 'manual')
+    source IN (
+      'kit_snapshot',
+      'schedule_additional',
+      'live_add',
+      'manual',
+      'operator_adjustment'
+    )
   )
 );
 
