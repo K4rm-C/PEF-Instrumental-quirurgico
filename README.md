@@ -39,7 +39,7 @@ Advisor: Dr. Raul Morales Salcedo.
 - YOLO weights: `apps/VisionWorker/weights/best.pt` (not versioned; `*.pt` in `.gitignore`)
 - `ffmpeg` on PATH (or `.\tools\ensure-ffmpeg.ps1` on Windows) - used by EvidenceWorker in Docker and Vision on the host
 
-### Canonical Compose
+### Compose
 
 For the MS + portal + seeds stack use `docker-compose.integral.yml` (overlays: `docker-compose.vision-cpu.yml`, `gateway` profile).  
 `docker-compose.yml` remains as legacy infra reference (older e2e/VM scripts); it is not the daily demo startup.
@@ -62,7 +62,7 @@ python --version
 
 ---
 
-## Startup (single flow)
+## Startup
 
 Everything from the repository root (`PEF-Instrumental-quirurgico`).
 
@@ -109,7 +109,9 @@ docker compose -f docker-compose.integral.yml --env-file .env --profile gateway 
 
 ### Flexible LAN IP (portal / App / CORS / Vision WS)
 
-Do not hardcode IPs and do not rely on localhost for demos. On any Wi-Fi:
+Do not hardcode IPs and do not rely on localhost for demos. 
+
+On any Wi-Fi:
 
 ```powershell
 .\scripts\pef_up.ps1
@@ -180,6 +182,8 @@ Place `best.pt` in `apps/VisionWorker/weights/` (read-only mount). Published as 
 ---
 
 ## URLs and ports
+
+The following urls may vary if run in [localhost](http://localhost) or online through the device IP adjusted during setup.
 
 | Service | URL / endpoint |
 | --- | --- |
@@ -252,7 +256,7 @@ Full table (canonical + Locust + `gen.*`): [`data/seeds/DEMO_CREDENTIALS.md`](da
 | Locust OP | `ana.ruiz@` / `luis.pena@instrumed.com` | see DEMO_CREDENTIALS | multi-user load |
 | Locust SPD/Admin/Floor | `carla.soto@` / `ti.extra@` / `nora.diaz@` / `dual.admin.spd@` | see DEMO_CREDENTIALS | load / mixed roles |
 
-`floor@` / `or_charge` is the canonical App demo account. The one-shot `seed-demo-volume` adds extra ORs, closed/scheduled sessions, discrepancies, `access_audit`, notifications and `monitoring_check` (tunable with `SEED_OR_COUNT`, `SEED_CLOSED_SESSIONS`, `SEED_RNG`, etc.).
+`floor@` / `or_charge` is the canonical App demo account the one-shot `seed-demo-volume` adds extra ORs, closed/scheduled sessions, discrepancies, `access_audit`, notifications and `monitoring_check` (tunable with `SEED_OR_COUNT`, `SEED_CLOSED_SESSIONS`, `SEED_RNG`, etc.).
 
 ```powershell
 curl -i -X POST http://127.0.0.1:5001/login -H "Content-Type: application/json" -d "{\"email\":\"operator@instrumed.com\",\"password\":\"DemopwdOP78!\"}"
@@ -273,7 +277,9 @@ curl -i -X POST http://127.0.0.1:5001/login -H "Content-Type: application/json" 
 | Locust load suite | [`Locust/README.md`](Locust/README.md) | Per-type HTTP load tests and English reports |
 | Docs stub | [`docs/README.md`](docs/README.md) | Points here and to `data/` (no separate pack) |
 
-Contracts and RFs are written in English. UI copy uses English msgids (`en` source) with Babel `es-MX`. Seed free-text that the UI shows (kit names, role blurbs, station labels) is stored in English and mapped in `apps/BackendWebFlask/i18n.py` for locale display.
+Contracts and RFs are written in English. 
+
+UI copy uses English msgids (`en` source) with Babel `es-MX`, seed free-text that the UI shows (kit names, role blurbs, station labels) is stored in English and mapped in `apps/BackendWebFlask/i18n.py` for locale display.
 
 ## Repository layout
 
@@ -315,11 +321,11 @@ Project under `apps/PEF-Android`. Emulator → Auth `http://10.0.2.2:5001` or ho
 
 ---
 
-## Evidence (OP cycle)
+## Evidence
 
-BD-first flow: encode → Garage S3 → `media_asset` (PG) → `checkpoint_frame` (Mongo). OP-05/06 portal prefers Mongo + signed URL; local files only if upload failed (Redis queue `pef:evidence:upload_retry`). With `EVIDENCE_PURGE_LOCAL_ON_UPLOAD=1` the MP4 can be deleted after a successful upload.
+BD-first flow: encode → Garage S3 → `media_asset` (PG) → `checkpoint_frame` (Mongo). OP-05/06 portal prefers Mongo + signed URL, local files only if upload failed (Redis queue `pef:evidence:upload_retry`). With `EVIDENCE_PURGE_LOCAL_ON_UPLOAD=1` the MP4 can be deleted after a successful upload.
 
-Hourly: does not fire while idle; catch-up on resume; ratio via VisionWorker `/state`.
+Hourly: does not fire while idle since there's a catch-up on resume, ratio via VisionWorker `/state`.
 
 ---
 
@@ -423,5 +429,5 @@ Demo pipeline `matrix_v1` (Hungarian by default; `VISION_ASSIGN_SOLVER=greedy` f
 | 7 | Admin portal (`admin_local`) + CatalogService | Done |
 | 8 | Session/Evidence/Audit/… microservices + Android | Integrated |
 
-Code comments: English. UI copy: `en` + `es-MX` via Babel.
+
 Data contracts: `data/DataStandards/`. Screen RFs: `data/FunctionalRequirements/`.
