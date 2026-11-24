@@ -382,6 +382,62 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/sessions/stations/{station_id}/monitor:
+    get:
+      tags: [Station monitor]
+      summary: ELECTRON-01 - active session of a capture station for the desktop monitor (station_operator)
+      description: |
+        Read-only. The station must belong to the caller's institution (otherwise 404) and be active (409
+        station_disabled). Only sessions assigned to the caller are considered. `state` is `active` (exactly one
+        session `in_progress`), `idle` (none) or `ambiguous` (more than one: none is chosen; `candidates` lists them).
+        `session` carries status, phase, the current reference (expected_inventory, with a `version` hash) and the
+        official result mirrored from PostgreSQL (`official.result`: pending | validated_match | discrepancy |
+        closed_clean | closed_with_discrepancies | aborted). The snapshot also includes patient_name,
+        procedure_code, procedure_name and doctor_name for the assigned operator's station display.
+        Nothing is written.
+      parameters:
+        - { name: station_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Station overview, content: { application/json: { schema: { type: object } }, application/xml: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: station_disabled }
+  /api/v1/sessions/stations/{station_id}/monitor/{session_id}:
+    get:
+      tags: [Station monitor]
+      summary: ELECTRON-01 - official state of a session the monitor follows (station_operator, own session)
+      description: |
+        Same snapshot as `session` above for a session in any status, so the monitor can show review / closed
+        outcomes after the session leaves `in_progress`. Another station, Operator or institution → 404.
+      parameters:
+        - { name: station_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: session_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Session snapshot, content: { application/json: { schema: { type: object } }, application/xml: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/v1/sessions/stations/{station_id}/monitor/{session_id}/live-ticket:
+    post:
+      tags: [Station monitor]
+      summary: ELECTRON-01 - observe-only VisionWorker WebSocket ticket (station_operator, own vision session in progress)
+      description: |
+        Returns `{ticket, ws_url, expires_at, ttl_s, scope: "observe"}`. The ticket
+        (`m1.<session>.<exp>.<nonce>.<hmac>`, VISION_MONITOR_SECRET) is accepted by VisionWorker only for
+        `monitor.subscribe` on `/ws`: it cannot bind, submit frames or cancel. Renew before `expires_at` with
+        `monitor.renew`. 409 live_not_available outside a vision session in progress; 503 monitor_unavailable when the
+        secret is not configured. No body.
+      parameters:
+        - { name: station_id, in: path, required: true, schema: { type: string, format: uuid } }
+        - { name: session_id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Ticket, content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: live_not_available }
+        '503': { description: monitor_unavailable }
   /api/v1/sessions/{id}/validation-seal:
     get:
       tags: [Supervisor]

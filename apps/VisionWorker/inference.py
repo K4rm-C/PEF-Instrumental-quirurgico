@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import copy
 import json
+import subprocess
 import threading
 import time
 import uuid
@@ -36,6 +37,7 @@ from config import (
     HOLD_SEED_FRAMES,
     HOLD_ZONE_IOU,
     METRICS_DIR,
+    UPLOAD_DIR,
     NAME_HOLD_SECONDS,
     REASSIGN_MIN_SCORE,
     SOFT_NAME_MIN_SCORE,
@@ -136,6 +138,9 @@ class SessionState:
     message: str = ""
     progress: float = 0.0
     frame_jpeg_b64: str | None = None
+    last_frame_at: float | None = None
+    recording_name: str | None = None
+    capture_phase: str | None = None
     boxes: list[dict[str, Any]] = field(default_factory=list)
     counts: dict[str, dict[str, Any]] = field(default_factory=dict)
     raw_counts: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -207,6 +212,8 @@ class SessionState:
             "message": self.message,
             "progress": self.progress,
             "frame_jpeg_b64": self.frame_jpeg_b64,
+            "recording_name": self.recording_name,
+            "capture_phase": self.capture_phase,
             "boxes": self.boxes,
             "counts": self.counts,
             "raw_counts": self.raw_counts,
@@ -1708,6 +1715,7 @@ def prepare_live_run(state: SessionState) -> None:
     state.cancel = False
     state.last_error = None
     state.run_id = uuid.uuid4().hex[:12]
+    state.recording_name = None
     state.frames_processed = 0
     state.frame_index = 0
     _reset_timeline(state)
@@ -1794,6 +1802,7 @@ def run_frame(
     state.assign_solver = str((metrics or {}).get("solver") or ASSIGN_SOLVER)
     annotated = _draw_boxes(frame_bgr, overlay_boxes)
     state.frame_jpeg_b64 = _encode_jpeg_b64(annotated)
+    state.last_frame_at = time.time()
     post_ms = max(0.0, (time.perf_counter() - t_all) * 1000.0 - float(yolo_ms))
     _record_frame_latency(state, yolo_ms=yolo_ms, post_ms=post_ms)
     state.video_t = round(float(video_t), 3)
@@ -1827,6 +1836,7 @@ def process_video_file(path: str, state: SessionState) -> None:
     state.cancel = False
     state.last_error = None
     state.run_id = uuid.uuid4().hex[:12]
+    state.recording_name = None
     reset_hold_state(state)
     state.frames_processed = 0
     _reset_timeline(state)
@@ -1860,6 +1870,10 @@ def process_video_file(path: str, state: SessionState) -> None:
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
     fps = float(cap.get(cv2.CAP_PROP_FPS) or 0.0) or 30.0
     state.video_fps = fps
+    replay_path = UPLOAD_DIR / f"{state.session_id}_{state.run_id}_detected.mp4"
+    raw_replay_path = UPLOAD_DIR / f"{state.session_id}_{state.run_id}_raw.mp4"
+    encoded_path = UPLOAD_DIR / f"{state.session_id}_{state.run_id}_encoded.part.mp4"
+    replay = None
     idx = 0
     last_video_t = 0.0
     try:
@@ -1876,6 +1890,13 @@ def process_video_file(path: str, state: SessionState) -> None:
             last_video_t = idx / fps
             if idx % state.frame_stride == 0:
                 run_frame(frame, state, video_t=last_video_t)
+                if replay is None:
+                    h, w = frame.shape[:2]
+                    replay = cv2.VideoWriter(str(raw_replay_path), cv2.VideoWriter_fourcc(*"mp4v"),
+                                             max(0.1, fps / state.frame_stride), (w, h))
+                    if not replay.isOpened():
+                        raise RuntimeError("Could not open processed video writer")
+                replay.write(_draw_boxes(frame, state.boxes))
                 # Lab video must feed the evidence ring (throttled wall-clock).
                 try:
                     _push_lab_frame_to_evidence(state, frame)
@@ -1885,9 +1906,23 @@ def process_video_file(path: str, state: SessionState) -> None:
                 state.progress = min(0.99, (idx + 1) / total)
             idx += 1
         if state.status == "processing":
+            has_replay = replay is not None
+            if replay is not None:
+                replay.release()
+                replay = None
+            if has_replay:
+                subprocess.run(
+                    ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(raw_replay_path),
+                     "-c:v", "libx264", "-preset", "veryfast", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+                     str(encoded_path)],
+                    check=True, capture_output=True, timeout=600,
+                )
+                encoded_path.replace(replay_path)
+                raw_replay_path.unlink(missing_ok=True)
             state.progress = 1.0
             state.status = "ready"
             state.message = "Video processing complete"
+            state.recording_name = replay_path.name if has_replay else None
             _write_metrics_snapshot(state, final=True)
             # Ensure final tally is on the timeline even if not on a sample boundary.
             _append_timeline_sample(state, video_t=last_video_t, final=True)
@@ -1897,4 +1932,10 @@ def process_video_file(path: str, state: SessionState) -> None:
         state.message = f"Inference error: {exc}"
     finally:
         cap.release()
+        if replay is not None:
+            replay.release()
+        if state.status != "ready":
+            replay_path.unlink(missing_ok=True)
+        raw_replay_path.unlink(missing_ok=True)
+        encoded_path.unlink(missing_ok=True)
         _last_evidence_push_at.pop(str(state.session_id or ""), None)

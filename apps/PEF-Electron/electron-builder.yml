@@ -1,0 +1,33 @@
+# Windows packaging (electron-builder). Build from Windows: npm run dist:win  (NSIS installer)  ·  npm run dist:dir
+# No certificate or secret is stored in the repository. To sign, set CSC_LINK / CSC_KEY_PASSWORD in the build
+# environment (never committed); without them the installer is produced unsigned (SmartScreen will warn).
+appId: mx.udem.pef.monitor
+productName: PEF Monitor
+copyright: PEF UDEM
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - build/icon.png
+  - build/tray.png
+  - package.json
+  - "!**/*.map"
+asar: true
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+  executableName: PEFMonitor
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: PEF Monitor
+  artifactName: PEF-Monitor-Setup-${version}.${ext}
+protocols:
+  - name: PEF Monitor
+    schemes: [pef-monitor]

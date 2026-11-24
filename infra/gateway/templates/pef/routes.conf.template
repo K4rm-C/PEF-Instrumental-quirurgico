@@ -125,6 +125,12 @@ location = /ws {
     proxy_pass http://pef_vision;
 }
 
+# Electron replays a processed video with a short-lived, session-scoped monitor ticket.
+location ~ "^/sessions/[0-9A-Fa-f-]{36}/recordings/[0-9a-f]{12}$" {
+    include /etc/nginx/conf.d/pef/proxy.conf;
+    proxy_pass http://pef_vision;
+}
+
 # Not published: AuditService and MonitoringService (Administration / Supervisor consoles of the portal),
 # every /health/* and Swagger UI of the services, VisionWorker HTTP (bind, video, /auth/revoke),
 # EvidenceService diagnostic and test routes, AuthService cookie routes (portal only).

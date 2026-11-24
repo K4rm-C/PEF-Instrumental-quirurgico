@@ -33,6 +33,7 @@ from inference import (
     run_frame,
 )
 from ws_ticket import verify_ticket
+from live_monitor import run_observer
 
 GetState = Callable[[str], SessionState | None]
 
@@ -184,6 +185,10 @@ def register_live_ws(sock, *, get_state: GetState) -> None:
                     _error(ws, code="invalid_frame", message="message is not an object")
                     continue
                 mtype = msg.get("type")
+
+                if mtype == "monitor.subscribe" and bound is None:
+                    run_observer(ws, msg, get_state=get_state)
+                    return
 
                 if mtype == "session.bind":
                     sid = str(msg.get("session_id") or "")
