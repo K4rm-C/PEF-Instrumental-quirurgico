@@ -30,10 +30,34 @@ export class ConfigError extends Error {}
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]', '::1']);
 
+/** Loopback hostnames used by the local Docker/dev stack. */
+export function isLoopbackHost(hostname: string): boolean {
+  return LOOPBACK.has(hostname.toLowerCase());
+}
+
 /**
- * http/ws only for loopback (development stack on this PC). Anything reaching another host must be https/wss,
- * whose certificate Chromium/Node validate (no override anywhere in this app). PEF_MONITOR_ALLOW_INSECURE_LAN=1
- * relaxes it for a closed lab network only; it is logged at every start.
+ * RFC1918 + link-local IPv4 (lab PEF demos mount the stack on HOST_LAN_IP, not only localhost).
+ * Hostnames that are not literal IPs still require https/wss (or PEF_MONITOR_ALLOW_INSECURE_LAN=1).
+ */
+export function isPrivateLanHost(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (isLoopbackHost(h) || isLoopbackHost(hostname)) return true;
+  const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(h);
+  if (!m) return false;
+  const octets = m.slice(1).map((x) => Number(x));
+  if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+  const [a, b] = octets;
+  if (a === 10) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 169 && b === 254) return true;
+  return false;
+}
+
+/**
+ * http/ws allowed for loopback and private LAN IPs (demo/lab on HOST_LAN_IP).
+ * Public or named hosts must use https/wss (certificate validated), unless
+ * PEF_MONITOR_ALLOW_INSECURE_LAN=1 relaxes that (logged at every start).
  */
 export function validateUrl(raw: string, kind: 'http' | 'ws', allowInsecureLan = false): string {
   let url: URL;
@@ -49,8 +73,12 @@ export function validateUrl(raw: string, kind: 'http' | 'ws', allowInsecureLan =
   }
   if (url.username || url.password) throw new ConfigError('La URL no debe incluir credenciales');
   if (url.search || url.hash) throw new ConfigError('La URL no debe incluir parámetros');
-  if (url.protocol === plain && !LOOPBACK.has(url.hostname) && !allowInsecureLan) {
-    throw new ConfigError(`${raw}: fuera de este equipo solo se permite ${secure.replace(':', '')} (certificado validado)`);
+  const plainOk = isPrivateLanHost(url.hostname) || allowInsecureLan;
+  if (url.protocol === plain && !plainOk) {
+    throw new ConfigError(
+      `${raw}: fuera de loopback/LAN privada solo se permite ${secure.replace(':', '')} (certificado validado), `
+        + 'o PEF_MONITOR_ALLOW_INSECURE_LAN=1 en laboratorio',
+    );
   }
   return url.toString().replace(/\/+$/, '');
 }

@@ -148,9 +148,9 @@ Primer arranque → pantalla **Configuración de la estación**:
 
 | Campo | Ejemplo | Notas |
 |---|---|---|
-| URL del API Gateway | `https://api.hospital.example` · desarrollo: `http://127.0.0.1:8080` | Fuera de este equipo solo `https`/`wss` (certificado validado) |
+| URL del API Gateway | Demo LAN: `http://<HOST_LAN_IP>:8080` · producción: `https://api.hospital.example` | `http`/`ws` permitidos en loopback y LAN privada (10/8, 172.16–31, 192.168/16). Internet público: solo `https`/`wss` |
 | Identificador de la estación | UUID de `capture_station` (Administración → Configuración → Estaciones) | |
-| Avanzado (sin gateway) | AuthService `http://127.0.0.1:5001`, SessionService `http://127.0.0.1:5004`, WS `ws://127.0.0.1:5002/ws` | Con VisionWorker en el host, el `/ws` del gateway no lo alcanza: indique el WS directo |
+| Avanzado (sin gateway) | Auth `http://<LAN>:5001`, Session `http://<LAN>:5004`, WS `ws://<LAN>:5002/ws` | Con VisionWorker en el host, el `/ws` del gateway no lo alcanza: indique el WS directo en la IP LAN |
 
 Luego el Operador inicia sesión (correo y contraseña de AuthService). Se rechaza cualquier cuenta sin rol
 `station_operator`.
@@ -162,7 +162,9 @@ Luego el Operador inicia sesión (correo y contraseña de AuthService). Se recha
 * La sesión de Operador de AuthService dura como máximo `OP_MAX_SESSION_HOURS` (24 h): después hay que volver a
   iniciar sesión (la app lo pide; el semáforo queda en gris).
 * `PEF_MONITOR_USER_DATA` permite un perfil aislado (pruebas, varias estaciones en un equipo).
-* `PEF_MONITOR_ALLOW_INSECURE_LAN=1` permite `http`/`ws` en la LAN (solo laboratorio; queda en el log).
+* IPs de LAN privada (`192.168.x.x`, etc.) aceptan `http`/`ws` sin bandera extra (alineado con `pef_up` / `HOST_LAN_IP`).
+* `PEF_MONITOR_ALLOW_INSECURE_LAN=1` relaja aún más y permite `http`/`ws` en hosts no privados (laboratorio excepcional; queda en el log).
+* El portal HTTPS de lab (`:5443` con cert autofirmado) no es el endpoint típico de Electron: use el Gateway HTTP en `:8080` (o instale el CA de lab en Windows si necesita `https`).
 
 El backend vuelve a verificar en **cada** petición la institución, la estación y la asignación: el cliente
 nunca decide qué sesión puede ver.
@@ -310,7 +312,7 @@ npm run dist:dir   # release\win-unpacked\PEFMonitor.exe sin instalador
 | Siempre gris "Video no disponible" | Falta `VISION_MONITOR_SECRET` en SessionService o VisionWorker (deben coincidir) |
 | Gris "VisionWorker sin la sesión" | El worker se reinició: el Operador debe reabrir la captura en el portal |
 | Gris "Sin captura" | El Operador no transmite cámara ni procesa video |
-| Gris "Conectando video" permanente con gateway | VisionWorker corre en el host: configure el WS directo (`ws://127.0.0.1:5002/ws`) |
+| Gris "Conectando video" permanente con gateway | VisionWorker corre en el host: configure el WS directo (`ws://<HOST_LAN_IP>:5002/ws`) |
 | Pide iniciar sesión cada día | Límite `OP_MAX_SESSION_HOURS` de AuthService |
 | "Varias sesiones activas" | Más de una sesión `in_progress` del Operador en la estación: resuélvalo en el portal |
 

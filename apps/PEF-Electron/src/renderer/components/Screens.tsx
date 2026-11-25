@@ -64,7 +64,7 @@ export function WaitingScreen({ snap }: { snap: MonitorSnapshot }) {
 export function SetupScreen({ snap, config, onSaved }: { snap: MonitorSnapshot | null; config: PublicConfig | null; onSaved: () => void }) {
   const locale = snap?.locale ?? 'es-MX';
   const needsConfig = !config?.configured || snap?.appState === 'setup';
-  const [apiBaseUrl, setApi] = useState(config?.apiBaseUrl || 'http://127.0.0.1:8080');
+  const [apiBaseUrl, setApi] = useState(config?.apiBaseUrl || '');
   const [authBaseUrl, setAuth] = useState(config?.authBaseUrl ?? '');
   const [sessionBaseUrl, setSession] = useState(config?.sessionBaseUrl ?? '');
   const [visionWsUrl, setWs] = useState(config?.visionWsUrl ?? '');
@@ -111,7 +111,7 @@ export function SetupScreen({ snap, config, onSaved }: { snap: MonitorSnapshot |
         <form className="card form" onSubmit={saveConfig}>
           <label>
             {tr(locale, 'URL del API Gateway (o de los servicios)')}
-            <input value={apiBaseUrl} onChange={(e) => setApi(e.target.value)} placeholder="https://api.hospital.example" required />
+            <input value={apiBaseUrl} onChange={(e) => setApi(e.target.value)} placeholder="http://192.168.x.x:8080" required />
           </label>
           <label>
             {tr(locale, 'Identificador de la estación de conteo (UUID)')}
@@ -121,15 +121,15 @@ export function SetupScreen({ snap, config, onSaved }: { snap: MonitorSnapshot |
             <summary>{tr(locale, 'Opciones avanzadas (sin gateway)')}</summary>
             <label>
               AuthService
-              <input value={authBaseUrl} onChange={(e) => setAuth(e.target.value)} placeholder="http://127.0.0.1:5001" />
+              <input value={authBaseUrl} onChange={(e) => setAuth(e.target.value)} placeholder="http://192.168.x.x:5001" />
             </label>
             <label>
               SessionService
-              <input value={sessionBaseUrl} onChange={(e) => setSession(e.target.value)} placeholder="http://127.0.0.1:5004" />
+              <input value={sessionBaseUrl} onChange={(e) => setSession(e.target.value)} placeholder="http://192.168.x.x:5004" />
             </label>
             <label>
               {tr(locale, 'WebSocket de VisionWorker')}
-              <input value={visionWsUrl} onChange={(e) => setWs(e.target.value)} placeholder="ws://127.0.0.1:5002/ws" />
+              <input value={visionWsUrl} onChange={(e) => setWs(e.target.value)} placeholder="ws://192.168.x.x:5002/ws" />
             </label>
           </details>
           <button className="btn primary" disabled={busy}>{tr(locale, 'Guardar configuración')}</button>

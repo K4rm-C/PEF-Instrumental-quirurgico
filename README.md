@@ -2,17 +2,18 @@
 
 Vision-assisted counting and digital traceability of surgical instruments (PEF · UDEM).
 
-Web portal (operator / SPD / administration), JWT authentication, YOLO vision, ring evidence, catalog/session/evidence microservices, and an Android app.
+Web portal (operator / SPD / administration), JWT authentication, YOLO vision, ring evidence, catalog/session/evidence microservices, an Android app, and a Windows desktop station monitor (Electron).
 
 ## Stack
 
 | Layer | Components |
 | --- | --- |
 | Portal | `BackendWebFlask` (admin in-process via `admin_local`) |
-| Identity | `BackendAuthService` - portal cookies + `/api/v1/auth` (Android) |
+| Identity | `BackendAuthService` - portal cookies + `/api/v1/auth` (Android / Electron) |
 | Vision / OP evidence | `VisionWorker` (host, CUDA) · `EvidenceWorker` (Docker) |
 | Microservices | Catalog, Session, EvidenceService, Audit, Notifications, Monitoring, Integration |
 | Mobile client | `apps/PEF-Android` |
+| Desktop monitor | `apps/PEF-Electron` (read-only station semaphore; Windows) |
 | Infra | PostgreSQL, Redis, MongoDB, Garage (S3) |
 
 Admin UI runs in-process via `admin_local` on the portal. Product catalog: `CatalogService` (`:5003`).
@@ -35,6 +36,7 @@ Advisor: Dr. Raul Morales Salcedo.
 
 - Docker Desktop running
 - Python 3.11+ on `PATH` (only for VisionWorker on the host)
+- Node.js ≥ 20 and npm (only to build/run `apps/PEF-Electron`)
 - Git
 - YOLO weights: `apps/VisionWorker/weights/best.pt` (not versioned; `*.pt` in `.gitignore`)
 - `ffmpeg` on PATH (or `.\tools\ensure-ffmpeg.ps1` on Windows) - used by EvidenceWorker in Docker and Vision on the host
@@ -78,6 +80,15 @@ copy .env apps\VisionWorker\.env
 ```
 
 VisionWorker reads the `.env` in its own folder. Other services take variables from Compose / the root `.env`.
+
+For the Electron station monitor (live video observer), set the same non-empty secret in root `.env` (and re-copy to `apps/VisionWorker/.env`):
+
+```env
+VISION_MONITOR_SECRET=<long-random-value>
+VISION_MONITOR_TICKET_TTL=60
+```
+
+Leave `VISION_MONITOR_SECRET` empty to disable live monitor tickets (SessionService / VisionWorker).
 
 ### 2. Start Docker
 
@@ -166,6 +177,35 @@ The portal and `evidence-worker` reach Vision at `host.docker.internal:5002`. Br
 ```
 
 UI login: [http://127.0.0.1:5000/sign-in](http://127.0.0.1:5000/sign-in).
+
+### 5. PEF Monitor (Electron) — optional station display
+
+Read-only Windows desktop client: shows the Operator session on a counting station (camera feed from VisionWorker + semaphore). It does **not** open the camera, run YOLO, or write sessions. Requires the stack + VisionWorker up, Gateway recommended, and `VISION_MONITOR_SECRET` set (same value in SessionService and VisionWorker).
+
+```powershell
+cd apps\PEF-Electron
+npm install
+# if npm blocked the Electron binary download:
+node node_modules\electron\install.js
+npm run build
+# Cursor/VS Code terminals often set this; clear it or Electron starts as Node:
+Remove-Item Env:ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
+npm start
+# or: npm run dev   (build + DevTools)
+# or: npm run demo  (simulated UI, no backend)
+```
+
+First launch → **Station configuration**:
+
+| Field | Demo LAN example | Notes |
+| --- | --- | --- |
+| API Gateway URL | `http://<HOST_LAN_IP>:8080` | Private LAN / loopback allow `http`/`ws`. Public hosts need `https`/`wss` |
+| Station UUID | from Admin → Stations (`capture_station`) | |
+| Advanced → VisionWorker WS | `ws://<HOST_LAN_IP>:5002/ws` | Needed when Vision runs on the host (gateway `/ws` alone is not enough) |
+
+Then sign in with a `station_operator` account (e.g. `operator@instrumed.com`). Prefer Gateway `:8080`, not the lab HTTPS portal `:5443` (self-signed).
+
+Installer: `npm run dist:win`. Full detail: [`apps/PEF-Electron/README.md`](apps/PEF-Electron/README.md).
 
 ---
 
@@ -275,6 +315,7 @@ curl -i -X POST http://127.0.0.1:5001/login -H "Content-Type: application/json" 
 | DDL snapshot (historical) | [`data/esquema_base_datos_v2.md`](data/esquema_base_datos_v2.md) | Base DDL reference; live schema is `data/migrations/` |
 | Demo credentials | [`data/seeds/DEMO_CREDENTIALS.md`](data/seeds/DEMO_CREDENTIALS.md) | Seed users / Locust accounts |
 | Locust load suite | [`Locust/README.md`](Locust/README.md) | Per-type HTTP load tests and English reports |
+| Electron station monitor | [`apps/PEF-Electron/README.md`](apps/PEF-Electron/README.md) | Build/run, LAN URLs, observer WS, semaphore, security |
 | Docs stub | [`docs/README.md`](docs/README.md) | Points here and to `data/` (no separate pack) |
 
 Contracts and RFs are written in English. 
@@ -295,7 +336,8 @@ PEF-Instrumental-quirurgico/
 │   ├── VisionWorker/weights/       # local best.pt (+ .venv only here)
 │   ├── EvidenceWorker/
 │   ├── CatalogService/ … IntegrationService/
-│   └── PEF-Android/
+│   ├── PEF-Android/
+│   └── PEF-Electron/               # Windows station monitor (semaphore)
 ├── data/
 │   ├── migrations/                 # 001 + 004…023
 │   ├── seeds/                      # 002, 003(+Locust), 004, DEMO_CREDENTIALS.md, example_images/
@@ -318,6 +360,12 @@ PEF-Instrumental-quirurgico/
 ## Android
 
 Project under `apps/PEF-Android`. Emulator → Auth `http://10.0.2.2:5001` or host LAN IP. With Gateway, public entry `:8080`. Details: `apps/PEF-Android/README.md`.
+
+---
+
+## PEF Monitor (Electron)
+
+Project under `apps/PEF-Electron`. Third client alongside the portal and Android: visual monitor for the counting station. Startup steps: [§5 under Startup](#5-pef-monitor-electron--optional-station-display). Architecture, contracts, and tests: [`apps/PEF-Electron/README.md`](apps/PEF-Electron/README.md).
 
 ---
 
@@ -362,6 +410,10 @@ pybabel compile -d translations --statistics
 | Vision `"weights_present": false` | Place `apps/VisionWorker/weights/best.pt` |
 | Port `5002` in use | Do not mix host Vision + option B; free the port |
 | LAN capture WS fails | Re-run `pef_lan_endpoint.ps1`, recreate `web`, restart VisionWorker, add firewall rule for TCP `5002` |
+| Electron: missing `dist/main/main.js` | Run `npm run build` in `apps/PEF-Electron` before `npm start` (or use `npm run dev`) |
+| Electron rejects LAN `http://192.168…` | Rebuild after the private-LAN URL change; use Gateway `http://<HOST_LAN_IP>:8080` |
+| Electron grey / no live video | Set `VISION_MONITOR_SECRET` in `.env`, recreate `session` + restart VisionWorker, set advanced WS to `ws://<HOST_LAN_IP>:5002/ws` |
+| Electron starts as Node / odd crash | `Remove-Item Env:ELECTRON_RUN_AS_NODE` then `npm start` |
 
 Manual photo re-upload (if needed outside Compose): `.\scripts\seed_family_examples.ps1`.
 
@@ -428,6 +480,7 @@ Demo pipeline `matrix_v1` (Hungarian by default; `VISION_ASSIGN_SOLVER=greedy` f
 | 6 | i18n `en` + `es-MX` | Done |
 | 7 | Admin portal (`admin_local`) + CatalogService | Done |
 | 8 | Session/Evidence/Audit/… microservices + Android | Integrated |
+| 9 | PEF Monitor (Electron) — station semaphore + Vision observer | Integrated (`AppElectron`) |
 
 
 Data contracts: `data/DataStandards/`. Screen RFs: `data/FunctionalRequirements/`.

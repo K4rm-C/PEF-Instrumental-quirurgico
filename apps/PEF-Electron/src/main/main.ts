@@ -353,7 +353,11 @@ function nodeWsFactory(): WsFactory {
 
 app.whenReady().then(() => {
   log.info(`PEF Monitor ${app.getVersion()} starting${DEMO ? ' (demo)' : ''}${DEV ? ' (dev)' : ''}`);
-  if (ALLOW_INSECURE_LAN) log.warn('PEF_MONITOR_ALLOW_INSECURE_LAN=1: plain http/ws allowed on the LAN (lab only)');
+  if (ALLOW_INSECURE_LAN) {
+    log.warn('PEF_MONITOR_ALLOW_INSECURE_LAN=1: plain http/ws allowed on non-private hosts (lab only)');
+  } else {
+    log.info('plain http/ws allowed on loopback and private LAN IPs; public hosts require https/wss');
+  }
   Menu.setApplicationMenu(null);
   hardenSession((m) => log.warn(m));
   hardenWebContents((m) => log.warn(m));

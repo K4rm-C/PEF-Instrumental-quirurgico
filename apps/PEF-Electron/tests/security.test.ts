@@ -67,13 +67,18 @@ describe('IPC contract', () => {
 });
 
 describe('station configuration', () => {
-  it('requires https/wss outside this PC and rejects credentials or parameters in URLs', () => {
+  it('allows http/ws on loopback and private LAN IPs; requires https/wss elsewhere', () => {
     expect(validateUrl('http://127.0.0.1:8080/', 'http')).toBe('http://127.0.0.1:8080');
     expect(validateUrl('https://api.hospital.example', 'http')).toBe('https://api.hospital.example');
     expect(validateUrl('ws://localhost:5002/ws', 'ws')).toBe('ws://localhost:5002/ws');
-    expect(() => validateUrl('http://10.0.0.5:8080', 'http')).toThrow(ConfigError);
-    expect(() => validateUrl('ws://10.0.0.5/ws', 'ws')).toThrow(ConfigError);
-    expect(validateUrl('http://10.0.0.5:8080', 'http', true)).toBe('http://10.0.0.5:8080'); // explicit lab flag only
+    expect(validateUrl('http://10.0.0.5:8080', 'http')).toBe('http://10.0.0.5:8080');
+    expect(validateUrl('http://192.168.68.71:8080', 'http')).toBe('http://192.168.68.71:8080');
+    expect(validateUrl('ws://192.168.68.71:5002/ws', 'ws')).toBe('ws://192.168.68.71:5002/ws');
+    expect(validateUrl('http://172.16.1.9:8080', 'http')).toBe('http://172.16.1.9:8080');
+    expect(() => validateUrl('http://8.8.8.8:8080', 'http')).toThrow(ConfigError);
+    expect(() => validateUrl('http://api.example', 'http')).toThrow(ConfigError);
+    expect(() => validateUrl('ws://api.example/ws', 'ws')).toThrow(ConfigError);
+    expect(validateUrl('http://api.example', 'http', true)).toBe('http://api.example'); // PEF_MONITOR_ALLOW_INSECURE_LAN
     expect(() => validateUrl('https://user:pw@api.example', 'http')).toThrow(ConfigError);
     expect(() => validateUrl('https://api.example/?token=x', 'http')).toThrow(ConfigError);
     expect(() => validateUrl('file:///C:/x', 'http')).toThrow(ConfigError);
