@@ -52,6 +52,9 @@ class Settings:
     # lives in the portal (BackendWebFlask, rf_session.py); these endpoints would be a second, older
     # implementation of it, so they answer 410 unless explicitly enabled (compatibility / tests only).
     operator_writes_enabled: bool = False
+    vision_monitor_secret: str = ""
+    vision_monitor_ticket_ttl: int = 60
+    vision_monitor_ws_url: str = ""
 
     def __post_init__(self) -> None:
         if not self.jwt_secret_key:
@@ -77,4 +80,7 @@ class Settings:
             max_content_length=_int_from_env("SESSION_MAX_CONTENT_LENGTH", 64 * 1024),
             dependency_timeout_seconds=_float_from_env("SESSION_DEPENDENCY_TIMEOUT_SECONDS", 3.0),
             operator_writes_enabled=os.getenv("SESSION_OPERATOR_WRITES_ENABLED", "false").strip().lower() == "true",
+            vision_monitor_secret=os.getenv("VISION_MONITOR_SECRET", "").strip(),
+            vision_monitor_ticket_ttl=_int_from_env("VISION_MONITOR_TICKET_TTL", 60),
+            vision_monitor_ws_url=os.getenv("SESSION_MONITOR_WS_URL", "").strip(),
         )

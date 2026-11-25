@@ -1116,7 +1116,7 @@ def operator_session_capture_upload(session_id):
         return jsonify({'ok': False, 'error': gettext('Choose a video file (.mp4, .mkv, …).')}), 400
     try:
         bind_session(UUID(session_id))
-        result = upload_video(UUID(session_id), video)
+        result = upload_video(UUID(session_id), video, capture_phase=detail.get('phase_code'))
     except VisionBridgeError as exc:
         return jsonify({'ok': False, 'error': _error_message(exc)}), exc.status_code
     return jsonify(result), 202

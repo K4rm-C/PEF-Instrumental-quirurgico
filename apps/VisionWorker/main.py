@@ -7,7 +7,7 @@ import threading
 import uuid
 from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_sock import Sock
 
 from config import (
@@ -51,6 +51,8 @@ from inference import (
     read_timeline_samples,
 )
 from live_ws import register_live_ws
+from live_monitor import MONITOR_SECRET
+from monitor_ticket import monitor_ticket_expiry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -171,6 +173,8 @@ def unbind_session(session_id: str):
         state = _sessions.pop(session_id, None)
         if state:
             state.cancel = True
+            if state.recording_name and Path(state.recording_name).name == state.recording_name:
+                (UPLOAD_DIR / state.recording_name).unlink(missing_ok=True)
     logger.info("unbind session=%s found=%s", session_id, bool(state))
     return jsonify({"ok": True, "unbound": bool(state)})
 
@@ -204,6 +208,29 @@ def session_timeline(session_id: str):
     })
 
 
+@app.get("/sessions/<session_id>/recordings/<run_id>")
+def processed_recording(session_id: str, run_id: str):
+    """Replay the inferred video only with a valid, session-scoped monitor ticket."""
+    scheme, _, ticket = request.headers.get("Authorization", "").partition(" ")
+    if scheme.lower() != "bearer" or monitor_ticket_expiry(
+        ticket.strip(), session_id=session_id, secret=MONITOR_SECRET
+    ) is None:
+        return jsonify({"ok": False, "error": "unauthorized"}), 401
+    if len(run_id) != 12 or any(c not in "0123456789abcdef" for c in run_id):
+        return jsonify({"ok": False, "error": "invalid_run_id"}), 400
+    state = _get_state(session_id)
+    expected = f"{session_id}_{run_id}_detected.mp4"
+    if state is None or state.recording_name != expected:
+        return jsonify({"ok": False, "error": "recording_unavailable"}), 404
+    path = UPLOAD_DIR / expected
+    if not path.is_file():
+        return jsonify({"ok": False, "error": "recording_unavailable"}), 404
+    response = send_file(path, mimetype="video/mp4", conditional=True)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @app.post("/sessions/<session_id>/process-video")
 def process_video(session_id: str):
     state = _get_state(session_id)
@@ -213,6 +240,10 @@ def process_video(session_id: str):
         return jsonify({"ok": False, "error": "Already processing a video for this session."}), 409
     if state.status == "processing" and state.capture_source == "live":
         cancel_capture(state)
+
+    if state.recording_name and Path(state.recording_name).name == state.recording_name:
+        (UPLOAD_DIR / state.recording_name).unlink(missing_ok=True)
+        state.recording_name = None
 
     upload = request.files.get("video")
     if upload is None or not upload.filename:
@@ -225,6 +256,9 @@ def process_video(session_id: str):
             "error": f"Unsupported format {suffix}. Use mp4, mkv, avi, mov, webm or m4v.",
         }), 400
 
+    phase = str(request.form.get("capture_phase") or "").strip()
+    state.capture_phase = phase if phase in {"start", "final_count"} or phase.startswith("demo_phase_") else None
+
     job_id = uuid.uuid4().hex
     dest = UPLOAD_DIR / f"{session_id}_{job_id}{suffix}"
     upload.save(dest)
@@ -233,6 +267,11 @@ def process_video(session_id: str):
     def _run():
         try:
             process_video_file(str(dest), state)
+            with _lock:
+                still_bound = _sessions.get(session_id) is state
+            if not still_bound and state.recording_name:
+                (UPLOAD_DIR / state.recording_name).unlink(missing_ok=True)
+                return
             logger.info("process-video done session=%s job=%s status=%s", session_id, job_id, state.status)
         except Exception:
             logger.exception("process-video failed session=%s job=%s", session_id, job_id)

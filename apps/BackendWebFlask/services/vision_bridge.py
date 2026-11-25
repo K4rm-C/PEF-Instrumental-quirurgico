@@ -177,7 +177,7 @@ def cancel_job(session_id: UUID) -> dict[str, Any]:
     return resp.json() if resp.content else {"ok": True}
 
 
-def upload_video(session_id: UUID, file_storage) -> dict[str, Any]:
+def upload_video(session_id: UUID, file_storage, capture_phase: str | None = None) -> dict[str, Any]:
     try:
         files = {
             "video": (
@@ -189,6 +189,7 @@ def upload_video(session_id: UUID, file_storage) -> dict[str, Any]:
         resp = requests.post(
             f"{VISION_WORKER_URL}/sessions/{session_id}/process-video",
             files=files,
+            data={"capture_phase": capture_phase or ""},
             timeout=max(VISION_WORKER_TIMEOUT, 120),
         )
     except requests.RequestException as exc:

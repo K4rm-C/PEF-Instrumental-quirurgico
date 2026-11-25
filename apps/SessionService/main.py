@@ -32,6 +32,7 @@ from services.session_review import SessionReviewService
 from services.session_writes import SessionWriteService
 from services.session_planning import SessionPlanningService
 from services.session_snapshot import SessionSnapshotService
+from services.station_monitor import StationMonitorService
 
 CORRELATION_HEADER = "X-Correlation-ID"
 # Client-supplied ids are echoed in headers and logs, so only a safe charset is accepted.
@@ -118,6 +119,12 @@ def create_app(
         "review": SessionReviewService(database),
         "operator_close": SessionOperatorCloseService(database),
         "reports": SessionReportService(database),
+        "station_monitor": StationMonitorService(
+            database,
+            monitor_secret=settings.vision_monitor_secret,
+            ticket_ttl_s=settings.vision_monitor_ticket_ttl,
+            ws_url=settings.vision_monitor_ws_url,
+        ),
     }
 
     _register_correlation(app)

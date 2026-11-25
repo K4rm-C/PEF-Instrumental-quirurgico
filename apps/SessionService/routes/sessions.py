@@ -206,6 +206,31 @@ def report_options():
     return render(_reports().options(current_principal(), request.args), root="report_options")
 
 
+# Desktop monitor: the station operator can only observe sessions assigned to them.
+def _station_monitor():
+    return current_app.extensions["session_service"]["station_monitor"]
+
+
+@sessions_bp.get("/stations/<station_id>/monitor")
+@require_auth(OPERATOR_ROLE_CODE)
+def station_monitor_overview(station_id: str):
+    return render(_station_monitor().station_overview(current_principal(), station_id), root="station_monitor")
+
+
+@sessions_bp.get("/stations/<station_id>/monitor/<session_id>")
+@require_auth(OPERATOR_ROLE_CODE)
+def station_monitor_session(station_id: str, session_id: str):
+    return render(_station_monitor().session_monitor(current_principal(), station_id, session_id),
+                  root="station_monitor_session")
+
+
+@sessions_bp.post("/stations/<station_id>/monitor/<session_id>/live-ticket")
+@require_auth(OPERATOR_ROLE_CODE)
+def station_monitor_live_ticket(station_id: str, session_id: str):
+    return render(_station_monitor().live_ticket(current_principal(), station_id, session_id),
+                  root="monitor_ticket")
+
+
 @sessions_bp.get("/<session_id>")
 @require_auth(*SESSION_ROLE_CODES)
 def get_session(session_id: str):

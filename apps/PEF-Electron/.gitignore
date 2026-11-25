@@ -1,0 +1,11 @@
+node_modules/
+dist/
+release/
+build/
+*.log
+.env
+.env.*
+*.pfx
+*.p12
+e2e/screenshots/
+__pycache__/
